@@ -2,3 +2,5 @@
 kscript
 *.so
 *.o
+
+.vscode/
