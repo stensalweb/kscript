@@ -79,6 +79,9 @@ enum {
     // a constant string literal
     KS_AST_CONST_STR,
 
+    // assigns a value to an AST
+    KS_AST_ASSIGN,
+
     // a variable reference
     KS_AST_VAR,
 
@@ -119,6 +122,23 @@ struct ks_ast {
             ks_ast* args;
 
         } _call;
+
+        // if type==KS_AST_ASSIGN, this contains the relevant details
+        struct {
+            // example: A = B
+            // lhs = A
+            // rhs = B
+
+            // the thing being assigned to.
+            // NOTE: This has some restrictions, it must be a valid assignable expression
+            //   such as a KS_AST_VAR
+            ks_ast lhs;
+
+            // any value-holding type of AST
+            ks_ast rhs;
+
+        } _assign;
+
     };
 };
 
@@ -128,6 +148,7 @@ ks_ast ks_ast_new_float(ks_float val);
 ks_ast ks_ast_new_str(ks_str val);
 ks_ast ks_ast_new_var(ks_str name);
 ks_ast ks_ast_new_call(ks_ast lhs, int args_n, ks_ast* args);
+ks_ast ks_ast_new_assign(ks_ast lhs, ks_ast rhs);
 
 // frees resources
 void ks_ast_free(ks_ast ast);

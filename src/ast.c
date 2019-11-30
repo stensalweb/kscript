@@ -56,7 +56,15 @@ ks_ast ks_ast_new_call(ks_ast lhs, int args_n, ks_ast* args) {
     return ret;
 }
 
-// frees resources
+ks_ast ks_ast_new_assign(ks_ast lhs, ks_ast rhs) {
+    ks_ast ret = (ks_ast)malloc(sizeof(struct ks_ast));
+    ret->type = KS_AST_ASSIGN;
+    ret->_assign.lhs = lhs;
+    ret->_assign.rhs = rhs;
+    return ret;
+}
+
+// frees resources (recursively)
 void ks_ast_free(ks_ast ast) {
 
     if (ast != NULL) {
@@ -64,8 +72,21 @@ void ks_ast_free(ks_ast ast) {
             ks_str_free(&ast->_str);
         } else if (ast->type == KS_AST_VAR) {
             ks_str_free(&ast->_var);
-        }else if (ast->type == KS_AST_CALL) {
+        } else if (ast->type == KS_AST_CALL) {
+
+            // free callee
+            ks_ast_free(ast->_call.lhs);
+
+            int i;
+            // free all arguments
+            for (i = 0; i < ast->_call.args_n; ++i) {
+                ks_ast_free(ast->_call.args[i]);
+            }
+            // free the memory itself
             free(ast->_call.args);
+        } else if (ast->type == KS_AST_ASSIGN) {
+            ks_ast_free(ast->_assign.lhs);
+            ks_ast_free(ast->_assign.rhs);
         }
 
         free(ast);
