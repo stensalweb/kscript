@@ -7,6 +7,12 @@
 
 #include "kscript.h"
 
+ks_obj ks_obj_new_none() {
+    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
+    ret->type = KS_TYPE_NONE;
+    return ret;
+}
+
 ks_obj ks_obj_new_int(ks_int val) {
     ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
     ret->type = KS_TYPE_INT;
@@ -28,6 +34,13 @@ ks_obj ks_obj_new_str(ks_str val) {
     ret->type = KS_TYPE_STR;
     ret->_str = KS_STR_EMPTY;
     ks_str_copy(&ret->_str, val);
+    return ret;
+}
+
+ks_obj ks_obj_new_cfunc(ksf_cfunc val) {
+    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
+    ret->type = KS_TYPE_CFUNC;
+    ret->_cfunc = val;
     return ret;
 }
 

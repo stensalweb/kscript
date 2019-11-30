@@ -68,6 +68,43 @@ int ks_str_cmp(ks_str A, ks_str B);
 typedef struct ks_obj* ks_obj;
 
 
+// kscript dictionary, translates ks_str->ks_obj's 
+typedef struct {
+
+    // number of entries
+    int len;
+
+    // the maximum number of entries
+    int max_len;
+
+    // a list of keys
+    ks_str* keys;
+
+    // list of their values
+    ks_obj* vals;
+
+} ks_dict;
+
+// the empty, starting dictionary
+#define KS_DICT_EMPTY ((ks_dict){ .len = 0, .max_len = 0, .keys = NULL, .vals = NULL })
+
+// returns the index of the key into the dictionary, or -1 if the key doesn't exist within it
+int ks_dict_geti(ks_dict* dict, ks_str key);
+// sets dictionary at a given index, or if `idx` is -1, adds the value to the dictionary
+// returns the index of the object added (same as `idx`, unless `idx` was -1)
+int ks_dict_seti(ks_dict* dict, int idx, ks_obj val);
+// sets the dictionary's value for a given key, and returns the index at which it is located now
+int ks_dict_set(ks_dict* dict, ks_str key, ks_obj val);
+// free's the dictionary and its resources
+void ks_dict_free(ks_dict* dict);
+
+
+
+
+// a C-function signature
+typedef ks_obj (*ksf_cfunc)(int args_n, ks_obj* args);
+
+
 // types of objects
 enum {
     // the none-type, null-type, etc
@@ -81,6 +118,9 @@ enum {
 
     // builtin string type
     KS_TYPE_STR,
+
+    // builtin C-function type (of signature ksf_cfunc)
+    KS_TYPE_CFUNC,
 
 
     // this isn't a type, but is just the starting point for custom types. So you can test
@@ -110,6 +150,9 @@ struct ks_obj {
         // if type==KS_TYPE_STR, the value
         ks_str _str;
 
+        // if type==KS_TYPE_CFUNC, the function
+        ksf_cfunc _cfunc;
+
         // misc. usage
         void* _ptr;
 
@@ -117,15 +160,25 @@ struct ks_obj {
 };
 
 
+// returns a new none object
+ks_obj ks_obj_new_none();
 // returns a new integer with specified value
 ks_obj ks_obj_new_int(ks_int val);
 // returns a new float with specified value
 ks_obj ks_obj_new_float(ks_float val);
 // returns a new string with specified value
 ks_obj ks_obj_new_str(ks_str val);
+// returns a new cfunc with specified value
+ks_obj ks_obj_new_cfunc(ksf_cfunc val);
 // frees an object and its resources
 void ks_obj_free(ks_obj obj);
 
+
+/* module definition */
+
+typedef struct {
+
+} ks_module;
 
 
 
