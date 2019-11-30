@@ -12,10 +12,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
+// the main integer type in `kscript` (signed, 64 bit)
+typedef int64_t ks_int;
 
-
-
+// main floating point type in `kscript`. I like `double` because it has more accuracy
+//   by default
+typedef double ks_float;
 
 // string type for `kscript`. It's based off code I wrote for EZC, almost exactly
 typedef struct {
@@ -60,11 +64,67 @@ int ks_str_cmp(ks_str A, ks_str B);
 
 
 
+// make the name `ks_obj` be a pointer to an internal structure
+typedef struct ks_obj* ks_obj;
 
 
+// types of objects
+enum {
+    // the none-type, null-type, etc
+    KS_TYPE_NONE = 0,
+
+    // builtin integer type
+    KS_TYPE_INT,
+
+    // builtin floating point type
+    KS_TYPE_FLOAT,
+
+    // builtin string type
+    KS_TYPE_STR,
 
 
+    // this isn't a type, but is just the starting point for custom types. So you can test
+    //   if `obj->type >= KS_TYPE_CUSTOM` to determine whether or not it is a built-in type
+    KS_TYPE_CUSTOM
+    
+};
 
+// the internal storage of an object. However, most code should just use
+//   `ks_obj` (no struct), as it will be a pointer.
+struct ks_obj {
+
+    // one of the `KS_TYPE_*` enum values
+    uint16_t type;
+
+    // These will be used in the future; they will hold various info
+    //   about the object, for GC, reference counting etc, but for now, will be 0
+    uint16_t flags;
+
+    // an anonymous tagged union
+    union {
+
+        // if type==KS_TYPE_INT, the value
+        ks_int _int;
+        // if type==KS_TYPE_FLOAT, the value
+        ks_float _float;
+        // if type==KS_TYPE_STR, the value
+        ks_str _str;
+
+        // misc. usage
+        void* _ptr;
+
+    };
+};
+
+
+// returns a new integer with specified value
+ks_obj ks_obj_new_int(ks_int val);
+// returns a new float with specified value
+ks_obj ks_obj_new_float(ks_float val);
+// returns a new string with specified value
+ks_obj ks_obj_new_str(ks_str val);
+// frees an object and its resources
+void ks_obj_free(ks_obj obj);
 
 
 
