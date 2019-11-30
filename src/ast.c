@@ -28,6 +28,13 @@ ks_ast ks_ast_new_str(ks_str val) {
     return ret;
 }
 
+ks_ast ks_ast_new_const(ks_obj val) {
+    ks_ast ret = (ks_ast)malloc(sizeof(struct ks_ast));
+    ret->type = KS_AST_CONST;
+    ret->_const = val;
+    return ret;
+}
+
 ks_ast ks_ast_new_var(ks_str name) {
     ks_ast ret = (ks_ast)malloc(sizeof(struct ks_ast));
     ret->type = KS_AST_VAR;

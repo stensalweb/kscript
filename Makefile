@@ -65,5 +65,5 @@ $(libkscript_so): $(libkscript_o)
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
 $(kscript_exe): $(kscript_o) $(libkscript_so)
-	$(CC) $(CFLAGS) -L./ $(kscript_o) -lkscript -o $@
+	$(CC) $(CFLAGS) -L./ $(kscript_o) -lkscript -lm -o $@
 

@@ -88,27 +88,104 @@ ks_obj ks_std_print(int args_n, ks_obj* args) {
     return ks_obj_new_none();
 }
 
+// add(A, B) == A+B
+ks_obj ks_std_add(int args_n, ks_obj* args) {
+    if (args_n != 2) {
+        ks_error("add takes %d args, was given %d", 2, args_n);
+        return ks_obj_new_none();
+    }
+
+    // for now, just implement integers, and assume all arguments are integers
+    return ks_obj_new_int(args[0]->_int + args[1]->_int);
+}
+
+// mul(A, B) == A*B
+ks_obj ks_std_mul(int args_n, ks_obj* args) {
+    if (args_n != 2) {
+        ks_error("add takes %d args, was given %d", 2, args_n);
+        return ks_obj_new_none();
+    }
+
+    // for now, just implement integers, and assume all arguments are integers
+    return ks_obj_new_int(args[0]->_int * args[1]->_int);
+}
+// pow(A, B) == A**B
+ks_obj ks_std_pow(int args_n, ks_obj* args) {
+    if (args_n != 2) {
+        ks_error("add takes %d args, was given %d", 2, args_n);
+        return ks_obj_new_none();
+    }
+
+    // for now, just implement integers, and assume all arguments are integers
+    return ks_obj_new_int((ks_int)(pow(args[0]->_int, args[1]->_int)));
+}
+
+
+ks_obj ks_eval(ks_ast ast) {
+    if (ast->type == KS_AST_CONST_INT) {
+        return ks_obj_new_int(ast->_int);
+    } else if (ast->type == KS_AST_CALL) {
+        // evaluate arguments
+        ks_obj* args = malloc(sizeof(ks_obj) * ast->_call.args_n);
+
+        // compute all arguments first, then call the function
+        int i;
+        for (i = 0; i < ast->_call.args_n; ++i) {
+            args[i] = ks_eval(ast->_call.args[i]);
+        }
+
+        // evaluate the function
+        ks_obj func = ks_eval(ast->_call.lhs);
+
+        // call the function
+        ks_obj res = func->_cfunc(ast->_call.args_n, args);
+
+        free(args);
+        return res;
+    } else if (ast->type == KS_AST_CONST) {
+        return ast->_const;
+    } else {
+        ks_error("Unknown type!");
+    }
+}
 
 int main(int argc, char** argv) {
 
-    ks_obj sconst = ks_obj_new_str(KS_STR_CONST("ANSWER OF ALL IS"));
-    ks_obj num = ks_obj_new_int(42);
-    ks_obj dict = ks_obj_new_custom();
+    // numbers
+    ks_ast n2 = ks_ast_new_int(2);
+    ks_ast n3 = ks_ast_new_int(3);
+    ks_ast n5 = ks_ast_new_int(5);
 
-    ks_dict_set(&dict->_dict, KS_STR_CONST("key1"), num);
-    ks_dict_set(&dict->_dict, KS_STR_CONST("key2"), sconst);
+    // our other variables (but here, represented as ASTs, not objects)
+    ks_ast b = ks_ast_new_int(2);
+    ks_ast c = ks_ast_new_int(3);
 
-    ks_obj print = ks_obj_new_cfunc(ks_std_print);
-    
-    //print->_cfunc(2, (ks_obj[]){ sconst, num });
-    print->_cfunc(1, (ks_obj[]){ dict });
+    // the functions we use (we wrap them as an AST, but as a constant, so they just
+    //   evaluate to the function object when `eval` is called on the AST)
+    ks_ast func_add = ks_ast_new_const(ks_obj_new_cfunc(ks_std_add));
+    ks_ast func_mul = ks_ast_new_const(ks_obj_new_cfunc(ks_std_mul));
+    ks_ast func_pow = ks_ast_new_const(ks_obj_new_cfunc(ks_std_pow));
+    ks_ast func_print = ks_ast_new_const(ks_obj_new_cfunc(ks_std_print));
 
-    //ks_std_print(2, (ks_obj[]){ sconst, num });
+    // construct expression manually... we'll get to parsing in a bit
+    ks_ast expr = ks_ast_new_call(func_print, 1, (ks_ast[]){
+        ks_ast_new_call(func_add, 2, (ks_ast[]){ 
+            ks_ast_new_call(func_mul, 2, (ks_ast[]){
+                n3,
+                ks_ast_new_call(func_pow, 2, (ks_ast[]){
+                    b,
+                    n5
+                })
+            }),
+            c
+        }
+    )});
 
-    // always free when you're done!
-    ks_obj_free(sconst);
-    ks_obj_free(num);
-    ks_obj_free(dict);
+    // evaluate it
+    ks_eval(expr);
+
+    // since this expression contains all others, the `free` works on all at once
+    ks_ast_free(expr);
 
     return 0;
 }

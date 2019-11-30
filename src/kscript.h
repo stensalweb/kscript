@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 
 // the main integer type in `kscript` (signed, 64 bit)
 typedef int64_t ks_int;
@@ -66,6 +67,9 @@ int ks_str_cmp(ks_str A, ks_str B);
 // we do the same as with `ks_obj`, having a pointer as the main type
 typedef struct ks_ast* ks_ast;
 
+// make the name `ks_obj` be a pointer to an internal structure
+typedef struct ks_obj* ks_obj;
+
 enum {
     // none-type, shouldn't exist
     KS_AST_NONE = 0,
@@ -78,6 +82,9 @@ enum {
 
     // a constant string literal
     KS_AST_CONST_STR,
+
+    // a constant of a generic type; just holds an object
+    KS_AST_CONST,
 
     // assigns a value to an AST
     KS_AST_ASSIGN,
@@ -103,8 +110,12 @@ struct ks_ast {
         ks_float _float;
         // if type==KS_AST_CONST_STR, this is that value
         ks_str _str;
+        // if type==KS_AST_CONST, this is that value
+        ks_obj _const;
         // if type==KS_AST_VAR, this is the name the code references
         ks_str _var;
+
+
 
         // if type==KS_AST_CALL, this contains the relevant details
         struct {
@@ -146,17 +157,13 @@ struct ks_ast {
 ks_ast ks_ast_new_int(ks_int val);
 ks_ast ks_ast_new_float(ks_float val);
 ks_ast ks_ast_new_str(ks_str val);
+ks_ast ks_ast_new_const(ks_obj val);
 ks_ast ks_ast_new_var(ks_str name);
 ks_ast ks_ast_new_call(ks_ast lhs, int args_n, ks_ast* args);
 ks_ast ks_ast_new_assign(ks_ast lhs, ks_ast rhs);
 
 // frees resources
 void ks_ast_free(ks_ast ast);
-
-
-// make the name `ks_obj` be a pointer to an internal structure
-typedef struct ks_obj* ks_obj;
-
 
 // kscript dictionary, translates ks_str->ks_obj's 
 typedef struct {
