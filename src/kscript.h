@@ -63,6 +63,75 @@ int ks_str_cmp(ks_str A, ks_str B);
 #define ks_str_eq(_A, _B) (ks_str_cmp((_A), (_B)) == 0)
 
 
+// we do the same as with `ks_obj`, having a pointer as the main type
+typedef struct ks_ast* ks_ast;
+
+enum {
+    // none-type, shouldn't exist
+    KS_AST_NONE = 0,
+
+    // a constant int literal
+    KS_AST_CONST_INT,
+
+    // a constant float literal
+    KS_AST_CONST_FLOAT,
+
+    // a constant string literal
+    KS_AST_CONST_STR,
+
+    // a variable reference
+    KS_AST_VAR,
+
+    // a 'call', i.e. some sort of method like A(B, C)
+    KS_AST_CALL
+
+};
+
+// internal structure, use `ks_ast` as a pointer to it
+struct ks_ast {
+
+    uint16_t type;
+
+    // anonymous tagged union
+    union {
+        // if type==KS_AST_CONST_INT, this is that value
+        ks_int _int;
+        // if type==KS_AST_CONST_FLOAT, this is that value
+        ks_float _float;
+        // if type==KS_AST_CONST_STR, this is that value
+        ks_str _str;
+        // if type==KS_AST_VAR, this is the name the code references
+        ks_str _var;
+
+        // if type==KS_AST_CALL, this contains the relevant details
+        struct {
+            // example: A(B, C)
+            // lhs = A
+            // args = B, C (len=2)
+            
+            // the object being called
+            ks_ast lhs;
+
+            // number of arguments
+            int args_n;
+
+            // an array of arguments
+            ks_ast* args;
+
+        } _call;
+    };
+};
+
+// constructs new ast's
+ks_ast ks_ast_new_int(ks_int val);
+ks_ast ks_ast_new_float(ks_float val);
+ks_ast ks_ast_new_str(ks_str val);
+ks_ast ks_ast_new_var(ks_str name);
+ks_ast ks_ast_new_call(ks_ast lhs, int args_n, ks_ast* args);
+
+// frees resources
+void ks_ast_free(ks_ast ast);
+
 
 // make the name `ks_obj` be a pointer to an internal structure
 typedef struct ks_obj* ks_obj;
