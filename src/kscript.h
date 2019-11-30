@@ -11,6 +11,53 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+
+
+
+
+// string type for `kscript`. It's based off code I wrote for EZC, almost exactly
+typedef struct {
+
+    // this is the internal C-style null-terminated string (which may be `NULL`)
+    char* _;
+
+    // this is the length of the string (not including NULL-terminator)
+    int len;
+
+    // this is the maximum length the string has been, so we don't resize until necessary
+    int max_len;
+
+} ks_str;
+
+// this represents the `NULL` string, which is also valid as a starting string
+#define KS_STR_EMPTY ((ks_str){ ._ = NULL, .len = 0, .max_len = 0 })
+
+// represents a view of a C-string. i.e. nothing is copied, and any modifications made
+//   stay in the original string
+#define KS_STR_VIEW(_charp, _len) ((ks_str){ ._ = (char*)(_charp), .len = (int)(_len), .max_len = (int)(_len) })
+
+// useful for string constants, like `KS_STR_CONST("Hello World")`
+#define KS_STR_CONST(_charp) KS_STR_VIEW(_charp, strlen(_charp))
+
+// copies `len` bytes from charp, and then NULL-terminate
+void ks_str_copy_cp(ks_str* str, char* charp, int len);
+// copies a string to another string
+void ks_str_copy(ks_str* str, ks_str from);
+// concatenates two strings into another one
+void ks_str_concat(ks_str* str, ks_str A, ks_str B);
+// appends an entire string
+void ks_str_append(ks_str* str, ks_str A);
+// appends a character to the string
+void ks_str_append_c(ks_str* str, char c);
+// frees a string and its resources
+void ks_str_free(ks_str* str);
+// compares two strings, should be equivalent to `strcmp(A._, B._)`
+int ks_str_cmp(ks_str A, ks_str B);
+// whether or not the two strings are equal
+#define ks_str_eq(_A, _B) (ks_str_cmp((_A), (_B)) == 0)
+
 
 
 
