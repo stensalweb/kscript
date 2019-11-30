@@ -18,7 +18,7 @@ int ks_dict_geti(ks_dict* dict, ks_str key) {
 }
 
 
-int ks_dict_seti(ks_dict* dict, int idx, ks_obj val) {
+int ks_dict_seti(ks_dict* dict, ks_str key, int idx, ks_obj val) {
     if (idx < 0) {
         // add it to the list
         idx = dict->len++;
@@ -27,6 +27,9 @@ int ks_dict_seti(ks_dict* dict, int idx, ks_obj val) {
             dict->keys = realloc(dict->keys, sizeof(ks_str) * dict->max_len);
             dict->vals = realloc(dict->vals, sizeof(ks_obj) * dict->max_len);
         }
+        // copy the key
+        dict->keys[idx] = KS_STR_EMPTY;
+        ks_str_copy(&dict->keys[idx], key);
     }
     // just modify it
     dict->vals[idx] = val;
@@ -34,7 +37,7 @@ int ks_dict_seti(ks_dict* dict, int idx, ks_obj val) {
 }
 
 int ks_dict_set(ks_dict* dict, ks_str key, ks_obj val) {
-    return ks_dict_seti(dict, ks_dict_geti(dict, key), val);
+    return ks_dict_seti(dict, key, ks_dict_geti(dict, key), val);
 }
 
 void ks_dict_free(ks_dict* dict) {

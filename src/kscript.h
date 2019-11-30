@@ -92,7 +92,7 @@ typedef struct {
 int ks_dict_geti(ks_dict* dict, ks_str key);
 // sets dictionary at a given index, or if `idx` is -1, adds the value to the dictionary
 // returns the index of the object added (same as `idx`, unless `idx` was -1)
-int ks_dict_seti(ks_dict* dict, int idx, ks_obj val);
+int ks_dict_seti(ks_dict* dict, ks_str key, int idx, ks_obj val);
 // sets the dictionary's value for a given key, and returns the index at which it is located now
 int ks_dict_set(ks_dict* dict, ks_str key, ks_obj val);
 // free's the dictionary and its resources
@@ -121,7 +121,6 @@ enum {
 
     // builtin C-function type (of signature ksf_cfunc)
     KS_TYPE_CFUNC,
-
 
     // this isn't a type, but is just the starting point for custom types. So you can test
     //   if `obj->type >= KS_TYPE_CUSTOM` to determine whether or not it is a built-in type
@@ -153,6 +152,9 @@ struct ks_obj {
         // if type==KS_TYPE_CFUNC, the function
         ksf_cfunc _cfunc;
 
+        // if type>=KS_TYPE_CUSTOM, it just has a dictionary of values that it keeps updated
+        ks_dict _dict;
+
         // misc. usage
         void* _ptr;
 
@@ -170,6 +172,8 @@ ks_obj ks_obj_new_float(ks_float val);
 ks_obj ks_obj_new_str(ks_str val);
 // returns a new cfunc with specified value
 ks_obj ks_obj_new_cfunc(ksf_cfunc val);
+// returns a new custom-type object with a fresh dictionary
+ks_obj ks_obj_new_custom();
 // frees an object and its resources
 void ks_obj_free(ks_obj obj);
 
@@ -186,11 +190,11 @@ typedef struct {
 
 // levels of logging
 enum {
-    KS_LOGLVL_ERROR = 0,
-    KS_LOGLVL_WARN,
-    KS_LOGLVL_INFO,
+    KS_LOGLVL_TRACE = 0,
     KS_LOGLVL_DEBUG,
-    KS_LOGLVL_TRACE
+    KS_LOGLVL_INFO,
+    KS_LOGLVL_WARN,
+    KS_LOGLVL_ERROR
 };
 
 // returns current log level

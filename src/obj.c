@@ -44,6 +44,13 @@ ks_obj ks_obj_new_cfunc(ksf_cfunc val) {
     return ret;
 }
 
+ks_obj ks_obj_new_custom() {
+    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
+    ret->type = KS_TYPE_CUSTOM;
+    ret->_dict = KS_DICT_EMPTY;
+    return ret;
+}
+
 void ks_obj_free(ks_obj obj) {
 
     // do nothing if given NULL
