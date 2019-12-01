@@ -20,6 +20,12 @@ void ks_str_copy(ks_str* str, ks_str from) {
     ks_str_copy_cp(str, from._, from.len);
 }
 
+ks_str ks_str_dup(ks_str from) {
+    ks_str new_str = KS_STR_EMPTY;
+    ks_str_copy(&new_str, from);
+    return new_str;
+}
+
 void ks_str_append(ks_str* str, ks_str A) {
     int start_len = str->len;
     int new_len = str->len + A.len;
@@ -66,4 +72,59 @@ void ks_str_free(ks_str* str) {
     // reset it
     *str = KS_STR_EMPTY;
 }
+
+
+// implementation of some printfs
+static int _ks_vasprintf(char **strp, const char *fmt, va_list ap) {
+    va_list ap1;
+    size_t size;
+    char *buffer;
+
+    va_copy(ap1, ap);
+    size = vsnprintf(NULL, 0, fmt, ap1) + 1;
+    va_end(ap1);
+    buffer = calloc(1, size);
+
+    if (!buffer)
+        return -1;
+
+    *strp = buffer;
+
+    return vsnprintf(buffer, size, fmt, ap);
+}
+
+
+ks_str ks_str_vfmt(const char* fmt, va_list ap) {
+
+    ks_str ret = KS_STR_EMPTY;
+
+    // the formatted string
+    char* rstr = NULL;
+    _ks_vasprintf(&rstr, fmt, ap);
+
+    ks_str_copy_cp(&ret, rstr, strlen(rstr));
+
+    free(rstr);
+
+    return ret;
+}
+
+ks_str ks_str_fmt(const char* fmt, ...) {
+
+    ks_str ret = KS_STR_EMPTY;
+
+    // the formatted string
+    char* rstr = NULL;
+    va_list ap;
+    va_start(ap, fmt);
+    _ks_vasprintf(&rstr, fmt, ap);
+    va_end(ap);
+
+    ks_str_copy_cp(&ret, rstr, strlen(rstr));
+
+    free(rstr);
+
+    return ret;
+}
+
 

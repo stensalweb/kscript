@@ -17,6 +17,17 @@ int ks_dict_geti(ks_dict* dict, ks_str key) {
     return -1;
 }
 
+ks_obj ks_dict_get(ks_dict* dict, ks_str key) {
+    int i;
+    for (i = 0; i < dict->len; ++i) {
+        if (ks_str_eq(key, dict->keys[i])) {
+            return dict->vals[i];
+        }
+    }
+    // not found
+    return NULL;
+}
+
 
 int ks_dict_seti(ks_dict* dict, ks_str key, int idx, ks_obj val) {
     if (idx < 0) {
@@ -47,5 +58,23 @@ void ks_dict_free(ks_dict* dict) {
 }
 
 
+ks_dict ks_dict_fromkvp(int len, struct ks_dict_kvp* kvp) {
+    ks_dict ret = KS_DICT_EMPTY;
+    int i;
+    for (i = 0; i < len; ++i) {
+        ks_dict_set(&ret, kvp[i].key, kvp[i].val);
+    }
+
+    return ret;
+}
 
 
+ks_dict ks_dict_fromkvp_cp(int len, struct ks_dict_kvp_cp* kvp_cp) {
+    ks_dict ret = KS_DICT_EMPTY;
+    int i;
+    for (i = 0; i < len; ++i) {
+        ks_dict_set(&ret, KS_STR_VIEW(kvp_cp[i].key, strlen(kvp_cp[i].key)), kvp_cp[i].val);
+    }
+
+    return ret;
+}
