@@ -90,7 +90,12 @@ ks_obj ks_obj_new_type_dict(ks_dict dict) {
     ret->_type = dict;
     return ret;
 }
-
+ks_obj ks_obj_new_module() {
+    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
+    ret->type = KS_TYPE_MODULE;
+    ret->_module = KS_DICT_EMPTY;
+    return ret;
+}
 ks_obj ks_obj_new_custom() {
     ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
     ret->type = KS_TYPE_CUSTOM;

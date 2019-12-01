@@ -92,17 +92,31 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
             found = ks_ctx_resolve(ctx, cur._load);
 
             if (found == NULL) {
-                ks_error("Unknown local: %s", cur._load._);
-                return;
+                ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Unknown variable: %s", cur._load._));
+                goto do_exception;
             }
+
             ks_stk_push(&ctx->stk, found);
             continue;
         } else if (cur.type == KS_BC_STORE) {
             found = ks_stk_pop(&ctx->stk);
             ks_dict_set(&ctx->call_stk_scopes[ctx->call_stk_n - 1]->locals, cur._store, found);
             continue;
-        } else if (cur.type == KS_BC_RET || cur.type == KS_BC_RET_NONE) {
 
+        } else if (cur.type == KS_BC_ATTR) {
+            found = ks_stk_pop(&ctx->stk);
+            ks_obj attr = ks_dict_get(&found->_dict, cur._attr);
+
+            if (attr == NULL) {
+                ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Unknown attr: %s", cur._attr._));
+                goto do_exception;
+            }
+
+
+            ks_stk_push(&ctx->stk, attr);
+            continue;
+
+        } else if (cur.type == KS_BC_RET || cur.type == KS_BC_RET_NONE) {
 
             // since there should be nothing on the stack, just make it `none`
             if (cur.type == KS_BC_RET_NONE) {
@@ -180,21 +194,9 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                 ctx->stk.len -= cur._call.args_n;
 
                 if (ctx->cexc != NULL) {
-                    // an exception occured; handle it
-                    // now, start executing at the exception handler
-                    int right_len = estk_lens[estk_ptr];
-                    pc = estk[estk_ptr--];
-                    
-                    // rewind
-                    ctx->stk.len = right_len;
-
-                    // pop our exception back on
+                    // handle exception
                     ks_stk_push(&ctx->stk, ctx->cexc);
-
-                    // reset the exception
-                    ctx->cexc = NULL;
-
-                    // now the exception handler just has to take off the top object
+                    goto do_exception;
 
                 } else {
 
@@ -228,20 +230,8 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                 if (func->_kfunc.params_n != cur._call.args_n) {
 
                     // throw an exception
-                    found = ks_obj_new_exception_fmt("Wrong number of arguments (expected %d, but got %d)", func->_kfunc.params_n, cur._call.args_n);
-
-                    // now, start executing at the exception handler
-                    int right_len = estk_lens[estk_ptr];
-                    pc = estk[estk_ptr--];
-                    
-                    // rewind
-                    ctx->stk.len = right_len;
-
-                    // pop our exception back on
-                    ks_stk_push(&ctx->stk, found);
-
-                    // now the exception handler just has to take off the top object
-                    continue;
+                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Wrong number of arguments (expected %d, but got %d)", func->_kfunc.params_n, cur._call.args_n));
+                    goto do_exception;
                 }
 
                 // set all the parameters in the new local scope by name
@@ -271,21 +261,8 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
 
 
         } else if (cur.type == KS_BC_THROW) {
-            // we are throwing this as the exception
-            found = ks_stk_pop(&ctx->stk);
-
-            // now, start executing at the exception handler
-            int right_len = estk_lens[estk_ptr];
-            pc = estk[estk_ptr--];
-            
-            // rewind
-            ctx->stk.len = right_len;
-
-            // pop our exception back on
-            ks_stk_push(&ctx->stk, found);
-
-            // now the exception handler just has to take off the top object
-            continue;
+            // just do the exception loop
+            goto do_exception;
 
         } else if (cur.type == KS_BC_ERET) {
             // returning from an exception, so just do nothing
@@ -301,6 +278,26 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
             ks_error("Unknown inst type! (%d)", cur.type);
             return;
         }
+
+        do_exception: ;
+
+        // pop it off
+        ks_obj exception = ks_stk_pop(&ctx->stk);
+
+        // an exception occured; handle it
+        // now, start executing at the exception handler
+        int right_len = estk_lens[estk_ptr];
+        pc = estk[estk_ptr--];
+        
+        // rewind
+        ctx->stk.len = right_len;
+
+        // push our exception back on
+        ks_stk_push(&ctx->stk, exception);
+
+        // reset the exception (if it was a C exception)
+        ctx->cexc = NULL;
+
     }
 }
 

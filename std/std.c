@@ -10,11 +10,21 @@
 #include "ks_std.h"
 
 
+
 REGISTER_FUNC(main) {
     int status;
-    if ((status = REGISTER_FUNC_NAME(None)(ctx)) != 0) return status;
-    if ((status = REGISTER_FUNC_NAME(int)(ctx)) != 0) return status;
-    if ((status = REGISTER_FUNC_NAME(list)(ctx)) != 0) return status;
+
+    // register types
+    if ((status = REGISTER_FUNC_NAME(None)(ctx, module)) != 0) return status;
+    if ((status = REGISTER_FUNC_NAME(int)(ctx, module)) != 0) return status;
+    if ((status = REGISTER_FUNC_NAME(bool)(ctx, module)) != 0) return status;
+    if ((status = REGISTER_FUNC_NAME(float)(ctx, module)) != 0) return status;
+    if ((status = REGISTER_FUNC_NAME(str)(ctx, module)) != 0) return status;
+
+    if ((status = REGISTER_FUNC_NAME(list)(ctx, module)) != 0) return status;
+
+    // register functions
+    if ((status = REGISTER_FUNC_NAME(builtins0)(ctx, module)) != 0) return status;
 
     return 0;
 }

@@ -13,7 +13,9 @@ ks_bc_inst ks_bc_new_load(ks_str name) {
 ks_bc_inst ks_bc_new_store(ks_str name) {
     return (ks_bc_inst){ .type = KS_BC_STORE, ._store = ks_str_dup(name) };
 }
-
+ks_bc_inst ks_bc_new_attr(ks_str attr) {
+    return (ks_bc_inst){ .type = KS_BC_ATTR, ._attr = ks_str_dup(attr) };
+}
 ks_bc_inst ks_bc_new_ret() {
     return (ks_bc_inst){ .type = KS_BC_RET };
 }

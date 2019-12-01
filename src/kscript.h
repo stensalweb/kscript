@@ -317,6 +317,9 @@ enum {
     // a type representing a type (trippy!)
     KS_TYPE_TYPE,
 
+    // a type representing a module (should just be a dictionary)
+    KS_TYPE_MODULE,
+
     // this isn't a type, but is just the starting point for custom types. So you can test
     //   if `obj->type >= KS_TYPE_CUSTOM` to determine whether or not it is a built-in type
     KS_TYPE_CUSTOM
@@ -359,6 +362,9 @@ struct ks_obj {
         // if type==KS_TYPE_TYPE, the dictionary representing the type
         ks_dict _type;
 
+        // if type==KS_TYPE_MODULE, the dictionary representing the module
+        ks_dict _module;
+
         // if type>=KS_TYPE_CUSTOM, it just has a dictionary of values that it keeps updated
         ks_dict _dict;
 
@@ -390,6 +396,8 @@ ks_obj ks_obj_new_kfunc(ks_kfunc val);
 ks_obj ks_obj_new_type();
 // returns a new type-type, initialized with a dictionary
 ks_obj ks_obj_new_type_dict(ks_dict dict);
+// returns a new module
+ks_obj ks_obj_new_module();
 // returns a new custom-type object with a fresh dictionary
 ks_obj ks_obj_new_custom();
 // frees an object and its resources
@@ -397,22 +405,21 @@ void ks_obj_free(ks_obj obj);
 
 /* module definition */
 
-typedef struct {
-
-} ks_module;
 
 
 // structure representing how to load a module
 struct ks_module_loader {
 
     // the one function that will load the module into context, returning an error code
-    int (*f_load)(ks_ctx ctx);
+    int (*f_load)(ks_ctx ctx, ks_obj module);
 
 };
 
 // construct a module loader
 #define KS_MODULE_LOADER(_f_load) ((struct ks_module_loader){ .f_load = (_f_load) })
 
+// loads a given module by name
+ks_obj ks_module_load(ks_ctx ctx, ks_str name);
 
 // scope internal structure
 struct ks_scope {
@@ -496,6 +503,9 @@ enum {
     // assign a variable to the last item on the stack (popping that item off)
     KS_BC_STORE,
 
+    // pops off an object, and looks up a specified attr
+    KS_BC_ATTR,
+
     // return the last item on the stack
     KS_BC_RET,
 
@@ -510,7 +520,6 @@ enum {
 
     // pops on a constant string
     KS_BC_CONST_STR,
-
 
     // jumps an immediate amount (see ._jmpi)
     KS_BC_JMPI,
@@ -549,6 +558,8 @@ struct ks_bc_inst {
         ks_str _load;
         // if type==KS_BC_STORE, this is the string of the name to assign to
         ks_str _store;
+        // if type==KS_BC_ATTR, this is the name of the attr to look up
+        ks_str _attr;
         // if type==KS_BC_CONST_INT, this is the value
         ks_int _int;
         // if type==KS_BC_CONST_FLOAT, this is the value
@@ -577,6 +588,7 @@ typedef struct ks_bc_inst ks_bc_inst;
 // constructing bytecodes
 ks_bc_inst ks_bc_new_load(ks_str name);
 ks_bc_inst ks_bc_new_store(ks_str name);
+ks_bc_inst ks_bc_new_attr(ks_str attr);
 ks_bc_inst ks_bc_new_ret();
 ks_bc_inst ks_bc_new_ret_none();
 ks_bc_inst ks_bc_new_int(ks_int val);
@@ -637,7 +649,7 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_trace(...) ks_log(KS_LOGLVL_TRACE, __FILE__, __LINE__, __VA_ARGS__)
 #define ks_debug(...) ks_log(KS_LOGLVL_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
 #define ks_info(...) ks_log(KS_LOGLVL_INFO, __FILE__, __LINE__, __VA_ARGS__)
-#define ks_warn(...) kl_log(KS_LOGLVL_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_warn(...) ks_log(KS_LOGLVL_WARN, __FILE__, __LINE__, __VA_ARGS__)
 #define ks_error(...) ks_log(KS_LOGLVL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 
