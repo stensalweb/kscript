@@ -17,7 +17,6 @@
 #include <math.h>
 #include <dlfcn.h>
 
-
 // the boolean type
 typedef bool ks_bool;
 
@@ -75,6 +74,8 @@ int ks_str_cmp(ks_str A, ks_str B);
 ks_str ks_str_fmt(const char* fmt, ...);
 // get the results, but using a va_list
 ks_str ks_str_vfmt(const char* fmt, va_list ap);
+// reads from a file pointer, the entire file
+void ks_str_readfp(ks_str* str, FILE* fp);
 
 // we do the same as with `ks_obj`, having a pointer as the main type
 typedef struct ks_ast* ks_ast;
@@ -497,87 +498,80 @@ enum {
     // do nothing
     KS_BC_NOOP = 0,
 
-    // load a variable by a given name, push it on the stack
+    // load a value and push to stack
     KS_BC_LOAD,
-
-    // assign a variable to the last item on the stack (popping that item off)
+    // pop a value and store in the given name
     KS_BC_STORE,
-
-    // pops off an object, and looks up a specified attr
+    // pop an object, loop up its attribute, then push on the attribute
     KS_BC_ATTR,
 
-    // return the last item on the stack
-    KS_BC_RET,
-
-    // return nothing
-    KS_BC_RET_NONE,
-
-    // pops on a constant integer
+    // push the 'none' constant to the stack
+    KS_BC_CONST_NONE,
+    // push an integer constant to the stack
     KS_BC_CONST_INT,
-
-    // pops on a constant float
+    // push a boolean constant to the stack
+    KS_BC_CONST_BOOL,
+    // push a float constant to the stack
     KS_BC_CONST_FLOAT,
-
-    // pops on a constant string
+    // push a string constant to the stack
     KS_BC_CONST_STR,
 
-    // jumps an immediate amount (see ._jmpi)
-    KS_BC_JMPI,
-
-    // pops off a conditional (which must be an `bool` type),
-    // and jumps if it is true. If the last item was not a bool, it is treated as false
-    KS_BC_JMPC,
-
-    // pops off 1 argument (the function), and then pops off `args_n` arguments
-    //   (see ._call in the union), and calls the function
-    // so:
-    // A B C f call! would find `f`, and call it like `f(A, B, C)`
+    // pops off a function, then pops off an integer (which should be a number of arguments), then
+    // pops off that many arguments, and calls the function
+    // so, `A B C f 3`, and vcall will result in `f(A, B, C)` (since there are 3 arguments)
+    // `A B C f 2`, then vcall will result in `f(B, C)`
+    KS_BC_VCALL,
+    // pops off a function, then pops off `n_args` values as arguments, and executes
+    // so stack will look like `A B C f`, and `call` will result in `f(A, B, C)`
     KS_BC_CALL,
 
-    // pops off an argument and 'throws' an exception with it
-    KS_BC_THROW,
+    // jumps a relative amount, unconditionally
+    KS_BC_JMP,
+    // pops off a conditional (which should be a boolean), if true, add `relamt` to the program counter (in instructions)
+    KS_BC_BEQT,
+    // pops off a conditional (which should be a boolean), if false, add `relamt` to the program counter (in instructions)
+    KS_BC_BEQF,
+
+    // pops off a value, and returns it
+    KS_BC_RET,
 
     // return from the exception handler (this should only be within exception handlers).
     // Normally, this does nothing, as exception handlers just keep executing after the try/catch block
     KS_BC_ERET,
-
-    // exit, abort the entire program, without exception handling.
-    // takes a single integer off the stack
-    KS_BC_EXIT
+    // pops off an argument and 'throws' an exception with it
+    KS_BC_THROW
 
 };
 
 // a bytecode instruction
 struct ks_bc_inst {
 
+    // type (see above)
     uint16_t type;
 
     // tagged union
     union {
         // if type==KS_BC_LOAD, this is the string of the name to load
-        ks_str _load;
         // if type==KS_BC_STORE, this is the string of the name to assign to
-        ks_str _store;
         // if type==KS_BC_ATTR, this is the name of the attr to look up
-        ks_str _attr;
+        ks_str _name;
+
         // if type==KS_BC_CONST_INT, this is the value
         ks_int _int;
+        // if type==KS_BC_CONST_BOOL, this is the value
+        ks_bool _bool;
         // if type==KS_BC_CONST_FLOAT, this is the value
         ks_float _float;
         // if type==KS_BC_CONST_STR, this is the value
         ks_str _str;
-        // if type==KS_BC_JMPI, this is the (relative) number it jumps
-        //   if `_jmpi==0`, then nothing should happen
-        int _jmpi;
-        // if type==KS_BC_JMPC, this is the (relative) number it jumps if the last item on the stack
-        //   was a bool & its value was true
-        //   if `_jmpc==0` or the condition is false, then nothing should happen
-        int _jmpc;
 
-        struct {
-            // how many args was it called with?
-            int args_n;
-        } _call;
+        // if type==KS_BC_CALL, the number of arguments it takes
+        int _args_n;
+
+        // if type==KS_BC_BEQT, the number to add to the program counter
+        // if type==KS_BC_BEQF, the number to add to the program counter
+        // if type==KS_BC_JMP, the number to add to the program counter
+        int _relamt;
 
     };
 
@@ -586,35 +580,61 @@ struct ks_bc_inst {
 typedef struct ks_bc_inst ks_bc_inst;
 
 // constructing bytecodes
-ks_bc_inst ks_bc_new_load(ks_str name);
-ks_bc_inst ks_bc_new_store(ks_str name);
-ks_bc_inst ks_bc_new_attr(ks_str attr);
-ks_bc_inst ks_bc_new_ret();
-ks_bc_inst ks_bc_new_ret_none();
-ks_bc_inst ks_bc_new_int(ks_int val);
-ks_bc_inst ks_bc_new_float(ks_float val);
-ks_bc_inst ks_bc_new_str(ks_str val);
-ks_bc_inst ks_bc_new_jmpi(int relamt);
-ks_bc_inst ks_bc_new_jmpc(int relamt);
-ks_bc_inst ks_bc_new_call(int args_n);
-ks_bc_inst ks_bc_new_throw();
-ks_bc_inst ks_bc_new_exit();
 
+// loading/storing
+ks_bc_inst ks_bc_load(ks_str name);
+ks_bc_inst ks_bc_store(ks_str name);
+ks_bc_inst ks_bc_attr(ks_str name);
+
+// constants
+ks_bc_inst ks_bc_none();
+ks_bc_inst ks_bc_int(ks_int val);
+ks_bc_inst ks_bc_bool(ks_bool val);
+ks_bc_inst ks_bc_float(ks_float val);
+ks_bc_inst ks_bc_str(ks_str val);
+
+// calling
+ks_bc_inst ks_bc_call(int args_n);
+ks_bc_inst ks_bc_vcall();
+
+// conditionals
+ks_bc_inst ks_bc_beqt(int relamt);
+ks_bc_inst ks_bc_beqf(int relamt);
+ks_bc_inst ks_bc_jmp(int relamt);
+
+// returning
+ks_bc_inst ks_bc_ret();
+
+// exceptions
+ks_bc_inst ks_bc_throw();
+ks_bc_inst ks_bc_eret();
+
+// frees any resources that come with the bytecode
 void ks_bc_inst_free(ks_bc_inst* inst);
 
 
-// a collection of bytecode
+// a collection of bytecode, i.e. a program
 typedef struct {
 
     // number of instructions
-    int len;
+    int inst_len;
 
     // a list of instructions
     ks_bc_inst* inst;
 
+    
+    // number of labels
+    int labels_len;
+
+    // label names
+    ks_str* labels;
+
+    // the index into the internal array
+    int* labels_idx;
+
 } ks_bc;
 
-#define KS_BC_EMPTY ((ks_bc){ .len = 0, .inst = NULL })
+#define KS_BC_EMPTY ((ks_bc){ .inst_len = 0, .inst = NULL, .labels_len = 0, .labels = NULL, .labels_idx = NULL })
 
 // add an instruction, and return the index
 int ks_bc_add(ks_bc* bc, ks_bc_inst inst);
@@ -623,7 +643,8 @@ int ks_bc_add(ks_bc* bc, ks_bc_inst inst);
 void ks_exec(ks_ctx ctx, ks_bc_inst* bc);
 // executes a function, and returns the result
 ks_obj ks_exec_kfunc(ks_ctx ctx, ks_kfunc kfunc, int args_n, ks_obj* args);
-
+// adds a label to an index in the instructions
+void ks_bc_label(ks_bc* bc, ks_str name, int lidx);
 
 
 /* logging */

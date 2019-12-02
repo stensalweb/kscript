@@ -128,3 +128,17 @@ ks_str ks_str_fmt(const char* fmt, ...) {
 }
 
 
+void ks_str_readfp(ks_str* str, FILE* fp) {
+    long cseek = ftell(fp);
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp) - cseek;
+    fseek(fp, cseek, SEEK_SET);
+    if (str->_ == NULL || str->max_len < size) {
+        str->max_len = (int)(1.5 * size + 10);
+        str->_ = realloc(str->_, str->max_len + 1);
+    }
+    if (fread(str->_, 1, size, fp) != size) {
+        ks_warn("Reading file encountered a problem... trying to continue");
+    }
+
+}

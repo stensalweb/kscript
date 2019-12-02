@@ -7,26 +7,8 @@
 #include "kscript.h"
 
 
-// prints the stack trace out
-ks_obj ks_std_stacktrace(ks_ctx ctx, int args_n, ks_obj* args) {
-    if (args_n != 0) {
-        ctx->cexc = ks_obj_new_exception_fmt("'__stacktrace' given %d arguments, expected %d", args_n, 0);
-        return NULL;
-    }
-
-    int i;
-    for (i = 0; i < ctx->call_stk_n; ++i) {
-        int j;
-        for (j = 0; j < 2 * i; ++j) {
-            printf(" ");
-        }
-
-        printf("%s\n", ctx->call_stk_names[i]._);
-    }
-
-    // for now, just implement integers, and assume all arguments are integers
-    return ks_obj_new_none();
-}
+#include <unistd.h>
+#include <getopt.h>
 
 
 int main(int argc, char** argv) {
@@ -45,17 +27,70 @@ int main(int argc, char** argv) {
     ks_ctx_push(ctx, KS_STR_CONST("global"), globals);
 
 
+    // long options for commandline parsing
+    static struct option long_options[] = {
+        {"as-file", required_argument, NULL, 'a'},
+        {"help", no_argument, NULL, 'h'},
+
+        {NULL, 0, NULL, 0}
+    };
+
+    int c;
+
+    while ((c = getopt_long (argc, argv, "a:h", long_options, NULL)) != -1)
+    switch (c){
+        case 'a': ;
+
+            FILE* fp = fopen(optarg, "r");
+            if (fp == NULL) {
+                ks_error("Couldn't open file '%s'", optarg);
+                return 1;
+            }
+            ks_str src = KS_STR_EMPTY;
+            ks_str_readfp(&src, fp);
+            fclose(fp);
+
+            printf("%s\n", src._);
+
+            break;
+        case 'h':
+            printf("Usage: %s [-a FILE.ksasm] [-h]\n", argv[0]);
+            printf("  -h,--help              Prints this help message\n");
+            printf("  -a,--as-file FILE      Read and compile a kscript assembly file\n");
+            return 0;
+            break;
+        case '?':
+            if (strchr("", optopt) != NULL) {
+                ks_error("Option -%c requires an argument.", optopt);
+            } else {
+                ks_error("Unknown option `-%c'.", optopt);
+            }
+            return 1;
+            break;
+        default:
+            return 1;
+            break;
+    }
+
+    if (optind < argc) {
+        ks_error("Unhandled arguments!");
+    }
+
+    /*
+
     // example main method: std.print(42, 45)
     ks_bc f_main = KS_BC_EMPTY;
-    ks_bc_add(&f_main, ks_bc_new_int(42));
-    ks_bc_add(&f_main, ks_bc_new_int(45));
-    ks_bc_add(&f_main, ks_bc_new_load(KS_STR_CONST("std")));
-    ks_bc_add(&f_main, ks_bc_new_attr(KS_STR_CONST("print")));
-    ks_bc_add(&f_main, ks_bc_new_call(2));
-    ks_bc_add(&f_main, ks_bc_new_ret_none());
+    ks_bc_add(&f_main, ks_bc_int(42));
+    ks_bc_add(&f_main, ks_bc_int(45));
+    ks_bc_add(&f_main, ks_bc_load(KS_STR_CONST("std")));
+    ks_bc_add(&f_main, ks_bc_attr(KS_STR_CONST("print")));
+    ks_bc_add(&f_main, ks_bc_call(2));
+    ks_bc_add(&f_main, ks_bc_none());
+    ks_bc_add(&f_main, ks_bc_ret());
 
     // execute it
     ks_exec(ctx, f_main.inst);
+*/
 
     return 0;
 }

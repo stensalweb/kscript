@@ -1,0 +1,19 @@
+
+# primes.kscript - calculate the first `n` primes
+
+n = 30
+sieve = [true] * n
+
+for i = 2, i * i < n, i++ {
+  if sieve[i] {
+    for j = i * i, j < n, j += i {
+      sieve[j] = false
+    }
+  }
+}
+
+for i = 2, i < n, i++ {
+  if sieve[i] {
+    print(i)
+  }
+}
