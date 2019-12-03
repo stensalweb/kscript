@@ -82,5 +82,5 @@ $(MOD_std_so): $(MOD_std_o)
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
 $(kscript_exe): $(kscript_o) $(libkscript_so) $(MOD_std_so)
-	$(CC) $(CFLAGS) -L./ $(kscript_o) -lkscript -lMOD_std -lm -ldl -o $@
+	$(CC) $(CFLAGS) -Wl,-rpath=./ -L./ $(kscript_o) -lkscript -lMOD_std -lm -ldl -o $@
 

@@ -6,66 +6,42 @@
 
 #include "kscript.h"
 
-// uncomment this to not do any safety checks, assume input is properly created
-#define DO_SAFETY_CHECKS
-
-
-
-// have some static programs for manual error handling, at a global level
-static struct ks_bc_inst kse_e0[] = {
-    { .type = KS_BC_LOAD, ._name = KS_STR_CONST("print") },
-    { .type = KS_BC_CALL, ._args_n = 1 },
-    { .type = KS_BC_CONST_STR, ._str = KS_STR_CONST("^ exception was thrown, causing program to exit") },
-    { .type = KS_BC_LOAD, ._name = KS_STR_CONST("print") },
-    { .type = KS_BC_CALL, ._args_n = 1 },
-    { .type = KS_BC_LOAD, ._name = KS_STR_CONST("__stacktrace") },
-    { .type = KS_BC_CALL, ._args_n = 0 },
-
-    { .type = KS_BC_CONST_INT, ._int = 1 },
-    { .type = KS_BC_ERET }
-};
-
-
-ks_obj ks_exec_kfunc(ks_ctx ctx, ks_kfunc kfunc, int args_n, ks_obj* args) {
-    if (args_n != kfunc.params_n) {
-        ks_error("Not the right number of arguments!");
-        return NULL;
-    }
-
-    int i;
-    for (i = 0; i < args_n; ++i) {
-        ks_stk_push(&ctx->stk, args[i]);
-    }
-
-    // now actually execute it
-    ks_exec(ctx, kfunc.inst);
-
-    return NULL;
-}
-
-
 // just starts executing given a starting program counter
-void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
+void ks_exec(ks_ctx ctx, ks_bc bc, int idx) {
 
     // program counter
-    ks_bc_inst* pc = bc;
+    ks_bc_op* pc = bc->inst + idx;
 
     // current instruction
-    ks_bc_inst ci;
+    ks_bc_op ci;
 
     // temporary objects (found for looking up symbols, popped is for recently popped values, etc)
     ks_obj found, popped, result;
+
+    // for decoding instructions
+    int intval;
+    ks_int ksintval;
+    ks_float ksfloatval;
+    // const_str idx
+    int csidx;
+    // const_str looked up
+    ks_str csval;
+    // the relative amount to jump
+    int relamt;
+
+    // decodes a type from the program counter
+    #define DECODE_TYPE(_obj, _type) { _obj = *(_type*)(pc); pc += sizeof(_type); }
 
     // number of arguments for a function call
     int args_n;
 
 
     // return addresses, for jumping between functions
-    ks_bc_inst* rstk[4096];
+    ks_bc_op* rstk[4096];
     int rstk_ptr = -1;
 
     // exception handler addresses, for handling any exception that arises
-    ks_bc_inst* estk[4096];
+    ks_bc_op* estk[4096];
     // correct lengths of the stacks
     int estk_lens[4096];
     // how deep is the cirent exception handler (every time rstk is pushed to, this should go up)
@@ -99,19 +75,24 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
         // read the next instruction, and increment program counter
         ci = *pc++;
 
-        switch (ci.type) {
+        //ks_trace("inst: %d", (int)ci);
+
+        switch (ci) {
             case KS_BC_NOOP:
                 goto do_next;
 
             /* load/stores */
 
             case KS_BC_LOAD:
+                // [1:opcode] [4:int const_str idx]
                 // try and resolve the symbol
-                found = ks_ctx_resolve(ctx, ci._name);
+                DECODE_TYPE(csidx, int);
+                csval = bc->const_str[csidx];
+                found = ks_ctx_resolve(ctx, csval);
 
                 if (found == NULL) {
                     // notfound! @@@ EXCEPTION IS THROWN
-                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Unknown variable: %s", ci._name._));
+                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Unknown variable: %s", csval._));
                     goto do_exception;
                 } else {
                     // found, just push it on the stack
@@ -119,19 +100,26 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                     goto do_next;
                 }
             case KS_BC_STORE:
+                // [1:opcode] [4:int const_str idx]
+                DECODE_TYPE(csidx, int);
+                csval = bc->const_str[csidx];
+
                 // pop off the value, then set it as a local
                 // TODO: detect when it is higher up
                 popped = ks_stk_pop(&ctx->stk);
-                ks_dict_set(&ctx->call_stk_scopes[ctx->call_stk_n - 1]->locals, ci._name, found);
+                ks_dict_set(&ctx->call_stk_scopes[ctx->call_stk_n - 1]->locals, csval, found);
                 goto do_next;
             case KS_BC_ATTR:
+                // [1:opcode] [4:int const_str idx]
+                DECODE_TYPE(csidx, int);
+                csval = bc->const_str[csidx];
                 // pop off an object, and get its attr
                 popped = ks_stk_pop(&ctx->stk);
                 // find attr
-                found = ks_dict_get(&found->_dict, ci._name);
+                found = ks_dict_get(&found->_dict, csval);
                 if (found == NULL) {
                     // notfound! @@@ EXCEPTION IS THROWN
-                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Unknown attr: %s", ci._name._));
+                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Unknown attr: %s", csval._));
                     goto do_exception;
                 } else {
                     // it was found, push it to the stack
@@ -145,16 +133,24 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                 ks_stk_push(&ctx->stk, ks_obj_new_none());
                 goto do_next;
             case KS_BC_CONST_INT:
-                ks_stk_push(&ctx->stk, ks_obj_new_int(ci._int));
+                DECODE_TYPE(ksintval, ks_int);
+                ks_stk_push(&ctx->stk, ks_obj_new_int(ksintval));
                 goto do_next;
-            case KS_BC_CONST_BOOL:
-                ks_stk_push(&ctx->stk, ks_obj_new_bool(ci._bool));
+            case KS_BC_CONST_BOOL_TRUE:
+                ks_stk_push(&ctx->stk, ks_obj_new_bool(true));
+                goto do_next;
+            case KS_BC_CONST_BOOL_FALSE:
+                ks_stk_push(&ctx->stk, ks_obj_new_bool(false));
                 goto do_next;
             case KS_BC_CONST_FLOAT:
-                ks_stk_push(&ctx->stk, ks_obj_new_float(ci._float));
+                DECODE_TYPE(ksfloatval, ks_float);
+                ks_stk_push(&ctx->stk, ks_obj_new_float(ksfloatval));
                 goto do_next;
             case KS_BC_CONST_STR:
-                ks_stk_push(&ctx->stk, ks_obj_new_str(ci._str));
+
+                DECODE_TYPE(csidx, int);
+                csval = bc->const_str[csidx];
+                ks_stk_push(&ctx->stk, ks_obj_new_str(csval));
                 goto do_next;
 
             /* calling */
@@ -171,17 +167,22 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                 }
 
                 // set it
-                ci._args_n = (int)popped->_int;
+                args_n = (int)popped->_int;
 
                 // now, flow through and do the normal call method
             case KS_BC_CALL:
                 // pop off the function
                 popped = ks_stk_pop(&ctx->stk);
 
+                if (ci == KS_BC_CALL) {
+                    // read it in
+                    DECODE_TYPE(args_n, int);
+                }
+
                 // ensure there are enough arguments
-                if (ctx->stk.len < ci._args_n) {
+                if (ctx->stk.len < args_n) {
                     // @@@ EXCEPTION IS THROWN
-                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Not enough arguments for function, expected %d, but stack only had %d", ci._args_n, ctx->stk.len));
+                    ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Not enough arguments for function, expected %d, but stack only had %d", args_n, ctx->stk.len));
                     goto do_exception;
                 }
 
@@ -195,8 +196,8 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                     ks_str_free(&read_name);
 
                     // execute and get the result from the C function
-                    result = popped->_cfunc(ctx, ci._args_n, &(ctx->stk.vals[ctx->stk.len - ci._args_n]));
-                    ctx->stk.len -= ci._args_n;
+                    result = popped->_cfunc(ctx, args_n, &(ctx->stk.vals[ctx->stk.len - args_n]));
+                    ctx->stk.len -= args_n;
 
                     // check for any exceptions raised by the C function
                     if (ctx->cexc != NULL) {
@@ -215,14 +216,14 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                     // execute a kscript function (which will still be in the interpreter)
 
                     // make sure the given number of arguments is the same the function expects
-                    if (popped->_kfunc.params_n != ci._args_n) {
+                    if (popped->_kfunc.params_n != args_n) {
                         // @@@ EXCEPTION IS THROWN
-                        ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Wrong number of arguments (expected %d, but got %d)", popped->_kfunc.params_n, ci._args_n));
+                        ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Wrong number of arguments (expected %d, but got %d)", popped->_kfunc.params_n, args_n));
                         goto do_exception;
                     }
 
                     // create a named scope, add to the call stack
-                    ks_str read_name = ks_str_fmt("%s [kfunc] @ %p", "__kfunc", popped->_kfunc.inst);
+                    ks_str read_name = ks_str_fmt("%s [kfunc] @ %p", "__kfunc", popped->_kfunc.bc->inst + popped->_kfunc.idx);
                     ks_scope new_scope = ks_scope_new(ctx->call_stk_scopes[ctx->call_stk_n - 1]);
                     int sidx = ks_ctx_push(ctx, read_name, new_scope);
                     ks_str_free(&read_name);
@@ -234,15 +235,24 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                     }
 
                     // pop them all off in one go
-                    ctx->stk.len -= ci._args_n;
+                    ctx->stk.len -= args_n;
 
-                    // now, basically jump and link, so we will resume executing directly after the current instruction
-                    rstk[++rstk_ptr] = pc;
-                    pc = popped->_kfunc.inst;
+                    // within the same bytecode program, just stay here
+                    if (popped->_kfunc.bc == bc) {
 
-                    // since we are stepping one deeper into the call stack,
-                    //   we increment the depth for the exception handler, so it can rewind successfull and not mess up stacks
-                    estk_depth[estk_ptr]++;
+                        // now, basically jump and link, so we will resume executing directly after the current instruction
+                        rstk[++rstk_ptr] = pc;
+                        pc = bc->inst + popped->_kfunc.idx;
+
+                        // since we are stepping one deeper into the call stack,
+                        //   we increment the depth for the exception handler, so it can rewind successfull and not mess up stacks
+                        estk_depth[estk_ptr]++;
+
+                    } else {
+                        // we need to jump into this, and call it arbitrarily.
+                        // TODO: just add a stack for bc's
+                        ks_exec(ctx, popped->_kfunc.bc, popped->_kfunc.idx);
+                    }
 
                     goto do_next;
 
@@ -285,18 +295,21 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
             /* conditions */
 
             case KS_BC_JMP:
-                pc += ci._relamt;
+                DECODE_TYPE(relamt, int);
+                pc += relamt;
                 goto do_next;
             case KS_BC_BEQT:
+                DECODE_TYPE(relamt, int);
                 popped = ks_stk_pop(&ctx->stk);
                 if (popped->type == KS_TYPE_BOOL && popped->_bool) {
-                    pc += ci._relamt;
+                    pc += relamt;
                 }
                 goto do_next;
             case KS_BC_BEQF:
+                DECODE_TYPE(relamt, int);
                 popped = ks_stk_pop(&ctx->stk);
-                if (popped->type == KS_TYPE_BOOL && !popped->_bool) {
-                    pc += ci._relamt;
+                if (popped->type != KS_TYPE_BOOL || !popped->_bool) {
+                    pc += relamt;
                 }
                 goto do_next;
 
@@ -306,10 +319,11 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
                 goto do_exception;
 
             case KS_BC_ERET:
-                goto do_exception;
+                goto do_next;
+                //goto do_exception;
 
             default:
-                ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Bytecode internal format error! (got bc.type=%d)", ci.type));
+                ks_stk_push(&ctx->stk, ks_obj_new_exception_fmt("Bytecode internal format error! (got bc.type=%d)", (int)ci));
                 goto do_exception;
         }
 
@@ -342,6 +356,5 @@ void ks_exec(ks_ctx ctx, ks_bc_inst* bc) {
 
     }
 }
-
 
 

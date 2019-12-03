@@ -47,7 +47,7 @@ ks_obj ks_obj_new_str(ks_str val) {
 
 ks_obj ks_obj_new_exception(ks_str message) {
     ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_EXCEPTION;
+    ret->type = KS_TYPE_STR;
     ret->_str = KS_STR_EMPTY;
     ks_str_copy(&ret->_str, message);
     return ret;
@@ -55,7 +55,7 @@ ks_obj ks_obj_new_exception(ks_str message) {
 
 ks_obj ks_obj_new_exception_fmt(const char* fmt, ...) {
     ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_EXCEPTION;
+    ret->type = KS_TYPE_STR;
     va_list ap;
     va_start(ap, fmt);
     ret->_str = ks_str_vfmt(fmt, ap);
@@ -78,28 +78,10 @@ ks_obj ks_obj_new_kfunc(ks_kfunc val) {
     return ret;
 }
 
-ks_obj ks_obj_new_type() {
+ks_obj ks_obj_new_object(ks_dict dict) {
     ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_TYPE;
-    ret->_type = KS_DICT_EMPTY;
-    return ret;
-}
-ks_obj ks_obj_new_type_dict(ks_dict dict) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_TYPE;
-    ret->_type = dict;
-    return ret;
-}
-ks_obj ks_obj_new_module() {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_MODULE;
-    ret->_module = KS_DICT_EMPTY;
-    return ret;
-}
-ks_obj ks_obj_new_custom() {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_CUSTOM;
-    ret->_dict = KS_DICT_EMPTY;
+    ret->type = KS_TYPE_OBJECT;
+    ret->_dict = dict;
     return ret;
 }
 

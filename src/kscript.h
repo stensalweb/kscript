@@ -89,6 +89,9 @@ typedef struct ks_scope* ks_scope;
 // the global context type
 typedef struct ks_ctx* ks_ctx;
 
+// the bytecode program type
+typedef struct ks_bc* ks_bc;
+
 
 
 enum {
@@ -264,26 +267,27 @@ ks_dict ks_dict_fromkvp_cp(int len, struct ks_dict_kvp_cp* kvp_cp);
 typedef ks_obj (*ksf_cfunc)(ks_ctx ctx, int args_n, ks_obj* args);
 
 struct ks_bc_inst;
-
+struct ks_bc;
 
 // a structure describing how a function written in kscript is defined
 typedef struct {
 
-    // a pointer to the start of the instructions
-    struct ks_bc_inst* inst;
-    //ks_str label;
+    // the bytecode collection in which it is defined
+    struct ks_bc* bc;
 
+    // the index into `bc`'s instructions
+    int idx;
 
-    // number of parameters it takes
+    // number of parameters for the function
     int params_n;
 
-    // parameter names it takes (these are just used because we need to know what names
-    //   to set in the local scope on function entry)
+    // an array of formal names for the parameters
     ks_str* param_names;
 
 } ks_kfunc;
 
-#define KS_KFUNC_EMPTY ((ks_kfunc){ .inst = NULL, .params_n = 0, .param_names = NULL })
+
+#define KS_KFUNC_EMPTY ((ks_kfunc){ .bc = NULL, .idx = -1, .params_n = 0, .param_names = NULL })
 
 // adds a parameter, and returns its index
 int ks_kfunc_add_param(ks_kfunc* kfunc, ks_str name);
@@ -306,24 +310,24 @@ enum {
     // builtin string type
     KS_TYPE_STR,
 
-    // builtin exception type, has a message
-    KS_TYPE_EXCEPTION,
-
     // builtin C-function type (of signature ksf_cfunc)
     KS_TYPE_CFUNC,
 
     // a kscript function object
     KS_TYPE_KFUNC,
 
+    // a type representing a generic object (with a dictionary of properties)
+    KS_TYPE_OBJECT,
+
     // a type representing a type (trippy!)
-    KS_TYPE_TYPE,
+    //KS_TYPE_TYPE,
 
     // a type representing a module (should just be a dictionary)
-    KS_TYPE_MODULE,
+    //KS_TYPE_MODULE,
 
     // this isn't a type, but is just the starting point for custom types. So you can test
     //   if `obj->type >= KS_TYPE_CUSTOM` to determine whether or not it is a built-in type
-    KS_TYPE_CUSTOM
+    //KS_TYPE_CUSTOM
     
 };
 
@@ -331,15 +335,16 @@ enum {
 //   `ks_obj` (no struct), as it will be a pointer.
 struct ks_obj {
 
-    // one of the `KS_TYPE_*` enum values
+    // one of the `KS_TYPE_*` enum values, or a type-id (which will be > KS_TYPE_OBJECT if not a builtin)
     uint16_t type;
 
     // These will be used in the future; they will hold various info
     //   about the object, for GC, reference counting etc, but for now, will be 0
     uint16_t flags;
 
-    // an anonymous tagged union
+    // an anonymous tagged union, representing the data of the object
     union {
+        // if type==KS_TYPE_NONE, there is no field
 
         // if type==KS_TYPE_INT, the value
         ks_int _int;
@@ -360,19 +365,24 @@ struct ks_obj {
         // if type==KS_TYPE_KFUNC, the function
         ks_kfunc _kfunc;
 
+        /*
+
         // if type==KS_TYPE_TYPE, the dictionary representing the type
         ks_dict _type;
 
         // if type==KS_TYPE_MODULE, the dictionary representing the module
         ks_dict _module;
 
-        // if type>=KS_TYPE_CUSTOM, it just has a dictionary of values that it keeps updated
+        */
+
+        // if type==KS_TYPE_OBJECT, it has a generic dictionary of other objects
         ks_dict _dict;
 
         // misc. usage
         void* _ptr;
 
     };
+    
 };
 
 // returns a new none object
@@ -393,20 +403,13 @@ ks_obj ks_obj_new_exception_fmt(const char* fmt, ...);
 ks_obj ks_obj_new_cfunc(ksf_cfunc val);
 // returns a new kfunc with a specified value
 ks_obj ks_obj_new_kfunc(ks_kfunc val);
-// returns a new type-type
-ks_obj ks_obj_new_type();
-// returns a new type-type, initialized with a dictionary
-ks_obj ks_obj_new_type_dict(ks_dict dict);
-// returns a new module
-ks_obj ks_obj_new_module();
-// returns a new custom-type object with a fresh dictionary
-ks_obj ks_obj_new_custom();
+// return a new object type
+ks_obj ks_obj_new_object(ks_dict dict);
+
 // frees an object and its resources
 void ks_obj_free(ks_obj obj);
 
 /* module definition */
-
-
 
 // structure representing how to load a module
 struct ks_module_loader {
@@ -493,151 +496,174 @@ int ks_ctx_new_type(ks_ctx ctx, ks_str name, ks_obj type);
 
 /* bytecode: the semi-compiled portion of kscript */
 
-// types of bytecode instructions
+// types of bytecode instructions, with desciriptions of their VLE
+// (variable length encoding)
 enum {
-    // do nothing
-    KS_BC_NOOP = 0,
 
-    // load a value and push to stack
+    // how to read encodings:
+    // [] means a single operation
+    // [N] means how many bytes
+    // ex:
+    // [1:opcode] [2:...]
+    // total of 3 bytes
+
+    // do nothing
+    // [1:opcode]
+    KS_BC_NOOP = 0,
+    // lookup and load a value, push onto stack
+    // [1:opcode] [4:int const_str idx]
     KS_BC_LOAD,
-    // pop a value and store in the given name
+    // pop off a value, and store it in the string value in the string
+    //   constant table
+    // [1:opcode] [4:int const_str idx]
     KS_BC_STORE,
     // pop an object, loop up its attribute, then push on the attribute
+    // [1:opcode] [4:int const_str idx]
     KS_BC_ATTR,
 
     // push the 'none' constant to the stack
+    // [1:opcode]
     KS_BC_CONST_NONE,
-    // push an integer constant to the stack
+    // push an integer constant to the stack.
+    // NOTE: limited to signed 64 bit
+    // [1:opcode] [8:int64_t value]
     KS_BC_CONST_INT,
-    // push a boolean constant to the stack
-    KS_BC_CONST_BOOL,
+    // push a boolean 'true' to the stack
+    // [1:opcode]
+    KS_BC_CONST_BOOL_TRUE,
+    // push a boolean 'false' to the stack
+    // [1:opcode]
+    KS_BC_CONST_BOOL_FALSE,
     // push a float constant to the stack
+    // [1:opcode] [8:double value]
     KS_BC_CONST_FLOAT,
     // push a string constant to the stack
+    // [1:opcode] [4:int const_str idx]
     KS_BC_CONST_STR,
 
-    // pops off a function, then pops off an integer (which should be a number of arguments), then
+    // pops off a number of arguments (should be an int)
+    // then pops off a function
     // pops off that many arguments, and calls the function
     // so, `A B C f 3`, and vcall will result in `f(A, B, C)` (since there are 3 arguments)
     // `A B C f 2`, then vcall will result in `f(B, C)`
+    // [1:opcode]
     KS_BC_VCALL,
     // pops off a function, then pops off `n_args` values as arguments, and executes
     // so stack will look like `A B C f`, and `call` will result in `f(A, B, C)`
+    // [1:opcode] [4:int n_args]
     KS_BC_CALL,
 
     // jumps a relative amount, unconditionally
+    // [1:opcode] [4:int relamt]
     KS_BC_JMP,
     // pops off a conditional (which should be a boolean), if true, add `relamt` to the program counter (in instructions)
+    // [1:opcode] [4:int relamt]
     KS_BC_BEQT,
     // pops off a conditional (which should be a boolean), if false, add `relamt` to the program counter (in instructions)
+    // [1:opcode] [4:int relamt]
     KS_BC_BEQF,
 
     // pops off a value, and returns it
+    // [1:opcode]
     KS_BC_RET,
 
     // return from the exception handler (this should only be within exception handlers).
     // Normally, this does nothing, as exception handlers just keep executing after the try/catch block
+    // [1:opcode]
     KS_BC_ERET,
     // pops off an argument and 'throws' an exception with it
+    // [1:opcode]
     KS_BC_THROW
 
 };
 
-// a bytecode instruction
-struct ks_bc_inst {
+// bytecode operation
+typedef uint8_t ks_bc_op;
 
-    // type (see above)
-    uint16_t type;
 
-    // tagged union
-    union {
-        // if type==KS_BC_LOAD, this is the string of the name to load
-        // if type==KS_BC_STORE, this is the string of the name to assign to
-        // if type==KS_BC_ATTR, this is the name of the attr to look up
-        ks_str _name;
+// an entire bytecode program
+struct ks_bc {
 
-        // if type==KS_BC_CONST_INT, this is the value
-        ks_int _int;
-        // if type==KS_BC_CONST_BOOL, this is the value
-        ks_bool _bool;
-        // if type==KS_BC_CONST_FLOAT, this is the value
-        ks_float _float;
-        // if type==KS_BC_CONST_STR, this is the value
-        ks_str _str;
 
-        // if type==KS_BC_CALL, the number of arguments it takes
-        int _args_n;
+    // the list of instructions within the bytecode objects
+    ks_bc_op* inst;
 
-        // if type==KS_BC_BEQT, the number to add to the program counter
-        // if type==KS_BC_BEQF, the number to add to the program counter
-        // if type==KS_BC_JMP, the number to add to the program counter
-        int _relamt;
+    // number of instructions allocated (including VLE instruction memory)
+    int inst_n;
 
-    };
+
+    // a list of constant strings
+    ks_str* const_str;
+
+    // number of constant strings
+    int const_str_n;
+
 
 };
 
-typedef struct ks_bc_inst ks_bc_inst;
+// create a new (blank) bytecode program
+ks_bc ks_bc_new();
+// adds a new constant string to the bytecode program, returns the index
+// NOTE: duplicates the string internally, so you can free(str)
+int ks_bc_const_str_add(ks_bc bc, ks_str str);
+// returns the index into the `const_str` array at which a string is stored,
+// -1 if it is not in the constant strings
+int ks_bc_const_str_idx(ks_bc bc, ks_str str);
 
-// constructing bytecodes
+// just append bytes to the end of the instruction data
+// returns index at which the first byte was added
+int ks_bc_append_bytes(ks_bc bc, void* data, int n);
+// append a single byte to the end of instruction data (return index)
+int ks_bc_append_uint8(ks_bc bc, uint8_t val);
+// append a whole int (i.e. 4 bytes) onto inst data (return idx)
+int ks_bc_append_int(ks_bc bc, int val);
 
-// loading/storing
-ks_bc_inst ks_bc_load(ks_str name);
-ks_bc_inst ks_bc_store(ks_str name);
-ks_bc_inst ks_bc_attr(ks_str name);
+// all these return the index at which they were added
 
-// constants
-ks_bc_inst ks_bc_none();
-ks_bc_inst ks_bc_int(ks_int val);
-ks_bc_inst ks_bc_bool(ks_bool val);
-ks_bc_inst ks_bc_float(ks_float val);
-ks_bc_inst ks_bc_str(ks_str val);
+/* adding instructions */
 
-// calling
-ks_bc_inst ks_bc_call(int args_n);
-ks_bc_inst ks_bc_vcall();
+// add a 'noop' instruction
+int ks_bc_noop(ks_bc bc);
+// add a 'load' instruction from name
+int ks_bc_load(ks_bc bc, ks_str name);
+// add a 'store' instruction to a name
+int ks_bc_load(ks_bc bc, ks_str name);
+// add a 'attr' instruction of a name
+int ks_bc_attr(ks_bc bc, ks_str name);
 
-// conditionals
-ks_bc_inst ks_bc_beqt(int relamt);
-ks_bc_inst ks_bc_beqf(int relamt);
-ks_bc_inst ks_bc_jmp(int relamt);
+// add constant instruction
+int ks_bc_const_none(ks_bc bc);
+int ks_bc_const_bool_true(ks_bc bc);
+int ks_bc_const_bool_false(ks_bc bc);
+int ks_bc_const_int(ks_bc bc, ks_int val);
+int ks_bc_const_float(ks_bc bc, ks_float val);
+int ks_bc_const_str(ks_bc bc, ks_str val);
 
-// returning
-ks_bc_inst ks_bc_ret();
+// add calls
+int ks_bc_vcall(ks_bc bc);
+int ks_bc_call(ks_bc bc, int args_n);
 
-// exceptions
-ks_bc_inst ks_bc_throw();
-ks_bc_inst ks_bc_eret();
+// jmp/branch instructions
+int ks_bc_jmp(ks_bc bc, int relamt);
+int ks_bc_beqt(ks_bc bc, int relamt);
+int ks_bc_beqf(ks_bc bc, int relamt);
 
-// frees any resources that come with the bytecode
-void ks_bc_inst_free(ks_bc_inst* inst);
+// return instructions
+int ks_bc_ret(ks_bc bc);
+int ks_bc_throw(ks_bc bc);
+int ks_bc_eret(ks_bc bc);
 
 
-// a collection of bytecode, i.e. a program
-typedef struct {
+// free a bytecode program and its resources
+void ks_bc_free(ks_bc bc);
 
-    // number of instructions
-    int inst_len;
+// executes bytecode (with offset) in a context
+void ks_exec(ks_ctx ctx, ks_bc bc, int idx);
 
-    // a list of instructions
-    ks_bc_inst* inst;
-
-    
-    // number of labels
-    int labels_len;
-
-    // label names
-    ks_str* labels;
-
-    // the index into the internal array
-    int* labels_idx;
-
-} ks_bc;
-
-#define KS_BC_EMPTY ((ks_bc){ .inst_len = 0, .inst = NULL, .labels_len = 0, .labels = NULL, .labels_idx = NULL })
+//#define KS_BC_EMPTY ((ks_bc){ .inst_len = 0, .inst = NULL, .labels_len = 0, .labels = NULL, .labels_idx = NULL })
 
 // add an instruction, and return the index
-int ks_bc_add(ks_bc* bc, ks_bc_inst inst);
+/*int ks_bc_add(ks_bc* bc, ks_bc_inst inst);
 
 // executes bitcode on a context
 void ks_exec(ks_ctx ctx, ks_bc_inst* bc);
@@ -646,6 +672,7 @@ ks_obj ks_exec_kfunc(ks_ctx ctx, ks_kfunc kfunc, int args_n, ks_obj* args);
 // adds a label to an index in the instructions
 void ks_bc_label(ks_bc* bc, ks_str name, int lidx);
 
+*/
 
 /* logging */
 

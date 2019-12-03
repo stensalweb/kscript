@@ -25,7 +25,7 @@ ks_obj ks_module_load(ks_ctx ctx, ks_str name) {
     }
 
     // else, we need to load it in for real
-    ks_str file_name = ks_str_fmt("libMOD_%s.so", name._);
+    ks_str file_name = ks_str_fmt("./libMOD_%s.so", name._);
 
     // use dlopen to load it in. Note, RTLD_NOW makes sure everything can be linked right now,
     //   and RTLD_GLOBAL allows the current running process to provide symbols
@@ -47,7 +47,7 @@ ks_obj ks_module_load(ks_ctx ctx, ks_str name) {
     }
 
     // actually load the module
-    ks_obj mod = ks_obj_new_module();
+    ks_obj mod = ks_obj_new_object(KS_DICT_EMPTY);
     int status = kml->f_load(ctx, mod);
 
     if (status != 0) {

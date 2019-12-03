@@ -42,7 +42,7 @@ void ks_set_loglvl(int new_lvl) {
 
 // logs with a levl. use the macros `ks_info`, etc
 void ks_log(int level, const char *file, int line, const char* fmt, ...) {
-    if (level < ks_get_loglvl()) {
+    if (level > ks_get_loglvl()) {
         return;
     }
 

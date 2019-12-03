@@ -5,9 +5,12 @@ const 30
 store "n"
 
 # sieve = [true] * n
+load "list"
+inst
 const true 
 load "list"
-call 1
+attr "__init__"
+call 2
 load "n"
 load "mul"
 call 2

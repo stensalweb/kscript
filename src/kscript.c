@@ -26,7 +26,6 @@ int main(int argc, char** argv) {
     // start out with globals
     ks_ctx_push(ctx, KS_STR_CONST("global"), globals);
 
-
     // long options for commandline parsing
     static struct option long_options[] = {
         {"as-file", required_argument, NULL, 'a'},
@@ -76,21 +75,20 @@ int main(int argc, char** argv) {
         ks_error("Unhandled arguments!");
     }
 
-    /*
+    ks_set_loglvl(KS_LOGLVL_TRACE);
 
-    // example main method: std.print(42, 45)
-    ks_bc f_main = KS_BC_EMPTY;
-    ks_bc_add(&f_main, ks_bc_int(42));
-    ks_bc_add(&f_main, ks_bc_int(45));
-    ks_bc_add(&f_main, ks_bc_load(KS_STR_CONST("std")));
-    ks_bc_add(&f_main, ks_bc_attr(KS_STR_CONST("print")));
-    ks_bc_add(&f_main, ks_bc_call(2));
-    ks_bc_add(&f_main, ks_bc_none());
-    ks_bc_add(&f_main, ks_bc_ret());
+    ks_bc fm = ks_bc_new();
 
-    // execute it
-    ks_exec(ctx, f_main.inst);
-*/
+    ks_bc_const_str(fm, KS_STR_CONST("hello world"));
+    //ks_bc_const_int(fm, 42);
+    ks_bc_load(fm, KS_STR_CONST("std"));
+    ks_bc_attr(fm, KS_STR_CONST("print"));
+    ks_bc_call(fm, 1);
+    ks_bc_ret(fm);
+
+    ks_exec(ctx, fm, 0);
+
+    //printf("took %d imem\n", fm->inst_n);
 
     return 0;
 }
