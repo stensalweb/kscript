@@ -1,8 +1,4 @@
-// log.c - logging utilities for kscript, including debug levels
-//
-// @author   : Cade Brown <cade@chemicaldevelopment.us>
-// @license  : WTFPL (http://www.wtfpl.net/)
-//
+/* log.c - logging utilities for kscript, including debug levels */
 
 #include "kscript.h"
 
@@ -12,7 +8,6 @@
 #define WHITE  "\033[37m"
 #define RED    "\033[31m"
 #define YELLOW "\033[33m"
-
 
 // current logging level
 static int ks_loglvl = KS_LOGLVL_INFO;
@@ -34,15 +29,15 @@ int ks_get_loglvl() {
 // sets the level
 void ks_set_loglvl(int new_lvl) {
     // first clamp it
-    if (new_lvl < KS_LOGLVL_ERROR) new_lvl = KS_LOGLVL_ERROR;
-    else if (new_lvl > KS_LOGLVL_TRACE) new_lvl = KS_LOGLVL_TRACE;
+    if (new_lvl > KS_LOGLVL_ERROR) new_lvl = KS_LOGLVL_ERROR;
+    else if (new_lvl < KS_LOGLVL_TRACE) new_lvl = KS_LOGLVL_TRACE;
     
     ks_loglvl = new_lvl;
 }
 
 // logs with a levl. use the macros `ks_info`, etc
 void ks_log(int level, const char *file, int line, const char* fmt, ...) {
-    if (level > ks_get_loglvl()) {
+    if (level < ks_loglvl) {
         return;
     }
 
@@ -54,4 +49,3 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     va_end(args);
     fprintf(stdout, "\n");
 }
-

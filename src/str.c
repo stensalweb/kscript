@@ -1,17 +1,24 @@
-// src.c - ks_str implementation of functionality
-//
-// @author   : Cade Brown <cade@chemicaldevelopment.us>
-// @license  : WTFPL (http://www.wtfpl.net/)
-//
+/* str.c - string class implementation, for length-encoded and NUL-terminated 
+
+
+
+*/
 
 #include "kscript.h"
 
-void ks_str_copy_cp(ks_str* str, char* charp, int len) {
-    if (str->_ == NULL || str->max_len < len) {
-        str->max_len = (int)(1.5 * len + 10);
+
+// resizes a string, reallocating if neccessary
+void ks_str_resize(ks_str* str, uint32_t new_len) {
+    if (str->_ == NULL || new_len > str->max_len) {
+        str->max_len = (uint32_t)(1.25 * new_len + 5);
         str->_ = realloc(str->_, str->max_len + 1);
     }
-    str->len = len;
+    str->len = new_len;
+}
+
+
+void ks_str_copy_cp(ks_str* str, char* charp, int len) {
+    ks_str_resize(str, len);
     memcpy(str->_, charp, len);
     str->_[len] = '\0';
 }
@@ -29,35 +36,21 @@ ks_str ks_str_dup(ks_str from) {
 void ks_str_append(ks_str* str, ks_str A) {
     int start_len = str->len;
     int new_len = str->len + A.len;
-    if (str->_ == NULL || str->max_len < new_len) {
-        str->max_len = (int)(1.5 * new_len + 10);
-        str->_ = realloc(str->_, str->max_len + 1);
-    }
-    str->len = new_len;
+    ks_str_resize(str, new_len);
     //memcpy(str->_, A._, A.len);
     memcpy(str->_ + start_len, A._, A.len);
-    str->_[new_len] = '\0';
+    str->_[str->len] = '\0';
 }
 
-
 void ks_str_concat(ks_str* str, ks_str A, ks_str B) {
-    int new_len = A.len + B.len;
-    if (str->_ == NULL || str->max_len < new_len) {
-        str->max_len = (int)(1.5 * new_len + 10);
-        str->_ = realloc(str->_, str->max_len + 1);
-    }
-    str->len = new_len;
+    ks_str_resize(str, A.len + B.len);
     memcpy(str->_, A._, A.len);
     memcpy(str->_ + A.len, B._, B.len);
-    str->_[new_len] = '\0';
+    str->_[str->len] = '\0';
 }
 
 void ks_str_append_c(ks_str* str, char c) {
-    str->len++;
-    if (str->_ == NULL || str->max_len < str->len) {
-        str->max_len = str->len;
-        str->_ = realloc(str->_, str->max_len + 1);
-    }
+    ks_str_resize(str, str->len + 1);
     str->_[str->len-1] = c;
     str->_[str->len] = '\0';
 }
@@ -74,59 +67,23 @@ void ks_str_free(ks_str* str) {
 }
 
 
-// implementation of some printfs
-static int _ks_vasprintf(char **strp, const char *fmt, va_list ap) {
+int ks_str_vfmt(ks_str* str, const char *fmt, va_list ap) {
     va_list ap1;
-    size_t size;
-    char *buffer;
-
     va_copy(ap1, ap);
-    size = vsnprintf(NULL, 0, fmt, ap1) + 1;
+    uint32_t req_size = vsnprintf(NULL, 0, fmt, ap1) + 1;
     va_end(ap1);
-    buffer = calloc(1, size);
+    ks_str_resize(str, req_size);
 
-    if (!buffer)
-        return -1;
-
-    *strp = buffer;
-
-    return vsnprintf(buffer, size, fmt, ap);
+    return vsnprintf(str->_, req_size, fmt, ap);
 }
 
-
-ks_str ks_str_vfmt(const char* fmt, va_list ap) {
-
-    ks_str ret = KS_STR_EMPTY;
-
-    // the formatted string
-    char* rstr = NULL;
-    _ks_vasprintf(&rstr, fmt, ap);
-
-    ks_str_copy_cp(&ret, rstr, strlen(rstr));
-
-    free(rstr);
-
-    return ret;
-}
-
-ks_str ks_str_fmt(const char* fmt, ...) {
-
-    ks_str ret = KS_STR_EMPTY;
-
-    // the formatted string
-    char* rstr = NULL;
+int ks_str_fmt(ks_str* str, const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    _ks_vasprintf(&rstr, fmt, ap);
+    int ret = ks_str_vfmt(str, fmt, ap);
     va_end(ap);
-
-    ks_str_copy_cp(&ret, rstr, strlen(rstr));
-
-    free(rstr);
-
     return ret;
 }
-
 
 void ks_str_readfp(ks_str* str, FILE* fp) {
     long cseek = ftell(fp);
@@ -142,3 +99,4 @@ void ks_str_readfp(ks_str* str, FILE* fp) {
     }
 
 }
+

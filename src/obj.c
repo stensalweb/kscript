@@ -1,104 +1,62 @@
-// obj.c - implementations of the ks_obj type
-//
-// @author   : Cade Brown <cade@chemicaldevelopment.us>
-// @license  : WTFPL (http://www.wtfpl.net/)
-//
-
+/* obj.c - constructing/managing objects */
 
 #include "kscript.h"
 
-ks_obj ks_obj_new_none() {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_NONE;
-    return ret;
+kso kso_new_none() {
+    kso_none ret = (kso_none)malloc(sizeof(*ret));
+    ret->type = kso_T_none;
+    ret->flags = 0x0;
+    return (kso)ret;
 }
 
-ks_obj ks_obj_new_int(ks_int val) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_INT;
-    ret->_int = val;
-    return ret;
-}
-
-ks_obj ks_obj_new_bool(ks_bool val) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_BOOL;
+kso kso_new_bool(ks_bool val) {
+    kso_bool ret = (kso_bool)malloc(sizeof(*ret));
+    ret->type = kso_T_bool;
+    ret->flags = 0x0;
     ret->_bool = val;
-    return ret;
+    return (kso)ret;
 }
 
-ks_obj ks_obj_new_float(ks_float val) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_FLOAT;
+kso kso_new_int(ks_int val) {
+    kso_int ret = (kso_int)malloc(sizeof(*ret));
+    ret->type = kso_T_int;
+    ret->flags = 0x0;
+    ret->_int = val;
+    return (kso)ret;
+}
+
+kso kso_new_float(ks_float val) {
+    kso_float ret = (kso_float)malloc(sizeof(*ret));
+    ret->type = kso_T_float;
+    ret->flags = 0x0;
     ret->_float = val;
-    return ret;
+    return (kso)ret;
 }
 
-// NOTE: the object return has its string copied from `val`, i.e. 
-//   they are not the same anymore
-ks_obj ks_obj_new_str(ks_str val) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_STR;
+kso kso_new_str(ks_str val) {
+    kso_str ret = (kso_str)malloc(sizeof(*ret));
+    ret->type = kso_T_str;
+    ret->flags = 0x0;
+    ret->_str = ks_str_dup(val);
+    return (kso)ret;
+}
+
+
+kso kso_new_str_fmt(const char* fmt, ...) {
+    kso_str ret = (kso_str)malloc(sizeof(*ret));
+    ret->type = kso_T_str;
+    ret->flags = 0x0;
     ret->_str = KS_STR_EMPTY;
-    ks_str_copy(&ret->_str, val);
-    return ret;
-}
 
-
-ks_obj ks_obj_new_exception(ks_str message) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_STR;
-    ret->_str = KS_STR_EMPTY;
-    ks_str_copy(&ret->_str, message);
-    return ret;
-}
-
-ks_obj ks_obj_new_exception_fmt(const char* fmt, ...) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_STR;
     va_list ap;
     va_start(ap, fmt);
-    ret->_str = ks_str_vfmt(fmt, ap);
-    //_ks_vasprintf(&rstr, fmt, ap);
+    ks_str_vfmt(&ret->_str, fmt, ap);
     va_end(ap);
-    return ret;
+    
+    return (kso)ret;
+
+
 }
-
-ks_obj ks_obj_new_cfunc(ksf_cfunc val) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_CFUNC;
-    ret->_cfunc = val;
-    return ret;
-}
-
-ks_obj ks_obj_new_kfunc(ks_kfunc val) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_KFUNC;
-    ret->_kfunc = val;
-    return ret;
-}
-
-ks_obj ks_obj_new_object(ks_dict dict) {
-    ks_obj ret = (ks_obj)malloc(sizeof(struct ks_obj));
-    ret->type = KS_TYPE_OBJECT;
-    ret->_dict = dict;
-    return ret;
-}
-
-void ks_obj_free(ks_obj obj) {
-
-    // do nothing if given NULL
-    if (obj != NULL) {
-        // some types (int, float) don't need to be free'd, so do nothing
-        if (obj->type == KS_TYPE_STR) {
-            ks_str_free(&obj->_str);
-        }
-
-        free(obj);
-    }
-}
-
-
 
 
 

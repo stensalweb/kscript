@@ -15,14 +15,14 @@ CFLAGS     ?= -O3 -std=c99
 
 # the sources for our kscript library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libkscript_src := $(addprefix src/, log.c str.c obj.c stk.c dict.c ast.c scope.c bytecode.c kfunc.c module.c ctx.c exec.c)
+libkscript_src := $(addprefix src/, log.c str.c list.c dict.c hash.c obj.c prog.c error.c vm.c builtin.c exec.c )
 
 # the sources for the kscript executable (so things can be ran from 
 #   commandline)
 kscript_src    := $(addprefix src/, kscript.c)
 
 # the standard module
-MOD_std_src    := $(addprefix std/, none.c int.c bool.c float.c str.c list.c  builtins0.c std.c)
+MOD_std_src    := $(addprefix std/, )
 
 
 # now, generate a list of `.o` files needed
