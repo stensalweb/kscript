@@ -72,9 +72,24 @@ int ks_str_vfmt(ks_str* str, const char *fmt, va_list ap) {
     va_copy(ap1, ap);
     uint32_t req_size = vsnprintf(NULL, 0, fmt, ap1) + 1;
     va_end(ap1);
-    ks_str_resize(str, req_size);
 
-    return vsnprintf(str->_, req_size, fmt, ap);
+    int res = 0;
+    if (req_size > str->max_len) {
+        // we will need to resize, but the argument could be used in `ap`, 
+        // we just manually create a new string
+        //ks_str_resize(str, req_size);
+        char* old__ = str->_;
+        str->_ = malloc(req_size + 1);
+        str->max_len = req_size;
+        res = vsnprintf(str->_, req_size, fmt, ap);
+        free(old__);
+    } else {
+        // just print as normal
+        res = vsnprintf(str->_, req_size, fmt, ap);
+
+    }
+
+    return res;
 }
 
 int ks_str_fmt(ks_str* str, const char* fmt, ...) {
@@ -90,13 +105,11 @@ void ks_str_readfp(ks_str* str, FILE* fp) {
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp) - cseek;
     fseek(fp, cseek, SEEK_SET);
-    if (str->_ == NULL || str->max_len < size) {
-        str->max_len = (int)(1.5 * size + 10);
-        str->_ = realloc(str->_, str->max_len + 1);
-    }
+    ks_str_resize(str, size);
     if (fread(str->_, 1, size, fp) != size) {
         ks_warn("Reading file encountered a problem... trying to continue");
     }
+    str->_[str->len] = '\0';
 
 }
 

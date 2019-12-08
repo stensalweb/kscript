@@ -78,31 +78,38 @@ You can use `REQ_N_ARGS_...` to ensure enough arguments are given
 // utility macro for a function name
 #define FUNC(_name) static kso _F_##_name(int n_args, kso* args)
 
+// utility macro for defining a type function with a given name
+#define TYPEFUNC(_type, _name) static kso _type##_##_name(int n_args, kso* args)
+
+
+
+/* FUNCTIONS */
+
 FUNC(print) {
     #undef _FUNCSIG
     #define _FUNCSIG "print(args...)"
 
     int i;
     for (i = 0; i < n_args; ++i) {
-        kso f_repr = args[i]->type->f_repr;
-        kso repr_res = NULL;
-        if (f_repr == NULL) {
-            return ks_err_add_str_fmt(_FUNCSIG ": `args[%d]`'s type (`%s`) did not have a `repr()` function, so it can't be printed", i, args[i]->type->name._);
-        } else if (f_repr->type == kso_T_cfunc) {
-            repr_res = KSO_CAST(kso_cfunc, f_repr)->_cfunc(1, &args[i]);
+        kso f_str = args[i]->type->f_str;
+        kso str_res = NULL;
+        if (f_str == NULL) {
+            return ks_err_add_str_fmt(_FUNCSIG ": `args[%d]`'s type (`%s`) did not have a `str()` function, so it can't be printed", i, args[i]->type->name._);
+        } else if (f_str->type == kso_T_cfunc) {
+            str_res = KSO_CAST(kso_cfunc, f_str)->_cfunc(1, &args[i]);
         } else {
-            return ks_err_add_str_fmt(_FUNCSIG ": `repr(args[%d])` failed, `%s.repr(self)` was not callable", i, args[i]->type->name._);
+            return ks_err_add_str_fmt(_FUNCSIG ": `str(args[%d])` failed, `%s.str(self)` was not callable", i, args[i]->type->name._);
         }
 
-        if (repr_res == NULL) return NULL;
+        if (str_res == NULL) return NULL;
 
-        if (repr_res->type != kso_T_str) {
-            return ks_err_add_str_fmt(_FUNCSIG ": `repr(args[%d])` failed, `%s.repr(self)` was not of type `str`", i, args[i]->type->name._);
+        if (str_res->type != kso_T_str) {
+            return ks_err_add_str_fmt(_FUNCSIG ": `spr(args[%d])` failed, `%s.spr(self)` was not of type `str`", i, args[i]->type->name._);
         }
 
-        kso_str repr_str = KSO_CAST(kso_str, repr_res);
+        kso_str str_str = KSO_CAST(kso_str, str_res);
 
-        printf("%s ", repr_str->_str._);
+        printf("%s ", str_str->_str._);
     }
 
     printf("\n");
@@ -110,9 +117,32 @@ FUNC(print) {
     return kso_new_none();
 }
 
-// utility macro for defining a type function with a given name
-#define TYPEFUNC(_type, _name) static kso _type##_##_name(int n_args, kso* args)
 
+FUNC(exit) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "exit(code=0)"
+    REQ_N_ARGS_B(0, 1);
+
+    if (n_args == 0) {
+        exit(0);
+    } else {
+        kso code = args[0];
+        if (code->type == kso_T_int) {
+            exit((int)KSO_CAST(kso_int, code)->_int);
+        } else {
+            // TODO: make int
+            ks_warn("Called exit() with unsupported arguent `%s`", code->type->name._);
+            exit(1);
+        }
+    }
+
+    printf("\n");
+
+    return kso_new_none();
+}
+
+
+/* TYPES */
 
 /* TYPE: none */
 
@@ -625,6 +655,11 @@ static struct kso_cfunc
         .type = &T_cfunc,
         .flags = 0x0,
         ._cfunc = _F_print
+    },
+    F_exit = {
+        .type = &T_cfunc,
+        .flags = 0x0,
+        ._cfunc = _F_exit
     }
 ;
 
@@ -632,7 +667,8 @@ static struct kso_cfunc
 // now, export as the global functions & types (which were defined as `extern` in kscript.h)
 
 kso_cfunc
-    kso_F_print = &F_print
+    kso_F_print = &F_print,
+    kso_F_exit = &F_exit
 ;
 
 kso_type 

@@ -15,27 +15,35 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
     // instruction labels, for computed goto
     static void* inst_labels[] = {
-        &&do_noop,
-        &&do_bool,
-        &&do_int,
-        &&do_float,
-        &&do_load,
-        &&do_store,
-        &&do_call,
-        &&do_typeof,
-        &&do_ret,
-        &&do_retnone
+        &&do_noop, // 0
+        &&do_load, // 1
+        &&do_store,// 2
+        &&do_boolt,// 3
+        &&do_boolf,// 4
+        &&do_int,  // 5
+        &&do_float,// 6
+        &&do_str,  // 7
+        &&do_new_list, // 8
+        &&do_call, // 9
+        &&do_get,  // 10
+        &&do_set,  // 11
+        &&do_jmpt,  // 12
+        &&do_jmpf,  // 13
+        &&do_typeof,// 14
+        &&do_ret,  // 15
+        &&do_retnone// 16
     };
 
-    // temporary variables
-    ks_bool _bool;
-    ks_int _int;
-    ks_int _float;
+    /* for decoded */
+    struct ks_bc_load i_load;
+    struct ks_bc_store i_store;
+    struct ks_bc_call i_call;
+    struct ks_bc_int i_int;
+    struct ks_bc_float i_float;
+    struct ks_bc_str i_str;
+
     // string table lookup variables
-    int _sidx;
     ks_str _str;
-    // number of arguments for a call
-    int16_t n_args;
 
     // top of the stack
     kso top = NULL;
@@ -43,43 +51,26 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
     // for when searching or resolving a symbol
     kso found = NULL;
 
+
+
     // execute next instruction
-    #define NEXT() { goto *inst_labels[*pc++]; }
+    #define NEXT() { ks_trace("inst: %d", (int)*pc); goto *inst_labels[*pc]; }
+
+    #define DECODE(_type) (*(struct _type*)(pc))
+    #define PASS(_type) (pc += sizeof(struct _type));
 
     while (true) {
         do_noop:
-            NEXT();
-
-        do_bool:
-            // decode bool
-            _bool = *(ks_bool*)pc;
-            pc += sizeof(_bool);
-            ks_list_push(&vm->stk, kso_new_bool(_bool));
-            NEXT();
-
-        do_int:
-            // decode int
-            _int = *(ks_int*)pc;
-            pc += sizeof(_int);
-            ks_list_push(&vm->stk, kso_new_int(_int));
-            NEXT();
-
-        do_float:
-            // decode float
-            _float = *(ks_float*)pc;
-            pc += sizeof(_float);
-            ks_list_push(&vm->stk, kso_new_float(_float));
+            DECODE(ks_bc_noop);
             NEXT();
 
         do_load:
-            // decode sidx
-            _sidx = *(int*)pc;
-            pc += sizeof(_sidx);
+            // decode
+            i_load = DECODE(ks_bc_load);
+            PASS(ks_bc_load);
             // fetch string constant
-            _str = prog->str_tbl[_sidx];
+            _str = prog->str_tbl[i_load.name_idx];
             // now, look it up
-            ks_trace("loading %s", _str._);
-            //ks_list_push(&vm->stk, (kso)kso_F_print);
 
             found = ks_dict_get_str(&vm->dict, _str);
             if (found == NULL) {
@@ -92,26 +83,62 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             NEXT();
 
         do_store:
-            // decode sidx
-            _sidx = *(int*)pc;
-            pc += sizeof(_sidx);
+            // decode
+            i_store = DECODE(ks_bc_store);
+            PASS(ks_bc_store);
             // fetch string constant
-            _str = prog->str_tbl[_sidx];
+            _str = prog->str_tbl[i_load.name_idx];
             // get top object
             top = ks_list_pop(&vm->stk);
             // now store top->"_str"
             NEXT();
 
+
+        do_boolt:
+            PASS(ks_bc);
+            ks_list_push(&vm->stk, kso_new_bool(true));
+            NEXT();
+        do_boolf:
+            PASS(ks_bc);
+            ks_list_push(&vm->stk, kso_new_bool(false));
+            NEXT();
+
+        do_int:
+            // decode int
+            i_int = DECODE(ks_bc_int);
+            PASS(ks_bc_int);
+            ks_list_push(&vm->stk, kso_new_int(i_int.val));
+            NEXT();
+
+        do_float:
+            // decode float
+            i_float = DECODE(ks_bc_float);
+            PASS(ks_bc_float);
+            ks_list_push(&vm->stk, kso_new_int(i_float.val));
+            NEXT();
+
+        do_str:
+            // decode string
+            i_str = DECODE(ks_bc_str);
+            PASS(ks_bc_str);
+            ks_list_push(&vm->stk, kso_new_str(prog->str_tbl[i_str.val_idx]));
+            NEXT();
+
+        do_new_list:
+            NEXT();
+
         do_call:
             // decode number of args
-            n_args = *(int16_t*)pc;
-            pc += sizeof(n_args);
+            i_call = DECODE(ks_bc_call);
+            PASS(ks_bc_call);
             // pop off the function
             top = ks_list_pop(&vm->stk);
 
             if (top->type == kso_T_cfunc) {
-                ((kso_cfunc)top)->_cfunc((int)n_args, &(vm->stk.items[vm->stk.len - n_args]));
-                vm->stk.len -= n_args;
+                ks_trace("calling %p with %d", top, i_call.n_args);
+
+                ((kso_cfunc)top)->_cfunc(i_call.n_args, &(vm->stk.items[vm->stk.len - i_call.n_args]));
+                vm->stk.len -= i_call.n_args;
                 if (ks_err_N() > 0) {
                     ks_list_push(&vm->stk, ks_err_pop());
                     goto handle_exception;
@@ -122,8 +149,19 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
                 goto handle_exception;
                 return NULL;
             }
-            ks_trace("calling %p", top);
 
+            NEXT();
+
+        do_get:
+            NEXT();
+
+        do_set:
+            NEXT();
+
+        do_jmpt:
+            NEXT();
+
+        do_jmpf:
             NEXT();
 
         do_typeof:
@@ -140,9 +178,6 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
         do_retnone:
         
             return NULL;
-
-
-
 
         handle_exception:
 

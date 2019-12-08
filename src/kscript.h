@@ -37,7 +37,6 @@ typedef struct {
 // creates a new string from a constant (i.e. allocates memory for it)
 #define KS_STR_CREATE(_charp) (ks_str_dup(KS_STR_CONST(_charp)))
 
-
 // str <- charp[len]
 void ks_str_copy_cp(ks_str* str, char* charp, int len);
 // str <- from
@@ -258,17 +257,6 @@ enum {
     // 1[opcode]
     KS_BC_NOOP = 0,
 
-    // pop on a literal boolean
-    // 1[opcode] 1[ks_bool val]
-    KS_BC_BOOL,
-
-    // pop on a literal integer
-    // 1[opcode] 8[ks_int val]
-    KS_BC_INT,
-
-    // pop on a float value
-    // 1[opcode] 8[ks_float val]
-    KS_BC_FLOAT,
 
     // load a variable by string name
     // (idx is an index into the `str_tbl`)
@@ -279,10 +267,58 @@ enum {
     // 1[opcode] 4[int idx(name)]
     KS_BC_STORE,
 
+
+    /* constructing values/primitives */
+
+    // pop on a literal boolean (true or false)
+    // 1[opcode]
+    KS_BC_BOOLT,
+    KS_BC_BOOLF,
+
+    // pop on a literal integer
+    // 1[opcode] 8[ks_int val]
+    KS_BC_INT,
+
+    // pop on a float value
+    // 1[opcode] 8[ks_float val]
+    KS_BC_FLOAT,
+
+    KS_BC_STR,
+
+
+    /* construct more primitives */
+
+    // create a new list like: [A B]
+    // uses the last `n_items` on the stack
+    // 1[opcode] 2[int16_t n_items] 
+    KS_BC_NEW_LIST,
+
+    /* func calls */
+
     // pop off the last value (which should be callable),
     // and then call with `n_args`
     // 1[opcode] 2[int16_t n_args]
     KS_BC_CALL,
+
+    // basically does the subscript of the last object (a[])
+    // so, a[b, c, d] would be:
+    // b c d a [get 3]
+    // 1[opcode] 2[int16_t n_args]
+    KS_BC_GET,
+
+    // basically does the subscript-equals of the last object (a[]=...)
+    // so, a[b, c] = d would be a.__set__(b, c, d)
+    // b c d a [set 3]
+    // 1[opcode] 2[int16_t n_args]
+    KS_BC_SET,
+
+    // jump conditionally (if the last item is a bool which is true)
+    // 1[opcode] 4[int relamt]
+    KS_BC_JMPT,
+
+    // jump conditionally (if the last item is a bool which is false)
+    // 1[opcode] 4[int relamt]
+    KS_BC_JMPF,
 
     /* operations */
 
@@ -306,6 +342,118 @@ enum {
 // each bytecode is 1 byte
 typedef uint8_t ks_bc;
 
+struct ks_bc {
+    ks_bc op;
+};
+
+/* instruction definitions */
+
+struct ks_bc_noop {
+    // always KS_BC_NOOP
+    ks_bc op;
+};
+
+struct ks_bc_load {
+    // always KS_BC_LOAD
+    ks_bc op;
+    
+    // index of the name into the str_tbl of its program
+    uint16_t name_idx;
+
+};
+
+struct ks_bc_store {
+    // always KS_BC_STORE
+    ks_bc op;
+    
+    // index of the name into the str_tbl of its program
+    uint16_t name_idx;
+
+};
+
+/* constants */
+
+struct ks_bc_int {
+    // always KS_BC_INT
+    ks_bc op;
+
+    // value of the integer
+    ks_int val;
+};
+
+struct ks_bc_float {
+    // always KS_BC_FLOAT
+    ks_bc op;
+
+    // value of the integer
+    ks_int val;
+};
+
+struct ks_bc_str {
+    // always KS_BC_STR
+    ks_bc op;
+
+    // index of the value into the str_tbl of the program
+    uint16_t val_idx;
+};
+
+/* constructing/calling */
+
+struct ks_bc_new_list {
+    // always KS_BC_NEW_LIST
+    ks_bc op;
+
+    // number of items on the stack to take
+    uint16_t n_items;
+};
+
+struct ks_bc_call {
+    // always KS_BC_CALL
+    ks_bc op;
+    
+    // number of items on the stack to take as arguments
+    // (not counting the function that is popped off first)
+    uint16_t n_args;
+};
+
+struct ks_bc_get {
+    // always KS_BC_GET
+    ks_bc op;
+    
+    // number of items on the stack to take as arguments
+    // (not counting the object that is popped off first)
+    uint16_t n_args;
+};
+
+struct ks_bc_set {
+    // always KS_BC_SET
+    ks_bc op;
+    
+    // number of items on the stack to take as arguments
+    // (not counting the object that is popped off first)
+    uint16_t n_args;
+};
+
+
+/* conditionals */
+
+struct ks_bc_jmpt {
+    // always KS_BC_JMPT
+    ks_bc op;
+
+    // relative amount to jump if the last item was true
+    int32_t relamt;
+};
+
+struct ks_bc_jmpf {
+    // always KS_BC_JMPF
+    ks_bc op;
+
+    // relative amount to jump if the last item was false
+    int32_t relamt;
+};
+
+
 // a program, representing a bunch of instructions, and labels, as well as constants and required vals
 typedef struct {
 
@@ -314,6 +462,16 @@ typedef struct {
 
     // the table of string constants used by bytecodes
     ks_str* str_tbl;
+
+
+    // number of string labels defined
+    int lbl_n;
+
+    // array of labels
+    struct ks_prog_lbl {
+        ks_str name;
+        int idx;
+    }* lbls;
 
     // the current number of bytes (not neccesarily instructions) in `bc`
     // so, this is the index of the first free byte
@@ -325,22 +483,169 @@ typedef struct {
 } ks_prog;
 
 // the empty program, used to initialize
-#define KS_PROG_EMPTY ((ks_prog){ .str_tbl_n = 0, .str_tbl = NULL, .bc_n = 0, .bc = NULL })
+#define KS_PROG_EMPTY ((ks_prog){ .str_tbl_n = 0, .str_tbl = NULL, .lbl_n = 0, .lbls = NULL, .bc_n = 0, .bc = NULL })
 
 /* add instructions (these all return the index at which the instruction was added) */
 
 int ksb_noop(ks_prog* prog);
 int ksb_bool(ks_prog* prog, ks_bool val);
 int ksb_int(ks_prog* prog, ks_int val);
+int ksb_float(ks_prog* prog, ks_float val);
+int ksb_str(ks_prog* prog, ks_str val);
 int ksb_load(ks_prog* prog, ks_str name);
 int ksb_store(ks_prog* prog, ks_str name);
-int ksb_call(ks_prog* prog, int16_t n_args);
+int ksb_call(ks_prog* prog, uint32_t n_args);
+int ksb_get(ks_prog* prog, uint32_t n_args);
+int ksb_set(ks_prog* prog, uint32_t n_args);
+int ksb_new_list(ks_prog* prog, uint32_t n_items);
+int ksb_jmpt(ks_prog* prog, int32_t relamt);
+int ksb_jmpf(ks_prog* prog, int32_t relamt);
+
 int ksb_typeof(ks_prog* prog);
 int ksb_ret(ks_prog* prog);
 int ksb_retnone(ks_prog* prog);
 
+
+// adds a label to a program (returns the index in the `lbls` array it was added at)
+int ks_prog_lbl_add(ks_prog* prog, ks_str name, int idx);
+
+// returns the string representation of the bytecode
+ks_str ks_prog_tostr(ks_prog* prog);
+
 // frees all resources associated with the program
 void ks_prog_free(ks_prog* prog);
+
+/* parsing implementation */
+
+
+typedef struct ks_token ks_token;
+
+// the struct responsible for a parsing state
+typedef struct {
+
+    // the human readable name for the source.
+    // For files, it is that file name (i.e. "file.kscript")
+    // For stdin, it is typically "-",
+    // Or, for lines of an interpreter it may be "-#LINENUM"
+    ks_str src_name;
+
+    // the full string of the source. This doesn't change over the whole iteration
+    ks_str src;
+
+    // the current error string, which will be set if there was some problem parsing
+    ks_str err;
+
+    // structure describing the current state of the parser, assumes `src` hasn't changed
+    struct ks_parse_state {
+        // current position in the input string
+        int line, col;
+
+        // current index into `src._`, so this is just the linear index without caring about newlines, etc
+        int i;
+
+    } state;
+
+    // number of tokens, including the EOF token
+    int tokens_n;
+
+    // current index of the tokens array
+    int token_i;
+
+    // the list of tokens
+    ks_token* tokens;
+
+} ks_parse;
+
+
+// a single token of input
+struct ks_token {
+
+    // the type of token,
+    enum {
+        // invalid token
+        KS_TOK_NONE = 0,
+
+        // valid identifier, [a-zA-Z_][a-zA-Z_0-9]*
+        KS_TOK_IDENT,
+
+        // valid integer: [0-9]+
+        KS_TOK_INT,
+
+        // valid string literal, ".*"
+        KS_TOK_STR,
+
+        // a comment token, starts with `#`
+        KS_TOK_COMMENT,
+
+        // a literal colon ':'
+        KS_TOK_COLON,
+        // a literal semicolon ';'
+        KS_TOK_SEMI,
+        // literal dot '.'
+        KS_TOK_DOT,
+        // a newline
+        KS_TOK_NEWLINE,
+
+        /* operators */
+
+        // literal tilde `~`
+        KS_TOK_U_TIL,
+
+        // literal add `+`
+        KS_TOK_O_ADD,
+        // literal sub `-`
+        KS_TOK_O_SUB,
+        // literal mul `*`
+        KS_TOK_O_MUL,
+        // literal div `/`
+        KS_TOK_O_DIV,
+
+
+        KS_TOK__NUM
+
+    } type;
+
+
+    // the state at which the token appears
+    struct ks_parse_state state;
+
+    // the length of the token
+    int len;
+
+};
+
+
+// the empty, default token
+#define KS_TOK_EMPTY ((ks_token){ .type = KS_TOK_NONE, .state = KS_PARSE_STATE_ERROR, .len = -1 })
+
+// the 'beginning' parse state
+#define KS_PARSE_STATE_BEGINNING ((struct ks_parse_state){ .line = 0, .col = 0, .i = 0 })
+
+// there was an error
+#define KS_PARSE_STATE_ERROR ((struct ks_parse_state){ .line = -1, .col = -1, .i = -1 })
+
+// the empty parser, which is a valid initializer for it
+#define KS_PARSE_EMPTY ((ks_parse){ .src_name = KS_STR_EMPTY, .src = KS_STR_EMPTY, .err = KS_STR_EMPTY, .state = KS_PARSE_STATE_BEGINNING, .tokens_n = 0, .tokens = NULL, .token_i = 0 })
+
+
+
+// set the current source, and resets the state to the beginning
+int ks_parse_setsrc(ks_parse* kp, ks_str src_name, ks_str src);
+
+// sets the parser error, given a token and format args (doesn't display anything,
+//   but now you can check kp->err)
+// this will fill it out, and if token is not `KS_TOK_EMPTY`, add useful information
+//   about where the error occured in relation to the source code
+int ks_parse_err(ks_parse* kp, ks_token tok, const char* fmt, ...);
+
+
+// parses out an entire bytecode program
+int ks_parse_bc(ks_parse* kp, ks_prog* to);
+
+
+// frees the parser's internal resources
+void ks_parse_free(ks_parse* kp);
+
 
 
 /* virtual machine state */
@@ -377,7 +682,8 @@ extern kso_type
 ;
 
 extern kso_cfunc
-    kso_F_print
+    kso_F_print,
+    kso_F_exit
 ;
 
 

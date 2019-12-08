@@ -5,12 +5,8 @@ const 30
 store "n"
 
 # sieve = [true] * n
-load "list"
-inst
-const true 
-load "list"
-attr "__init__"
-call 2
+const true
+new_list 1
 load "n"
 load "mul"
 call 2
@@ -25,9 +21,8 @@ loop:
     # if sieve[i]:
     load "i"
     load "sieve"
-    attr "__get__"
-    call 1
-    beqf ~if.after
+    get 1
+    jmpf ~if_after
 
     if:
         # inner loop
@@ -42,8 +37,7 @@ loop:
             load "j"
             const false
             load "sieve"
-            attr "__set__"
-            call 2
+            set 2
 
             # j += i
             load "j"
@@ -57,9 +51,9 @@ loop:
             load "n"
             load "__lt__"
             call 2
-            beqt ~loop_inner
+            jmpt ~loop_inner
 
-    if.after:
+    if_after:
 
     # i * i < n -> loop, else continue on
     load "i"
@@ -69,7 +63,7 @@ loop:
     load "n"
     load "__lt__"
     call 2
-    beqt ~loop
+    jmpt ~loop
 
 # i = 2
 const 2
@@ -81,16 +75,15 @@ loop_print:
     # if sieve[i]:
     load "i"
     load "sieve"
-    attr "__get__"
-    call 1
-    beqf ~if2.after
+    get 1
+    jmpf ~if2_after
 
     if2:
         load "i"
         load "print"
         call 1
 
-    if2.after:
+    if2_after:
 
     # i++
     load "i"
@@ -104,7 +97,7 @@ loop_print:
     load "n"
     load "__lt__"
     call 2
-    beqt ~loop_print
+    jmpt ~loop_print
 
 # done!
 load "exit"
