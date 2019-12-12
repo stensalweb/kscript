@@ -18,7 +18,7 @@ kso ks_dict_get_byhash(ks_dict* dict, ks_int hash) {
     int i;
     for (i = 0; i < dict->len; ++i) {
         if (hash == dict->items[i].hash) {
-            return dict->items[i].val;
+            return kso_asval(dict->items[i].val);
         }
     }
 
@@ -45,7 +45,7 @@ int ks_dict_set_byhash(ks_dict* dict, ks_int hash, kso key, kso val) {
     // else, add it
     ks_dict_resize(dict, ++dict->len);
 
-    i = dict->len -1;
+    i = dict->len - 1;
     dict->items[i] = (struct ks_dict_item){
         .hash = hash,
         .key = key,
@@ -63,7 +63,6 @@ int ks_dict_set(ks_dict* dict, kso key, kso val) {
 int ks_dict_set_str(ks_dict* dict, ks_str key, kso val) {
     return ks_dict_set_byhash(dict, ks_hash_str(key), kso_new_str(key), val);
 }
-
 
 void ks_dict_free(ks_dict* dict) {
     free(dict->items);

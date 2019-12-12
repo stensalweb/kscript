@@ -236,6 +236,10 @@ int ks_parse_tokenize(ks_parse* kp) {
         CASES("-", KS_TOK_O_SUB)
         CASES("*", KS_TOK_O_MUL)
         CASES("/", KS_TOK_O_DIV)
+        CASES("<", KS_TOK_O_LT)
+        CASES(">", KS_TOK_O_GT)
+
+
 
         else {
 
@@ -279,6 +283,24 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
     // return code
     int rc = 0;
 
+    // hold links, for example, for jumping ahead ina file
+    int links_n = 0;
+    struct jlink {
+        // the name of the label it is referencing
+        ks_token lbl_name;
+
+        // this is the point from which it should be based.
+        // so it should be the first byte after the current is decoded,
+        // bc_n + sizeof(struct inst)
+        int bc_from;
+
+        // the start of the location where the signed 32 bit integer
+        //   of the relative offset should be written
+        // for example, the second byte of a `jmpf` instruction, so it will be updated at the end
+        int bc_i32;
+
+    }* links = NULL;
+
     // helper string
     ks_str st = KS_STR_EMPTY;
 
@@ -301,11 +323,28 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                         ksb_int(to, (ks_int)atoll(st._));
                     } else if (a0.type == KS_TOK_IDENT && (MATCHES(a0, "true") || MATCHES(a0, "false"))) {
                         ksb_bool(to, (ks_bool)MATCHES(a0, "true"));
+                    } else if (a0.type == KS_TOK_STR) {
+                        ks_token_strlit(kp, a0, &st);
+                        ksb_str(to, st);                        
                     } else {
                         rc = ks_parse_err(kp, a0, "Invalid argument for `const` instruction, it should be `int`, `bool`, `none`, `float`, or `str`");
                         goto kb_pend;
                     }
                     
+                } else if (MATCHES(kp->tokens[i], "op")) {
+                    // handle an operators
+                    a0 = kp->tokens[++i];
+
+                    if (MATCHES(a0, "+")) ksb_add(to);
+                    else if (MATCHES(a0, "-")) ksb_sub(to);
+                    else if (MATCHES(a0, "*")) ksb_mul(to);
+                    else if (MATCHES(a0, "/")) ksb_div(to);
+                    else if (MATCHES(a0, "<")) ksb_lt(to);
+                    else {
+                        rc = ks_parse_err(kp, a0, "Unknown operator");
+                        goto kb_pend;
+                    }
+
                 } else if (MATCHES(kp->tokens[i], "load")) {
                     // should take string
                     a0 = kp->tokens[++i];
@@ -335,7 +374,7 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
 
                     if (a0.type == KS_TOK_INT) {
                         ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksb_new_list(to, (int16_t)atol(st._));
+                        ksb_call(to, (int16_t)atol(st._));
                     } else {
                         rc = ks_parse_err(kp, a0, "Invalid argument for `new_list` instruction, it should be `int`");
                         goto kb_pend;
@@ -380,10 +419,21 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                         // interpreted as relative amt
                         ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
                         ksb_jmpt(to, (int)atol(st._));
-                    } else if (a0.type == KS_TOK_U_TIL) {
-                        // add it to be linked
+                    } else if (a0.type == KS_TOK_U_TIL && kp->tokens[i+1].type == KS_TOK_IDENT) {
+                        // read the a0 as the label name
                         a0 = kp->tokens[++i];
-                        
+
+                        // add a delayed link, so it will be linked at the end
+                        links = realloc(links, sizeof(*links) * ++links_n);
+                        links[links_n - 1] = (struct jlink) { 
+                            .lbl_name = a0, 
+                            .bc_from = to->bc_n + sizeof(struct ks_bc_jmp), 
+                            .bc_i32 = to->bc_n + offsetof(struct ks_bc_jmp, relamt) 
+                        };
+
+                        // this '0' will be filled in later by the link
+                        ksb_jmpt(to, 0);
+
                     } else {
                         rc = ks_parse_err(kp, a0, "Invalid argument for `jmpt` instruction, it should be `int`, or a `~label`");
                         goto kb_pend;
@@ -395,9 +445,20 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                         // interpreted as relative amt
                         ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
                         ksb_jmpf(to, (int)atol(st._));
-                    } else if (a0.type == KS_TOK_U_TIL) {
-                        // add it to be linked
+                    } else if (a0.type == KS_TOK_U_TIL && kp->tokens[i+1].type == KS_TOK_IDENT) {
+                        // read the a0 as the label name
                         a0 = kp->tokens[++i];
+
+                        // add a delayed link, so it will be linked at the end
+                        links = realloc(links, sizeof(*links) * ++links_n);
+                        links[links_n - 1] = (struct jlink) { 
+                            .lbl_name = a0, 
+                            .bc_from = to->bc_n + sizeof(struct ks_bc_jmp), 
+                            .bc_i32 = to->bc_n + offsetof(struct ks_bc_jmp, relamt) 
+                        };
+
+                        // this '0' will be filled in later by the link
+                        ksb_jmpf(to, 0);
 
                     } else {
                         rc = ks_parse_err(kp, a0, "Invalid argument for `jmpf` instruction, it should be `int`, or a `~label`");
@@ -423,9 +484,28 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
         }
     }
 
+    // now, actually link things
+
+    for (i = 0; i < links_n; ++i) {
+        struct jlink jl = links[i];
+
+        // compute where the label is
+        int32_t lbl_off = ks_prog_lbl_i(to, KS_STR_VIEW(kp->src._ + jl.lbl_name.state.i, jl.lbl_name.len));
+        if (lbl_off == -1) {
+            rc = ks_parse_err(kp, jl.lbl_name, "Unknown label: `%.*s`", jl.lbl_name.len, kp->src._ + jl.lbl_name.state.i);
+            goto kb_pend; 
+        }
+
+        // now, we're making it a relative jump, so calculate the difference
+        int32_t relamt = lbl_off - jl.bc_from;
+        // and write it
+        *(int32_t*)(to->bc + jl.bc_i32) = relamt;
+    }
+
+
     // exception while parsing, or just the end
     kb_pend:
-
+    free(links);
     ks_str_free(&st);
     return rc;
 }

@@ -48,4 +48,6 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     vfprintf(stdout, fmt, args);
     va_end(args);
     fprintf(stdout, "\n");
+    fflush(stdout);
+
 }

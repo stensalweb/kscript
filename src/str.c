@@ -37,7 +37,6 @@ void ks_str_append(ks_str* str, ks_str A) {
     int start_len = str->len;
     int new_len = str->len + A.len;
     ks_str_resize(str, new_len);
-    //memcpy(str->_, A._, A.len);
     memcpy(str->_ + start_len, A._, A.len);
     str->_[str->len] = '\0';
 }
@@ -74,20 +73,23 @@ int ks_str_vfmt(ks_str* str, const char *fmt, va_list ap) {
     va_end(ap1);
 
     int res = 0;
-    if (req_size > str->max_len) {
+    //if (req_size > str->max_len) {
         // we will need to resize, but the argument could be used in `ap`, 
         // we just manually create a new string
         //ks_str_resize(str, req_size);
         char* old__ = str->_;
         str->_ = malloc(req_size + 1);
-        str->max_len = req_size;
+        str->max_len = req_size - 1;
+        str->len = req_size - 1;
         res = vsnprintf(str->_, req_size, fmt, ap);
         free(old__);
-    } else {
+    /*} else {
         // just print as normal
+        str->len = req_size - 1;
+        printf("'%s'\n", str->_);
         res = vsnprintf(str->_, req_size, fmt, ap);
-
-    }
+        printf("'%s'\n", str->_);
+    }*/
 
     return res;
 }

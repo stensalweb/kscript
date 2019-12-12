@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct kso* kso;
 
@@ -143,7 +144,12 @@ struct kso_type {
       // builtin type conversion to int
       f_int,
       // builtin type conversion to str
-      f_str
+      f_str,
+
+      // builtin getting function
+      f_get,
+      // builtin setting function
+      f_set
     ;
 
 
@@ -234,7 +240,25 @@ kso kso_new_str(ks_str val);
 // creates a new string from a given format
 kso kso_new_str_fmt(const char* fmt, ...);
 
+// create list of references
+kso kso_new_list(int n, kso* refs);
 
+// call a function object, with arguments, and return its result
+kso kso_call(kso func, int args_n, kso* args);
+
+
+/* object manipulation */
+
+// returns the object as a value. If obj is a primitive, (int, bool, etc...)
+//   , then the object is duplicated, and a new value is returned
+// else, (if it should be a reference type), `obj` is returned
+// This function is useful for treating things as immutable value types, for example
+//   when adding to a list
+kso kso_asval(kso obj);
+
+// free's an object's resources (through its type), and then frees `obj` itself
+// This should only be done if you are sure no one else is using the object
+void kso_free(kso obj);
 
 
 /* bytecode format:
@@ -293,6 +317,29 @@ enum {
     // 1[opcode] 2[int16_t n_items] 
     KS_BC_NEW_LIST,
 
+    /* operators */
+
+    // add the last two items
+    // 1[opcode]
+    KS_BC_ADD,
+
+    // subtract the last two items
+    // 1[opcode]
+    KS_BC_SUB,
+    
+    // multiply the last two items
+    // 1[opcode]
+    KS_BC_MUL,
+
+    // divide the last two items
+    // 1[opcode]
+    KS_BC_DIV,
+
+    // compare the last two items <
+    // 1[opcode]
+    KS_BC_LT,
+
+
     /* func calls */
 
     // pop off the last value (which should be callable),
@@ -312,6 +359,10 @@ enum {
     // 1[opcode] 2[int16_t n_args]
     KS_BC_SET,
 
+    // jump unconditionally
+    // 1[opcode] 4[int relamt]
+    KS_BC_JMP,
+    
     // jump conditionally (if the last item is a bool which is true)
     // 1[opcode] 4[int relamt]
     KS_BC_JMPT,
@@ -437,19 +488,11 @@ struct ks_bc_set {
 
 /* conditionals */
 
-struct ks_bc_jmpt {
-    // always KS_BC_JMPT
+struct ks_bc_jmp {
+    // KS_BC_JMP or KS_BC_JMPT or KS_BC_JMPTF
     ks_bc op;
 
-    // relative amount to jump if the last item was true
-    int32_t relamt;
-};
-
-struct ks_bc_jmpf {
-    // always KS_BC_JMPF
-    ks_bc op;
-
-    // relative amount to jump if the last item was false
+    // relative amount to jump if the last item was true, or false, or always
     int32_t relamt;
 };
 
@@ -494,10 +537,17 @@ int ksb_float(ks_prog* prog, ks_float val);
 int ksb_str(ks_prog* prog, ks_str val);
 int ksb_load(ks_prog* prog, ks_str name);
 int ksb_store(ks_prog* prog, ks_str name);
+int ksb_add(ks_prog* prog);
+int ksb_sub(ks_prog* prog);
+int ksb_mul(ks_prog* prog);
+int ksb_div(ks_prog* prog);
+int ksb_lt(ks_prog* prog);
+
 int ksb_call(ks_prog* prog, uint32_t n_args);
 int ksb_get(ks_prog* prog, uint32_t n_args);
 int ksb_set(ks_prog* prog, uint32_t n_args);
 int ksb_new_list(ks_prog* prog, uint32_t n_items);
+int ksb_jmp(ks_prog* prog, int32_t relamt);
 int ksb_jmpt(ks_prog* prog, int32_t relamt);
 int ksb_jmpf(ks_prog* prog, int32_t relamt);
 
@@ -509,8 +559,11 @@ int ksb_retnone(ks_prog* prog);
 // adds a label to a program (returns the index in the `lbls` array it was added at)
 int ks_prog_lbl_add(ks_prog* prog, ks_str name, int idx);
 
+// returns the offset from `prog->bc` where the label is defined
+int ks_prog_lbl_i(ks_prog* prog, ks_str name);
+
 // returns the string representation of the bytecode
-ks_str ks_prog_tostr(ks_prog* prog);
+int ks_prog_tostr(ks_prog* prog, ks_str* to);
 
 // frees all resources associated with the program
 void ks_prog_free(ks_prog* prog);
@@ -599,6 +652,12 @@ struct ks_token {
         KS_TOK_O_MUL,
         // literal div `/`
         KS_TOK_O_DIV,
+        // literal less than `<`
+        KS_TOK_O_LT,
+        // literal greater than `>`
+        KS_TOK_O_GT,
+        // literal equals `==`
+        KS_TOK_O_EQ,
 
 
         KS_TOK__NUM
@@ -670,7 +729,7 @@ void ks_vm_free(ks_vm* vm);
 
 /* globals/builtins */
 
-// defined in `types.c`, these are the global builtin types
+// defined in `builtin.c`, these are the global builtin types
 extern kso_type
     kso_T_type,
     kso_T_none,
@@ -678,12 +737,31 @@ extern kso_type
     kso_T_int, 
     kso_T_float,
     kso_T_str,
-    kso_T_cfunc
+    kso_T_cfunc,
+    kso_T_list
 ;
 
+// defined in `builtin.c`, these are the global builtin functions
 extern kso_cfunc
+    // misc
     kso_F_print,
-    kso_F_exit
+    kso_F_exit,
+
+    // getting/setting
+    kso_F_get,
+    kso_F_set,
+
+    // math/operator builtins
+    kso_F_add,
+    kso_F_sub,
+    kso_F_mul,
+    kso_F_div,
+    
+    // comparison
+    kso_F_lt,
+    kso_F_gt,
+    kso_F_eq
+
 ;
 
 
