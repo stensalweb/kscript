@@ -7,11 +7,11 @@
 #include "kscript.h"
 
 
-// resizes a string, reallocating if neccessary
+// resizes a string, ks_reallocating if neccessary
 void ks_str_resize(ks_str* str, uint32_t new_len) {
     if (str->_ == NULL || new_len > str->max_len) {
         str->max_len = (uint32_t)(1.25 * new_len + 5);
-        str->_ = realloc(str->_, str->max_len + 1);
+        str->_ = ks_realloc(str->_, str->max_len + 1);
     }
     str->len = new_len;
 }
@@ -59,7 +59,7 @@ int ks_str_cmp(ks_str A, ks_str B) {
 }
 
 void ks_str_free(ks_str* str) {
-    free(str->_);
+    ks_free(str->_);
 
     // reset it
     *str = KS_STR_EMPTY;
@@ -78,11 +78,11 @@ int ks_str_vfmt(ks_str* str, const char *fmt, va_list ap) {
         // we just manually create a new string
         //ks_str_resize(str, req_size);
         char* old__ = str->_;
-        str->_ = malloc(req_size + 1);
+        str->_ = ks_malloc(req_size + 1);
         str->max_len = req_size - 1;
         str->len = req_size - 1;
         res = vsnprintf(str->_, req_size, fmt, ap);
-        free(old__);
+        ks_free(old__);
     /*} else {
         // just print as normal
         str->len = req_size - 1;

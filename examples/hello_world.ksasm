@@ -2,7 +2,7 @@
 # prints out all primes < n, on their own lines
 
 # n = find primes up to
-const 100
+const 250000000
 store "n"
 
 # sieve = [true] * n
@@ -11,18 +11,6 @@ new_list 1
 load "n"
 op *
 store "sieve"
-
-# 0 and 1 set to false
-load "sieve"
-const 0
-const false
-set 3
-
-load "sieve"
-const 1
-const false
-set 3
-
 
 # i = 2
 const 2
@@ -35,10 +23,14 @@ loop:
     load "i"
     get 2
 
-
     jmpf ~if_after
 
     if:
+        load "i"
+        load "print"
+        call 1
+        discard
+    
         # inner loop
         load "i"
         load "i"
@@ -78,41 +70,30 @@ loop:
     op <
     jmpt ~loop
 
-#load "sieve"
-#load "print"
-#call 1
+loop2:
 
-# i = 2
-const 2
-store "i"
-
-# print loop
-loop_print:
-
-    # if sieve[i]:
+    # sieve[i]
     load "sieve"
     load "i"
     get 2
-    jmpf ~if2_after
+    jmpf ~if2_a
 
-    if2:
-        load "i"
-        load "print"
-        call 1
+    load "i"
+    load "print"
+    call 1
+    discard
 
-    if2_after:
+    if2_a:
 
-    # i++
     load "i"
     const 1
     op +
     store "i"
 
-    # i < n
     load "i"
     load "n"
     op <
-    jmpt ~loop_print
+    jmpt ~loop2
 
-load "exit"
-call 0
+
+retnone

@@ -5,6 +5,7 @@
 int main(int argc, char** argv) {
 
     //ks_set_loglvl(KS_LOGLVL_TRACE);
+    //ks_set_loglvl(KS_LOGLVL_DEBUG);
 
     // create a new program
     /*
@@ -27,7 +28,10 @@ int main(int argc, char** argv) {
     fclose(fp);
 
     //int res = ks_parse_setsrc(&kp, KS_STR_CONST("-"), KS_STR_CONST("const \"hello world\"; const 42;"));
+
     int res = ks_parse_setsrc(&kp, KS_STR_CONST("examples/hello_world.ksasm"), fin);
+
+
 
     if (res != 0) {
         ks_error(kp.err._);
@@ -53,18 +57,11 @@ int main(int argc, char** argv) {
     ks_dict_set_str(&vm.dict, KS_STR_CONST("print"), (kso)kso_F_print);
     ks_dict_set_str(&vm.dict, KS_STR_CONST("exit"), (kso)kso_F_exit);
 
-
     ks_exec(&vm, &prog, 0);
-
-
-    //ks_str tostr = ks_prog_tostr(&p);
-
-    //printf("'%s'\n", tostr._);
 
     // free our resources
     ks_vm_free(&vm);
     ks_prog_free(&prog);
-   // ks_parse_free(&kp);
 
     //printf("%s\n", kso_type_int->name._);
     return 0;

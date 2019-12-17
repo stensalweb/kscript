@@ -3,49 +3,47 @@
 #include "kscript.h"
 
 kso kso_new_none() {
-    kso_none ret = (kso_none)malloc(sizeof(*ret));
-    ret->type = kso_T_none;
-    ret->flags = 0x0;
-    return (kso)ret;
+    return (kso)kso_V_none;
 }
 
 kso kso_new_bool(ks_bool val) {
-    kso_bool ret = (kso_bool)malloc(sizeof(*ret));
-    ret->type = kso_T_bool;
-    ret->flags = 0x0;
-    ret->_bool = val;
-    return (kso)ret;
+    return (kso)(val ? kso_V_true : kso_V_false);
 }
 
 kso kso_new_int(ks_int val) {
-    kso_int ret = (kso_int)malloc(sizeof(*ret));
+    kso_int ret = (kso_int)ks_malloc(sizeof(*ret));
     ret->type = kso_T_int;
-    ret->flags = 0x0;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
     ret->_int = val;
     return (kso)ret;
 }
 
 kso kso_new_float(ks_float val) {
-    kso_float ret = (kso_float)malloc(sizeof(*ret));
+    kso_float ret = (kso_float)ks_malloc(sizeof(*ret));
     ret->type = kso_T_float;
-    ret->flags = 0x0;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
     ret->_float = val;
     return (kso)ret;
 }
 
 kso kso_new_str(ks_str val) {
-    kso_str ret = (kso_str)malloc(sizeof(*ret));
+    kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
     ret->type = kso_T_str;
     ret->flags = 0x0;
+    ret->refcnt = 0;
     ret->_str = ks_str_dup(val);
     return (kso)ret;
 }
 
 
 kso kso_new_str_fmt(const char* fmt, ...) {
-    kso_str ret = (kso_str)malloc(sizeof(*ret));
+    kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
     ret->type = kso_T_str;
-    ret->flags = 0x0;
+    ret->flags = KSOF_NONE;
+
+    ret->refcnt = 0;
     ret->_str = KS_STR_EMPTY;
 
     va_list ap;
@@ -57,15 +55,22 @@ kso kso_new_str_fmt(const char* fmt, ...) {
 }
 
 kso kso_new_list(int n, kso* refs) {
-    kso_list ret = (kso_list)malloc(sizeof(*ret));
+    kso_list ret = (kso_list)ks_malloc(sizeof(*ret));
     ret->type = kso_T_list;
-    ret->flags = 0x0;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
     ret->_list = KS_LIST_EMPTY;
+
     ret->_list.len = n;
     ret->_list.max_len = n;
-    ret->_list.items = malloc(n * sizeof(kso));
-    if (refs != NULL)
+    ret->_list.items = ks_malloc(n * sizeof(kso));
+    if (refs != NULL) {
         memcpy(ret->_list.items, refs, n * sizeof(kso));
+        //int i;
+        //for (i = 0; i < n; ++i) {
+        //    KSO_INCREF(refs[i]);
+        //}
+    }
     return (kso)ret;
 }
 
@@ -79,6 +84,11 @@ kso kso_asval(kso obj) {
 }
 
 void kso_free(kso obj) {
+    // don't free an immortal
+    if (obj->flags & KSOF_IMMORTAL || obj->refcnt > 0) return;
+    //return;
+
+    ks_trace("ks_freeing obj %p [type %s]", obj, obj->type->name._);
     kso f_free = obj->type->f_free;
 
     if (f_free != NULL) {
@@ -89,7 +99,7 @@ void kso_free(kso obj) {
         }
     }
 
-    free(obj);
+    ks_free(obj);
 }
 
 kso kso_call(kso func, int args_n, kso* args) {
@@ -100,4 +110,3 @@ kso kso_call(kso func, int args_n, kso* args) {
         return NULL;
     }
 }
-

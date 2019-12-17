@@ -11,7 +11,7 @@ int ksb_strr(ks_prog* prog, ks_str str) {
     }
     // else, it doesn't exist, so add it
     i = prog->str_tbl_n++;
-    prog->str_tbl = realloc(prog->str_tbl, sizeof(ks_str) * prog->str_tbl_n);
+    prog->str_tbl = ks_realloc(prog->str_tbl, sizeof(ks_str) * prog->str_tbl_n);
     prog->str_tbl[i] = ks_str_dup(str);
     return i;
 }
@@ -20,7 +20,7 @@ int ksb_strr(ks_prog* prog, ks_str str) {
 // add byte, return index
 int ksb_byte(ks_prog* prog, uint8_t byte) {
     int idx = prog->bc_n++;
-    prog->bc = realloc(prog->bc, prog->bc_n);
+    prog->bc = ks_realloc(prog->bc, prog->bc_n);
     prog->bc[idx] = byte;
     return idx;
 }
@@ -29,7 +29,7 @@ int ksb_byte(ks_prog* prog, uint8_t byte) {
 int ksb_bytes(ks_prog* prog, void* bytes, int n) {
     int idx = prog->bc_n;
     prog->bc_n += n;
-    prog->bc = realloc(prog->bc, prog->bc_n);
+    prog->bc = ks_realloc(prog->bc, prog->bc_n);
     //prog->bc[idx] = byte;
     memcpy(prog->bc + idx, bytes, n);
     return idx;
@@ -65,6 +65,7 @@ int ksb_jmp(ks_prog* prog, int32_t relamt) ksb_struct(ks_bc_jmp, .op = KS_BC_JMP
 int ksb_jmpt(ks_prog* prog, int32_t relamt) ksb_struct(ks_bc_jmp, .op = KS_BC_JMPT, .relamt = relamt)
 int ksb_jmpf(ks_prog* prog, int32_t relamt) ksb_struct(ks_bc_jmp, .op = KS_BC_JMPF, .relamt = relamt)
 
+int ksb_discard(ks_prog* prog) ksb_ionly(KS_BC_DISCARD);
 int ksb_typeof(ks_prog* prog) ksb_ionly(KS_BC_TYPEOF);
 int ksb_ret(ks_prog* prog) ksb_ionly(KS_BC_RET);
 int ksb_retnone(ks_prog* prog) ksb_ionly(KS_BC_RETNONE);
@@ -166,6 +167,11 @@ int ks_prog_tostr(ks_prog* prog, ks_str* to) {
             PASS(ks_bc_new_list);
             ks_str_fmt(to, "%snew_list %d", to->_, (int)i_new_list.n_items);
             break;
+        case KS_BC_DISCARD:
+            PASS(ks_bc);
+            ks_str_fmt(to, "%sdiscard", to->_);
+            break;
+
         case KS_BC_JMP:
             i_jmp = DECODE(ks_bc_jmp);
             PASS(ks_bc_jmp);
@@ -208,7 +214,7 @@ int ks_prog_lbl_add(ks_prog* prog, ks_str name, int idx) {
     }
 
     i = prog->lbl_n++;
-    prog->lbls = realloc(prog->lbls, sizeof(*prog->lbls) * prog->lbl_n);
+    prog->lbls = ks_realloc(prog->lbls, sizeof(*prog->lbls) * prog->lbl_n);
     prog->lbls[i].name = ks_str_dup(name);
     prog->lbls[i].idx = idx;
 
@@ -228,7 +234,7 @@ int ks_prog_lbl_i(ks_prog* prog, ks_str name) {
 }
 
 void ks_prog_free(ks_prog* prog) {
-    free(prog->bc);
+    ks_free(prog->bc);
     int i;
     for (i = 0; i < prog->str_tbl_n; ++i) {
         ks_str_free(&prog->str_tbl[i]);
@@ -236,7 +242,7 @@ void ks_prog_free(ks_prog* prog) {
     for (i = 0; i < prog->lbl_n; ++i) {
         ks_str_free(&prog->lbls[i].name);
     }
-    free(prog->lbls);
-    free(prog->str_tbl);
+    ks_free(prog->lbls);
+    ks_free(prog->str_tbl);
     *prog = KS_PROG_EMPTY;
 }

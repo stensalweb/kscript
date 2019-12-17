@@ -29,7 +29,7 @@ inline char ks_parse_get(ks_parse* kp) {
 // adds a token to the internal array
 int ks_parse_addtok(ks_parse* kp, ks_token tok) {
     int idx = kp->tokens_n++;
-    kp->tokens = realloc(kp->tokens, sizeof(ks_token) * kp->tokens_n);
+    kp->tokens = ks_realloc(kp->tokens, sizeof(ks_token) * kp->tokens_n);
     kp->tokens[idx] = tok;
 }
 
@@ -304,9 +304,11 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
     // helper string
     ks_str st = KS_STR_EMPTY;
 
+
     #define MATCHES(_tok, _str) (strncmp(_str, kp->src._ + _tok.state.i, _tok.len) == 0)
     int i;
     for (i = 0; i < kp->tokens_n; ++i) {
+
         switch (kp->tokens[i].type) {
             case KS_TOK_COMMENT:
             case KS_TOK_NEWLINE:
@@ -410,6 +412,15 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                         goto kb_pend;
                     }
 
+                /* simple instructions */
+
+                } else if (MATCHES(kp->tokens[i], "retnone")) {
+                    ksb_retnone(to);
+
+                } else if (MATCHES(kp->tokens[i], "discard")) {
+                    ksb_discard(to);
+
+
                 /* jumping/conditionals */
 
                 } else if (MATCHES(kp->tokens[i], "jmpt")) {
@@ -424,7 +435,7 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                         a0 = kp->tokens[++i];
 
                         // add a delayed link, so it will be linked at the end
-                        links = realloc(links, sizeof(*links) * ++links_n);
+                        links = ks_realloc(links, sizeof(*links) * ++links_n);
                         links[links_n - 1] = (struct jlink) { 
                             .lbl_name = a0, 
                             .bc_from = to->bc_n + sizeof(struct ks_bc_jmp), 
@@ -450,7 +461,7 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                         a0 = kp->tokens[++i];
 
                         // add a delayed link, so it will be linked at the end
-                        links = realloc(links, sizeof(*links) * ++links_n);
+                        links = ks_realloc(links, sizeof(*links) * ++links_n);
                         links[links_n - 1] = (struct jlink) { 
                             .lbl_name = a0, 
                             .bc_from = to->bc_n + sizeof(struct ks_bc_jmp), 
@@ -471,10 +482,12 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
                     ks_prog_lbl_add(to, KS_STR_VIEW(kp->src._ + kp->tokens[i].state.i, kp->tokens[i].len), to->bc_n);
                     ++i;
 
+
                 } else {
                     rc = ks_parse_err(kp, kp->tokens[i], "Unknown instruction '%.*s'", kp->tokens[i].len, kp->src._ + kp->tokens[i].state.i);
                     goto kb_pend;
                 }
+
 
                 break;
 
@@ -484,9 +497,11 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
         }
     }
 
+
     // now, actually link things
 
     for (i = 0; i < links_n; ++i) {
+
         struct jlink jl = links[i];
 
         // compute where the label is
@@ -505,7 +520,7 @@ int ks_parse_bc(ks_parse* kp, ks_prog* to) {
 
     // exception while parsing, or just the end
     kb_pend:
-    free(links);
+    ks_free(links);
     ks_str_free(&st);
     return rc;
 }

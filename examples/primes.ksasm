@@ -1,7 +1,8 @@
 # primes.ksasm - bytecode for calculating primes, in kscript assembly
+# prints out all primes < n, on their own lines
 
-# n = 30
-const 30
+# n = find primes up to
+const 10000000
 store "n"
 
 # sieve = [true] * n
@@ -11,16 +12,9 @@ load "n"
 op *
 store "sieve"
 
-load "sieve"
-
-load "print"
-call 1
-
 # i = 2
 const 2
 store "i"
-
-
 
 # sieve loop
 loop:
@@ -29,10 +23,13 @@ loop:
     load "i"
     get 2
 
-
     jmpf ~if_after
 
     if:
+        load "i"
+        load "print"
+        call 1
+    
         # inner loop
         load "i"
         load "i"
@@ -62,50 +59,40 @@ loop:
 
     # i * i < n -> loop, else continue on
     load "i"
+    const 1
+    op +
+    store "i"
+    load "i"
     load "i"
     op *
     load "n"
     op <
     jmpt ~loop
 
-load "sieve"
-load "print"
-call 1
+loop2:
 
-
-# i = 2
-const 2
-store "i"
-
-# print loop
-loop_print:
-
-    # if sieve[i]:
+    # sieve[i]
     load "sieve"
     load "i"
     get 2
-    jmpf ~if2_after
+    jmpf ~if2_a
 
-    if2:
-        load "i"
-        load "print"
-        call 1
+    load "i"
+    load "print"
+    call 1
 
-    if2_after:
+    if2_a:
 
-    # i++
     load "i"
     const 1
-    load "add"
-    call 2
+    op +
     store "i"
 
-    # i < n
     load "i"
     load "n"
     op <
-    jmpt ~loop_print
+    jmpt ~loop2
 
-# done!
+
 load "exit"
 call 0

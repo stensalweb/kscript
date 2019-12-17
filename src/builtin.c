@@ -109,11 +109,10 @@ FUNC(repr) {
         return ks_err_add_str_fmt(_FUNCSIG ": `a`'s type (`%s`) did not have a `repr()` function", a->type->name._);
     } else if (f_str->type == kso_T_cfunc) {
         str_res = KSO_CAST(kso_cfunc, f_str)->_cfunc(1, &a);
+        if (str_res == NULL) return NULL;
     } else {
         return ks_err_add_str_fmt(_FUNCSIG ": failed, `%s.repr(self)` was not callable", a->type->name._);
     }
-
-    if (str_res == NULL) return NULL;
 
     return str_res;
 }
@@ -132,19 +131,22 @@ FUNC(print) {
             return ks_err_add_str_fmt(_FUNCSIG ": `args[%d]`'s type (`%s`) did not have a `str()` function, so it can't be printed", i, args[i]->type->name._);
         } else if (f_str->type == kso_T_cfunc) {
             str_res = KSO_CAST(kso_cfunc, f_str)->_cfunc(1, &args[i]);
+            if (str_res == NULL) return NULL;
+
         } else {
             return ks_err_add_str_fmt(_FUNCSIG ": `str(args[%d])` failed, `%s.str(self)` was not callable", i, args[i]->type->name._);
         }
-
-        if (str_res == NULL) return NULL;
 
         if (str_res->type != kso_T_str) {
             return ks_err_add_str_fmt(_FUNCSIG ": `str(args[%d])` failed, `%s.str(self)` was not of type `str`", i, args[i]->type->name._);
         }
 
         kso_str str_str = KSO_CAST(kso_str, str_res);
+        
 
         printf("%s ", str_str->_str._);
+
+        kso_free((kso)str_str);
     }
 
     printf("\n");
@@ -166,7 +168,7 @@ FUNC(exit) {
             exit((int)KSO_CAST(kso_int, code)->_int);
         } else {
             // TODO: make int
-            ks_warn("Called exit() with unsupported arguent `%s`", code->type->name._);
+            ks_warn("Called exit() with unsupported argument type `%s`", code->type->name._);
             exit(1);
         }
     }
@@ -206,7 +208,7 @@ FUNC(set) {
     kso_type self_T = self->type;
     kso setfunc = self_T->f_set;
     if (setfunc == NULL) {
-        return ks_err_add_str_fmt(_FUNCSIG ": `%s.set(key..., val)` does not exist", self_T->name._);
+        return ks_err_add_str_fmt(_FUNCSIG ": object of type `%s` is has no .set() method", self_T->name._);
     } else {
         return kso_call(setfunc, n_args, args);
     }
@@ -234,19 +236,25 @@ FUNC(mul) {
 
     kso A = args[0], B = args[1];
 
+
     if (A->type == kso_T_int && B->type == kso_T_int) {
+
         return kso_new_int(KSO_CAST(kso_int, A)->_int * KSO_CAST(kso_int, B)->_int);
     } else if (A->type == kso_T_list && B->type == kso_T_int) {
+
         ks_list Al = KSO_CAST(kso_list, A)->_list;
         ks_int Bi = KSO_CAST(kso_int, B)->_int;
         kso_list res = (kso_list)kso_new_list(Bi * Al.len, NULL);
+
 
         int i;
         for (i = 0; i < Bi; ++i) {
             // add list Bi times
             int j;
             for (j = 0; j < Al.len; ++j) {
-                res->_list.items[i * Al.len + j] = kso_asval(Al.items[j]);
+                kso val = kso_asval(Al.items[j]);
+                KSO_INCREF(val);
+                res->_list.items[i * Al.len + j] = val;
             }
         }
 
@@ -658,6 +666,18 @@ TYPEFUNC(str, str) {
     return kso_new_str(self->_str);
 }
 
+TYPEFUNC(str, free) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "str.free(self)"
+    REQ_N_ARGS(1);
+    REQ_TYPE("self", args[0], kso_T_str);
+
+    kso_str self = KSO_CAST(kso_str, args[0]);
+
+    ks_str_free(&self->_str);
+
+    return kso_new_none();
+}
 
 
 /* TYPE: list */
@@ -771,6 +791,7 @@ TYPEFUNC(list, set) {
     kso val = args[2];
     
     self->_list.items[idx] = kso_asval(val);
+    KSO_INCREF(self->_list.items[idx]);
 
     return kso_new_none();
 }
@@ -811,6 +832,7 @@ static struct kso_cfunc
     _CFUNC(str_bool),
     _CFUNC(str_int),
     _CFUNC(str_str),
+    _CFUNC(str_free),
 
     _CFUNC(list_init),
     _CFUNC(list_repr),
@@ -826,12 +848,12 @@ static struct kso_cfunc
 static struct kso_type
     T_type = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("type")
     },
     T_none = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("none"),
         .f_init = (kso)&_none_init,
         .f_repr = (kso)&_none_repr,
@@ -845,7 +867,7 @@ static struct kso_type
     },
     T_bool = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("bool"),
         .f_init = (kso)&_bool_init,
         .f_repr = (kso)&_bool_repr,
@@ -858,7 +880,7 @@ static struct kso_type
     },
     T_int = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("int"),
 
         .f_init = (kso)&_int_init,
@@ -872,7 +894,7 @@ static struct kso_type
     },
     T_float = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("float"),
 
         .f_init = (kso)&_float_init,
@@ -886,7 +908,7 @@ static struct kso_type
     },
     T_str = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("str"),
 
         .f_init = (kso)&_str_init,
@@ -896,11 +918,11 @@ static struct kso_type
         .f_int  = (kso)&_str_int,
         .f_str  = (kso)&_str_str,
 
-        .f_free = NULL
+        .f_free = (kso)&_str_free
     },    
     T_list = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("list"),
 
         .f_init = (kso)&_list_init,
@@ -917,10 +939,38 @@ static struct kso_type
     },
     T_cfunc = {
         .type = &T_type,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("cfunc")
     }
 ;
+
+
+/* export constants */
+
+static struct kso_bool 
+    V_true = {
+        .type = &T_bool,
+        .refcnt = 1,
+        .flags = KSOF_IMMORTAL,
+        ._bool = true
+    },
+    V_false = {
+        .type = &T_bool,
+        .refcnt = 1,
+        .flags = KSOF_IMMORTAL,
+        ._bool = false
+    }
+;
+
+static struct kso_none
+    V_none = {
+        .type = &T_none,
+        .refcnt = 1,
+        .flags = KSOF_IMMORTAL,
+    }
+;
+
+
 
 /* export C functions too */
 
@@ -983,6 +1033,16 @@ kso_cfunc
 
     kso_F_lt = &F_lt
 ;
+
+kso_none 
+    kso_V_none = &V_none
+;
+
+kso_bool 
+    kso_V_true = &V_true,
+    kso_V_false = &V_false
+;
+
 
 kso_type 
     kso_T_type  = &T_type,

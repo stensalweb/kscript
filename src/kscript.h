@@ -72,7 +72,8 @@ typedef struct {
 #define KS_LIST_EMPTY ((ks_list){ .len = 0, .max_len = 0, .items = NULL })
 
 // pops off an object, and returns that object
-#define ks_list_pop(_list) ((_list)->items[--(_list)->len])
+//#define ks_list_pop(_list) ((_list)->items[--(_list)->len])
+kso ks_list_pop(ks_list* list);
 // pushes an object reference to the list, returns the index
 int ks_list_push(ks_list* list, kso obj);
 // frees 'list's resources
@@ -119,7 +120,21 @@ void ks_dict_free(ks_dict* dict);
 
 
 /* object types */
-#define KSO_BASE kso_type type; uint64_t flags;
+
+// enum describing object flags, which are in the `KSO_BASE` of every object
+enum {
+    // the default for flags
+    KSOF_NONE = 0,
+
+    // if this flag is set, never free the object
+    // useful for the global booleans, global integer constants, etc
+    KSOF_IMMORTAL = 1 << 1
+
+};
+
+
+// the base parameters that should be at the start of any object
+#define KSO_BASE kso_type type; int32_t refcnt; uint32_t flags;
 
 typedef struct kso_type* kso_type;
 
@@ -155,11 +170,11 @@ struct kso_type {
 
 };
 
-typedef struct {
+typedef struct kso_none {
     KSO_BASE
 }* kso_none;
 
-typedef struct {
+typedef struct kso_bool {
     KSO_BASE
     ks_bool _bool;
 }* kso_bool;
@@ -206,6 +221,12 @@ struct kso {
 
 };
 
+
+// add a reference to the object
+#define KSO_INCREF(_obj) { ++(_obj)->refcnt; }
+
+// remove a reference to the object, freeing it if it reaches 0
+#define KSO_DECREF(_obj) { if (--(_obj)->refcnt <= 0) { kso_free(_obj); } }
 
 // cast `_obj` to `_type`, assumes its correct to do so
 #define KSO_CAST(_type, _obj) ((_type)_obj)
@@ -382,8 +403,12 @@ enum {
     KS_BC_RET,
 
     // return None
+    // [1:opcode]
     KS_BC_RETNONE,
 
+    // discards the top item
+    // 1[opcode]
+    KS_BC_DISCARD,
 
     // the end of the bytecodes
     KS_BC__END
@@ -550,6 +575,7 @@ int ksb_new_list(ks_prog* prog, uint32_t n_items);
 int ksb_jmp(ks_prog* prog, int32_t relamt);
 int ksb_jmpt(ks_prog* prog, int32_t relamt);
 int ksb_jmpf(ks_prog* prog, int32_t relamt);
+int ksb_discard(ks_prog* prog);
 
 int ksb_typeof(ks_prog* prog);
 int ksb_ret(ks_prog* prog);
@@ -741,6 +767,18 @@ extern kso_type
     kso_T_list
 ;
 
+
+extern kso_none
+    kso_V_none
+;
+
+
+// defined in `builtin.c`, these are the global builtin values/constant
+extern kso_bool
+    kso_V_true,
+    kso_V_false
+;
+
 // defined in `builtin.c`, these are the global builtin functions
 extern kso_cfunc
     // misc
@@ -808,6 +846,17 @@ int ks_err_N();
 // pops an error off the stack
 // returns NULL if there were no errors, and doesn't affect anything else
 kso ks_err_pop();
+
+
+/* memory management routines */
+
+void* ks_malloc(size_t bytes);
+
+void* ks_realloc(void* ptr, size_t bytes);
+
+void ks_free(void* ptr);
+
+size_t ks_memuse();
 
 /* logging */
 
