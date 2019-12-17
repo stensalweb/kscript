@@ -2,7 +2,7 @@
 # prints out all primes < n, on their own lines
 
 # n = find primes up to
-const 250000000
+const 100000
 store "n"
 
 # sieve = [true] * n
