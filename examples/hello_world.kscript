@@ -1,4 +1,10 @@
 
+i = 1
 
-print ("Hello World!")
+while (i*i < 1000) { 
+    if (i == 4) {
+        print ("i", i)
+    }    
+    i = 2*i
+}
 

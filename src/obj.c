@@ -38,7 +38,7 @@ kso kso_new_str(ks_str val) {
 }
 
 
-kso kso_new_str_fmt(const char* fmt, ...) {
+kso kso_new_str_cfmt(const char* fmt, ...) {
     kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
     ret->type = kso_T_str;
     ret->flags = KSOF_NONE;

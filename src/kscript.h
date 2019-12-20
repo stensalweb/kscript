@@ -139,6 +139,9 @@ enum {
 typedef struct kso_type* kso_type;
 
 /* primitive object definitions */
+
+
+// definition of a type
 struct kso_type {
     KSO_BASE
     // the name of the type, i.e. 'int'
@@ -148,10 +151,10 @@ struct kso_type {
     kso 
       // init is used as a constructor, can take `self,...` as args
       f_init,
-      // free should free all resources with 
+      // free should free all resources used by the object
       f_free,
 
-      // returns the string representation
+      // returns the string representation of the object
       f_repr,
 
       // builtin type conversion to bool
@@ -165,131 +168,205 @@ struct kso_type {
       f_get,
       // builtin setting function
       f_set
-    ;
 
+    ;
 
 };
 
+
+/* none-type
+
+Represents NULL/none/empty
+
+NOTE: You should never manually allocate/create one of these, because there is a global singleton
+  that represents `none`, just call either `kso_new_none()`, or the value `kso_V_none`.
+
+*/
 typedef struct kso_none {
     KSO_BASE
 }* kso_none;
 
+
+/* bool-type
+
+Represents either true or false (1 or 0)
+
+NOTE: You should never manually allocate/create one of these, because there are global constants so only 1 true and false are ever created,
+  use `kso_new_bool(true or false)`, or just `kso_V_true`, or `kso_V_false`
+
+*/
 typedef struct kso_bool {
     KSO_BASE
     ks_bool _bool;
 }* kso_bool;
 
+
+/* int-type
+
+Represents a 64 bit integer normally, to construct use `kso_new_int(val)`
+
+TODO: Perhaps use GMP/mpz/bigint as the default integer type? Or should this be a seperate type alltogether?
+
+*/
 typedef struct {
     KSO_BASE
     ks_int _int;
 }* kso_int;
 
+
+/* float-type
+
+Represents a 64 bit float, (a C double), to construct use `kso_new_float(val)`
+
+*/
 typedef struct {
     KSO_BASE
     ks_float _float;
 }* kso_float;
 
+/* str-type (strings)
+
+Represents a string of characters (1 byte each) of a given length, construct using `kso_new_str(val)`
+
+TODO: Maybe use interning of strings, similar to python. i.e. keep a single instance of a given string alive at a time,
+  since they are immutable, and just keep a hash-table of hashes and references, so everybody shares a reference count
+
+*/
 typedef struct {
     KSO_BASE
     ks_str _str;
 }* kso_str;
 
+
+/* list-type (ref list)
+
+Represents a list of references to other objects (i.e. does not 'own' the data of the objects), so freeing
+  or creating a list doesn't really free or create any additional data, unless the reference count drops below 0 for some of the objects in the array.
+
+Construct using `kso_new_list(n, obj-array)`
+
+*/
 typedef struct {
     KSO_BASE
     ks_list _list;
 }* kso_list;
 
+
+/* dict-type (ref dictionary)
+
+Represents a dictionary mapping of key->value
+
+Right now, it uses a linear search through the hashes, so is not as efficient as it could be. It also could use a method for handling hash collisions
+
+*/
 typedef struct {
     KSO_BASE
     ks_dict _dict;
 }* kso_dict;
 
+
+/* cfunc-type (C-function)
+
+Represents a function as a C-style function pointer taking a number of args and list of arguments, returning a result
+
+Typically, I think these should be marked as `immortal`, because I can't think of any need to garbage collect these EXCEPT in the case where I (or someone else) writes a JIT compiler, and constructs these programmatically. That would be sick
+
+*/
 typedef struct kso_cfunc {
     KSO_BASE
     kso (*_cfunc)(int n_args, kso* args);
 }* kso_cfunc;
 
 
-/* 
-the base type of object, which all others must derive from
-(i.e. be castable to)
-so, every object definition must begin with `KSO_BASE`
-This is the most generic object
+/* generic type
+
+This encapsulates just the base of an object, which is only required to have the `KSO_BASE` vars
+
 */
 struct kso {
     KSO_BASE
-
 };
 
 
-// add a reference to the object
+// increment the reference count by 1, i.e. add a reference to the object
+// NOTE: Even if the reference count ends up being <= 0, the object is not freed.
+//   if you want that, use `KSO_CHKREF(_obj)`
 #define KSO_INCREF(_obj) { ++(_obj)->refcnt; }
 
-// remove a reference to the object, freeing it if it reaches 0
+// decrement the reference count by 1, i.e. remove a reference to the object
+// If the reference count drops <= 0, then the object is freed. This will not affect immortal objects
 #define KSO_DECREF(_obj) { if (--(_obj)->refcnt <= 0) { kso_free(_obj); } }
 
+// checks the reference count, if the object can not be found (i.e. ref count <= 0), free the object
+// If the object is still referenced elsewhere, nothing is done
+#define KSO_CHKREF(_obj) { if ((_obj)->refcnt <= 0) { kso_free(_obj); } }
+
 // cast `_obj` to `_type`, assumes its correct to do so
-#define KSO_CAST(_type, _obj) ((_type)_obj)
-
-// tries to call an object (which could be a cfunc, for instance)
-// _success should be a boolean, which is set to true if it worked,
-//   false if not
-// _n_args should be an integer which tells how many args
-// _args should be a pointer to the start of the arguments
-// _res should be a `kso`, which will be assigned to the result of the function call
-//   (or NULL if there was an error somewhere)
-#define KSO_CALL(_success, _res, _obj, _n_args, _args) { \
-    if ((_obj)->type == kso_T_cfunc) { \
-        _res = KSO_CAST(kso_cfunc, _obj)->_cfunc((_n_args), (_args)); \
-        _success = true; \
-    } else { \
-        _res = NULL; \
-        _success = false; \
-    } \
-}
+#define KSO_CAST(_type, _obj) ((_type)(_obj))
 
 
+/* constructing new primitives 
 
-/* constructing new primitives */
+All these either return global constants (which are marked as immortal), or interned references of ojbects that may be duplicated (like strings), or new references with a reference count of 0. So, use `KSO_INCREF` once you get these objects, and KSO_DECREF once you are done using them
 
+*/
+
+// returns a new `none` object (namely, the only one).
+// This returns the immortal-global-constant `kso_V_none`
+// It is safe to use normally
 kso kso_new_none();
-kso kso_new_bool(ks_bool val);
-kso kso_new_int(ks_int val);
-kso kso_new_float(ks_float val);
-// creates a copy of the data, so the new object doesn't rely on `val` at all
-kso kso_new_str(ks_str val);
-// creates a new string from a given format
-kso kso_new_str_fmt(const char* fmt, ...);
 
-// create list of references
+// returns a new `bool` object with either true or false value
+// It will return either one of the immortal-global-constants, either `kso_V_true`, or `kso_V_false`
+// It is safe to use normally
+kso kso_new_bool(ks_bool val);
+// returns a new `int` object with a given value
+// For certain values, a immortal-global-constant may be returned (for efficiency). I'm thinking (-255,255),
+//   not sure though
+// Dealing with integers as immutable values will take some hardcoding if this is implemented, because we can never be allowed to modify these
+kso kso_new_int(ks_int val);
+
+// returns a new `float` object with a given value
+// this always allocates a new object, and returns the pointer, it's never constant, so always needs to be reference counted
+kso kso_new_float(ks_float val);
+
+// returns a string object with a given value
+// NOTE: The result does not depend on `val` at all, so it can be called with a constant argument, else the caller is responsible for `val` afterwards
+kso kso_new_str(ks_str val);
+
+// returns a string object from a given C-printf-style format and args
+kso kso_new_str_cfmt(const char* fmt, ...);
+
+
+// creates a list of `n` references, and fills it in from `refs`. If `refs==NULL`, then the array is uninitialized
 kso kso_new_list(int n, kso* refs);
 
-// call a function object, with arguments, and return its result
+// attempt to "call" a function or functor-like object with a number of arguments
+// so, like `func(args[0], args[1], ...)`
+// if `func` is a C-func, the native C function is called
+// otherwise, NULL is returned and a global error is set via ks_err_add_*
 kso kso_call(kso func, int args_n, kso* args);
 
+/* object manipulation/management */
 
-/* object manipulation */
-
-// returns the object as a value. If obj is a primitive, (int, bool, etc...)
-//   , then the object is duplicated, and a new value is returned
-// else, (if it should be a reference type), `obj` is returned
+// returns the object as a value.
 // This function is useful for treating things as immutable value types, for example
 //   when adding to a list
 kso kso_asval(kso obj);
 
 // free's an object's resources (through its type), and then frees `obj` itself
+// This is okay to call if `obj` is immortal; it is a no-op in that case
 // This should only be done if you are sure no one else is using the object
 void kso_free(kso obj);
 
 
 /* bytecode format:
-encoded with [SIZE: desc]
+encoded with SIZE[desc]
 where SIZE is in bytes
 
-So, this is variable-length bytecode, the arguments must
-be consumed variabl-y
+So, this is variable-length bytecode, the arguments must be consumed variabl-y
 
-These are all executed on a stack, with a reference to a constant table
+These are all executed on a stack, sometimes with a reference to a constant table
 (for storing strings)
 
 So, implicitly, they operate on the top of the stack
@@ -302,41 +379,60 @@ enum {
     // 1[opcode]
     KS_BC_NOOP = 0,
 
+    /* stack operations */
 
-    // load a variable by string name
-    // (idx is an index into the `str_tbl`)
-    // 1[opcode] 4[int idx(name)]
-    KS_BC_LOAD,
+    // discards the top item
+    // 1[opcode]
+    KS_BC_DISCARD,
 
-    // pop off the last value, and store into a variable name
-    // 1[opcode] 4[int idx(name)]
-    KS_BC_STORE,
-
+    // discards all items on the stack
+    // 1[opcode]
+    //KS_BC_CLEAR,
 
     /* constructing values/primitives */
 
-    // pop on a literal boolean (true or false)
+    // push on a literal boolean value of `true`
     // 1[opcode]
     KS_BC_BOOLT,
+
+    // push on a literal boolean value of `false`
+    // 1[opcode]
     KS_BC_BOOLF,
 
-    // pop on a literal integer
-    // 1[opcode] 8[ks_int val]
-    KS_BC_INT,
+    // push on a literal integer (64 bit max)
+    // 1[opcode] 8[int64_t val]
+    KS_BC_INT64,
 
-    // pop on a float value
+    // push on a literal integer (32 bit max)
+    // 1[opcode] 4[int32_t val]
+    KS_BC_INT32,
+
+    // push on a literal integer (16 bit max)
+    // 1[opcode] 2[int16_t val]
+    KS_BC_INT16,
+
+    // push on a float value
     // 1[opcode] 8[ks_float val]
     KS_BC_FLOAT,
 
+    // push on a string value, looked up from the `str_tbl`
+    // 1[opcode] 4[int32_t idx(value)]
     KS_BC_STR,
 
+    // pop off `n_items` on the stack, then push on a list containing all of them
+    // 1[opcode] 4[int n_items] 
+    KS_BC_CREATE_LIST,
 
-    /* construct more primitives */
+    /* lookup functions */
 
-    // create a new list like: [A B]
-    // uses the last `n_items` on the stack
-    // 1[opcode] 2[int16_t n_items] 
-    KS_BC_NEW_LIST,
+    // load a variable by string name
+    // (idx is an index into the `str_tbl`)
+    // 1[opcode] 4[int32_t idx(name)]
+    KS_BC_LOAD,
+
+    // pop off the last value, and store into a variable name
+    // 1[opcode] 4[int32_t idx(name)]
+    KS_BC_STORE,
 
     /* operators */
 
@@ -356,59 +452,73 @@ enum {
     // 1[opcode]
     KS_BC_DIV,
 
+    // modulo the last two items
+    // 1[opcode]
+    KS_BC_MOD,
+
+    // exponentiate (power) the last two items
+    // 1[opcode]
+    KS_BC_POW,
+
     // compare the last two items <
     // 1[opcode]
     KS_BC_LT,
 
+    // compare the last two items >
+    // 1[opcode]
+    KS_BC_GT,
+
+    // compare the last two items ==
+    // 1[opcode]
+    KS_BC_EQ,
+
 
     /* func calls */
 
-    // pop off the last value (which should be callable),
-    // and then call with `n_args`
-    // 1[opcode] 2[int16_t n_args]
+    // pop off the last item (which is the function)
+    // then, pop off `n_args` more item, and call `func(args)`, pushing back on the result of the function call
+    // example: `A B C f [call 3]` results in `f(A, B, C)` on the stack
+    // 1[opcode] 2[uint16_t n_args]
     KS_BC_CALL,
 
-    // basically does the subscript of the last object (a[])
+    // pops off the last item (which is the main object)
+    // then, pop off `n_args` items off the stack, and `get` them using whatever method is appropriate for the type
+    // in general, this is the subscript method: `a[]`
     // so, a[b, c, d] would be:
     // b c d a [get 3]
-    // 1[opcode] 2[int16_t n_args]
+    // 1[opcode] 2[uint16_t n_args]
     KS_BC_GET,
 
-    // basically does the subscript-equals of the last object (a[]=...)
-    // so, a[b, c] = d would be a.__set__(b, c, d)
-    // b c d a [set 3]
-    // 1[opcode] 2[int16_t n_args]
+    // pops off the last item (which is the main object)
+    // then, pop off `n_args` items off the stack, and `set` them using whatever method is appropriate for the type
+    // in general, this is the subscript method: `a[]=`
+    // so, a[b, c, d] = e would be:
+    // b c d e a [set 4]
+    // the item before last on the stack should be the value its being set to
+    // 1[opcode] 2[uint16_t n_args]
     KS_BC_SET,
 
-    // jump unconditionally
+    // jump unconditionally a relative amount (always in bytes)
     // 1[opcode] 4[int relamt]
     KS_BC_JMP,
     
-    // jump conditionally (if the last item is a bool which is true)
+    // jump conditionally (if the last item is a bool which is true or an item which is truthy)
     // 1[opcode] 4[int relamt]
     KS_BC_JMPT,
 
-    // jump conditionally (if the last item is a bool which is false)
+    // jump conditionally (if the last item is a bool which is false or an item which is falsy)
     // 1[opcode] 4[int relamt]
     KS_BC_JMPF,
 
     /* operations */
 
-    // replace the top of the stack with its type
-    // [1:opcode]
-    KS_BC_TYPEOF,
-
     // pop off and 'return' the last item on the stack
     // [1:opcode]
     KS_BC_RET,
 
-    // return None
+    // return None, not popping anything off the stack
     // [1:opcode]
     KS_BC_RETNONE,
-
-    // discards the top item
-    // 1[opcode]
-    KS_BC_DISCARD,
 
     // the end of the bytecodes
     KS_BC__END
@@ -429,33 +539,33 @@ struct ks_bc_noop {
     ks_bc op;
 };
 
-struct ks_bc_load {
-    // always KS_BC_LOAD
-    ks_bc op;
-    
-    // index of the name into the str_tbl of its program
-    uint16_t name_idx;
 
-};
+/* constants/literals */
 
-struct ks_bc_store {
-    // always KS_BC_STORE
-    ks_bc op;
-    
-    // index of the name into the str_tbl of its program
-    uint16_t name_idx;
-
-};
-
-/* constants */
-
-struct ks_bc_int {
+struct ks_bc_int64 {
     // always KS_BC_INT
     ks_bc op;
 
     // value of the integer
-    ks_int val;
+    int64_t val;
 };
+
+struct ks_bc_int32 {
+    // always KS_BC_INT
+    ks_bc op;
+
+    // value of the integer
+    int32_t val;
+};
+
+struct ks_bc_int16 {
+    // always KS_BC_INT
+    ks_bc op;
+
+    // value of the integer
+    int16_t val;
+};
+
 
 struct ks_bc_float {
     // always KS_BC_FLOAT
@@ -470,17 +580,36 @@ struct ks_bc_str {
     ks_bc op;
 
     // index of the value into the str_tbl of the program
-    uint16_t val_idx;
+    int32_t val_idx;
 };
 
-/* constructing/calling */
-
-struct ks_bc_new_list {
-    // always KS_BC_NEW_LIST
+struct ks_bc_create_list {
+    // always KS_BC_CREATE_LIST
     ks_bc op;
 
     // number of items on the stack to take
-    uint16_t n_items;
+    int32_t n_items;
+};
+
+
+/* loading/storing */
+
+struct ks_bc_load {
+    // always KS_BC_LOAD
+    ks_bc op;
+    
+    // index of the name into the str_tbl of its program
+    int32_t name_idx;
+
+};
+
+struct ks_bc_store {
+    // always KS_BC_STORE
+    ks_bc op;
+    
+    // index of the name into the str_tbl of its program
+    int32_t name_idx;
+
 };
 
 struct ks_bc_call {
@@ -510,14 +639,14 @@ struct ks_bc_set {
     uint16_t n_args;
 };
 
-
 /* conditionals */
 
 struct ks_bc_jmp {
     // KS_BC_JMP or KS_BC_JMPT or KS_BC_JMPTF
     ks_bc op;
 
-    // relative amount to jump if the last item was true, or false, or always
+    // relative amount to jump if the last item was true, or false, or always (depending on the instruction)
+    // NOTE: always in bytes
     int32_t relamt;
 };
 
@@ -553,29 +682,45 @@ typedef struct {
 // the empty program, used to initialize
 #define KS_PROG_EMPTY ((ks_prog){ .str_tbl_n = 0, .str_tbl = NULL, .lbl_n = 0, .lbls = NULL, .bc_n = 0, .bc = NULL })
 
-/* add instructions (these all return the index at which the instruction was added) */
+/* generate instructions (these all return the index at which the instruction was added) */
 
 int ksb_noop(ks_prog* prog);
+
+/* constant/literal instructions */
+
 int ksb_bool(ks_prog* prog, ks_bool val);
 int ksb_int(ks_prog* prog, ks_int val);
+int ksb_int64(ks_prog* prog, int64_t val);
+int ksb_int32(ks_prog* prog, int32_t val);
+int ksb_int16(ks_prog* prog, int16_t val);
 int ksb_float(ks_prog* prog, ks_float val);
 int ksb_str(ks_prog* prog, ks_str val);
+int ksb_create_list(ks_prog* prog, uint32_t n_items);
+
+/* load/store functionality */
+
 int ksb_load(ks_prog* prog, ks_str name);
 int ksb_store(ks_prog* prog, ks_str name);
+
+/* operators */
 int ksb_add(ks_prog* prog);
 int ksb_sub(ks_prog* prog);
 int ksb_mul(ks_prog* prog);
 int ksb_div(ks_prog* prog);
+int ksb_mod(ks_prog* prog);
+int ksb_pow(ks_prog* prog);
 int ksb_lt(ks_prog* prog);
+int ksb_gt(ks_prog* prog);
+int ksb_eq(ks_prog* prog);
 
 int ksb_call(ks_prog* prog, uint32_t n_args);
 int ksb_get(ks_prog* prog, uint32_t n_args);
 int ksb_set(ks_prog* prog, uint32_t n_args);
-int ksb_new_list(ks_prog* prog, uint32_t n_items);
 int ksb_jmp(ks_prog* prog, int32_t relamt);
 int ksb_jmpt(ks_prog* prog, int32_t relamt);
 int ksb_jmpf(ks_prog* prog, int32_t relamt);
 int ksb_discard(ks_prog* prog);
+int ksb_clear(ks_prog* prog);
 
 int ksb_typeof(ks_prog* prog);
 int ksb_ret(ks_prog* prog);
@@ -594,8 +739,110 @@ int ks_prog_tostr(ks_prog* prog, ks_str* to);
 // frees all resources associated with the program
 void ks_prog_free(ks_prog* prog);
 
-/* parsing implementation */
+/* AST implementation */
 
+typedef struct ks_ast* ks_ast;
+
+
+enum {
+    KS_AST_NONE = 0,
+
+    KS_AST_CONST_INT,
+    KS_AST_CONST_FLOAT,
+    KS_AST_CONST_STR,
+
+    // a variable reference
+    KS_AST_VAR,
+
+    // a function-style call
+    KS_AST_CALL,
+
+    // if (cond) { BODY }
+    KS_AST_IF,
+
+    // while (cond) { BODY }
+    KS_AST_WHILE,
+    
+    // a list of ast's
+    KS_AST_BLOCK,
+
+    // operators
+    KS_AST_BOP_ADD,
+    KS_AST_BOP_SUB,
+    KS_AST_BOP_MUL,
+    KS_AST_BOP_DIV,
+    KS_AST_BOP_LT,
+    KS_AST_BOP_GT,
+    KS_AST_BOP_EQ,
+
+    // assignment
+    KS_AST_BOP_ASSIGN
+
+
+};
+
+struct ks_ast {
+    uint16_t type;
+
+    union {
+        ks_int _int;
+        ks_float _float;
+        ks_str _str;
+
+        struct {
+            // function being called
+            ks_ast func;
+
+            // list of the arguments
+            int args_n;
+            ks_ast* args;
+        } _call;
+
+        struct {
+            ks_ast L, R;
+        } _bop;
+
+        struct {
+            int sub_n;
+            ks_ast* subs;
+        } _block;
+
+        struct {
+            ks_ast cond;
+            ks_ast body;
+        } _if;
+
+        struct {
+            ks_ast cond;
+            ks_ast body;
+        } _while;
+
+    };
+
+
+};
+
+
+ks_ast ks_ast_new_const_int(ks_int val);
+ks_ast ks_ast_new_const_float(ks_float val);
+ks_ast ks_ast_new_const_str(ks_str val);
+ks_ast ks_ast_new_var(ks_str name);
+ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args);
+
+ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
+
+ks_ast ks_ast_new_block(int sub_n, ks_ast* subs);
+int ks_ast_block_add(ks_ast block, ks_ast sub);
+
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
+ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
+
+
+// generates bytecode from an AST
+int ks_ast_codegen(ks_ast ast, ks_prog* to);
+
+
+/* parsing implementation */
 
 typedef struct ks_token ks_token;
 
@@ -665,6 +912,20 @@ struct ks_token {
         // a newline
         KS_TOK_NEWLINE,
 
+        // left parenthesis '('
+        KS_TOK_LPAREN,
+        // right parenthesis ')'
+        KS_TOK_RPAREN,
+
+        // left brace '{'
+        KS_TOK_LBRACE,
+        // right brace '}'
+        KS_TOK_RBRACE,
+
+        // comma ','
+        KS_TOK_COMMA,
+
+
         /* operators */
 
         // literal tilde `~`
@@ -684,6 +945,8 @@ struct ks_token {
         KS_TOK_O_GT,
         // literal equals `==`
         KS_TOK_O_EQ,
+        // literal assignment
+        KS_TOK_O_ASSIGN,
 
 
         KS_TOK__NUM
@@ -713,7 +976,6 @@ struct ks_token {
 #define KS_PARSE_EMPTY ((ks_parse){ .src_name = KS_STR_EMPTY, .src = KS_STR_EMPTY, .err = KS_STR_EMPTY, .state = KS_PARSE_STATE_BEGINNING, .tokens_n = 0, .tokens = NULL, .token_i = 0 })
 
 
-
 // set the current source, and resets the state to the beginning
 int ks_parse_setsrc(ks_parse* kp, ks_str src_name, ks_str src);
 
@@ -723,13 +985,17 @@ int ks_parse_setsrc(ks_parse* kp, ks_str src_name, ks_str src);
 //   about where the error occured in relation to the source code
 int ks_parse_err(ks_parse* kp, ks_token tok, const char* fmt, ...);
 
-
 // parses out an entire bytecode program
 int ks_parse_bc(ks_parse* kp, ks_prog* to);
 
+// parses out a normal program
+ks_ast ks_parse_code(ks_parse* kp);
 
 // frees the parser's internal resources
 void ks_parse_free(ks_parse* kp);
+
+
+
 
 
 
@@ -794,6 +1060,8 @@ extern kso_cfunc
     kso_F_sub,
     kso_F_mul,
     kso_F_div,
+    kso_F_mod,
+    kso_F_pow,
     
     // comparison
     kso_F_lt,

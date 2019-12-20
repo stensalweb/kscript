@@ -28,22 +28,25 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
         &&do_str,  // 7
         &&do_new_list, // 8
 
-        &&do_add,
-        &&do_sub,
-        &&do_mul,
-        &&do_div,
-        &&do_lt,
+        &&do_add, // 9
+        &&do_sub, // 10
+        &&do_mul, // 11
+        &&do_div, // 12
+        &&do_lt,  // 13
+        &&do_gt,  // 14
+        &&do_eq,  // 15
 
-        &&do_call, // 9
-        &&do_get,  // 10
-        &&do_set,  // 11
-        &&do_jmp,  // 12
-        &&do_jmpt,  // 13
-        &&do_jmpf,  // 14
-        &&do_typeof,// 15
-        &&do_ret,  // 16
-        &&do_retnone,// 17
-        &&do_discard
+        &&do_call, // 16
+        &&do_get,  // 17
+        &&do_set,  // 18
+        &&do_jmp,  // 19
+        &&do_jmpt,  // 20
+        &&do_jmpf,  // 21
+        &&do_typeof,// 22
+        &&do_ret,  // 23
+        &&do_retnone,// 24
+        &&do_discard, //25
+        &&do_clear //26
     };
 
     /* for decoded */
@@ -103,7 +106,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             // now, look it up
             found = ks_dict_get_str(&vm->dict, _str);
             if (found == NULL) {
-                ks_list_push(&vm->stk, kso_new_str_fmt("Unknown value `%s`", _str._));
+                ks_err_add_str_fmt("Unknown value `%s`", _str._);
                 goto handle_exception;
             }
 
@@ -121,7 +124,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             etrace("store \"%s\" [%d]", _str._, i_store.name_idx);
             
             if (vm->stk.len < 1) {
-                ks_list_push(&vm->stk, kso_new_str_fmt("Unknown value `%s`", _str._));
+                ks_err_add_str_fmt("Unknown value `%s`", _str._);
                 goto handle_exception;
             }
 
@@ -192,7 +195,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             etrace("new_list %d", (int)i_new_list.n_items);
 
             if (i_new_list.n_items > vm->stk.len) {
-                ks_list_push(&vm->stk, kso_new_str_fmt("Not enough items on stack for `new_list` (needed %d, but only had %d)", i_new_list.n_items, vm->stk.len));
+                ks_err_add_str_fmt("Not enough items on stack for `new_list` (needed %d, but only had %d)", i_new_list.n_items, vm->stk.len);
                 //ks_error("Calling something other than 'cfunc'");
                 goto handle_exception;
             }
@@ -273,6 +276,35 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             ks_list_push(&vm->stk, new_obj);
 
             NEXT();
+        do_gt:
+            PASS(ks_bc);
+            etrace("op >");
+            args = &(vm->stk.items[vm->stk.len -= 2]);
+
+            new_obj = kso_F_gt->_cfunc(2, args);
+            if (new_obj == NULL) goto handle_exception;
+
+            KSO_INCREF(new_obj);
+            DECREF_N(args, 2);
+
+            ks_list_push(&vm->stk, new_obj);
+
+            NEXT();
+        do_eq:
+            PASS(ks_bc);
+            etrace("op ==");
+            args = &(vm->stk.items[vm->stk.len -= 2]);
+
+            new_obj = kso_F_eq->_cfunc(2, args);
+            if (new_obj == NULL) goto handle_exception;
+
+            KSO_INCREF(new_obj);
+            DECREF_N(args, 2);
+
+            ks_list_push(&vm->stk, new_obj);
+
+            NEXT();
+
         do_call:
             // decode number of args
             i_call = DECODE(ks_bc_call);
@@ -287,8 +319,6 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
                 //ks_trace("calling %p with %d", top, i_call.n_args);
                 new_obj = ((kso_cfunc)top)->_cfunc(i_call.n_args, args);
                 if (new_obj == NULL) {
-                    if (ks_err_N() > 0) ks_list_push(&vm->stk, ks_err_pop());
-                    else ks_list_push(&vm->stk, kso_new_none());
                     goto handle_exception;
                 }
                 KSO_INCREF(new_obj);
@@ -296,10 +326,9 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
                 
                 ks_list_push(&vm->stk, new_obj);
             } else {
-                ks_list_push(&vm->stk, kso_new_str_fmt("Invalid type to call, tried calling on type `%s`", top->type->name._));
+                ks_err_add_str_fmt("Invalid type to call, tried calling on type `%s`", top->type->name._);
                 //ks_error("Calling something other than 'cfunc'");
                 goto handle_exception;
-                return NULL;
             }
 
             KSO_DECREF(top);
@@ -315,10 +344,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
             // run the global get function
             new_obj = kso_F_get->_cfunc(i_get.n_args, args);
-            if (ks_err_N() > 0) {
-                ks_list_push(&vm->stk, ks_err_pop());
-                goto handle_exception;
-            }
+            if (new_obj == NULL) goto handle_exception;
 
             KSO_INCREF(new_obj);
             DECREF_N(args, i_get.n_args);
@@ -336,10 +362,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
             // run the global set function
             new_obj = kso_F_set->_cfunc(i_set.n_args, args);
-            if (ks_err_N() > 0) {
-                ks_list_push(&vm->stk, ks_err_pop());
-                goto handle_exception;
-            }
+            if (new_obj == NULL) goto handle_exception;
 
             // we shouldn't add the result to the stack
             //KSO_INCREF(new_obj);
@@ -418,10 +441,30 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
             NEXT();
 
+        do_clear:
+            PASS(ks_bc);
+            etrace("clear");
+
+            while (vm->stk.len > 0) {
+                top = ks_list_pop(&vm->stk);
+
+                KSO_DECREF(top);
+            }
+
+            NEXT();
+
+
         handle_exception:
             etrace("exception");
 
-            ks_error("%s", KSO_CAST(kso_str, ks_list_pop(&vm->stk))->_str._);
+            top = ks_err_pop();
+            if (top->type == kso_T_str) {
+                ks_error("%s", KSO_CAST(kso_str, top)->_str._);
+            } else {
+                ks_error("Exception @ %p", top);
+            }
+
+            kso_free(top);
 
             return NULL;
 

@@ -56,6 +56,8 @@ int ksb_sub(ks_prog* prog) ksb_ionly(KS_BC_SUB);
 int ksb_mul(ks_prog* prog) ksb_ionly(KS_BC_MUL);
 int ksb_div(ks_prog* prog) ksb_ionly(KS_BC_DIV);
 int ksb_lt(ks_prog* prog) ksb_ionly(KS_BC_LT);
+int ksb_gt(ks_prog* prog) ksb_ionly(KS_BC_GT);
+int ksb_eq(ks_prog* prog) ksb_ionly(KS_BC_EQ);
 int ksb_call(ks_prog* prog, uint32_t n_args) ksb_struct(ks_bc_call, .op = KS_BC_CALL, .n_args = n_args)
 int ksb_get(ks_prog* prog, uint32_t n_args) ksb_struct(ks_bc_get, .op = KS_BC_GET, .n_args = n_args)
 int ksb_set(ks_prog* prog, uint32_t n_args) ksb_struct(ks_bc_set, .op = KS_BC_SET, .n_args = n_args)
@@ -66,6 +68,7 @@ int ksb_jmpt(ks_prog* prog, int32_t relamt) ksb_struct(ks_bc_jmp, .op = KS_BC_JM
 int ksb_jmpf(ks_prog* prog, int32_t relamt) ksb_struct(ks_bc_jmp, .op = KS_BC_JMPF, .relamt = relamt)
 
 int ksb_discard(ks_prog* prog) ksb_ionly(KS_BC_DISCARD);
+int ksb_clear(ks_prog* prog) ksb_ionly(KS_BC_CLEAR);
 int ksb_typeof(ks_prog* prog) ksb_ionly(KS_BC_TYPEOF);
 int ksb_ret(ks_prog* prog) ksb_ionly(KS_BC_RET);
 int ksb_retnone(ks_prog* prog) ksb_ionly(KS_BC_RETNONE);
@@ -147,6 +150,14 @@ int ks_prog_tostr(ks_prog* prog, ks_str* to) {
             PASS(ks_bc);
             ks_str_fmt(to, "%sop <", to->_);
             break;
+        case KS_BC_GT:
+            PASS(ks_bc);
+            ks_str_fmt(to, "%sop >", to->_);
+            break;
+        case KS_BC_EQ:
+            PASS(ks_bc);
+            ks_str_fmt(to, "%sop ==", to->_);
+            break;
         case KS_BC_CALL:
             i_call = DECODE(ks_bc_call);
             PASS(ks_bc_call);
@@ -167,10 +178,20 @@ int ks_prog_tostr(ks_prog* prog, ks_str* to) {
             PASS(ks_bc_new_list);
             ks_str_fmt(to, "%snew_list %d", to->_, (int)i_new_list.n_items);
             break;
+
+        case KS_BC_RETNONE:
+            PASS(ks_bc);
+            ks_str_fmt(to, "%sretnone", to->_);
+            break;
         case KS_BC_DISCARD:
             PASS(ks_bc);
             ks_str_fmt(to, "%sdiscard", to->_);
             break;
+        case KS_BC_CLEAR:
+            PASS(ks_bc);
+            ks_str_fmt(to, "%sclear", to->_);
+            break;
+
 
         case KS_BC_JMP:
             i_jmp = DECODE(ks_bc_jmp);

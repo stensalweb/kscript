@@ -27,7 +27,6 @@ _FUNCSIG is the macro that expands to the current function signature, useful for
 
 You can use `REQ_N_ARGS_...` to ensure enough arguments are given
 
-
 */
 
 
@@ -224,6 +223,8 @@ FUNC(add) {
 
     if (A->type == kso_T_int && B->type == kso_T_int) {
         return kso_new_int(KSO_CAST(kso_int, A)->_int + KSO_CAST(kso_int, B)->_int);
+    } else if (A->type == kso_T_str && B->type == kso_T_str) {
+        return kso_new_str_cfmt("%s%s", KSO_CAST(kso_str, A)->_str._, KSO_CAST(kso_str, B)->_str._);
     } else {
         ERR_TYPES(A, B);
     }
@@ -281,6 +282,35 @@ FUNC(lt) {
         ERR_TYPES(A, B);
     }
 }
+
+FUNC(gt) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "__gt__(a, b)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return kso_new_bool(KSO_CAST(kso_int, A)->_int > KSO_CAST(kso_int, B)->_int);
+    } else {
+        ERR_TYPES(A, B);
+    }
+}
+
+FUNC(eq) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "__eq__(a, b)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return kso_new_bool(KSO_CAST(kso_int, A)->_int == KSO_CAST(kso_int, B)->_int);
+    } else {
+        ERR_TYPES(A, B);
+    }
+}
+
 
 /* TYPES */
 
@@ -470,7 +500,7 @@ TYPEFUNC(int, repr) {
 
     kso_int self = KSO_CAST(kso_int, args[0]);
 
-    return kso_new_str_fmt("%lld", self->_int);
+    return kso_new_str_cfmt("%lld", self->_int);
 }
 
 TYPEFUNC(int, bool) {
@@ -501,7 +531,7 @@ TYPEFUNC(int, str) {
 
     kso_int self = KSO_CAST(kso_int, args[0]);
 
-    return kso_new_str_fmt("%lld", self->_int);
+    return kso_new_str_cfmt("%lld", self->_int);
 }
 
 
@@ -547,7 +577,7 @@ TYPEFUNC(float, repr) {
 
     kso_float self = KSO_CAST(kso_float, args[0]);
 
-    return kso_new_str_fmt("%lf", self->_float);
+    return kso_new_str_cfmt("%lf", self->_float);
 }
 
 
@@ -581,7 +611,7 @@ TYPEFUNC(float, str) {
 
     kso_float self = KSO_CAST(kso_float, args[0]);
 
-    return kso_new_str_fmt("%lf", self->_float);
+    return kso_new_str_cfmt("%lf", self->_float);
 }
 
 // float.free is useless, because no memory is taken up
@@ -625,7 +655,7 @@ TYPEFUNC(str, repr) {
 
     kso_str self = KSO_CAST(kso_str, args[0]);
 
-    return kso_new_str_fmt("\"%s\"", self->_str._);
+    return kso_new_str_cfmt("\"%s\"", self->_str._);
 }
 
 
@@ -708,7 +738,7 @@ TYPEFUNC(list, repr) {
 
     kso_list self = KSO_CAST(kso_list, args[0]);
 
-    return kso_new_str_fmt("[.%d]", self->_list.len);
+    return kso_new_str_cfmt("[.%d]", self->_list.len);
 }
 
 
@@ -802,6 +832,12 @@ static struct kso_type T_cfunc;
 // creates a CFUNC object from a C function
 #define _CFUNC(_name) _##_name = { .type = &T_cfunc, .flags = 0x0, ._cfunc = _name }
 
+/*
+
+list of C-functions implementing type functions
+
+*/
+
 static struct kso_cfunc 
     _CFUNC(none_init),
     _CFUNC(none_repr),
@@ -844,7 +880,13 @@ static struct kso_cfunc
 
 ;
 
-/* construct the internal types */
+
+/*
+
+global builtin types
+
+*/
+
 static struct kso_type
     T_type = {
         .type = &T_type,
@@ -945,79 +987,84 @@ static struct kso_type
 ;
 
 
-/* export constants */
+/* global builtin constants */
+
+static struct kso_none
+    V_none = {
+        .type = &T_none,
+        .flags = KSOF_IMMORTAL,
+    }
+;
 
 static struct kso_bool 
     V_true = {
         .type = &T_bool,
-        .refcnt = 1,
         .flags = KSOF_IMMORTAL,
         ._bool = true
     },
     V_false = {
         .type = &T_bool,
-        .refcnt = 1,
         .flags = KSOF_IMMORTAL,
         ._bool = false
     }
 ;
 
-static struct kso_none
-    V_none = {
-        .type = &T_none,
-        .refcnt = 1,
-        .flags = KSOF_IMMORTAL,
-    }
-;
 
-
-
-/* export C functions too */
+/* global builtin functions */
 
 static struct kso_cfunc 
     F_print = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_print
     },
     F_exit = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_exit
     },
 
     F_get = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_get
     },
     F_set = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_set
     },
 
     F_add = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_add
     },
     F_mul = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_mul
     },
 
 
     F_lt = {
         .type = &T_cfunc,
-        .flags = 0x0,
+        .flags = KSOF_IMMORTAL,
         ._cfunc = _F_lt
+    },
+    F_gt = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        ._cfunc = _F_gt
+    },
+    F_eq = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        ._cfunc = _F_eq
     }
 ;
 
-
-// now, export as the global functions & types (which were defined as `extern` in kscript.h)
+/* externally visibile global constants which behave as normal objects */
 
 kso_cfunc
     kso_F_print = &F_print,
@@ -1031,7 +1078,9 @@ kso_cfunc
     kso_F_mul = &F_mul,
     kso_F_div = NULL,
 
-    kso_F_lt = &F_lt
+    kso_F_lt = &F_lt,
+    kso_F_gt = &F_gt,
+    kso_F_eq = &F_eq
 ;
 
 kso_none 
@@ -1043,7 +1092,6 @@ kso_bool
     kso_V_false = &V_false
 ;
 
-
 kso_type 
     kso_T_type  = &T_type,
     kso_T_none  = &T_none,
@@ -1054,8 +1102,4 @@ kso_type
     kso_T_list  = &T_list,
     kso_T_cfunc = &T_cfunc
 ;
-
-
-
-
 
