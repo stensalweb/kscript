@@ -66,7 +66,7 @@ void ks_str_free(ks_str* str) {
 }
 
 
-int ks_str_vfmt(ks_str* str, const char *fmt, va_list ap) {
+int ks_str_vcfmt(ks_str* str, const char *fmt, va_list ap) {
     va_list ap1;
     va_copy(ap1, ap);
     uint32_t req_size = vsnprintf(NULL, 0, fmt, ap1) + 1;
@@ -94,10 +94,10 @@ int ks_str_vfmt(ks_str* str, const char *fmt, va_list ap) {
     return res;
 }
 
-int ks_str_fmt(ks_str* str, const char* fmt, ...) {
+int ks_str_cfmt(ks_str* str, const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    int ret = ks_str_vfmt(str, fmt, ap);
+    int ret = ks_str_vcfmt(str, fmt, ap);
     va_end(ap);
     return ret;
 }

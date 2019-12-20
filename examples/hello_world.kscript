@@ -1,10 +1,9 @@
 
-i = 1
+i = 2
 
-while (i*i < 1000) { 
-    if (i == 4) {
-        print ("i", i)
-    }    
-    i = 2*i
+while (i < 10) {
+    print (i)
+    i = i + 1
 }
+
 

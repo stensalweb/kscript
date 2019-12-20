@@ -90,12 +90,13 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
 }
 
 // code-generating clearing stack
-#define CG_CLEAR() ksb_clear(to);
+//#define CG_CLEAR() ksb_clear(to);
+#define CG_CLEAR()
 
 int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
     int rc = 0;
     if (ast->type == KS_AST_CONST_INT) {
-        ksb_int(to, ast->_int);        
+        ksb_int64(to, ast->_int);        
     } else if (ast->type == KS_AST_CONST_FLOAT) {
         ksb_float(to, ast->_float);
     } else if (ast->type == KS_AST_CONST_STR) {
@@ -106,10 +107,26 @@ int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
         rc |= ks_ast_codegen(ast->_bop.L, to);
         rc |= ks_ast_codegen(ast->_bop.R, to);
         ksb_add(to);
+    } else if (ast->type == KS_AST_BOP_SUB) {
+        rc |= ks_ast_codegen(ast->_bop.L, to);
+        rc |= ks_ast_codegen(ast->_bop.R, to);
+        ksb_sub(to);
     } else if (ast->type == KS_AST_BOP_MUL) {
         rc |= ks_ast_codegen(ast->_bop.L, to);
         rc |= ks_ast_codegen(ast->_bop.R, to);
         ksb_mul(to);
+    } else if (ast->type == KS_AST_BOP_DIV) {
+        rc |= ks_ast_codegen(ast->_bop.L, to);
+        rc |= ks_ast_codegen(ast->_bop.R, to);
+        ksb_div(to);
+    } else if (ast->type == KS_AST_BOP_MOD) {
+        rc |= ks_ast_codegen(ast->_bop.L, to);
+        rc |= ks_ast_codegen(ast->_bop.R, to);
+        ksb_mod(to);
+    } else if (ast->type == KS_AST_BOP_POW) {
+        rc |= ks_ast_codegen(ast->_bop.L, to);
+        rc |= ks_ast_codegen(ast->_bop.R, to);
+        ksb_pow(to);
 
     } else if (ast->type == KS_AST_BOP_LT) {
         rc |= ks_ast_codegen(ast->_bop.L, to);

@@ -13,7 +13,8 @@ instead of reallocing `size`, it reallocs `A*size+B`
 // B in A*size+B
 #define MEM_EQ_B 8
 
-//#define memtrace ks_debug
+// trace the memory
+//#define memtrace(...) ks_trace(__VA_ARGS__)
 #define memtrace(...) 
 
 static const char* size_pfx[] = {
@@ -58,13 +59,14 @@ struct ksi_buf {
 void* ks_malloc(size_t bytes) {
     if (bytes == 0) return NULL;
 
+    // 500MB info
     if (bytes > 500 * 1024 * 1024) {
         ks_info("[LARGE] allocating %lu%s", bs_mantissa(bytes), bs_pfx(bytes));
     }
     
     struct ksi_buf* p = malloc(sizeof(uint32_t) + bytes);
     if (p == NULL) {
-        ks_error("ks_malloc(%lu) failed!", bytes);
+        ks_error("ks_malloc(%lu%s) failed!", bs_mantissa(bytes), bs_pfx(bytes));
     }
 
     total_mem += bytes;
@@ -79,6 +81,7 @@ void* ks_malloc(size_t bytes) {
 void* ks_realloc(void* ptr, size_t bytes) {
     if (ptr == NULL) return ks_malloc(bytes);
 
+    // 500MB info
     if (bytes > 500 * 1024 * 1024) {
         ks_info("[LARGE] re-allocating %lu%s", bs_mantissa(bytes), bs_pfx(bytes));
     }

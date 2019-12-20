@@ -1,119 +1,193 @@
-/* kscript.h - main definitions for all kscript
+/* kscript.h - header file for the kscript library & compiler
 
+kscript is a highly dynamic, duck-typed, language. It emphasizes shortness, 
+the fewest boilerplate parts possible, and direct readability (such as usage 
+of operators rather than functions, when possible)
 
 */
 
 #ifndef KSCRIPT_H_
 #define KSCRIPT_H_
 
+/* standard headers */
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 
+#include <string.h>
+
+
 typedef struct kso* kso;
 
 // primitive/builtin C types
+
+// boolean type, 1 for true, 0 for false
 typedef bool    ks_bool;
+
+// integer type (native 64 bit integer type, specifically), represents positive and
+//   negative values, and can easily be handled by C applications
+// in the future, there may be another integer type which is an arbitrary
+//   precision using GMP/MPZ/a new library I write
 typedef int64_t ks_int;
+
+// floating point type (native C double, specifically), which is good enough for most applications
+// in the future, there may be another float type which has bigger precision, or arbitrary precision
 typedef double  ks_float;
+
+/* string type */
+
+/* string type, which is NUL-terminated, as well as length-encoded, which can be passed to native
+  C functions
+NOTE: Although this can be realloc'd, strings are immutable in kscript itself, so it should never
+  be realloc'd in practice
+*/
 typedef struct {
-    // current length, and maximum length
-    uint32_t len, max_len;
-    // NUL-terminated char pointer
+    // NUL-terminated char pointer of length `len`
     char* _;
+
+    // current length, and maximum length that has been allocated
+    uint32_t len, max_len;
+
 } ks_str;
 
-// concatenates two string
-// this represents the `NULL` string, which is also valid as a starting string
+// this represents the `NULL` string, which is also valid as a starting string, so initialize
+//   strings to this value
 #define KS_STR_EMPTY ((ks_str){ ._ = NULL, .len = 0, .max_len = 0 })
 // represents a view of a C-string. i.e. nothing is copied, and any modifications made
 //   stay in the original string
-#define KS_STR_VIEW(_charp, _len) ((ks_str){ ._ = (char*)(_charp), .len = (int)(_len), .max_len = (int)(_len) })
+// NOTE: Reallocation to strings is undefined behavior, do not call anything which may resize 
+//   the string
+// NOTE: Do not free the `ks_str`, just free your internal buffer afterwards
+#define KS_STR_VIEW(_charp, _len) ((ks_str){ ._ = (char*)(_charp), .len = (uint32_t)(_len), .max_len = (uint32_t)(_len) })
 // useful for string constants, like `KS_STR_CONST("Hello World")`
+// NOTE: Do not call anything that will modify this, or resize or free it
 #define KS_STR_CONST(_charp) KS_STR_VIEW(_charp, sizeof(_charp) - 1)
 // creates a new string from a constant (i.e. allocates memory for it)
+// This must now be freed immediately
 #define KS_STR_CREATE(_charp) (ks_str_dup(KS_STR_CONST(_charp)))
 
-// str <- charp[len]
+// str <- charp[len], copies `len` bytes from `charp`, and then NUL-terminates
 void ks_str_copy_cp(ks_str* str, char* charp, int len);
-// str <- from
+// str <- from, making a copy of the data
 void ks_str_copy(ks_str* str, ks_str from);
-// returns a copy of `from`
+// returns a copy of `from`, mainly just a wrapper around `ks_str_copy`, but for ease of use
 ks_str ks_str_dup(ks_str from);
-// str <- str + A
+// str <- str + A, concatenating the strings values
 void ks_str_append(ks_str* str, ks_str A);
-// str <- str + c
+// str <- str + c, same as above, but for a single char
 void ks_str_append_c(ks_str* str, char c);
-// frees `str`'s resources
+// frees `str`'s resources, and blanks it to the empty string
 void ks_str_free(ks_str* str);
 // comparison, should be equivalent to `strcmp(A._, B._)`
 int ks_str_cmp(ks_str A, ks_str B);
 // yields whether the two strings are equal
 #define ks_str_eq(_A, _B) (ks_str_cmp((_A), (_B)) == 0)
-// set `str` to a formatted string (printf style)
-int ks_str_fmt(ks_str* str, const char* fmt, ...);
-// set `str` to a formatted string (printf style)
-int ks_str_vfmt(ks_str* str, const char* fmt, va_list ap);
-// reads from a file pointer, the entire file
+// set `str` to a formatted string (C-printf style, with C arguments)
+int ks_str_cfmt(ks_str* str, const char* fmt, ...);
+// set `str` to a formatted string (C-printf style, with C va_list arguments)
+int ks_str_vcfmt(ks_str* str, const char* fmt, va_list ap);
+// reads from a file pointer, the entire file, as the string
 void ks_str_readfp(ks_str* str, FILE* fp);
 
-// list of object references
+/* list - list of object references
+
+Holds references to `len` objects
+
+See more in `list.c`
+
+*/
 typedef struct {
-    // current length, and maximum length
-    uint32_t len, max_len;
-    // array of items
+    // the array of `len` items, which may be NULL if len==0
     kso* items;
+
+    // current number of elements, and the maximum number the current allocation could handle
+    uint32_t len, max_len;
+
 } ks_list;
 
-#define KS_LIST_EMPTY ((ks_list){ .len = 0, .max_len = 0, .items = NULL })
+// the `empty` list, which is still a valid list, and is used to initialize a list
+#define KS_LIST_EMPTY ((ks_list){ .items = NULL, .len = 0, .max_len = 0 })
 
-// pops off an object, and returns that object
-//#define ks_list_pop(_list) ((_list)->items[--(_list)->len])
-kso ks_list_pop(ks_list* list);
-// pushes an object reference to the list, returns the index
+// pushes an object reference to the list, returns the index at which it was added
+// NOTE: This increments the refcnt of `obj`
 int ks_list_push(ks_list* list, kso obj);
-// frees 'list's resources
+// pops off an object, and returns that object
+// NOTE: This does NOT decrement the refcnt of `obj`, as the reference is "transferred"
+//   to the callee. Use `ks_list_popu` to pop an unused value (returns void, and does 
+//   decrement the refcnt)
+kso ks_list_pop(ks_list* list);
+// pops off an object, unused, so it does not return the object.
+// The object's refcnt is decremented, so it may be freed
+void ks_list_popu(ks_list* list);
+// frees 'list's resources, decrementing the references of all the objects in the list
 void ks_list_free(ks_list* list);
 
-// dictionary of object references
+/* dict - dictionary of key->value mappings of all hashable types
+
+Internally uses a hash table to implement storing/retrieving/managing the memory
+
+See more in `dict.c`
+
+*/
 typedef struct {
 
-    // current length, and maximum length
-    uint32_t len, max_len;
+    // represents a single entry in the hash table
+    struct ks_dict_entry {
 
-    // a structure representing a single dictionary item
-    struct ks_dict_item {
-
-        // hash(key) -> saved once for performance reasons
+        // the hash of the key, stored for efficiency purposes
         ks_int hash;
 
-        // key, which must be internally of type int, float, str,
-        // or in general, something constant
+        // the object which is the key for this current entry
         kso key;
 
-        // value, which can be of any type
+        // the value at this entry
         kso val;
 
-    }* items;
+        // the next item in the linked list of this bucket (NULL to signify end)
+        struct ks_dict_entry* next;
+
+    }* buckets;
+
+    // the number of buckets currently in use (often the 'size' of the hash table)
+    uint32_t n_buckets;
+
+    // the total number of non-empty entries in the hash table
+    uint32_t n_entries;
+
+
+    // current length (number of items), and maximum length of items allocated
+    //uint32_t len, max_len;
 
 } ks_dict;
 
-// empty dictionary, can be used to initialize one
-#define KS_DICT_EMPTY ((ks_dict){ .len = 0, .max_len = 0, .items = NULL })
+// the empty dictionary, which is a valid starting dictionary
+#define KS_DICT_EMPTY ((ks_dict){ .buckets = NULL, .n_buckets = 0, .n_entries = 0 })
+// the empty entry, which can be used to initialize an entry
+#define KS_DICT_ENTRY_EMPTY ((struct ks_dict_entry){ .hash = 0, .key = NULL, .val = NULL, .next = NULL })
+
+
+
 
 // gets an object given a key, NULL if notfound
-kso ks_dict_get(ks_dict* dict, kso key);
-// gets an object given a string key, NULL if notfound
-kso ks_dict_get_str(ks_dict* dict, ks_str key);
-
+kso ks_dict_get(ks_dict* dict, kso key, ks_int hash);
 // sets the dictionary at a key, given a value (returns its index)
-int ks_dict_set(ks_dict* dict, kso key, kso val);
+void ks_dict_set(ks_dict* dict, kso key, ks_int hash, kso val);
+
+// string specific methods
+kso ks_dict_get_str(ks_dict* dict, ks_str key, ks_int hash);
+void ks_dict_set_str(ks_dict* dict, ks_str key, ks_int hash, kso val);
+
+
+
+// gets an object given a string key, NULL if notfound
+//kso ks_dict_get_str(ks_dict* dict, ks_str key);
+
 // set the dictionary at a key (which is string), given a value (returns its index)
-int ks_dict_set_str(ks_dict* dict, ks_str key, kso val);
+//int ks_dict_set_str(ks_dict* dict, ks_str key, kso val);
 
 // frees a dictionary and its resources
 void ks_dict_free(ks_dict* dict);
@@ -154,15 +228,14 @@ struct kso_type {
       // free should free all resources used by the object
       f_free,
 
-      // returns the string representation of the object
-      f_repr,
-
       // builtin type conversion to bool
       f_bool,
       // builtin type conversion to int
       f_int,
       // builtin type conversion to str
       f_str,
+      // returns the string representation of the object
+      f_repr,
 
       // builtin getting function
       f_get,
@@ -234,6 +307,8 @@ TODO: Maybe use interning of strings, similar to python. i.e. keep a single inst
 */
 typedef struct {
     KSO_BASE
+    // store the string hash when created
+    ks_int _strhash;
     ks_str _str;
 }* kso_str;
 
@@ -295,11 +370,11 @@ struct kso {
 
 // decrement the reference count by 1, i.e. remove a reference to the object
 // If the reference count drops <= 0, then the object is freed. This will not affect immortal objects
-#define KSO_DECREF(_obj) { if (--(_obj)->refcnt <= 0) { kso_free(_obj); } }
+#define KSO_DECREF(_obj) { if (--(_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
 
 // checks the reference count, if the object can not be found (i.e. ref count <= 0), free the object
 // If the object is still referenced elsewhere, nothing is done
-#define KSO_CHKREF(_obj) { if ((_obj)->refcnt <= 0) { kso_free(_obj); } }
+#define KSO_CHKREF(_obj) { if ((_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
 
 // cast `_obj` to `_type`, assumes its correct to do so
 #define KSO_CAST(_type, _obj) ((_type)(_obj))
@@ -348,11 +423,6 @@ kso kso_new_list(int n, kso* refs);
 kso kso_call(kso func, int args_n, kso* args);
 
 /* object manipulation/management */
-
-// returns the object as a value.
-// This function is useful for treating things as immutable value types, for example
-//   when adding to a list
-kso kso_asval(kso obj);
 
 // free's an object's resources (through its type), and then frees `obj` itself
 // This is okay to call if `obj` is immortal; it is a no-op in that case
@@ -658,7 +728,7 @@ typedef struct {
     int str_tbl_n;
 
     // the table of string constants used by bytecodes
-    ks_str* str_tbl;
+    kso_str* str_tbl;
 
 
     // number of string labels defined
@@ -689,7 +759,6 @@ int ksb_noop(ks_prog* prog);
 /* constant/literal instructions */
 
 int ksb_bool(ks_prog* prog, ks_bool val);
-int ksb_int(ks_prog* prog, ks_int val);
 int ksb_int64(ks_prog* prog, int64_t val);
 int ksb_int32(ks_prog* prog, int32_t val);
 int ksb_int16(ks_prog* prog, int16_t val);
@@ -720,7 +789,6 @@ int ksb_jmp(ks_prog* prog, int32_t relamt);
 int ksb_jmpt(ks_prog* prog, int32_t relamt);
 int ksb_jmpf(ks_prog* prog, int32_t relamt);
 int ksb_discard(ks_prog* prog);
-int ksb_clear(ks_prog* prog);
 
 int ksb_typeof(ks_prog* prog);
 int ksb_ret(ks_prog* prog);
@@ -771,13 +839,14 @@ enum {
     KS_AST_BOP_SUB,
     KS_AST_BOP_MUL,
     KS_AST_BOP_DIV,
+    KS_AST_BOP_MOD,
+    KS_AST_BOP_POW,
     KS_AST_BOP_LT,
     KS_AST_BOP_GT,
     KS_AST_BOP_EQ,
 
     // assignment
     KS_AST_BOP_ASSIGN
-
 
 };
 
@@ -939,6 +1008,10 @@ struct ks_token {
         KS_TOK_O_MUL,
         // literal div `/`
         KS_TOK_O_DIV,
+        // literal mod `%`
+        KS_TOK_O_MOD,
+        // literal pow `^`
+        KS_TOK_O_POW,
         // literal less than `<`
         KS_TOK_O_LT,
         // literal greater than `>`
@@ -962,7 +1035,6 @@ struct ks_token {
 
 };
 
-
 // the empty, default token
 #define KS_TOK_EMPTY ((ks_token){ .type = KS_TOK_NONE, .state = KS_PARSE_STATE_ERROR, .len = -1 })
 
@@ -975,27 +1047,23 @@ struct ks_token {
 // the empty parser, which is a valid initializer for it
 #define KS_PARSE_EMPTY ((ks_parse){ .src_name = KS_STR_EMPTY, .src = KS_STR_EMPTY, .err = KS_STR_EMPTY, .state = KS_PARSE_STATE_BEGINNING, .tokens_n = 0, .tokens = NULL, .token_i = 0 })
 
-
 // set the current source, and resets the state to the beginning
-int ks_parse_setsrc(ks_parse* kp, ks_str src_name, ks_str src);
+void ks_parse_setsrc(ks_parse* kp, ks_str src_name, ks_str src);
 
 // sets the parser error, given a token and format args (doesn't display anything,
 //   but now you can check kp->err)
 // this will fill it out, and if token is not `KS_TOK_EMPTY`, add useful information
 //   about where the error occured in relation to the source code
-int ks_parse_err(ks_parse* kp, ks_token tok, const char* fmt, ...);
+void ks_parse_err(ks_parse* kp, ks_token tok, const char* fmt, ...);
 
 // parses out an entire bytecode program
-int ks_parse_bc(ks_parse* kp, ks_prog* to);
+void ks_parse_bc(ks_parse* kp, ks_prog* to);
 
 // parses out a normal program
 ks_ast ks_parse_code(ks_parse* kp);
 
 // frees the parser's internal resources
 void ks_parse_free(ks_parse* kp);
-
-
-
 
 
 
@@ -1114,6 +1182,10 @@ int ks_err_N();
 // pops an error off the stack
 // returns NULL if there were no errors, and doesn't affect anything else
 kso ks_err_pop();
+
+// dumps all errors out, printing them as errors, returns true if something was printed (i.e. there was an error)
+bool ks_err_dumpall();
+
 
 
 /* memory management routines */

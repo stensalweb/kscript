@@ -7,7 +7,7 @@ store "n"
 
 # sieve = [true] * n
 const true
-new_list 1
+create_list 1
 load "n"
 op *
 store "sieve"
@@ -29,6 +29,7 @@ loop:
         load "i"
         load "print"
         call 1
+        discard
     
         # inner loop
         load "i"
@@ -62,6 +63,7 @@ loop:
     const 1
     op +
     store "i"
+    
     load "i"
     load "i"
     op *
@@ -80,6 +82,7 @@ loop2:
     load "i"
     load "print"
     call 1
+    discard
 
     if2_a:
 
@@ -93,6 +96,4 @@ loop2:
     op <
     jmpt ~loop2
 
-
-load "exit"
-call 0
+retnone

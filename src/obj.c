@@ -31,9 +31,15 @@ kso kso_new_float(ks_float val) {
 kso kso_new_str(ks_str val) {
     kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
     ret->type = kso_T_str;
-    ret->flags = 0x0;
+    ret->flags = KSOF_NONE;
     ret->refcnt = 0;
+
     ret->_str = ks_str_dup(val);
+
+    // create string hash
+    ret->_strhash = ks_hash_str(ret->_str);
+    
+
     return (kso)ret;
 }
 
@@ -48,8 +54,11 @@ kso kso_new_str_cfmt(const char* fmt, ...) {
 
     va_list ap;
     va_start(ap, fmt);
-    ks_str_vfmt(&ret->_str, fmt, ap);
+    ks_str_vcfmt(&ret->_str, fmt, ap);
     va_end(ap);
+
+    // create string hash
+    ret->_strhash = ks_hash_str(ret->_str);
     
     return (kso)ret;
 }
@@ -66,27 +75,18 @@ kso kso_new_list(int n, kso* refs) {
     ret->_list.items = ks_malloc(n * sizeof(kso));
     if (refs != NULL) {
         memcpy(ret->_list.items, refs, n * sizeof(kso));
-        //int i;
-        //for (i = 0; i < n; ++i) {
-        //    KSO_INCREF(refs[i]);
-        //}
+        int i;
+        for (i = 0; i < n; ++i) {
+            KSO_INCREF(refs[i]);
+        }
     }
     return (kso)ret;
 }
 
-kso kso_asval(kso obj) {
-    if (obj->type == kso_T_int) {
-        return kso_new_int(KSO_CAST(kso_int, obj)->_int);
-    } else {
-        // return self
-        return obj;
-    }
-}
-
 void kso_free(kso obj) {
+
     // don't free an immortal
     if (obj->flags & KSOF_IMMORTAL || obj->refcnt > 0) return;
-    //return;
 
     ks_trace("ks_freeing obj %p [type %s]", obj, obj->type->name._);
     kso f_free = obj->type->f_free;

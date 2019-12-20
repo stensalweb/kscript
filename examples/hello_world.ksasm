@@ -7,7 +7,7 @@ store "n"
 
 # sieve = [true] * n
 const true
-new_list 1
+create_list 1
 load "n"
 op *
 store "sieve"
