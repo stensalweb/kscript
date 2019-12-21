@@ -15,7 +15,7 @@ CFLAGS     ?= -O3 -std=c99
 
 # the sources for our kscript library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libkscript_src := $(addprefix src/, log.c mem.c str.c list.c dict.c hash.c ast.c obj.c prog.c error.c parse.c vm.c builtin.c exec.c )
+libkscript_src := $(addprefix src/, util.c log.c mem.c str.c list.c dict.c hash.c ast.c obj.c prog.c error.c parse.c vm.c builtin.c exec.c )
 
 # the sources for the kscript executable (so things can be ran from 
 #   commandline)
@@ -24,11 +24,15 @@ kscript_src    := $(addprefix src/, kscript.c)
 # the standard module
 MOD_std_src    := $(addprefix std/, )
 
+# testers source
+tests_src      := $(addprefix tests/, dict.c)
+
 
 # now, generate a list of `.o` files needed
 libkscript_o   := $(patsubst %.c,%.o, $(libkscript_src))
 kscript_o      := $(patsubst %.c,%.o, $(kscript_src))
 MOD_std_o      := $(patsubst %.c,%.o, $(MOD_std_src))
+tests_o        := $(patsubst %,%.o, $(tests_src))
 
 # -*- OUTPUT FILES
 
@@ -56,6 +60,10 @@ default: $(kscript_exe)
 #   messages
 clean:
 	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a) $(MOD_std_so) $(MOD_std_o))
+
+# rule to built the testers
+tests/%: tests/%.c
+	$(CC) $(CFLAGS) -L./ -Isrc -fPIC $< -lkscript -o $@
 
 
 # rule to build the object files (.o's) from a C file

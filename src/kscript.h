@@ -147,9 +147,6 @@ typedef struct {
         // the value at this entry
         kso val;
 
-        // the next item in the linked list of this bucket (NULL to signify end)
-        struct ks_dict_entry* next;
-
     }* buckets;
 
     // the number of buckets currently in use (often the 'size' of the hash table)
@@ -157,7 +154,6 @@ typedef struct {
 
     // the total number of non-empty entries in the hash table
     uint32_t n_entries;
-
 
     // current length (number of items), and maximum length of items allocated
     //uint32_t len, max_len;
@@ -167,7 +163,7 @@ typedef struct {
 // the empty dictionary, which is a valid starting dictionary
 #define KS_DICT_EMPTY ((ks_dict){ .buckets = NULL, .n_buckets = 0, .n_entries = 0 })
 // the empty entry, which can be used to initialize an entry
-#define KS_DICT_ENTRY_EMPTY ((struct ks_dict_entry){ .hash = 0, .key = NULL, .val = NULL, .next = NULL })
+#define KS_DICT_ENTRY_EMPTY ((struct ks_dict_entry){ .hash = 0, .key = NULL, .val = NULL })
 
 
 
@@ -281,7 +277,7 @@ Represents a 64 bit integer normally, to construct use `kso_new_int(val)`
 TODO: Perhaps use GMP/mpz/bigint as the default integer type? Or should this be a seperate type alltogether?
 
 */
-typedef struct {
+typedef struct kso_int {
     KSO_BASE
     ks_int _int;
 }* kso_int;
@@ -1224,6 +1220,16 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_info(...) ks_log(KS_LOGLVL_INFO, __FILE__, __LINE__, __VA_ARGS__)
 #define ks_warn(...) ks_log(KS_LOGLVL_WARN, __FILE__, __LINE__, __VA_ARGS__)
 #define ks_error(...) ks_log(KS_LOGLVL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+/* high-level library functionality */
+
+// initializes the library
+void ks_init();
+
+// internal method, do not call
+void kso_init_consts();
+
+
 
 #endif
 

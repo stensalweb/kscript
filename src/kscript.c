@@ -12,6 +12,8 @@
 
 int main(int argc, char** argv) {
 
+    ks_init();
+
     ks_set_loglvl(KS_LOGLVL_DEBUG);
     //ks_set_loglvl(KS_LOGLVL_TRACE);
 
@@ -74,6 +76,11 @@ int main(int argc, char** argv) {
 
             // now, run it
             ks_debug("Running `-e`: '%s' (compiled to %db)", this_task->kp.src._, this_task->prog.bc_n);
+            ks_str ns = KS_STR_EMPTY;
+            ks_prog_tostr(&this_task->prog, &ns);
+            printf("%s\n", ns._);
+            ks_str_free(&ns);
+            
             ks_exec(&vm, &this_task->prog, 0);
             if (ks_err_dumpall()) return -1;
 
@@ -159,75 +166,6 @@ int main(int argc, char** argv) {
         ks_error("Unhandled arguments!");
     }
 
-
-    /*
-
-    ks_prog prog = KS_PROG_EMPTY;
-
-    ks_parse kp = KS_PARSE_EMPTY;
-
-    const char* fname = "examples/hello_world.kscript";
-
-    ks_str fin = KS_STR_EMPTY;
-    FILE* fp = fopen(fname, "r");
-    ks_str_readfp(&fin, fp);
-    fclose(fp);
-
-    //int res = ks_parse_setsrc(&kp, KS_STR_CONST("-"), KS_STR_CONST("const \"hello world\"; const 42;"));
-
-    int res = ks_parse_setsrc(&kp, KS_STR_VIEW(fname, strlen(fname)), fin);
-
-
-    if (kp.err.len > 0) {
-        ks_error(kp.err._);
-        return -1;
-    }
-
-    ks_ast call = ks_ast_new_call(ks_ast_new_var(KS_STR_CONST("print")), 1, (ks_ast[]){
-        ks_ast_new_const_str(KS_STR_CONST("hello world"))
-    });
-
-    //ks_ast_codegen(call, &prog);
-    //res = ks_parse_bc(&kp, &prog);
-    ks_ast code = ks_parse_code(&kp);
-
-    //ksb_retnone(&prog);
-
-    if (kp.err.len > 0) {
-        ks_error(kp.err._);
-        return -1;
-    }
-
-    if (code == NULL) {
-        ks_error(kp.err._);
-        return -1;
-    }
-
-    res = ks_ast_codegen(code, &prog);
-
-    if (res != 0) {
-        ks_error("Codgen failed");
-        return -1;
-    }
-
-    ksb_retnone(&prog);
-
-
-    ks_str ns = KS_STR_EMPTY;
-    ks_prog_tostr(&prog, &ns);
-    printf("%s\n", ns._);
-
-    ks_vm vm = KS_VM_EMPTY;
-
-
-    ks_exec(&vm, &prog, 0);
-
-    // free our resources
-    ks_vm_free(&vm);
-    ks_prog_free(&prog);
-*/
-
-    //printf("%s\n", kso_type_int->name._);
     return 0;
 }
 

@@ -2,6 +2,14 @@
 
 #include "kscript.h"
 
+
+// if this is defined, we will intern strings, so there is only one unique string for any given string
+// comment this out to disable
+#define INTERN_STR 
+
+
+
+
 kso kso_new_none() {
     return (kso)kso_V_none;
 }
@@ -10,13 +18,24 @@ kso kso_new_bool(ks_bool val) {
     return (kso)(val ? kso_V_true : kso_V_false);
 }
 
+
+/* integer constants */
+
+// store the constants from 0...255 in this array
+static struct kso_int int_vals[256];
+
 kso kso_new_int(ks_int val) {
-    kso_int ret = (kso_int)ks_malloc(sizeof(*ret));
-    ret->type = kso_T_int;
-    ret->flags = KSOF_NONE;
-    ret->refcnt = 0;
-    ret->_int = val;
-    return (kso)ret;
+    /*if (val >= 0 && val <= 255) {
+        return (kso)(int_vals + val);
+    } else {*/
+        // construct
+        kso_int ret = (kso_int)ks_malloc(sizeof(*ret));
+        ret->type = kso_T_int;
+        ret->flags = KSOF_NONE;
+        ret->refcnt = 0;
+        ret->_int = val;
+        return (kso)ret;
+    //}
 }
 
 kso kso_new_float(ks_float val) {
@@ -28,21 +47,59 @@ kso kso_new_float(ks_float val) {
     return (kso)ret;
 }
 
+
+/* str-interning
+
+Essentially, we use a hash-table (dictionary) with NULL keys to store references to unique strings
+
+If a string is duplicated, we simply increment the reference count in the dictionary
+
+*/
+
+#ifdef INTERN_STR
+// a 'box' of interned strings
+static ks_dict str_box = KS_DICT_EMPTY;
+#endif
+
 kso kso_new_str(ks_str val) {
-    kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
-    ret->type = kso_T_str;
-    ret->flags = KSOF_NONE;
-    ret->refcnt = 0;
+    // always compute hash
+    ks_int hash = ks_hash_str(val);
+    // the return value
+    kso_str ret = NULL;
 
-    ret->_str = ks_str_dup(val);
+    #ifdef INTERN_STR
+        // use the `str_box` to intern strings
+        if ((ret = (kso_str)ks_dict_get(&str_box, NULL, hash)) != NULL) {
+            // we have found it, so just return it
+            return (kso)ret;
+        } else {
+            // else, add it to the dictionary, with NULL key
+            ret = (kso_str)ks_malloc(sizeof(*ret));
+            ret->type = kso_T_str;
+            ret->flags = KSOF_IMMORTAL;
+            ret->refcnt = 1;
 
-    // create string hash
-    ret->_strhash = ks_hash_str(ret->_str);
-    
+            ret->_str = ks_str_dup(val);
+            ret->_strhash = hash;
 
-    return (kso)ret;
+            ks_dict_set(&str_box, NULL, hash, (kso)ret);
+            
+            return (kso)ret;
+        }
+    #else
+        // not interned, so just always create a new string
+        ret = (kso_str)ks_malloc(sizeof(*ret));
+        ret->type = kso_T_str;
+        ret->flags = KSOF_NONE;
+        ret->refcnt = 0;
+
+        ret->_str = ks_str_dup(val);
+        ret->_strhash = hash;
+
+        return (kso)ret;
+
+    #endif
 }
-
 
 kso kso_new_str_cfmt(const char* fmt, ...) {
     kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
@@ -85,7 +142,7 @@ kso kso_new_list(int n, kso* refs) {
 
 void kso_free(kso obj) {
 
-    // don't free an immortal
+    // don't free an immortal, or something still being referenced
     if (obj->flags & KSOF_IMMORTAL || obj->refcnt > 0) return;
 
     ks_trace("ks_freeing obj %p [type %s]", obj, obj->type->name._);
@@ -110,3 +167,18 @@ kso kso_call(kso func, int args_n, kso* args) {
         return NULL;
     }
 }
+
+// initialize the constants
+void kso_init_consts() {
+    int i;
+    for (i = 0; i < sizeof(int_vals) / sizeof(int_vals[0]); ++i) {
+        int_vals[i] = (struct kso_int) {
+            .type = kso_T_int,
+            .refcnt = 1,
+            .flags = KSOF_IMMORTAL,
+            ._int = i
+        };
+    }
+}
+
+
