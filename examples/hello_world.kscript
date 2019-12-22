@@ -1,9 +1,11 @@
 
-i = 2
+x = 11
 
-while (i < 10) {
-    print (i)
-    i = i + 1
+func is_prime := {
+    print (x % 5)
 }
 
+a = 3; b = 4
+
+print (a^2 + b^2)
 

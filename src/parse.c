@@ -235,6 +235,8 @@ void ks_parse_tokenize(ks_parse* kp) {
     }
 
         /* 1-1s */
+        CASES(":=", KS_TOK_O_DEFINE)
+
         CASES(":", KS_TOK_COLON)
         CASES(";", KS_TOK_SEMI)
         CASES(".", KS_TOK_DOT)
@@ -573,7 +575,12 @@ typedef struct syop {
 
         SYP_UNARY, // unary has greatest precedence, other than groups (like '()')
         
+
         SYP_ASSIGN,
+
+        // define `:=` should be slightly lower than assignment
+        SYP_DEFINE,
+
         SYP_CMP, // comparison operators, like ==, <, etc
         SYP_ADDSUB,
         SYP_MULDIV,
@@ -625,7 +632,8 @@ syop
     sybop_lt = MAKE_BOPL("<", SYP_CMP, KS_AST_BOP_LT), 
     sybop_gt = MAKE_BOPL(">", SYP_CMP, KS_AST_BOP_GT), 
     sybop_eq = MAKE_BOPL("==", SYP_CMP, KS_AST_BOP_EQ),
-    sybop_assign = MAKE_BOPL("=", SYP_ASSIGN, KS_AST_BOP_ASSIGN)
+    sybop_assign = MAKE_BOPL("=", SYP_ASSIGN, KS_AST_BOP_ASSIGN),
+    sybop_define = MAKE_BOPL(":=", SYP_DEFINE, KS_AST_BOP_DEFINE)
     
     
     ;
@@ -986,13 +994,45 @@ ks_ast ks_parse_block(ks_parse* kp, int* kpi) {
         return body;
 
         
+    } else if (ctok.type == KS_TOK_IDENT && (MATCHES(ctok, "func"))) {
+        // parse func NAME(args) := { BODY }
+        // skip `func`
+        ctok = kp->tokens[++*kpi];
+        // use the name
+        ks_ast fdef = ks_ast_new_funcdef(KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len));
+        ctok = kp->tokens[++*kpi];
+
+        if (ctok.type == KS_TOK_LPAREN) {
+            // parse (arg0, arg1, ...)
+        } else {
+            // it is a monoid, so now expect ':='
+        }
+
+        if (ctok.type != KS_TOK_O_DEFINE) {
+            ks_parse_err(kp, ctok, "Expected ':='");
+        }
+
+        ctok = kp->tokens[++*kpi];
+        fdef->_funcdef.body = ks_parse_block(kp, kpi);
+
+        return fdef;
+
+    } else if (ctok.type == KS_TOK_IDENT && (MATCHES(ctok, "ret"))) {
+        // parse ret val
+        // skip `ret`
+        ++*kpi;
+
+        ks_ast val = ks_parse_expr(kp, kpi);
+        if (val == NULL) return NULL;
+
+        return ks_ast_new_ret(val);
+
     } else if (ctok.type == KS_TOK_IDENT && (MATCHES(ctok, "if"))) {
         // parse if (COND) { BODY }
         // skip `if`
         ++*kpi;
 
         //ctok = kp->tokens[*kpi];
-        //printf(":%s\n", kp->src._ + ctok.state.i);
         ks_ast cond = ks_parse_expr(kp, kpi);
         if (cond == NULL) return NULL;
 

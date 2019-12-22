@@ -177,6 +177,46 @@ void ks_dict_set(ks_dict* dict, kso key, ks_int hash, kso val) {
     return;
 }
 
+
+bool ks_dict_del(ks_dict* dict, kso key, ks_int hash) {
+
+    // calculate the index into the items array
+    int idx = hash % dict->n_buckets;
+
+    // check that bucket, if it wasn't used, then it was an invalid key
+    if (dict->buckets[idx].val == NULL) {
+        return false;
+    }
+
+    // else, we will need to traverse the linked list, trying to find a match
+    int tries = 0;
+
+    struct ks_dict_entry* entry = &dict->buckets[idx];
+    while (entry->val != NULL) {
+
+        if (entry->hash == hash) {
+            // possible match (assuming no hash collisions), now remove the entry
+            if (entry->key != NULL) KSO_DECREF(entry->key);
+            KSO_DECREF(entry->val);
+
+            *entry = KS_DICT_ENTRY_EMPTY;
+            dict->n_entries--;
+
+            return true;
+        }
+
+        // try a new index
+        tries++;
+
+        idx = (idx + 1) % dict->n_buckets;
+        entry = &dict->buckets[idx];
+    }
+
+    // this means it was not a match, so it didn't exist
+
+    return false;
+}
+
 kso ks_dict_get_str(ks_dict* dict, ks_str key, ks_int hash) {
     return ks_dict_get(dict, NULL, hash);
 }
@@ -200,10 +240,6 @@ void ks_dict_free(ks_dict* dict) {
 
     *dict = KS_DICT_EMPTY;
 }
-
-
-
-
 
 
 

@@ -4,6 +4,14 @@ kscript is a highly dynamic, duck-typed, language. It emphasizes shortness,
 the fewest boilerplate parts possible, and direct readability (such as usage 
 of operators rather than functions, when possible)
 
+Included are also implementations of lists, dictionaries, string operations, 
+    a type system, stacks, a virtual machine
+
+Which are more or less re-usable for other purposes. I am attempting to make them efficient
+
+https://chemicaldevelopment.us
+Cade Brown, 2019
+
 */
 
 #ifndef KSCRIPT_H_
@@ -20,8 +28,6 @@ of operators rather than functions, when possible)
 
 #include <string.h>
 
-
-typedef struct kso* kso;
 
 // primitive/builtin C types
 
@@ -92,6 +98,11 @@ int ks_str_cfmt(ks_str* str, const char* fmt, ...);
 int ks_str_vcfmt(ks_str* str, const char* fmt, va_list ap);
 // reads from a file pointer, the entire file, as the string
 void ks_str_readfp(ks_str* str, FILE* fp);
+
+// a generic object type, which is began by `KSO_HEAD` variables
+typedef struct kso* kso;
+typedef struct ks_prog ks_prog;
+typedef struct ks_vm ks_vm;
 
 /* list - list of object references
 
@@ -166,24 +177,22 @@ typedef struct {
 #define KS_DICT_ENTRY_EMPTY ((struct ks_dict_entry){ .hash = 0, .key = NULL, .val = NULL })
 
 
-
-
 // gets an object given a key, NULL if notfound
+// NOTE: if `key==NULL`, it searches directly using `hash`, and will never do true equality checks
+//   this fact is used by global string interning
 kso ks_dict_get(ks_dict* dict, kso key, ks_int hash);
-// sets the dictionary at a key, given a value (returns its index)
+// sets the dictionary at a key, given a value
+// NOTE: if `key==NULL`, it searches directly using `hash`, and will never do true equality checks
+//   this fact is used by global string interning
 void ks_dict_set(ks_dict* dict, kso key, ks_int hash, kso val);
+// removes the dictionary entry for a given key, returns true if it existed
+// NOTE: if it didn't exist, don't remove it, just return false
+bool ks_dict_del(ks_dict* dict, kso key, ks_int hash);
+
 
 // string specific methods
 kso ks_dict_get_str(ks_dict* dict, ks_str key, ks_int hash);
 void ks_dict_set_str(ks_dict* dict, ks_str key, ks_int hash, kso val);
-
-
-
-// gets an object given a string key, NULL if notfound
-//kso ks_dict_get_str(ks_dict* dict, ks_str key);
-
-// set the dictionary at a key (which is string), given a value (returns its index)
-//int ks_dict_set_str(ks_dict* dict, ks_str key, kso val);
 
 // frees a dictionary and its resources
 void ks_dict_free(ks_dict* dict);
@@ -209,7 +218,6 @@ enum {
 typedef struct kso_type* kso_type;
 
 /* primitive object definitions */
-
 
 // definition of a type
 struct kso_type {
@@ -305,6 +313,7 @@ typedef struct {
     KSO_BASE
     // store the string hash when created
     ks_int _strhash;
+    // the actual string value, allocated with the `kso`, so should be freed at the same time
     ks_str _str;
 }* kso_str;
 
@@ -319,6 +328,7 @@ Construct using `kso_new_list(n, obj-array)`
 */
 typedef struct {
     KSO_BASE
+    // just a list of references
     ks_list _list;
 }* kso_list;
 
@@ -327,11 +337,13 @@ typedef struct {
 
 Represents a dictionary mapping of key->value
 
-Right now, it uses a linear search through the hashes, so is not as efficient as it could be. It also could use a method for handling hash collisions
+Internally, it uses a hash-table based approach with auto-resizing to the nearest prime number, and a few other tricks.
+Check out dict.c for implementation details
 
 */
 typedef struct {
     KSO_BASE
+    // a dictionary of keys and values
     ks_dict _dict;
 }* kso_dict;
 
@@ -345,13 +357,31 @@ Typically, I think these should be marked as `immortal`, because I can't think o
 */
 typedef struct kso_cfunc {
     KSO_BASE
-    kso (*_cfunc)(int n_args, kso* args);
+    kso (*_cfunc)(ks_vm* vm, int n_args, kso* args);
 }* kso_cfunc;
+
+
+/* kfunc-type (kscript function)
+
+Represents a function within kscript, in bytecode format
+
+*/
+typedef struct kso_kfunc {
+    KSO_BASE
+    // the program in which the function is located
+    ks_prog* prog;
+
+    // the index into the program's bc where the function is located
+    int idx;
+
+}* kso_kfunc;
 
 
 /* generic type
 
 This encapsulates just the base of an object, which is only required to have the `KSO_BASE` vars
+
+So, anything should be validly casted to kso
 
 */
 struct kso {
@@ -408,34 +438,35 @@ kso kso_new_str(ks_str val);
 // returns a string object from a given C-printf-style format and args
 kso kso_new_str_cfmt(const char* fmt, ...);
 
-
 // creates a list of `n` references, and fills it in from `refs`. If `refs==NULL`, then the array is uninitialized
 kso kso_new_list(int n, kso* refs);
 
-// attempt to "call" a function or functor-like object with a number of arguments
-// so, like `func(args[0], args[1], ...)`
-// if `func` is a C-func, the native C function is called
-// otherwise, NULL is returned and a global error is set via ks_err_add_*
-kso kso_call(kso func, int args_n, kso* args);
+// create a kfunc from a program and index into it
+kso kso_new_kfunc(ks_prog* prog, int idx);
+
 
 /* object manipulation/management */
 
 // free's an object's resources (through its type), and then frees `obj` itself
 // This is okay to call if `obj` is immortal; it is a no-op in that case
-// This should only be done if you are sure no one else is using the object
-void kso_free(kso obj);
+// returns whether the object was freed
+bool kso_free(kso obj);
 
 
 /* bytecode format:
 encoded with SIZE[desc]
-where SIZE is in bytes
+where SIZE is in bytes, and desciption tells what that segment does
 
-So, this is variable-length bytecode, the arguments must be consumed variabl-y
+So, this is variable-length bytecode, the arguments must be consumed variably (see exec.c for an example)
 
 These are all executed on a stack, sometimes with a reference to a constant table
 (for storing strings)
 
 So, implicitly, they operate on the top of the stack
+
+A list of improvements that could be made:
+
+  * Registers that could be used for efficient caching within a function
 
 */
 
@@ -538,7 +569,6 @@ enum {
     // 1[opcode]
     KS_BC_EQ,
 
-
     /* func calls */
 
     // pop off the last item (which is the function)
@@ -594,6 +624,7 @@ enum {
 // each bytecode is 1 byte
 typedef uint8_t ks_bc;
 
+// a single-byte operation, no additional arguments
 struct ks_bc {
     ks_bc op;
 };
@@ -718,14 +749,13 @@ struct ks_bc_jmp {
 
 
 // a program, representing a bunch of instructions, and labels, as well as constants and required vals
-typedef struct {
+struct ks_prog {
 
     // number of strings in the constant table
     int str_tbl_n;
 
     // the table of string constants used by bytecodes
     kso_str* str_tbl;
-
 
     // number of string labels defined
     int lbl_n;
@@ -743,7 +773,7 @@ typedef struct {
     // the list of bytecode instructions
     ks_bc* bc;
 
-} ks_prog;
+};
 
 // the empty program, used to initialize
 #define KS_PROG_EMPTY ((ks_prog){ .str_tbl_n = 0, .str_tbl = NULL, .lbl_n = 0, .lbls = NULL, .bc_n = 0, .bc = NULL })
@@ -830,6 +860,9 @@ enum {
     // a list of ast's
     KS_AST_BLOCK,
 
+    // ret (value)
+    KS_AST_RETURN,
+
     // operators
     KS_AST_BOP_ADD,
     KS_AST_BOP_SUB,
@@ -842,7 +875,14 @@ enum {
     KS_AST_BOP_EQ,
 
     // assignment
-    KS_AST_BOP_ASSIGN
+    KS_AST_BOP_ASSIGN,
+
+    // definition
+    KS_AST_BOP_DEFINE,
+
+    // a function definition, i.e.:
+    // func NAME(ARGS) := { BODY }
+    KS_AST_FUNCDEF
 
 };
 
@@ -853,6 +893,8 @@ struct ks_ast {
         ks_int _int;
         ks_float _float;
         ks_str _str;
+
+        ks_ast _val;
 
         struct {
             // function being called
@@ -882,8 +924,23 @@ struct ks_ast {
             ks_ast body;
         } _while;
 
-    };
+        struct {
 
+            // name of the function
+            ks_str name;
+
+            // number of the parameters
+            int n_params;
+
+            // names for each of the parameters
+            ks_str* param_names;
+
+            // body of the function
+            ks_ast body;
+
+        } _funcdef;
+
+    };
 
 };
 
@@ -893,6 +950,7 @@ ks_ast ks_ast_new_const_float(ks_float val);
 ks_ast ks_ast_new_const_str(ks_str val);
 ks_ast ks_ast_new_var(ks_str name);
 ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args);
+ks_ast ks_ast_new_ret(ks_ast val);
 
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
 
@@ -901,6 +959,12 @@ int ks_ast_block_add(ks_ast block, ks_ast sub);
 
 ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
+
+// creates a funcdef with 0 params
+ks_ast ks_ast_new_funcdef(ks_str name);
+// adds another parameter
+void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name);
+
 
 
 // generates bytecode from an AST
@@ -1014,8 +1078,10 @@ struct ks_token {
         KS_TOK_O_GT,
         // literal equals `==`
         KS_TOK_O_EQ,
-        // literal assignment
+        // literal assignment, `=`
         KS_TOK_O_ASSIGN,
+        // literal definition, `:=`
+        KS_TOK_O_DEFINE,
 
 
         KS_TOK__NUM
@@ -1066,7 +1132,7 @@ void ks_parse_free(ks_parse* kp);
 /* virtual machine state */
 
 // virtual machine
-typedef struct {
+struct ks_vm {
 
     // the global dictionary
     ks_dict dict;
@@ -1074,10 +1140,22 @@ typedef struct {
     // the global stack
     ks_list stk;
 
-} ks_vm;
+
+    // number of items on the call stack
+    int call_stk_n;
+
+    // call stack item
+    struct ks_vm_call_stk_item {
+        // program counter on the call stack
+        ks_bc* pc;
+        // the program executing on
+        ks_prog* prog;
+    }* call_stk;
+
+};
 
 // the empty vm, can be used to initialize a VM
-#define KS_VM_EMPTY ((ks_vm){ .dict = KS_DICT_EMPTY, .stk = KS_LIST_EMPTY })
+#define KS_VM_EMPTY ((ks_vm){ .dict = KS_DICT_EMPTY, .stk = KS_LIST_EMPTY, .call_stk_n = 0, .call_stk = NULL })
 
 // frees all the virtual machine's resources
 void ks_vm_free(ks_vm* vm);
@@ -1094,6 +1172,7 @@ extern kso_type
     kso_T_float,
     kso_T_str,
     kso_T_cfunc,
+    kso_T_kfunc,
     kso_T_list
 ;
 
@@ -1136,6 +1215,14 @@ extern kso_cfunc
 
 
 /* execution */
+
+
+// attempt to "call" a function or functor-like object with a number of arguments
+// so, like `func(args[0], args[1], ...)`
+// if `func` is a C-func, the native C function is called
+// otherwise, NULL is returned and a global error is set via ks_err_add_*
+kso kso_call(ks_vm* vm, kso func, int args_n, kso* args);
+
 
 // execute a program (starting at `idx` in the bytecode) onto a VM
 kso ks_exec(ks_vm* vm, ks_prog* prog, int idx);
@@ -1228,7 +1315,6 @@ void ks_init();
 
 // internal method, do not call
 void kso_init_consts();
-
 
 
 #endif

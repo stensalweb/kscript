@@ -34,6 +34,7 @@ ks_ast ks_ast_new_var(ks_str name) {
     ret->_str = ks_str_dup(name);
     return ret;
 }
+
 ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args) {
     ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
     ret->type = KS_AST_CALL;
@@ -45,6 +46,13 @@ ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args) {
     } else {
         ret->_call.args = NULL;
     }
+    return ret;
+}
+
+ks_ast ks_ast_new_ret(ks_ast val) {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_RETURN;
+    ret->_val = val;
     return ret;
 }
 
@@ -80,7 +88,6 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
     return ret;
 }
 
-
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
     ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
     ret->type = KS_AST_WHILE;
@@ -88,6 +95,23 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
     ret->_while.body = body;
     return ret;
 }
+
+
+ks_ast ks_ast_new_funcdef(ks_str name) {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_FUNCDEF;
+    ret->_funcdef.name = ks_str_dup(name);
+    ret->_funcdef.n_params = 0;
+    ret->_funcdef.param_names = NULL;
+    ret->_funcdef.body = NULL;
+    return ret;
+}
+
+void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name) {
+    funcdef->_funcdef.param_names = ks_realloc(funcdef->_funcdef.param_names, ++funcdef->_funcdef.n_params * sizeof(*funcdef->_funcdef.param_names));
+    funcdef->_funcdef.param_names[funcdef->_funcdef.n_params - 1] = ks_str_dup(param_name);
+}
+
 
 // code-generating clearing stack
 //#define CG_CLEAR() ksb_clear(to);
@@ -208,6 +232,12 @@ int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
             rc |= ks_ast_codegen(ast->_block.subs[i], to);
             CG_CLEAR();
         }
+    } else if (ast->type == KS_AST_FUNCDEF) {
+        // position of body
+        int pos = to->bc_n;
+        rc |= ks_ast_codegen(ast->_funcdef.body, to);
+
+        ks_prog_lbl_add(to, ast->_funcdef.name, pos);
 
     } else {
         ks_error("Unexpected AST type %d", ast->type);

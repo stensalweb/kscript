@@ -14,7 +14,7 @@ This uses computed goto, essentially jumping directly to addresses
 
 kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
     // program counter
-    ks_bc* pc = prog->bc + idx;
+    //ks_bc* pc = prog->bc + idx;
 
     // instruction labels, for computed goto
     static void* inst_labels[] = {
@@ -74,6 +74,12 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
     struct ks_bc_jmp i_jmp;
 
+    // make sure its allocated enough
+    vm->call_stk = ks_realloc(vm->call_stk, ++vm->call_stk_n * sizeof(*vm->call_stk));
+
+    // set cur pc
+    vm->call_stk[vm->call_stk_n - 1].prog = prog;
+    vm->call_stk[vm->call_stk_n - 1].pc = prog->bc + idx;
 
     // string table lookup variables
     ks_str _str;
@@ -92,10 +98,10 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
     kso* args = NULL;
 
     // execute next instruction
-    #define NEXT() { goto *inst_labels[*pc]; }
+    #define NEXT() { goto *inst_labels[*vm->call_stk[vm->call_stk_n - 1].pc]; }
 
-    #define DECODE(_type) (*(struct _type*)(pc))
-    #define PASS(_type) (pc += sizeof(struct _type));
+    #define DECODE(_type) (*(struct _type*)(vm->call_stk[vm->call_stk_n - 1].pc))
+    #define PASS(_type) (vm->call_stk[vm->call_stk_n - 1].pc += sizeof(struct _type));
 
     #define INCREF_N(_list, _n) { int _i; for (_i = 0; _i < _n; ++_i) { KSO_INCREF((_list[_i])); } }
     #define DECREF_N(_list, _n) { int _i; for (_i = 0; _i < _n; ++_i) { KSO_DECREF((_list[_i])); } }
@@ -164,7 +170,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             // decode string
             i_str = DECODE(ks_bc_str);
             PASS(ks_bc_str);
-            _ostr = prog->str_tbl[i_str.val_idx];
+            _ostr = vm->call_stk[vm->call_stk_n - 1].prog->str_tbl[i_str.val_idx];
             etrace("const \"%s\" [%d]", _ostr->_str_, i_str.val_idx);
             ks_list_push(&vm->stk, (kso)_ostr);
             NEXT();
@@ -199,7 +205,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             i_load = DECODE(ks_bc_load);
             PASS(ks_bc_load);
             // fetch string constant
-            _ostr = prog->str_tbl[i_load.name_idx];
+            _ostr = vm->call_stk[vm->call_stk_n - 1].prog->str_tbl[i_load.name_idx];
             etrace("load \"%s\" [%d]", _str._, i_load.name_idx);
 
             // now, look it up
@@ -217,7 +223,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             i_store = DECODE(ks_bc_store);
             PASS(ks_bc_store);
             // fetch string constant
-            _ostr = prog->str_tbl[i_store.name_idx];
+            _ostr = vm->call_stk[vm->call_stk_n - 1].prog->str_tbl[i_store.name_idx];
             etrace("store \"%s\" [%d]", _str._, i_store.name_idx);
             
             if (vm->stk.len < 1) {
@@ -243,7 +249,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             PASS(ks_bc); \
             etrace("op " _str); \
             args = &(vm->stk.items[vm->stk.len -= 2]); \
-            new_obj = kso_F_##_name->_cfunc(2, args); \
+            new_obj = kso_F_##_name->_cfunc(vm, 2, args); \
             if (new_obj == NULL) goto handle_exception; \
             KSO_INCREF(new_obj); \
             DECREF_N(args, 2); \
@@ -273,11 +279,12 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             // pop off the function
             top = ks_list_pop(&vm->stk);
 
-            args = &(vm->stk.items[vm->stk.len -= i_call.n_args]);
 
             if (top->type == kso_T_cfunc) {
+
+                args = &(vm->stk.items[vm->stk.len -= i_call.n_args]);
                 //ks_trace("calling %p with %d", top, i_call.n_args);
-                new_obj = ((kso_cfunc)top)->_cfunc(i_call.n_args, args);
+                new_obj = ((kso_cfunc)top)->_cfunc(vm, i_call.n_args, args);
                 if (new_obj == NULL) {
                     goto handle_exception;
                 }
@@ -285,6 +292,16 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
                 DECREF_N(args, i_call.n_args);
                 
                 ks_list_push(&vm->stk, new_obj);
+
+            } else if (top->type == kso_T_kfunc) {
+
+                // expand call stack
+                vm->call_stk = ks_realloc(vm->call_stk, ++vm->call_stk_n * sizeof(*vm->call_stk));
+
+                // set cur prog/pc
+                vm->call_stk[vm->call_stk_n - 1].prog = ((kso_kfunc)top)->prog;
+                vm->call_stk[vm->call_stk_n - 1].pc = ((kso_kfunc)top)->prog->bc + ((kso_kfunc)top)->idx;
+
             } else {
                 ks_err_add_str_fmt("Invalid type to call, tried calling on type `%s`", top->type->name._);
                 //ks_error("Calling something other than 'cfunc'");
@@ -303,7 +320,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             args = &vm->stk.items[vm->stk.len -= i_get.n_args];
 
             // run the global get function
-            new_obj = kso_F_get->_cfunc(i_get.n_args, args);
+            new_obj = kso_F_get->_cfunc(vm, i_get.n_args, args);
             if (new_obj == NULL) goto handle_exception;
 
             KSO_INCREF(new_obj);
@@ -320,7 +337,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             args = &(vm->stk.items[vm->stk.len -= i_set.n_args]);
 
             // run the global set function
-            new_obj = kso_F_set->_cfunc(i_set.n_args, args);
+            new_obj = kso_F_set->_cfunc(vm, i_set.n_args, args);
             if (new_obj == NULL) goto handle_exception;
 
             // we shouldn't add the result to the stack
@@ -335,7 +352,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             PASS(ks_bc_jmp); 
             etrace("jmp %+d", (int)i_jmp.relamt);
 
-            pc += i_jmp.relamt;
+            vm->call_stk[vm->call_stk_n - 1].pc += i_jmp.relamt;
 
             NEXT();
         do_jmpt:
@@ -345,7 +362,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
             top = ks_list_pop(&vm->stk);
             if (top->type == kso_T_bool && KSO_CAST(kso_bool, top)->_bool) {
-                pc += i_jmp.relamt;
+                vm->call_stk[vm->call_stk_n - 1].pc += i_jmp.relamt;
             }
 
             KSO_DECREF(top);
@@ -359,7 +376,7 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
 
             top = ks_list_pop(&vm->stk);
             if (top->type == kso_T_bool && !KSO_CAST(kso_bool, top)->_bool) {
-                pc += i_jmp.relamt;
+                vm->call_stk[vm->call_stk_n - 1].pc += i_jmp.relamt;
             }
 
             KSO_DECREF(top);
@@ -372,15 +389,24 @@ kso ks_exec(ks_vm* vm, ks_prog* prog, int idx) {
             etrace("ret");
 
             // pop off return value
-            top = ks_list_pop(&vm->stk);
+            //top = ks_list_pop(&vm->stk);
             return top;
 
         do_retnone:
             PASS(ks_bc);
             etrace("retnone");
-        
-            return NULL;
 
+            if (--vm->call_stk_n <= 0) {
+
+                // ready to return
+                return NULL;
+
+            } else {
+
+                ks_list_push(&vm->stk, (kso)kso_V_none);
+
+                NEXT();
+            }
 
         do_clear:
             PASS(ks_bc);

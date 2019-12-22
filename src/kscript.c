@@ -17,6 +17,20 @@ int main(int argc, char** argv) {
     ks_set_loglvl(KS_LOGLVL_DEBUG);
     //ks_set_loglvl(KS_LOGLVL_TRACE);
 
+    ks_parse cp = KS_PARSE_EMPTY;
+    ks_parse_setsrc(&cp, KS_STR_CONST("cade"), KS_STR_CONST("print (a, 1)"));
+
+    ks_prog cprog = KS_PROG_EMPTY;
+
+    ks_ast cade = ks_parse_code(&cp);
+    ks_ast_codegen(cade, &cprog);
+    ksb_retnone(&cprog);
+
+    if (ks_err_dumpall()) return -1;
+
+    kso cadef = kso_new_kfunc(&cprog, 0);
+
+
     // the global VM
     ks_vm vm = KS_VM_EMPTY;
 
@@ -34,6 +48,7 @@ int main(int argc, char** argv) {
 
     SET_GLOBAL("print", kso_F_print);
     SET_GLOBAL("exit" , kso_F_exit);
+    SET_GLOBAL("cade" , cadef);
 
     // check errors
     if (ks_err_dumpall()) return -1;

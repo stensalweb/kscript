@@ -79,7 +79,7 @@ You can use `REQ_N_ARGS_...` to ensure enough arguments are given
     if ((_obj) == NULL) { \
         return ks_err_add_str_fmt(_FUNCSIG ": `%s` failed, `%s` doesn't exist", (_fcall), (_objname)); \
     } else if ((_obj)->type == kso_T_cfunc) { \
-        _res = KSO_CAST(kso_cfunc, _obj)->_cfunc((_n_args), (_args)); \
+        _res = KSO_CAST(kso_cfunc, _obj)->_cfunc(vm, (_n_args), (_args)); \
         if (_res == NULL) return NULL; \
     } else { \
         return ks_err_add_str_fmt(_FUNCSIG ": `%s` failed, `%s` was not callable", (_fcall), (_objname)); \
@@ -91,7 +91,7 @@ You can use `REQ_N_ARGS_...` to ensure enough arguments are given
 #define TRYCALL_IFE(_fcall, _objname, _obj, _n_args, _args) { \
     if ((_obj) == NULL) { \
     } else if ((_obj)->type == kso_T_cfunc) { \
-        _res = KSO_CAST(kso_cfunc, _obj)->_cfunc((_n_args), (_args)); \
+        _res = KSO_CAST(kso_cfunc, _obj)->_cfunc(vm, (_n_args), (_args)); \
         if (_res == NULL) return NULL; \
     } else { \
         return ks_err_add_str_fmt(_FUNCSIG ": `%s` failed, `%s` was not callable", (_fcall), (_objname)); \
@@ -99,10 +99,10 @@ You can use `REQ_N_ARGS_...` to ensure enough arguments are given
 }
 
 // utility macro for a function name
-#define FUNC(_name) static kso _F_##_name(int n_args, kso* args)
+#define FUNC(_name) static kso _F_##_name(ks_vm* vm, int n_args, kso* args)
 
 // utility macro for defining a type function with a given name
-#define TYPEFUNC(_type, _name) static kso _type##_##_name(int n_args, kso* args)
+#define TYPEFUNC(_type, _name) static kso _type##_##_name(ks_vm* vm, int n_args, kso* args)
 
 
 /* FUNCTIONS */
@@ -130,7 +130,7 @@ FUNC(repr) {
     if (f_str == NULL) {
         return ks_err_add_str_fmt(_FUNCSIG ": `a`'s type (`%s`) did not have a `repr()` function", a->type->name._);
     } else if (f_str->type == kso_T_cfunc) {
-        a_repr = KSO_CAST(kso_cfunc, f_str)->_cfunc(1, &a);
+        a_repr = KSO_CAST(kso_cfunc, f_str)->_cfunc(vm, 1, &a);
         if (a_repr == NULL) return NULL;
     } else {
         return ks_err_add_str_fmt(_FUNCSIG ": failed, `%s.repr(self)` was not callable", a->type->name._);
@@ -161,7 +161,7 @@ FUNC(print) {
         if (f_str == NULL) {
             return ks_err_add_str_fmt(_FUNCSIG ": `args[%d]`'s type (`%s`) did not have a `str()` function, so it can't be printed", i, args[i]->type->name._);
         } else if (f_str->type == kso_T_cfunc) {
-            a_str = KSO_CAST(kso_cfunc, f_str)->_cfunc(1, &args[i]);
+            a_str = KSO_CAST(kso_cfunc, f_str)->_cfunc(vm, 1, &args[i]);
             if (a_str == NULL) return NULL;
         } else {
             return ks_err_add_str_fmt(_FUNCSIG ": `str(args[%d])` failed, `%s.str(self)` was not callable", i, args[i]->type->name._);
@@ -226,12 +226,13 @@ FUNC(get) {
     #define _FUNCSIG "__get__(A, key...)"
     REQ_N_ARGS_MIN(2);
 
+
     kso self = args[0];
     kso f_get = self->type->f_get;
     if (f_get == NULL) {
         return ks_err_add_str_fmt(_FUNCSIG ": `%s.get(key...)` does not exist", self->type->name._);
     } else {
-        return kso_call(f_get, n_args, args);
+        return kso_call(vm, f_get, n_args, args);
     }
 
 }\
@@ -252,7 +253,7 @@ FUNC(set) {
     if (f_set == NULL) {
         return ks_err_add_str_fmt(_FUNCSIG ": object of type `%s` is has no .set() method", self->type->name._);
     } else {
-        return kso_call(f_set, n_args, args);
+        return kso_call(vm, f_set, n_args, args);
     }
 
 }
@@ -848,7 +849,7 @@ TYPEFUNC(list, str) {
     int i;
     for (i = 0; i < self->_list.len; ++i) {
         if (i != 0) ks_str_append_c(&ret->_str, ' ');
-        kso_str rstr = (kso_str)_F_repr(1, &self->_list.items[i]);
+        kso_str rstr = (kso_str)_F_repr(vm, 1, &self->_list.items[i]);
         if (rstr == NULL) return NULL;
 
         ks_str_append(&ret->_str, rstr->_str);
@@ -1086,7 +1087,21 @@ static struct kso_type
 
         .f_get  = NULL,
         .f_set  = NULL,
+    },
+    T_kfunc = {
+        .type = &T_type,
+        .flags = KSOF_IMMORTAL,
+        .name = KS_STR_CONST("kfunc"),
+        .f_init = NULL,
+        .f_free = NULL,
 
+        .f_bool = NULL,
+        .f_int  = NULL,
+        .f_str  = NULL,
+        .f_repr = NULL,
+
+        .f_get  = NULL,
+        .f_set  = NULL,
     }
 ;
 
@@ -1233,6 +1248,7 @@ kso_type
     kso_T_float = &T_float,
     kso_T_str   = &T_str,
     kso_T_list  = &T_list,
-    kso_T_cfunc = &T_cfunc
+    kso_T_cfunc = &T_cfunc,
+    kso_T_kfunc = &T_kfunc
 ;
 

@@ -1,14 +1,21 @@
-/* obj.c - constructing/managing objects */
+/* obj.c - constructing/managing objects
+
+Also, this holds some constants (like interned strings, small integers, etc)
+
+*/
 
 #include "kscript.h"
 
-
 // if this is defined, we will intern strings, so there is only one unique string for any given string
 // comment this out to disable
+// TODO: Also delete strings from the global cache once they are used up. Perhaps add this to the str_free method,
+//   to call a method here to `unintern` them
 #define INTERN_STR 
 
 
-
+// store 0...INT_CONST_N-1 as literals
+// and to -INT_CONST_N as well
+#define INT_CONST_N 256
 
 kso kso_new_none() {
     return (kso)kso_V_none;
@@ -22,12 +29,16 @@ kso kso_new_bool(ks_bool val) {
 /* integer constants */
 
 // store the constants from 0...255 in this array
-static struct kso_int int_vals[256];
+static struct kso_int int_vals[INT_CONST_N];
+// store the constants 1,-256 in this array
+static struct kso_int neg_int_vals[INT_CONST_N];
 
 kso kso_new_int(ks_int val) {
-    /*if (val >= 0 && val <= 255) {
+    if (val >= 0 && val < INT_CONST_N) {
         return (kso)(int_vals + val);
-    } else {*/
+    } else if (val >= -INT_CONST_N && val < 0) {
+        return (kso)(neg_int_vals - val - 1);
+    } else {
         // construct
         kso_int ret = (kso_int)ks_malloc(sizeof(*ret));
         ret->type = kso_T_int;
@@ -35,7 +46,7 @@ kso kso_new_int(ks_int val) {
         ret->refcnt = 0;
         ret->_int = val;
         return (kso)ret;
-    //}
+    }
 }
 
 kso kso_new_float(ks_float val) {
@@ -140,38 +151,56 @@ kso kso_new_list(int n, kso* refs) {
     return (kso)ret;
 }
 
-void kso_free(kso obj) {
+kso kso_new_kfunc(ks_prog* prog, int idx) {
+    kso_kfunc ret = (kso_kfunc)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_kfunc;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
+    ret->prog = prog;
+    ret->idx = idx;
 
-    // don't free an immortal, or something still being referenced
-    if (obj->flags & KSOF_IMMORTAL || obj->refcnt > 0) return;
-
-    ks_trace("ks_freeing obj %p [type %s]", obj, obj->type->name._);
-    kso f_free = obj->type->f_free;
-
-    if (f_free != NULL) {
-        if (f_free->type == kso_T_cfunc) {
-            KSO_CAST(kso_cfunc, f_free)->_cfunc(1, &obj);
-        } else {
-            ks_warn("Something other than cfunc in kso_free");
-        }
-    }
-
-    ks_free(obj);
+    return (kso)ret;
 }
 
-kso kso_call(kso func, int args_n, kso* args) {
+kso kso_call(ks_vm* vm, kso func, int args_n, kso* args) {
     if (func->type == kso_T_cfunc) {
-        return KSO_CAST(kso_cfunc, func)->_cfunc(args_n, args);
+        return KSO_CAST(kso_cfunc, func)->_cfunc(vm, args_n, args);
+    } else if (func->type == kso_T_kfunc) {
+        return ks_exec(vm, KSO_CAST(kso_kfunc, func)->prog, KSO_CAST(kso_kfunc, func)->idx);
     } else {
         ks_err_add_str_fmt("Object of type `%s` was not callable", func->type->name._);
         return NULL;
     }
 }
 
+// TODO: have this method return early and just throw the pointer onto another thread which is just the GC thread
+// Need to figure out multithreading first, though
+bool kso_free(kso obj) {
+
+    // don't free an immortal, or something still being referenced
+    if (obj->flags & KSOF_IMMORTAL || obj->refcnt > 0) return false;
+
+    ks_trace("ks_freeing obj %p [type %s]", obj, obj->type->name._);
+    kso f_free = obj->type->f_free;
+
+    if (f_free != NULL) {
+        if (f_free->type == kso_T_cfunc) {
+            KSO_CAST(kso_cfunc, f_free)->_cfunc(NULL, 1, &obj);
+        } else {
+            ks_warn("Something other than cfunc in kso_free");
+        }
+    }
+
+    ks_free(obj);
+
+    return true;
+}
+
 // initialize the constants
 void kso_init_consts() {
     int i;
-    for (i = 0; i < sizeof(int_vals) / sizeof(int_vals[0]); ++i) {
+    // 0-255
+    for (i = 0; i < INT_CONST_N; ++i) {
         int_vals[i] = (struct kso_int) {
             .type = kso_T_int,
             .refcnt = 1,
@@ -179,6 +208,15 @@ void kso_init_consts() {
             ._int = i
         };
     }
+    for (i = -1; i >= -INT_CONST_N; --i) {
+        neg_int_vals[- i - 1] = (struct kso_int) {
+            .type = kso_T_int,
+            .refcnt = 1,
+            .flags = KSOF_IMMORTAL,
+            ._int = i
+        };
+    }
+
 }
 
 
