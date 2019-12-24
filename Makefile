@@ -15,7 +15,7 @@ CFLAGS     ?= -O3 -std=c99
 
 # the sources for our kscript library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libkscript_src := $(addprefix src/, util.c log.c mem.c str.c list.c dict.c hash.c ast.c obj.c prog.c error.c parse.c vm.c builtin.c exec.c )
+libkscript_src := $(addprefix src/, util.c log.c mem.c hash.c error.c int.c str.c list.c dict.c code.c kfunc.c vm.c exec.c obj.c parse.c ast.c builtin.c )
 
 # the sources for the kscript executable (so things can be ran from 
 #   commandline)

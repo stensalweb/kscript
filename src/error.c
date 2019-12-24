@@ -11,7 +11,7 @@ static ks_list err_stk = KS_LIST_EMPTY;
 void* ks_err_add_str(ks_str msg) {
 
     // add it to the error stack
-    ks_list_push(&err_stk, kso_new_str(msg));
+    ks_list_push(&err_stk, (kso)kso_str_new(msg));
 
     return NULL;
 }
@@ -54,7 +54,7 @@ bool ks_err_dumpall() {
     for (i = 0; i < err_stk.len; ++i) {
         kso erri = err_stk.items[i];
         if (erri->type == kso_T_str) {
-            ks_error("%s", KSO_CAST(kso_str, erri)->_str._);
+            ks_error("%s", KSO_CAST(kso_str, erri)->v_str._);
         } else {
             ks_error("obj @ %p", erri);
         }

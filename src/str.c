@@ -115,3 +115,31 @@ void ks_str_readfp(ks_str* str, FILE* fp) {
 
 }
 
+kso_str kso_str_new(ks_str val) {
+    kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_str;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
+    ret->v_str = ks_str_dup(val);
+    ret->v_hash = ks_hash_str(val);
+    return ret;
+}
+
+kso_str kso_str_new_cfmt(const char* fmt, ...) {
+    kso_str ret = (kso_str)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_str;
+    ret->flags = KSOF_NONE;
+
+    ret->refcnt = 0;
+    ret->v_str = KS_STR_EMPTY;
+
+    va_list ap;
+    va_start(ap, fmt);
+    ks_str_vcfmt(&ret->v_str, fmt, ap);
+    va_end(ap);
+
+    // compute hash
+    ret->v_hash = ks_hash_str(ret->v_str);
+    
+    return ret;
+}

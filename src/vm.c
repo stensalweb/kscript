@@ -2,10 +2,15 @@
 
 #include "kscript.h"
 
-void ks_vm_free(ks_vm* vm) {
-    ks_list_free(&vm->stk);
-    ks_dict_free(&vm->dict);
+kso_vm kso_vm_new_empty() {
+    kso_vm ret = (kso_vm)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_vm;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
+    ret->stk = KS_LIST_EMPTY;
+    ret->globals = KS_DICT_EMPTY;
+    ret->call_stk_n = 0;
+    return ret;
 
-    *vm = KS_VM_EMPTY;
 }
 

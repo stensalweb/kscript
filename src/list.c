@@ -2,6 +2,17 @@
 
 #include "kscript.h"
 
+
+
+kso_list kso_list_new_empty() {
+    kso_list ret = (kso_list)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_list;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
+    ret->v_list = KS_LIST_EMPTY;
+    return ret;
+}
+
 // pushes on, incrementing the reference count
 int ks_list_push(ks_list* list, kso obj) {
     int idx = list->len++;

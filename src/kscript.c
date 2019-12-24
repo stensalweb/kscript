@@ -9,14 +9,54 @@
 #include <getopt.h>
 #include <unistd.h>
 
-
 int main(int argc, char** argv) {
 
     ks_init();
-
-    ks_set_loglvl(KS_LOGLVL_DEBUG);
     //ks_set_loglvl(KS_LOGLVL_TRACE);
 
+    // holds the pool of constants
+    kso_list v_c = kso_list_new_empty();
+
+    // construct a virtual machine to run code on
+    kso_vm vm = kso_vm_new_empty();
+    KSO_INCREF(vm);
+
+
+    #define SET_GLOBAL(_name, _val) ks_dict_set(&vm->globals, (kso)kso_str_new(KS_STR_CONST(_name)), ks_hash_str(KS_STR_CONST(_name)), (kso)_val);
+
+    // set a few globals.
+    SET_GLOBAL("print", kso_F_print)
+
+    // now, the `main` method's code
+    kso_code main_c = kso_code_new_empty(v_c);
+
+    // create a parser for the code
+    ks_parse kp = KS_PARSE_EMPTY;
+
+    const char* fname = "examples/func.ksasm";
+    FILE* fp = fopen(fname, "r");
+    if (fp == NULL) {
+        ks_error("Could not open file '%s'", fname);
+        return -1;
+    }
+    ks_str src = KS_STR_EMPTY;
+    ks_str_readfp(&src, fp);
+    fclose(fp);
+    ks_parse_setsrc(&kp, KS_STR_VIEW(fname, strlen(fname)), src);
+
+    ks_str_free(&src);
+    if (ks_err_dumpall()) return -1;
+
+    ks_parse_ksasm(&kp, main_c);
+    if (ks_err_dumpall()) return -1;
+
+    // execute this
+    kso_vm_exec(vm, main_c);//, args->v_list.len, args->v_list.items);
+
+
+    //ks_set_loglvl(KS_LOGLVL_DEBUG);
+
+/*
     ks_parse cp = KS_PARSE_EMPTY;
     ks_parse_setsrc(&cp, KS_STR_CONST("cade"), KS_STR_CONST("print (a, 1)"));
 
@@ -144,13 +184,7 @@ int main(int argc, char** argv) {
                 ks_error("Unknown file type: '%s'", optarg);
                 return -1;
             }
-            
-            /* print out assembly
-            ks_str ns = KS_STR_EMPTY;
-            ks_prog_tostr(&this_task->prog, &ns);
-            printf("%s\n", ns._);
-            ks_str_free(&ns);
-            */
+
 
             // now, run
             ks_debug("Running `-f`: '%s' (compiled to %db)", this_task->kp.src_name._, this_task->prog.bc_n);
@@ -180,6 +214,7 @@ int main(int argc, char** argv) {
     if (optind < argc) {
         ks_error("Unhandled arguments!");
     }
+    */
 
     return 0;
 }

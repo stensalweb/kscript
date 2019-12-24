@@ -1,10 +1,12 @@
 /* ast.c - implementation of abstract syntax trees
 
+Mostly, this just records computation as a hierarchy of operations. This is not very efficient to execute,
+  so, we can generate bytecode from the AST, and then execute that
+
 
 */
 
 #include "kscript.h"
-
 
 
 ks_ast ks_ast_new_const_int(ks_int val) {
@@ -115,7 +117,7 @@ void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name) {
 
 // code-generating clearing stack
 //#define CG_CLEAR() ksb_clear(to);
-#define CG_CLEAR()
+/*#define CG_CLEAR()
 
 int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
     int rc = 0;
@@ -250,4 +252,4 @@ int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
 int ks_ast_codegen(ks_ast ast, ks_prog* to) {
     return _ks_ast_codegen(ast, to);
 }
-
+*/
