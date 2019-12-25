@@ -9,6 +9,19 @@ Mostly, this just records computation as a hierarchy of operations. This is not 
 #include "kscript.h"
 
 
+/* constructing */
+
+ks_ast ks_ast_new_const_true() {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_CONST_TRUE;
+    return ret;
+}
+ks_ast ks_ast_new_const_false() {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_CONST_FALSE;
+    return ret;
+}
+
 ks_ast ks_ast_new_const_int(ks_int val) {
     ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
     ret->type = KS_AST_CONST_INT;
@@ -98,7 +111,7 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
     return ret;
 }
 
-
+/*
 ks_ast ks_ast_new_funcdef(ks_str name) {
     ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
     ret->type = KS_AST_FUNCDEF;
@@ -107,7 +120,7 @@ ks_ast ks_ast_new_funcdef(ks_str name) {
     ret->_funcdef.param_names = NULL;
     ret->_funcdef.body = NULL;
     return ret;
-}
+}*/
 
 void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name) {
     funcdef->_funcdef.param_names = ks_realloc(funcdef->_funcdef.param_names, ++funcdef->_funcdef.n_params * sizeof(*funcdef->_funcdef.param_names));
@@ -115,86 +128,77 @@ void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name) {
 }
 
 
+
+/* CODE GENERATION */
+
 // code-generating clearing stack
 //#define CG_CLEAR() ksb_clear(to);
-/*#define CG_CLEAR()
+#define CG_CLEAR()
 
-int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
-    int rc = 0;
-    if (ast->type == KS_AST_CONST_INT) {
-        ksb_int64(to, ast->_int);        
-    } else if (ast->type == KS_AST_CONST_FLOAT) {
-        ksb_float(to, ast->_float);
+void _ks_ast_codegen(ks_ast ast, kso_code to) {
+
+    //printf("HERE:%d\n", 5);
+
+    if (ast->type == KS_AST_CONST_TRUE) {
+        ksc_const_true(to);
+    } else if (ast->type == KS_AST_CONST_FALSE) {
+        ksc_const_false(to);
+    } else if (ast->type == KS_AST_CONST_INT) {
+        ksc_const_int(to, ast->_int);
     } else if (ast->type == KS_AST_CONST_STR) {
-        ksb_str(to, ast->_str);
+        ksc_const_str(to, ast->_str);
     } else if (ast->type == KS_AST_VAR) {
-        ksb_load(to, ast->_str);
-    } else if (ast->type == KS_AST_BOP_ADD) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_add(to);
-    } else if (ast->type == KS_AST_BOP_SUB) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_sub(to);
-    } else if (ast->type == KS_AST_BOP_MUL) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_mul(to);
-    } else if (ast->type == KS_AST_BOP_DIV) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_div(to);
-    } else if (ast->type == KS_AST_BOP_MOD) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_mod(to);
-    } else if (ast->type == KS_AST_BOP_POW) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_pow(to);
+        ksc_load(to, ast->_str);
+    }
 
-    } else if (ast->type == KS_AST_BOP_LT) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_lt(to);
-    } else if (ast->type == KS_AST_BOP_GT) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_gt(to);
-    } else if (ast->type == KS_AST_BOP_EQ) {
-        rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
-        ksb_eq(to);
+    // generate code for a binary operator
 
-    } else if (ast->type == KS_AST_BOP_ASSIGN) {
+    //#define CODEGEN_BOP(_boptype, _bopfunc) 
+    #define CODEGEN_BOP(_boptype, _bopfunc) else if (ast->type == _boptype) { \
+        ks_ast_codegen(ast->_bop.L, to); \
+        ks_ast_codegen(ast->_bop.R, to); \
+        _bopfunc(to); \
+    }
+    CODEGEN_BOP(KS_AST_BOP_ADD, ksc_add)
+    /*CODEGEN_BOP(KS_AST_BOP_SUB, ksc_sub)
+    CODEGEN_BOP(KS_AST_BOP_MUL, ksc_mul)
+    CODEGEN_BOP(KS_AST_BOP_DIV, ksc_div)
+    CODEGEN_BOP(KS_AST_BOP_MOD, ksc_mod)
+    CODEGEN_BOP(KS_AST_BOP_POW, ksc_pow)
+    CODEGEN_BOP(KS_AST_BOP_LT, ksc_lt)
+    CODEGEN_BOP(KS_AST_BOP_GT, ksc_gt)
+    CODEGEN_BOP(KS_AST_BOP_EQ, ksc_eq)*/
+
+
+    else if (ast->type == KS_AST_BOP_ASSIGN) {
         //rc |= ks_ast_codegen(ast->_bop.L, to);
-        rc |= ks_ast_codegen(ast->_bop.R, to);
+        ks_ast_codegen(ast->_bop.R, to);
 
         if (ast->_bop.L->type == KS_AST_VAR) {
             // assignable
-            ksb_store(to, ast->_bop.L->_str);
+            ksc_store(to, ast->_bop.L->_str);
         } else {
-            ks_error("Tried assigning to wrong kind of AST (%d)", ast->type);
-
-            rc |= 1;
+            ks_err_add_str(KS_STR_CONST("Tried assigning to the wrong kind of AST (expected a var)"));
         }
-
     } else if (ast->type == KS_AST_IF) {
-        rc |= ks_ast_codegen(ast->_if.cond, to);
-        // position of conditional jump
-        int p_jmpf = ksb_jmpf(to, -1);
+        // compute the conditional, so it is at the top of the stack
+        ks_ast_codegen(ast->_if.cond, to);
+
+        // now, we will jump forward if it is false
+        int p_jmpf = to->bc_n;
+        ksc_jmpf(to, -1);
 
         // position of the body, fill this in later
         int p_body = to->bc_n;
-
-        rc |= ks_ast_codegen(ast->_if.body, to);
+        ks_ast_codegen(ast->_if.body, to);
 
         int32_t diff = to->bc_n - p_body;
+        printf("%d\n", diff);
         // now, correct it
         struct ks_bc_jmp* i_jmpf = (struct ks_bc_jmp*)(to->bc + p_jmpf);
         i_jmpf->relamt = diff;
 
+/*
 
     } else if (ast->type == KS_AST_WHILE) {
         // position of the condition/start of loop
@@ -217,23 +221,25 @@ int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
         // now, replace the entry with the correct one
         struct ks_bc_jmp* i_jmpf = (struct ks_bc_jmp*)(to->bc + p_jmpf);
         i_jmpf->relamt = to->bc_n - p_body;
-
+*/
     } else if (ast->type == KS_AST_CALL) {
+        ks_ast_codegen(ast->_call.func, to);
+
         int i;
         for (i = 0; i < ast->_call.args_n; ++i) {
-            rc |= ks_ast_codegen(ast->_call.args[i], to);
+            ks_ast_codegen(ast->_call.args[i], to);
         }
-        rc |= ks_ast_codegen(ast->_call.func, to);
-        ksb_call(to, ast->_call.args_n);
+        ksc_call(to, ast->_call.args_n);
 
     } else if (ast->type == KS_AST_BLOCK) {
 
         int i;
         for (i = 0; i < ast->_block.sub_n; ++i) {
             // each should leave the stack resolved
-            rc |= ks_ast_codegen(ast->_block.subs[i], to);
+            ks_ast_codegen(ast->_block.subs[i], to);
             CG_CLEAR();
         }
+        /*
     } else if (ast->type == KS_AST_FUNCDEF) {
         // position of body
         int pos = to->bc_n;
@@ -241,15 +247,15 @@ int _ks_ast_codegen(ks_ast ast, ks_prog* to) {
 
         ks_prog_lbl_add(to, ast->_funcdef.name, pos);
 
+    } */
     } else {
-        ks_error("Unexpected AST type %d", ast->type);
-        rc |= 1;
+
+        ks_err_add_str_fmt("Unexpected AST type %d", ast->type);
     }
 
-    return rc;
+    return;
 }
 
-int ks_ast_codegen(ks_ast ast, ks_prog* to) {
+void ks_ast_codegen(ks_ast ast, kso_code to) {
     return _ks_ast_codegen(ast, to);
 }
-*/

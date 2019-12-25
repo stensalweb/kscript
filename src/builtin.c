@@ -181,6 +181,10 @@ FUNC(exit) {
     return (kso)KSO_NONE;
 }
 
+
+/* OPERATORS */
+
+
 /* TYPE: none 
 
 There is only a single global `none`, it is `kso_V_none`, it will never be freed
@@ -319,6 +323,26 @@ TYPEFUNC(int, repr) {
     return (kso)kso_str_new_cfmt("%lld", self->v_int);
 }
 
+
+/* integer operator */
+
+TYPEFUNC(int, add) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.add(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_int_new(KSO_CAST(kso_int, A)->v_int + KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+
+
+
 // int.free is superflous, because no additional memory is used
 
 
@@ -437,6 +461,7 @@ static struct kso_cfunc
     _CFUNC(int_int),
     _CFUNC(int_str),
     _CFUNC(int_repr),
+    _CFUNC(int_add),
 
     _CFUNC(str_init),
     _CFUNC(str_free),
@@ -517,6 +542,8 @@ static struct kso_type
 
         .f_get  = NULL,
         .f_set  = NULL,
+
+        .f_add  = (kso)&_int_add
 
     },
     T_str = {

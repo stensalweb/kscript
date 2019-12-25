@@ -195,7 +195,6 @@ void ks_dict_free(ks_dict* dict);
 
 typedef struct kso_str* kso_str;
 
-typedef struct ks_prog ks_prog;
 typedef struct kso_vm* kso_vm;
 
 // a type representing a C-callable function, taking any number of arguments
@@ -262,7 +261,10 @@ typedef struct kso_type {
       // builtin getting function
       f_get,
       // builtin setting function
-      f_set
+      f_set,
+
+      // builtin add function: type.add(A, B)
+      f_add
 
     ;
 
@@ -427,6 +429,10 @@ typedef struct kso_code {
 // constructs a blank code
 kso_code kso_code_new_empty(kso_list v_const);
 
+// exports to a string
+void kso_code_tostr(kso_code code, ks_str* to);
+
+
 /* the 'kfunc'-type, representing a kscript function */
 
 extern kso_type kso_T_kfunc;
@@ -486,40 +492,10 @@ enum {
 
     /* constructing values/primitives */
 
-    // push on a literal boolean value of `true`
-    // 1[opcode]
-    KS_BC_BOOLT,
+    // push on a constant, pointed at in the v_const table
+    // 1[opcode] 4[int idx]
+    KS_BC_CONST,
 
-    // push on a literal boolean value of `false`
-    // 1[opcode]
-    KS_BC_BOOLF,
-
-    // push on a literal integer (64 bit max)
-    // 1[opcode] 8[int64_t val]
-    KS_BC_INT64,
-
-    // push on a literal integer (32 bit max)
-    // 1[opcode] 4[int32_t val]
-    KS_BC_INT32,
-
-    // push on a literal integer (16 bit max)
-    // 1[opcode] 2[int16_t val]
-    KS_BC_INT16,
-
-    // push on a float value
-    // 1[opcode] 8[ks_float val]
-    KS_BC_FLOAT,
-
-    // push on a string value, looked up from the `str_tbl`
-    // 1[opcode] 4[int32_t idx(value)]
-    KS_BC_STR,
-
-    // pop on a function literal
-    KS_BC_FUNC_LIT,
-
-    // pop off `n_items` on the stack, then push on a list containing all of them
-    // 1[opcode] 4[int n_items] 
-    KS_BC_CREATE_LIST,
 
     /* lookup functions */
 
@@ -531,6 +507,31 @@ enum {
     // pop off the last value, and store into a variable name
     // 1[opcode] 4[int32_t idx(name)]
     KS_BC_STORE,
+
+    /* func calls/similar */
+
+    // pop off the last item (which is the function)
+    // then, pop off `n_args` more item, and call `func(args)`, pushing back on the result of the function call
+    // example: `A B C f [call 3]` results in `f(A, B, C)` on the stack
+    // 1[opcode] 2[uint16_t n_args]
+    KS_BC_CALL,
+
+    // pops off the last item (which is the main object)
+    // then, pop off `n_args` items off the stack, and `get` them using whatever method is appropriate for the type
+    // in general, this is the subscript method: `a[]`
+    // so, a[b, c, d] would be:
+    // b c d a [get 3]
+    // 1[opcode] 2[uint16_t n_args]
+    KS_BC_GET,
+
+    // pops off the last item (which is the main object)
+    // then, pop off `n_args` items off the stack, and `set` them using whatever method is appropriate for the type
+    // in general, this is the subscript method: `a[]=`
+    // so, a[b, c, d] = e would be:
+    // b c d e a [set 4]
+    // the item before last on the stack should be the value its being set to
+    // 1[opcode] 2[uint16_t n_args]
+    KS_BC_SET,
 
     /* operators */
 
@@ -570,30 +571,7 @@ enum {
     // 1[opcode]
     KS_BC_EQ,
 
-    /* func calls */
-
-    // pop off the last item (which is the function)
-    // then, pop off `n_args` more item, and call `func(args)`, pushing back on the result of the function call
-    // example: `A B C f [call 3]` results in `f(A, B, C)` on the stack
-    // 1[opcode] 2[uint16_t n_args]
-    KS_BC_CALL,
-
-    // pops off the last item (which is the main object)
-    // then, pop off `n_args` items off the stack, and `get` them using whatever method is appropriate for the type
-    // in general, this is the subscript method: `a[]`
-    // so, a[b, c, d] would be:
-    // b c d a [get 3]
-    // 1[opcode] 2[uint16_t n_args]
-    KS_BC_GET,
-
-    // pops off the last item (which is the main object)
-    // then, pop off `n_args` items off the stack, and `set` them using whatever method is appropriate for the type
-    // in general, this is the subscript method: `a[]=`
-    // so, a[b, c, d] = e would be:
-    // b c d e a [set 4]
-    // the item before last on the stack should be the value its being set to
-    // 1[opcode] 2[uint16_t n_args]
-    KS_BC_SET,
+    /* jumping/branching */
 
     // jump unconditionally a relative amount (always in bytes)
     // 1[opcode] 4[int relamt]
@@ -607,7 +585,7 @@ enum {
     // 1[opcode] 4[int relamt]
     KS_BC_JMPF,
 
-    /* operations */
+    /* return /higher order operations */
 
     // pop off and 'return' the last item on the stack
     // [1:opcode]
@@ -628,115 +606,30 @@ struct ks_bc {
 
 /* instruction definitions */
 
-struct ks_bc_noop {
-    // always KS_BC_NOOP
-    ks_bc op;
-};
-
-
 /* constants/literals */
 
-struct ks_bc_int64 {
-    // always KS_BC_INT
+struct ks_bc_const {
+    // KS_BC_INT, KS_BC_FLOAT, KS_BC_STR, KS_BC_FUNC
     ks_bc op;
 
-    // value of the integer
-    int64_t val;
+    // the integer into the v_const list of the value which the constant is
+    int v_idx;
 };
 
-struct ks_bc_int32 {
-    // always KS_BC_INT
+struct ks_bc_nameop {
+    // KS_BC_LOAD, KS_BC_STORE
     ks_bc op;
 
-    // value of the integer
-    int32_t val;
-};
-
-struct ks_bc_int16 {
-    // always KS_BC_INT
-    ks_bc op;
-
-    // value of the integer
-    int16_t val;
-};
-
-struct ks_bc_float {
-    // always KS_BC_FLOAT
-    ks_bc op;
-
-    // value of the integer
-    ks_int val;
-};
-
-struct ks_bc_str {
-    // always KS_BC_STR
-    ks_bc op;
-
-    // index of the value into the str_tbl of the program
-    int32_t val_idx;
-};
-
-struct ks_bc_func_lit {
-    // always KS_BC_FUNC_LIT
-    ks_bc op;
-
-    // index into the table of the constants
-    int32_t val_idx;
-};
-
-struct ks_bc_create_list {
-    // always KS_BC_CREATE_LIST
-    ks_bc op;
-
-    // number of items on the stack to take
-    int32_t n_items;
-};
-
-/* loading/storing */
-
-struct ks_bc_load {
-    // always KS_BC_LOAD
-    ks_bc op;
-    
-    // index of the name into the str_tbl of its program
-    int32_t name_idx;
-
-};
-
-struct ks_bc_store {
-    // always KS_BC_STORE
-    ks_bc op;
-    
-    // index of the name into the str_tbl of its program
-    int32_t name_idx;
-
+    // index of the name into the v_const list
+    int name_idx;
 };
 
 struct ks_bc_call {
-    // always KS_BC_CALL
+    // KS_BC_CALL, KS_BC_GET, KS_BC_CREATE_LIST
     ks_bc op;
-    
-    // number of items on the stack to take as arguments
-    // (not counting the function that is popped off first)
-    uint16_t n_args;
-};
 
-struct ks_bc_get {
-    // always KS_BC_GET
-    ks_bc op;
-    
-    // number of items on the stack to take as arguments
-    // (not counting the object that is popped off first)
-    uint16_t n_args;
-};
-
-struct ks_bc_set {
-    // always KS_BC_SET
-    ks_bc op;
-    
-    // number of items on the stack to take as arguments
-    // (not counting the object that is popped off first)
-    uint16_t n_args;
+    // number of arguments to call with
+    int n_args;
 };
 
 /* conditionals */
@@ -747,18 +640,42 @@ struct ks_bc_jmp {
 
     // relative amount to jump if the last item was true, or false, or always (depending on the instruction)
     // NOTE: always in bytes
-    int32_t relamt;
+    int relamt;
 };
+
+/* union between all */
+
+typedef union {
+
+    // operator only
+    struct ks_bc op;
+
+    struct ks_bc_const v_const;
+    struct ks_bc_nameop nameop;
+    struct ks_bc_call call;
+    struct ks_bc_jmp jmp;
+
+} ks_BC;
+
 
 /* appending bytecode to a `code` object */
 
 void ksc_noop(kso_code code);
 void ksc_discard(kso_code code);
-void ksc_boolt(kso_code code);
-void ksc_boolf(kso_code code);
-void ksc_int(kso_code code, ks_int v_int);
-void ksc_str(kso_code code, ks_str v_str);
-void ksc_func_lit(kso_code code, kso_kfunc v_kfunc);
+
+void ksc_const_none(kso_code code);
+void ksc_const_true(kso_code code);
+void ksc_const_false(kso_code code);
+void ksc_const_int(kso_code code, ks_int val);
+void ksc_const_str(kso_code code, ks_str val);
+void ksc_const(kso_code code, kso obj);
+
+//void ksc_int(kso_code code, ks_int v_int);
+//void ksc_int(kso_code code, ks_int v_int);
+//void ksc_str(kso_code code, ks_str v_str);
+//void ksc_func_lit(kso_code code, kso_kfunc v_kfunc);
+
+void ksc_call(kso_code code, int n_args);
 
 void ksc_load(kso_code code, ks_str name);
 void ksc_store(kso_code code, ks_str name);
@@ -766,7 +683,7 @@ void ksc_store(kso_code code, ks_str name);
 void ksc_jmpt(kso_code code, int relamt);
 void ksc_jmpf(kso_code code, int relamt);
 
-void ksc_call(kso_code code, int n_args);
+void ksc_add(kso_code code);
 
 void ksc_ret(kso_code code);
 void ksc_retnone(kso_code code);
@@ -795,6 +712,9 @@ struct kso_vm {
         // local variables
         ks_dict locals;
 
+        // constants
+        kso_list v_const;
+
     } call_stk[256];
 
 
@@ -808,22 +728,11 @@ struct kso_vm {
 kso_vm kso_vm_new_empty();
 
 // executes some code on the VM
-kso kso_vm_exec(kso_vm vm, kso_code code);
+void kso_vm_exec(kso_vm vm, kso_code code);
 
-
-/* execution */
-
-// attempt to "call" a function or functor-like object with a number of arguments
-// so, like `func(args[0], args[1], ...)`
-// if `func` is a C-func, the native C function is called
-// otherwise, NULL is returned and a global error is set via ks_err_add_*
-//kso kso_call(ks_vm* vm, kso func, int args_n, kso* args);
-
-// execute a program (starting at `idx` in the bytecode) onto a VM
-//kso ks_exec(ks_vm* vm, ks_prog* prog, int idx);
-
-
-
+// calls an object as if it was a function, with a given amount of arguments,
+// and return the result
+kso kso_vm_call(kso_vm vm, kso func, int n_args, kso* args);
 
 
 /* generic type
@@ -846,23 +755,30 @@ struct kso {
 bool kso_free(kso obj);
 
 
-/* AST - Abstract Syntax Trees */
-
-// the main object that represents an AST
-typedef struct ks_ast* ks_ast;
+/* AST - Abstract Syntax Trees, for parsing */
 
 enum {
     KS_AST_NONE = 0,
+
+
+    // constants
 
     KS_AST_CONST_INT,
     KS_AST_CONST_FLOAT,
     KS_AST_CONST_STR,
 
+    KS_AST_CONST_TRUE,
+    KS_AST_CONST_FALSE,
+
+
     // a variable reference
     KS_AST_VAR,
 
-    // a function-style call
+    // a function call
     KS_AST_CALL,
+
+    // a list of asts, i.e. { BODY }
+    KS_AST_BLOCK,
 
     // if (cond) { BODY }
     KS_AST_IF,
@@ -870,13 +786,10 @@ enum {
     // while (cond) { BODY }
     KS_AST_WHILE,
     
-    // a list of ast's
-    KS_AST_BLOCK,
-
     // ret (value)
     KS_AST_RETURN,
 
-    // operators
+    // binary operators
     KS_AST_BOP_ADD,
     KS_AST_BOP_SUB,
     KS_AST_BOP_MUL,
@@ -891,22 +804,29 @@ enum {
     KS_AST_BOP_ASSIGN,
 
     // definition
-    KS_AST_BOP_DEFINE,
-
+    KS_AST_BOP_DEFINE
+    
+    //,
     // a function definition, i.e.:
     // func NAME(ARGS) := { BODY }
-    KS_AST_FUNCDEF
+    //KS_AST_FUNCDEF
 
 };
 
+// the main object that represents an AST
+typedef struct ks_ast* ks_ast;
+
 struct ks_ast {
+    // the above type, KS_AST_*
     uint16_t type;
 
     union {
+        // constant values
         ks_int _int;
         ks_float _float;
         ks_str _str;
 
+        // for things that use an AST
         ks_ast _val;
 
         struct {
@@ -919,11 +839,14 @@ struct ks_ast {
         } _call;
 
         struct {
+            // left and right arguments
             ks_ast L, R;
         } _bop;
 
         struct {
+            // number of sub-trees
             int sub_n;
+            // the sub trees
             ks_ast* subs;
         } _block;
 
@@ -959,6 +882,8 @@ struct ks_ast {
 
 /* construct ASTs */
 
+ks_ast ks_ast_new_const_true();
+ks_ast ks_ast_new_const_false();
 ks_ast ks_ast_new_const_int(ks_int val);
 ks_ast ks_ast_new_const_float(ks_float val);
 ks_ast ks_ast_new_const_str(ks_str val);
@@ -984,8 +909,10 @@ void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name);
 /* AST implementation */
 
 
-// generates bytecode from an AST
-int ks_ast_codegen(ks_ast ast, ks_prog* to);
+// generate code to a code object
+void ks_ast_codegen(ks_ast ast, kso_code to);
+
+
 
 
 

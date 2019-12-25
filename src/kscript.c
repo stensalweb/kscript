@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     // create a parser for the code
     ks_parse kp = KS_PARSE_EMPTY;
 
-    const char* fname = "examples/func.ksasm";
+    const char* fname = "examples/hello_world.kscript";
     FILE* fp = fopen(fname, "r");
     if (fp == NULL) {
         ks_error("Could not open file '%s'", fname);
@@ -47,7 +47,19 @@ int main(int argc, char** argv) {
     ks_str_free(&src);
     if (ks_err_dumpall()) return -1;
 
-    ks_parse_ksasm(&kp, main_c);
+    //ks_parse_ksasm(&kp, main_c);
+    //ks_parse_ksasm(&kp, main_c);
+    ks_ast main_ast = ks_parse_code(&kp);
+    if (ks_err_dumpall()) return -1;
+
+
+    ks_ast_codegen(main_ast, main_c);
+    ksc_retnone(main_c);
+
+    ks_str asm = KS_STR_EMPTY;
+    kso_code_tostr(main_c, &asm);
+    printf("ASM:\n%s\n", asm._);
+
     if (ks_err_dumpall()) return -1;
 
     // execute this
