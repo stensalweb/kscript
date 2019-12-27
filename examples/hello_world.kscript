@@ -1,4 +1,28 @@
 
-x = 11
 
-print (x, false, 555)
+func sieve(p) {
+    bits = [true] * p
+
+    i = 2
+    while i * i < p {
+        if bits[i] {
+            print (i)
+            j = i * i
+            while j < p {
+                bits[j] = false
+                j = j + i
+            }
+        }
+        i = i + 1
+    }
+
+    while i < p {
+        if bits[i] {
+            print (i)
+        }
+        i = i + 1
+    }
+}
+
+
+

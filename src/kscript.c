@@ -48,17 +48,22 @@ int main(int argc, char** argv) {
     if (ks_err_dumpall()) return -1;
 
     //ks_parse_ksasm(&kp, main_c);
-    //ks_parse_ksasm(&kp, main_c);
+    //if (ks_err_dumpall()) return -1;
+
     ks_ast main_ast = ks_parse_code(&kp);
     if (ks_err_dumpall()) return -1;
 
-
+    /*
+    ks_str ast_s = KS_STR_EMPTY;
+    ks_ast_pprint(main_ast, &ast_s);
+    printf("AST:\n%s\n", ast_s._);
+    */
     ks_ast_codegen(main_ast, main_c);
     ksc_retnone(main_c);
 
-    ks_str asm = KS_STR_EMPTY;
-    kso_code_tostr(main_c, &asm);
-    printf("ASM:\n%s\n", asm._);
+    ks_str asm_s = KS_STR_EMPTY;
+    kso_code_tostr(main_c, &asm_s);
+    printf("ASM:\n%s\n", asm_s._);
 
     if (ks_err_dumpall()) return -1;
 

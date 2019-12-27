@@ -263,8 +263,16 @@ typedef struct kso_type {
       // builtin setting function
       f_set,
 
-      // builtin add function: type.add(A, B)
-      f_add
+      /* binary operator functions */
+      f_add,
+      f_sub,
+      f_mul,
+      f_div,
+      f_mod,
+      f_pow,
+      f_lt,
+      f_gt,
+      f_eq
 
     ;
 
@@ -384,6 +392,7 @@ typedef struct kso_list {
 
 // construct the empty list
 kso_list kso_list_new_empty();
+kso_list kso_list_new(int len, kso* items);
 
 
 /* the 'cfunc'-type, representing a callable function in C */
@@ -402,7 +411,22 @@ typedef struct kso_cfunc {
 // the builtin C functions
 
 extern kso_cfunc
-    kso_F_print
+    kso_F_print,
+    kso_F_exit,
+
+    kso_F_get,
+    kso_F_set,
+
+    kso_F_add,
+    kso_F_sub,
+    kso_F_mul,
+    kso_F_div,
+    kso_F_mod,
+    kso_F_pow,
+    kso_F_lt,
+    kso_F_gt,
+    kso_F_eq
+
 ;
 
 
@@ -509,6 +533,12 @@ enum {
     KS_BC_STORE,
 
     /* func calls/similar */
+
+    // creates a list from items
+    // so, like [A B C] would have:
+    // A B C [list 3]
+    // 1[opcode] 4[int n_args]
+    KS_BC_LIST,
 
     // pop off the last item (which is the function)
     // then, pop off `n_args` more item, and call `func(args)`, pushing back on the result of the function call
@@ -625,7 +655,7 @@ struct ks_bc_nameop {
 };
 
 struct ks_bc_call {
-    // KS_BC_CALL, KS_BC_GET, KS_BC_CREATE_LIST
+    // KS_BC_CALL, KS_BC_GET, KS_BC_LIST
     ks_bc op;
 
     // number of arguments to call with
@@ -670,16 +700,26 @@ void ksc_const_int(kso_code code, ks_int val);
 void ksc_const_str(kso_code code, ks_str val);
 void ksc_const(kso_code code, kso obj);
 
-//void ksc_int(kso_code code, ks_int v_int);
-//void ksc_int(kso_code code, ks_int v_int);
-//void ksc_str(kso_code code, ks_str v_str);
-//void ksc_func_lit(kso_code code, kso_kfunc v_kfunc);
-
-void ksc_call(kso_code code, int n_args);
-
 void ksc_load(kso_code code, ks_str name);
 void ksc_store(kso_code code, ks_str name);
 
+void ksc_call(kso_code code, int n_args);
+void ksc_list(kso_code code, int n_items);
+
+void ksc_get(kso_code code, int n_args);
+void ksc_set(kso_code code, int n_args);
+
+void ksc_add(kso_code code);
+void ksc_sub(kso_code code);
+void ksc_mul(kso_code code);
+void ksc_div(kso_code code);
+void ksc_mod(kso_code code);
+void ksc_pow(kso_code code);
+void ksc_lt(kso_code code);
+void ksc_gt(kso_code code);
+void ksc_eq(kso_code code);
+
+void ksc_jmp(kso_code code, int relamt);
 void ksc_jmpt(kso_code code, int relamt);
 void ksc_jmpf(kso_code code, int relamt);
 
@@ -777,8 +817,15 @@ enum {
     // a function call
     KS_AST_CALL,
 
+    // subscript (same as function call)
+    KS_AST_SUBSCRIPT,
+
     // a list of asts, i.e. { BODY }
     KS_AST_BLOCK,
+
+
+    // a function literal, i.e. (params) -> { BODY }
+    KS_AST_FUNC,
 
     // if (cond) { BODY }
     KS_AST_IF,
@@ -788,6 +835,9 @@ enum {
     
     // ret (value)
     KS_AST_RETURN,
+
+    // [...]
+    KS_AST_LIST,
 
     // binary operators
     KS_AST_BOP_ADD,
@@ -839,6 +889,24 @@ struct ks_ast {
         } _call;
 
         struct {
+            // function being called
+            ks_ast obj;
+
+            // list of the arguments to subscript
+            int args_n;
+            ks_ast* args;
+        } _subscript;
+
+
+        struct {
+            // number of items in the list
+            int items_n;
+
+            // list of items
+            ks_ast* items;
+        } _list;
+
+        struct {
             // left and right arguments
             ks_ast L, R;
         } _bop;
@@ -862,9 +930,6 @@ struct ks_ast {
 
         struct {
 
-            // name of the function
-            ks_str name;
-
             // number of the parameters
             int n_params;
 
@@ -874,7 +939,7 @@ struct ks_ast {
             // body of the function
             ks_ast body;
 
-        } _funcdef;
+        } _func;
 
     };
 
@@ -889,6 +954,8 @@ ks_ast ks_ast_new_const_float(ks_float val);
 ks_ast ks_ast_new_const_str(ks_str val);
 ks_ast ks_ast_new_var(ks_str name);
 ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args);
+ks_ast ks_ast_new_subscript(ks_ast obj, int args_n, ks_ast* args);
+ks_ast ks_ast_new_list(int items_n, ks_ast* items);
 ks_ast ks_ast_new_ret(ks_ast val);
 
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
@@ -899,12 +966,13 @@ int ks_ast_block_add(ks_ast block, ks_ast sub);
 ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
 
-// creates a funcdef with 0 params
-ks_ast ks_ast_new_funcdef(ks_str name);
+// creates a function with 0 params
+ks_ast ks_ast_new_func();
 // adds another parameter
-void ks_ast_funcdef_add_param(ks_ast funcdef, ks_str param_name);
+void ks_ast_func_add_param(ks_ast func, ks_str param_name);
 
-
+// pretty prints ast to string
+void ks_ast_pprint(ks_ast ast, ks_str* to);
 
 /* AST implementation */
 

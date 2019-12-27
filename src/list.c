@@ -13,6 +13,24 @@ kso_list kso_list_new_empty() {
     return ret;
 }
 
+kso_list kso_list_new(int len, kso* items) {
+    kso_list ret = (kso_list)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_list;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
+    ret->v_list = KS_LIST_EMPTY;
+    ret->v_list.len = len;
+    ret->v_list.items = ks_malloc(sizeof(*ret->v_list.items) * len);
+    if (items != NULL) {
+        int i;
+        for (i = 0; i < len; ++i) {
+            ret->v_list.items[i] = items[i];
+        }
+    }
+
+    return ret;
+}
+
 // pushes on, incrementing the reference count
 int ks_list_push(ks_list* list, kso obj) {
     int idx = list->len++;

@@ -5,7 +5,7 @@ This uses computed goto, essentially jumping directly to addresses
 */
 #include "kscript.h"
 
-//#define NOTRACE
+#define NOTRACE
 
 // enable trace
 #ifndef NOTRACE
@@ -30,6 +30,7 @@ void _kso_vm_run(kso_vm vm) {
         &&do_load,
         &&do_store,
 
+        &&do_list,
         &&do_call,
         &&do_get,
         &&do_set,
@@ -76,7 +77,7 @@ void _kso_vm_run(kso_vm vm) {
     kso found, top, val, func;
     kso* args;
 
-    int n_args, n_items;
+    int n_args;
 
     // the union of all instructions, for decoding
     ks_BC inst;
@@ -117,7 +118,9 @@ void _kso_vm_run(kso_vm vm) {
             // decode string
             DECODE(ks_bc_const)
             val = GET_CONST(inst.v_const.v_idx);
+
             #ifndef NOTRACE
+
             if (val->type == kso_T_int) {
                 etrace("const %lld", ((kso_int)val)->v_int);
             } else if (val->type == kso_T_str) {
@@ -125,8 +128,8 @@ void _kso_vm_run(kso_vm vm) {
             } else {
                 etrace("const<%s> ... @ %p", val->type->name._, val);
             }
-
             #endif
+            
             //etrace("const \"%s\" [%d]", _ostr->v_str._, i_str.val_idx);
             ks_list_push(&vm->stk, val);
             NEXT();
@@ -178,33 +181,46 @@ void _kso_vm_run(kso_vm vm) {
                 goto handle_exception;
             }
 
-            // get top object
-            top = ks_list_pop(&vm->stk);
+            // get top object, just peeking
+            top = vm->stk.items[vm->stk.len - 1];
+            //top = ks_list_pop(&vm->stk);
 
             // now store top->"_str"
             //ks_dict_set(&vm->globals, (kso)_ostr, _ostr->v_hash, top);
             ks_dict_set(&local_vars, (kso)name, name->v_hash, top);
 
-            KSO_DECREF(top);
+            //KSO_DECREF(top);
 
             NEXT();
 
 
+        do_list:
+
+            // decode number of args/items
+            DECODE(ks_bc_call);
+            n_args = (int)inst.call.n_args;
+            etrace("list %d", n_items);
+
+            // pluck of arguments
+            args = &vm->stk.items[vm->stk.len -= n_args];
+
+            // add a new list
+            ks_list_push(&vm->stk, (kso)kso_list_new(n_args, args));
+
+            NEXT();
         do_call:
 
             // decode number of args
             DECODE(ks_bc_call);
             n_args = (int)inst.call.n_args;
             // include the function
-            n_items = n_args + 1;
             etrace("call %d", n_args);
 
-            vm->stk.len -= n_items;
-            // get the function, under the arguments
-            func = vm->stk.items[vm->stk.len];
-
-            // the arguments start after the function
-            args = &(vm->stk.items[vm->stk.len + 1]);
+            // arguments (including function)
+            args = &(vm->stk.items[vm->stk.len -= n_args]);
+            // just take out the function
+            func = *args++;
+            n_args--;
 
             if (func->type == kso_T_cfunc) {
                 // evaluate the C function
@@ -218,8 +234,8 @@ void _kso_vm_run(kso_vm vm) {
                 ks_list_push(&vm->stk, val);
             } else if (func->type == kso_T_kfunc) {
 
-                if (n_args != ((kso_kfunc)top)->params->v_list.len) {
-                    ks_err_add_str_fmt("Tried calling function that takes %d args with %d args", ((kso_kfunc)top)->params->v_list.len, n_args);
+                if (n_args != ((kso_kfunc)func)->params->v_list.len) {
+                    ks_err_add_str_fmt("Tried calling function that takes %d args with %d args", ((kso_kfunc)func)->params->v_list.len, n_args);
                     goto handle_exception;
                 }
 
@@ -229,22 +245,25 @@ void _kso_vm_run(kso_vm vm) {
                 // set the arguments as a local variable
                 int i;
                 for (i = 0; i < n_args; ++i) {
-                    kso_str name = (kso_str)(((kso_kfunc)top)->params->v_list.items[i]);
+                    kso_str name = (kso_str)(((kso_kfunc)func)->params->v_list.items[i]);
                     ks_dict_set(&local_vars, (kso)name, name->v_hash, args[i]);
                 }
+
                 // now, the arguments should be in in the global dictionary TODO: make scopes
                 DECREF_N(args, n_args);
 
                 // set cur prog/pc
                 PC = ((kso_kfunc)func)->code->bc;
+                // set the constant pool
+                vm->call_stk[vm->call_stk_n - 1].v_const = ((kso_kfunc)func)->code->v_const;
 
             } else {
-                ks_err_add_str_fmt("Invalid type to call, tried calling on type `%s`", top->type->name._);
+                ks_err_add_str_fmt("Invalid type to call, tried calling on type `%s`", func->type->name._);
                 //ks_error("Calling something other than 'cfunc'");
                 goto handle_exception;
             }
 
-            KSO_DECREF(top);
+            KSO_DECREF(func);
 
             NEXT();
 
@@ -256,22 +275,29 @@ void _kso_vm_run(kso_vm vm) {
             args = &vm->stk.items[vm->stk.len -= n_args];
 
             // run the global get function
-            //new_obj = kso_F_get->_cfunc(vm, i_get.n_args, args);
-            /*if (new_obj == NULL) goto handle_exception;
+            val = kso_F_get->v_cfunc(vm, n_args, args);
+            if (val == NULL) goto handle_exception;
 
-            KSO_INCREF(new_obj);
-            DECREF_N(args, i_get.n_args);
-            ks_list_push(&vm->stk, new_obj);
-*/
+            KSO_INCREF(val);
+            DECREF_N(args, n_args);
+            ks_list_push(&vm->stk, val);
+
             NEXT();
 
-
         do_set:
-            // decode get
+            // decode set
             DECODE(ks_bc_call);
             n_args = inst.call.n_args;
             etrace("set %d", n_args);
             args = &vm->stk.items[vm->stk.len -= n_args];
+
+            // run the global get function
+            val = kso_F_set->v_cfunc(vm, n_args, args);
+            if (val == NULL) goto handle_exception;
+
+            KSO_INCREF(val);
+            DECREF_N(args, n_args);
+            ks_list_push(&vm->stk, val);
 
             NEXT();
 
@@ -283,15 +309,13 @@ void _kso_vm_run(kso_vm vm) {
         #define DO_BOP(_name, _str) \
         do_##_name: \
             PASS(ks_bc); \
-            etrace("op " _str); \
-            //args = &(vm->stk.items[vm->stk.len -= 2]); \
-            //new_obj = kso_F_##_name->_cfunc(vm, 2, args); \
-            if (new_obj == NULL) goto handle_exception; \
-            KSO_INCREF(new_obj); \
-            DECREF_N(args, 2); \
-            ks_list_push(&vm->stk, new_obj); \
-            KSO_DECREF(new_obj); \
-            NEXT();
+            etrace("bop " _str); \
+            args = &(vm->stk.items[vm->stk.len -= 2]); \
+            val = ((kso_cfunc)kso_F_##_name)->v_cfunc(vm, 2, args); \
+            if (val == NULL) goto handle_exception; \
+            ks_list_push(&vm->stk, val); \
+            NEXT(); \
+            break;
 
         DO_BOP(add, "+")
         DO_BOP(sub, "-")
@@ -303,8 +327,6 @@ void _kso_vm_run(kso_vm vm) {
         DO_BOP(lt, "<")
         DO_BOP(gt, ">")
         DO_BOP(eq, "==")
-
-
 
         do_jmp:
             DECODE(ks_bc_jmp); 

@@ -151,6 +151,26 @@ FUNC(print) {
     return (kso)KSO_NONE;
 }
 
+
+/* repr - get string representation */
+FUNC(repr) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "repr(A)"
+    REQ_N_ARGS(1);
+
+    kso A = args[0];
+
+    // get the tostring method from the ith arg
+    kso f_repr = A->type->f_str;
+
+    if (f_repr == NULL) {
+        return (kso)kso_str_new_cfmt("<'%s' obj @ %p>", A->type->name._, A);
+    } else {
+        return kso_vm_call(vm, f_repr, 1, &A);
+    }
+}
+
+
 /* exit(code=0) -> exits the entire program, optionally with an error code
 
 
@@ -182,7 +202,158 @@ FUNC(exit) {
 }
 
 
-/* OPERATORS */
+/* OPERATORS/BUILTINS */
+
+
+FUNC(get) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "get(A, idx...)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS_MIN(2);
+
+    kso A = args[0];
+
+    kso T_get = A->type->f_get;
+    if (T_get == NULL) {
+        return ks_err_add_str_fmt(_FUNCSIG ": Object `A` of type `%s` has no `.get()` method", A->type->name._);
+    } else {
+        return kso_vm_call(vm, T_get, n_args, args);
+    }
+
+
+    return (kso)KSO_NONE;
+
+    // do standard operator resolving
+    //OP_RESOLVE(f_add, args);
+}
+
+
+FUNC(set) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "set(A, idx..., val)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS_MIN(2);
+
+    kso A = args[0];
+
+    kso T_set = A->type->f_set;
+    if (T_set == NULL) {
+        return ks_err_add_str_fmt(_FUNCSIG ": Object `A` of type `%s` has no `.set()` method", A->type->name._);
+    } else {
+        return kso_vm_call(vm, T_set, n_args, args);
+    }
+
+    return (kso)KSO_NONE;
+
+    // do standard operator resolving
+    //OP_RESOLVE(f_add, args);
+}
+
+
+// resolves an operator call, given an operator function name defined in the struct kso_type
+// for example: OP_RESOLVE(f_add, &args[0])
+#define OP_RESOLVE(_opfname, _args) { \
+    kso _A = (_args)[0], _B = (_args)[1]; \
+    if (_A->type == _B->type) { \
+        kso T_opf = _A->type->_opfname; \
+        if (T_opf == NULL) { TYPE_MISMATCH(_A, _B); } \
+        else return kso_vm_call(vm, T_opf, 2, _args); \
+    } else { \
+        kso AT_opf = _A->type->_opfname; \
+        if (AT_opf == NULL) { TYPE_MISMATCH(_A, _B); } \
+        else return kso_vm_call(vm, AT_opf, 2, _args); \
+    } \
+    return (kso)KSO_NONE; \
+}
+FUNC(add) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "add(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_add, args);
+}
+
+FUNC(sub) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "sub(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_sub, args);
+}
+
+FUNC(mul) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "mul(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_mul, args);
+}
+
+FUNC(div) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "div(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_div, args);
+}
+
+FUNC(mod) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "mod(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_mod, args);
+}
+
+FUNC(pow) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "pow(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_pow, args);
+}
+
+FUNC(lt) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "lt(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_lt, args);
+}
+
+FUNC(gt) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "gt(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_gt, args);
+}
+
+FUNC(eq) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "eq(A, B)"
+    // special case so that it will still exit, even if called weirdly
+    REQ_N_ARGS(2);
+
+    // do standard operator resolving
+    OP_RESOLVE(f_eq, args);
+}
 
 
 /* TYPE: none 
@@ -340,6 +511,145 @@ TYPEFUNC(int, add) {
     }
 }
 
+TYPEFUNC(int, sub) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.sub(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_int_new(KSO_CAST(kso_int, A)->v_int - KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, mul) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.mul(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_int_new(KSO_CAST(kso_int, A)->v_int * KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, div) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.div(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_int_new(KSO_CAST(kso_int, A)->v_int / KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, mod) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.mod(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_int_new(KSO_CAST(kso_int, A)->v_int % KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, pow) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.pow(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        ks_int Ai = KSO_CAST(kso_int, A)->v_int;
+        ks_int Bi = KSO_CAST(kso_int, B)->v_int;
+        // X^0 == 1
+        if (Bi == 0) return (kso)KSO_1;
+        // 0^X == 0 (negative X's return 0s too)
+        if (Ai == 0) return (kso)KSO_0;
+        // X^-n == 0, for integers
+        if (Bi < 0) return (kso)KSO_0;
+        // X^1==X
+        if (Bi == 1) return A;
+
+
+        // the sign to be applied
+        int sign = (Ai < 0 && Bi & 1 == 1) ? -1 : 1;
+        if (Ai < 0) Ai = -Ai;
+
+        // now, Bi>1 and Ai is positive, with sign extracted
+
+        // now, calculate it
+        ks_int Ri = 1;
+        while (Bi != 0) {
+            if (Bi & 1) Ri *= Ai;
+            Bi >>= 1;
+            Ai *= Ai;
+        }
+
+        return (kso)kso_int_new(Ri);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, lt) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.lt(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_bool_new(KSO_CAST(kso_int, A)->v_int < KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, gt) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.gt(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_bool_new(KSO_CAST(kso_int, A)->v_int > KSO_CAST(kso_int, B)->v_int);
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
+TYPEFUNC(int, eq) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "int.eq(A, B)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0], B = args[1];
+
+    if (A->type == kso_T_int && B->type == kso_T_int) {
+        return (kso)kso_bool_new(KSO_CAST(kso_int, A)->v_int == KSO_CAST(kso_int, B)->v_int);
+
+    } else {
+        TYPE_MISMATCH(A, B);
+    }
+}
+
 
 
 
@@ -435,6 +745,165 @@ TYPEFUNC(str, free) {
 }
 
 
+
+
+/* TYPE: list */
+
+TYPEFUNC(list, bool) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.bool(self)"
+    REQ_N_ARGS(1);
+    REQ_TYPE("self", args[0], kso_T_list);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+
+    return (kso)(self->v_list.len == 0 ? KSO_FALSE : KSO_TRUE);
+}
+
+TYPEFUNC(list, str) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.str(self)"
+    REQ_N_ARGS(1);
+    REQ_TYPE("self", args[0], kso_T_list);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+
+    kso_str strval = kso_str_new(KS_STR_CONST("["));
+
+    int i;
+    for (i = 0; i < self->v_list.len; ++i) {
+        if (i != 0) ks_str_append(&strval->v_str, KS_STR_CONST(", "));
+
+        // get repr
+        kso argi = self->v_list.items[i];
+        kso_str repr = (kso_str)_F_repr(vm, 1, &argi);
+
+        if (repr->type != kso_T_str) {
+            return ks_err_add_str_fmt(_FUNCSIG ": `repr(self[%d])` (of type '%s') gave a non-string result!", i, args[i]->type->name._);
+        }
+
+        // append
+        ks_str_append(&strval->v_str, repr->v_str);
+
+        // clean up if possible
+        KSO_CHKREF(repr);
+
+    }
+
+    ks_str_append(&strval->v_str, KS_STR_CONST("]"));
+    return (kso)strval;
+}
+
+TYPEFUNC(list, repr) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.repr(self)"
+    REQ_N_ARGS(1);
+    REQ_TYPE("self", args[0], kso_T_list);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+
+    kso_str strval = kso_str_new(KS_STR_CONST("["));
+
+    int i;
+    for (i = 0; i < self->v_list.len; ++i) {
+        if (i != 0) ks_str_append(&strval->v_str, KS_STR_CONST(", "));
+
+        // get repr
+        kso argi = self->v_list.items[i];
+        kso_str repr = (kso_str)_F_repr(vm, 1, &argi);
+
+        if (repr->type != kso_T_str) {
+            return ks_err_add_str_fmt(_FUNCSIG ": `repr(self[%d])` (of type '%s') gave a non-string result!", i, args[i]->type->name._);
+        }
+
+        // append
+        ks_str_append(&strval->v_str, repr->v_str);
+
+        // clean up if possible
+        KSO_CHKREF(repr);
+
+    }
+
+    ks_str_append(&strval->v_str, KS_STR_CONST("]"));
+    return (kso)strval;
+}
+
+TYPEFUNC(list, add) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.add(self, other)"
+    REQ_N_ARGS(2);
+    REQ_TYPE("self", args[0], kso_T_list);
+    REQ_TYPE("other", args[1], kso_T_list);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+    kso_list other = KSO_CAST(kso_list, args[1]);
+
+    kso_list new_list = kso_list_new(self->v_list.len, self->v_list.items);
+
+    int i;
+    for (i = 0; i < other->v_list.len; ++i) {
+        ks_list_push(&new_list->v_list, other->v_list.items[i]);
+    }
+
+    return (kso)new_list;
+}
+
+TYPEFUNC(list, mul) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.mul(self, other)"
+    REQ_N_ARGS(2);
+    REQ_TYPE("self", args[0], kso_T_list);
+    REQ_TYPE("other", args[1], kso_T_int);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+    kso_int other = KSO_CAST(kso_int, args[1]);
+
+    kso_list new_list = kso_list_new(self->v_list.len * other->v_int, NULL);
+
+    int i;
+    for (i = 0; i < other->v_int; ++i) {
+        int j;
+        for (j = 0; j < self->v_list.len; ++j) {
+            new_list->v_list.items[i * self->v_list.len + j] = self->v_list.items[j];
+        }
+    }
+
+    return (kso)new_list;
+}
+
+
+
+
+TYPEFUNC(list, get) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.get(self, idx)"
+    REQ_N_ARGS(2);
+    REQ_TYPE("self", args[0], kso_T_list);
+    REQ_TYPE("idx", args[1], kso_T_int);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+    kso_int idx = KSO_CAST(kso_int, args[1]);
+
+    return self->v_list.items[idx->v_int];
+}
+
+TYPEFUNC(list, set) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "list.set(self, idx, val)"
+    REQ_N_ARGS(3);
+    REQ_TYPE("self", args[0], kso_T_list);
+    REQ_TYPE("idx", args[1], kso_T_int);
+
+    kso_list self = KSO_CAST(kso_list, args[0]);
+    kso_int idx = KSO_CAST(kso_int, args[1]);
+    kso val = args[2];
+
+    self->v_list.items[idx->v_int] = val;
+    
+    return val;
+}
+
+
 static struct kso_type T_cfunc;
 
 // creates a CFUNC object from a C function
@@ -462,13 +931,28 @@ static struct kso_cfunc
     _CFUNC(int_str),
     _CFUNC(int_repr),
     _CFUNC(int_add),
+    _CFUNC(int_sub),
+    _CFUNC(int_mul),
+    _CFUNC(int_div),
+    _CFUNC(int_mod),
+    _CFUNC(int_pow),
+    _CFUNC(int_lt),
+    _CFUNC(int_gt),
+    _CFUNC(int_eq),
 
     _CFUNC(str_init),
     _CFUNC(str_free),
     _CFUNC(str_bool),
     _CFUNC(str_int),
     _CFUNC(str_str),
-    _CFUNC(str_repr)
+    _CFUNC(str_repr),
+
+    _CFUNC(list_str),
+    _CFUNC(list_repr),
+    _CFUNC(list_add),
+    _CFUNC(list_mul),
+    _CFUNC(list_get),
+    _CFUNC(list_set)
 
 ;
 
@@ -543,7 +1027,16 @@ static struct kso_type
         .f_get  = NULL,
         .f_set  = NULL,
 
-        .f_add  = (kso)&_int_add
+        .f_add  = (kso)&_int_add,
+        .f_sub  = (kso)&_int_sub,
+        .f_mul  = (kso)&_int_mul,
+        .f_div  = (kso)&_int_div,
+        .f_mod  = (kso)&_int_mod,
+        .f_pow  = (kso)&_int_pow,
+
+        .f_lt  = (kso)&_int_lt,
+        .f_gt  = (kso)&_int_gt,
+        .f_eq  = (kso)&_int_eq,
 
     },
     T_str = {
@@ -571,11 +1064,14 @@ static struct kso_type
 
         .f_bool = NULL,
         .f_int  = NULL,
-        .f_str  = NULL,
-        .f_repr = NULL,
+        .f_str  = (kso)&_list_str,
+        .f_repr = (kso)&_list_repr,
 
-        .f_get  = NULL,
-        .f_set  = NULL,
+        .f_add  = (kso)&_list_add,
+        .f_mul  = (kso)&_list_mul,
+        
+        .f_get  = (kso)&_list_get,
+        .f_set  = (kso)&_list_set,
 
     },
     T_cfunc = {
@@ -674,12 +1170,88 @@ static struct kso_cfunc
     F_print = {
         .type = &T_cfunc,
         .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
         .v_cfunc = _F_print
     },
     F_exit = {
         .type = &T_cfunc,
         .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
         .v_cfunc = _F_exit
+    },
+
+    /* builtins */
+
+    F_get = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_get
+    },
+
+    F_set = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_set
+    },
+
+
+    /* operator functions */
+
+    F_add = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_add
+    },
+    F_sub = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_sub
+    },
+    F_mul = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_mul
+    },
+    F_div = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_div
+    },
+    F_mod = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_mod
+    },
+    F_pow = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_pow
+    },
+    F_lt = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_lt
+    },
+    F_gt = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_gt
+    },
+    F_eq = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_eq
     }
 
 ;
@@ -688,7 +1260,22 @@ static struct kso_cfunc
 
 kso_cfunc
     kso_F_print = &F_print,
-    kso_F_exit = &F_exit
+    kso_F_exit = &F_exit,
+
+    kso_F_get = &F_get,
+    kso_F_set = &F_set,
+
+    kso_F_add = &F_add,
+    kso_F_sub = &F_sub,
+    kso_F_mul = &F_mul,
+    kso_F_div = &F_div,
+    kso_F_mod = &F_mod,
+    kso_F_pow = &F_pow,
+
+    kso_F_lt  = &F_lt,
+    kso_F_gt  = &F_gt,
+    kso_F_eq  = &F_eq
+
 ;
 
 kso_none 
