@@ -94,8 +94,11 @@ void ksc_const_str(kso_code code, ks_str str) APPEND_STRUCT((struct ks_bc_const)
 void ksc_const(kso_code code, kso obj) APPEND_STRUCT((struct ks_bc_const){ .op = KS_BC_CONST, .v_idx = ksc_add_const(code, obj) })
 
 void ksc_list(kso_code code, int n_items) APPEND_STRUCT((struct ks_bc_call){ .op = KS_BC_LIST, .n_args = n_items })
-
 void ksc_call(kso_code code, int n_args) APPEND_STRUCT((struct ks_bc_call){ .op = KS_BC_CALL, .n_args = n_args })
+
+void ksc_getattr(kso_code code, ks_str aname) APPEND_STRUCT((struct ks_bc_nameop){ .op = KS_BC_GETATTR, .name_idx = ksc_add_str(code, aname) })
+void ksc_setattr(kso_code code, ks_str aname) APPEND_STRUCT((struct ks_bc_nameop){ .op = KS_BC_SETATTR, .name_idx = ksc_add_str(code, aname) })
+
 void ksc_get(kso_code code, int n_args) APPEND_STRUCT((struct ks_bc_call){ .op = KS_BC_GET, .n_args = n_args })
 void ksc_set(kso_code code, int n_args) APPEND_STRUCT((struct ks_bc_call){ .op = KS_BC_SET, .n_args = n_args })
 
@@ -112,7 +115,6 @@ void ksc_lt(kso_code code) APPEND_INST(KS_BC_LT);
 void ksc_gt(kso_code code) APPEND_INST(KS_BC_GT);
 void ksc_eq(kso_code code) APPEND_INST(KS_BC_EQ);
 
-
 void ksc_jmp(kso_code code, int relamt) APPEND_STRUCT((struct ks_bc_jmp){ .op = KS_BC_JMP, .relamt = relamt })
 void ksc_jmpt(kso_code code, int relamt) APPEND_STRUCT((struct ks_bc_jmp){ .op = KS_BC_JMPT, .relamt = relamt })
 void ksc_jmpf(kso_code code, int relamt) APPEND_STRUCT((struct ks_bc_jmp){ .op = KS_BC_JMPF, .relamt = relamt })
@@ -120,6 +122,9 @@ void ksc_jmpf(kso_code code, int relamt) APPEND_STRUCT((struct ks_bc_jmp){ .op =
 
 void ksc_ret(kso_code code) APPEND_INST(KS_BC_RET);
 void ksc_retnone(kso_code code) APPEND_INST(KS_BC_RETNONE);
+
+void ksc_scope(kso_code code) APPEND_INST(KS_BC_SCOPE);
+void ksc_new_type(kso_code code) APPEND_INST(KS_BC_NEW_TYPE);
 
 
 
@@ -200,6 +205,15 @@ void _kso_code_tostr(kso_code code, ks_str* to, int depth) {
             TOSTR_APPEND("call %d", inst.call.n_args);
             break;
 
+        case KS_BC_GETATTR:
+            DECODE(ks_bc_nameop);
+            TOSTR_APPEND("getattr %s", ((kso_str)GET_CONST(inst.nameop.name_idx))->v_str._);
+            break;
+        case KS_BC_SETATTR:
+            DECODE(ks_bc_nameop);
+            TOSTR_APPEND("setattr %s", ((kso_str)GET_CONST(inst.nameop.name_idx))->v_str._);
+            break;
+
 
         case KS_BC_GET:
             DECODE(ks_bc_call);
@@ -278,6 +292,14 @@ void _kso_code_tostr(kso_code code, ks_str* to, int depth) {
             TOSTR_APPEND_LIT("discard");
             break;
 
+        case KS_BC_SCOPE:
+            PASS(ks_bc);
+            TOSTR_APPEND_LIT("scope");
+            break;
+        case KS_BC_NEW_TYPE:
+            PASS(ks_bc);
+            TOSTR_APPEND_LIT("new_type");
+            break;
 
         case KS_BC_JMP:
             DECODE(ks_bc_jmp);

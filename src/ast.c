@@ -50,6 +50,14 @@ ks_ast ks_ast_new_var(ks_str name) {
     return ret;
 }
 
+ks_ast ks_ast_new_attr(ks_ast obj, ks_str aname) {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_ATTR;
+    ret->_attr.of = obj;
+    ret->_attr.attr_name = ks_str_dup(aname);
+    return ret;
+}
+
 ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args) {
     ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
     ret->type = KS_AST_CALL;
@@ -139,6 +147,15 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
     return ret;
 }
 
+ks_ast ks_ast_new_for(ks_ast iter, ks_ast body) {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_FOR;
+    ret->_while.cond = iter;
+    ret->_while.body = body;
+    return ret;
+}
+
+
 ks_ast ks_ast_new_func() {
     ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
     ret->type = KS_AST_FUNC;
@@ -152,6 +169,20 @@ void ks_ast_func_add_param(ks_ast func, ks_str param_name) {
     func->_func.param_names = ks_realloc(func->_func.param_names, ++func->_func.n_params * sizeof(*func->_func.param_names));
     func->_func.param_names[func->_func.n_params - 1] = ks_str_dup(param_name);
 }
+
+
+
+ks_ast ks_ast_new_type() {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_TYPE;
+    ret->_type.body = ks_ast_new_block(0, NULL);
+    return ret;
+}
+
+void ks_ast_type_add_member(ks_ast typea, ks_ast member) {
+    ks_ast_block_add(typea->_type.body, member);
+}
+
 
 
 /* tostring */
@@ -227,6 +258,7 @@ void ks_ast_pprint(ks_ast ast, ks_str* to) {
 // code-generation information
 typedef struct {
     int stk_depth;
+    int call_depth;
     ks_ast last;
 } cgi;
 // code-generating clearing stack
@@ -234,6 +266,7 @@ typedef struct {
 #define CG_CLEAR()
 
 void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
+    geni->call_depth++;
 
     if (ast == NULL) {
         ks_err_add_str(KS_STR_CONST("given NULL ast"));
@@ -262,6 +295,10 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
     } else if (ast->type == KS_AST_VAR) {
         ksc_load(to, ast->_str);
         DEPINC(1);
+    } else if (ast->type == KS_AST_ATTR) {
+        _ks_ast_codegen(ast->_attr.of, to, geni);
+        ksc_getattr(to, ast->_attr.attr_name);
+        DEPINC(0);
     }
 
     // generate code for a binary operator
@@ -296,6 +333,15 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
             // this is 0, since the destination is not actually an object, but encoded into the instruction
             DEPINC(0);
 
+
+        } else if (ast->_bop.L->type == KS_AST_ATTR) {
+
+            _ks_ast_codegen(ast->_bop.L->_attr.of, to, geni);
+            _ks_ast_codegen(ast->_bop.R, to, geni);
+
+            ksc_setattr(to, ast->_bop.L->_attr.attr_name);
+
+            DEPINC(-1);
 
         } else if (ast->_bop.L->type == KS_AST_SUBSCRIPT) {
             // do a []=
@@ -369,6 +415,31 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
         struct ks_bc_jmp* i_jmpf = (struct ks_bc_jmp*)(to->bc + p_jmpf);
         i_jmpf->relamt = to->bc_n - p_body;
 
+/*
+    } else if (ast->type == KS_AST_FOR) {
+        // position of the condition/start of loop
+        int p_cond = to->bc_n;
+        //_ks_ast_codegen(ast->_for.cond, to, geni);
+
+        // jump ahead if it is false
+        int p_jmpf = to->bc_n;
+        ksc_jmpf(to, -1);
+        DEPINC(-1);
+
+        // position of the body, fill this in later
+        int p_body = to->bc_n;
+        _ks_ast_codegen(ast->_while.body, to, geni);
+
+        // now, jump to start of loop and try again
+        int32_t diff = p_cond - to->bc_n;
+        ksc_jmp(to, diff - sizeof(struct ks_bc_jmp));
+
+        // now, replace the entry with the correct one
+        struct ks_bc_jmp* i_jmpf = (struct ks_bc_jmp*)(to->bc + p_jmpf);
+        i_jmpf->relamt = to->bc_n - p_body;
+
+*/
+
     } else if (ast->type == KS_AST_CALL) {
         _ks_ast_codegen(ast->_call.func, to, geni);
 
@@ -416,13 +487,30 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
         // generate the code here
         ks_ast_codegen(ast->_func.body, func_code);
         // TODO: make sure it returns with none if requested
-        ksc_retnone(func_code);
 
         kso_kfunc kfunc = kso_kfunc_new(f_params, func_code);
 
         // pop it on as a function literal
         ksc_const(to, (kso)kfunc);
         DEPINC(1);
+
+
+    } else if (ast->type == KS_AST_TYPE) {
+        // create a scope containing all the members
+        ksc_scope(to);
+
+        // now, generate all the type's members (which will assign them to the local scope)
+        _ks_ast_codegen(ast->_type.body, to, geni);
+
+
+        ksc_new_type(to);
+
+        //printf("TYPE\n");
+        
+        // pop it on as a function literal
+        //ksc_const(to, (kso)kfunc);
+        DEPINC(1);
+
 
     } else if (ast->type == KS_AST_RETURN) {
         if (ast->_val == NULL) {
@@ -434,18 +522,21 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
             DEPINC(-1);
         }
     } else {
-
         ks_err_add_str_fmt("Unexpected AST type %d", ast->type);
     }
 
-    geni->last = ast;
-
+    geni->call_depth--;
+    if (geni->call_depth == 1) geni->last = ast;
     return;
 }
 
 void ks_ast_codegen(ks_ast ast, kso_code to) {
     cgi geni;
     geni.stk_depth = 0;
+    geni.call_depth = 0;
     geni.last = NULL;
     _ks_ast_codegen(ast, to, &geni);
+
+    if (!geni.last || geni.last->type != KS_AST_RETURN) ksc_retnone(to);
+
 }

@@ -236,6 +236,8 @@ enum {
 /* primitive object definitions */
 
 /* the 'type'-type, representing a type of data */
+
+
 typedef struct kso_type {
     KSO_BASE
 
@@ -248,6 +250,9 @@ typedef struct kso_type {
       f_init,
       // free should free all resources used by the object
       f_free,
+
+      // what happens when the object is called
+      f_call,
 
       // builtin type conversion to bool
       f_bool,
@@ -263,6 +268,11 @@ typedef struct kso_type {
       // builtin setting function
       f_set,
 
+      // get attribute
+      f_getattr,
+      // set attribute
+      f_setattr,
+
       /* binary operator functions */
       f_add,
       f_sub,
@@ -277,6 +287,14 @@ typedef struct kso_type {
     ;
 
 }* kso_type;
+
+#define KSO_TYPE_EMPTYFILL .f_init = NULL, .f_free = NULL, .f_call = NULL, .f_bool = NULL, .f_int = NULL, .f_str = NULL, .f_repr = NULL, .f_get = NULL, .f_getattr = NULL, .f_setattr = NULL, .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_mod = NULL, .f_pow = NULL, .f_lt = NULL, .f_gt = NULL, .f_eq = NULL,
+
+extern kso_type kso_T_type;
+
+
+// creates a new, blank type
+kso_type kso_type_new();
 
 
 /* the 'none'-type, representing a NULL/not valid value */
@@ -394,6 +412,19 @@ typedef struct kso_list {
 kso_list kso_list_new_empty();
 kso_list kso_list_new(int len, kso* items);
 
+/* the `iter`-type, representing an iterable collection */
+
+extern kso_type kso_T_iter;
+
+typedef struct kso_iter {
+    KSO_BASE
+
+    // the actual list value
+    ks_list v_list;
+
+}* kso_iter;
+
+
 
 /* the 'cfunc'-type, representing a callable function in C */
 
@@ -413,6 +444,10 @@ typedef struct kso_cfunc {
 extern kso_cfunc
     kso_F_print,
     kso_F_exit,
+    kso_F_memuse,
+
+    kso_F_getattr,
+    kso_F_setattr,
 
     kso_F_get,
     kso_F_set,
@@ -475,6 +510,21 @@ typedef struct kso_kfunc {
 
 // constructs a new kfunc from a list of string parameter names, and a code object
 kso_kfunc kso_kfunc_new(kso_list params, kso_code code);
+
+
+/* the 'obj'-type, generic dictionary based object */
+
+extern kso_type kso_T_obj;
+
+typedef struct kso_obj {
+    KSO_BASE
+
+    ks_dict v_attrs;
+
+}* kso_obj;
+
+// constructs a new blank object
+kso_obj kso_obj_new();
 
 
 
@@ -546,6 +596,14 @@ enum {
     // 1[opcode] 2[uint16_t n_args]
     KS_BC_CALL,
 
+    // pops off the last item (the object), then gets a string attribute
+    // 1[opcode] 4[int attr_name_idx]
+    KS_BC_GETATTR,
+
+    // pops off a value, then pops off the last item (the object), then sets a string attribute
+    // 1[opcode] 4[int attr_name_idx]
+    KS_BC_SETATTR,
+
     // pops off the last item (which is the main object)
     // then, pop off `n_args` items off the stack, and `get` them using whatever method is appropriate for the type
     // in general, this is the subscript method: `a[]`
@@ -562,6 +620,8 @@ enum {
     // the item before last on the stack should be the value its being set to
     // 1[opcode] 2[uint16_t n_args]
     KS_BC_SET,
+
+
 
     /* operators */
 
@@ -624,6 +684,14 @@ enum {
     // return None, not popping anything off the stack
     // [1:opcode]
     KS_BC_RETNONE,
+
+    // pushes a blank scope onto the stack
+    // 1[opcode]
+    KS_BC_SCOPE,
+
+    // pops off the top scope, and then constructs a new type from it, pushing to the stack
+    // 1[opcode]
+    KS_BC_NEW_TYPE,
 
     // the end of the bytecodes
     KS_BC__END
@@ -706,6 +774,9 @@ void ksc_store(kso_code code, ks_str name);
 void ksc_call(kso_code code, int n_args);
 void ksc_list(kso_code code, int n_items);
 
+void ksc_getattr(kso_code code, ks_str aname);
+void ksc_setattr(kso_code code, ks_str aname);
+
 void ksc_get(kso_code code, int n_args);
 void ksc_set(kso_code code, int n_args);
 
@@ -727,6 +798,9 @@ void ksc_add(kso_code code);
 
 void ksc_ret(kso_code code);
 void ksc_retnone(kso_code code);
+
+void ksc_scope(kso_code code);
+void ksc_new_type(kso_code code);
 
 
 /* the 'vm'-type, a virtual machine for executing code on */
@@ -787,6 +861,10 @@ struct kso {
 };
 
 
+
+
+
+
 /* object manipulation/management */
 
 // free's an object's resources (through its type), and then frees `obj` itself
@@ -800,7 +878,6 @@ bool kso_free(kso obj);
 enum {
     KS_AST_NONE = 0,
 
-
     // constants
 
     KS_AST_CONST_INT,
@@ -810,9 +887,11 @@ enum {
     KS_AST_CONST_TRUE,
     KS_AST_CONST_FALSE,
 
-
     // a variable reference
     KS_AST_VAR,
+
+    // gets an attribute
+    KS_AST_ATTR,
 
     // a function call
     KS_AST_CALL,
@@ -827,12 +906,18 @@ enum {
     // a function literal, i.e. (params) -> { BODY }
     KS_AST_FUNC,
 
+    // a type literal i.e. type NAME { FUNCTION-MEMBERS }
+    KS_AST_TYPE,
+
     // if (cond) { BODY }
     KS_AST_IF,
 
     // while (cond) { BODY }
     KS_AST_WHILE,
     
+    // for (iter) { BODY }
+    KS_AST_FOR,
+
     // ret (value)
     KS_AST_RETURN,
 
@@ -879,6 +964,16 @@ struct ks_ast {
         // for things that use an AST
         ks_ast _val;
 
+
+        struct {
+            // wha tto get the attribute of
+            ks_ast of;
+
+            // the name
+            ks_str attr_name;
+        } _attr;
+        
+
         struct {
             // function being called
             ks_ast func;
@@ -896,7 +991,6 @@ struct ks_ast {
             int args_n;
             ks_ast* args;
         } _subscript;
-
 
         struct {
             // number of items in the list
@@ -941,6 +1035,12 @@ struct ks_ast {
 
         } _func;
 
+        struct {
+            // should be a block type of all member-ast's
+            ks_ast body;
+        } _type;
+
+
     };
 
 };
@@ -953,6 +1053,7 @@ ks_ast ks_ast_new_const_int(ks_int val);
 ks_ast ks_ast_new_const_float(ks_float val);
 ks_ast ks_ast_new_const_str(ks_str val);
 ks_ast ks_ast_new_var(ks_str name);
+ks_ast ks_ast_new_attr(ks_ast obj, ks_str aname);
 ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args);
 ks_ast ks_ast_new_subscript(ks_ast obj, int args_n, ks_ast* args);
 ks_ast ks_ast_new_list(int items_n, ks_ast* items);
@@ -965,11 +1066,18 @@ int ks_ast_block_add(ks_ast block, ks_ast sub);
 
 ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
+ks_ast ks_ast_new_for(ks_ast iter, ks_ast body);
 
 // creates a function with 0 params
 ks_ast ks_ast_new_func();
 // adds another parameter
 void ks_ast_func_add_param(ks_ast func, ks_str param_name);
+
+// creates a type with 0 members
+ks_ast ks_ast_new_type();
+// adds another member
+void ks_ast_type_add_member(ks_ast typea, ks_ast member);
+
 
 // pretty prints ast to string
 void ks_ast_pprint(ks_ast ast, ks_str* to);

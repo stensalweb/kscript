@@ -13,103 +13,41 @@ int main(int argc, char** argv) {
 
     ks_init();
     //ks_set_loglvl(KS_LOGLVL_TRACE);
-
-    // holds the pool of constants
-    kso_list v_c = kso_list_new_empty();
+    ks_set_loglvl(KS_LOGLVL_DEBUG);
 
     // construct a virtual machine to run code on
     kso_vm vm = kso_vm_new_empty();
+    // hold a reference to it
     KSO_INCREF(vm);
 
-
+    // macro to set a global value in the virtual machine
     #define SET_GLOBAL(_name, _val) ks_dict_set(&vm->globals, (kso)kso_str_new(KS_STR_CONST(_name)), ks_hash_str(KS_STR_CONST(_name)), (kso)_val);
 
-    // set a few globals.
+    // set a few globals, the built-ins
     SET_GLOBAL("print", kso_F_print)
+    SET_GLOBAL("memuse", kso_F_memuse)
 
-    // now, the `main` method's code
-    kso_code main_c = kso_code_new_empty(v_c);
+    // operators
+    SET_GLOBAL("add", kso_F_add)
 
-    // create a parser for the code
-    ks_parse kp = KS_PARSE_EMPTY;
+    // types
+    SET_GLOBAL("str", kso_T_str)
 
-    const char* fname = "examples/hello_world.kscript";
-    FILE* fp = fopen(fname, "r");
-    if (fp == NULL) {
-        ks_error("Could not open file '%s'", fname);
-        return -1;
-    }
-    ks_str src = KS_STR_EMPTY;
-    ks_str_readfp(&src, fp);
-    fclose(fp);
-    ks_parse_setsrc(&kp, KS_STR_VIEW(fname, strlen(fname)), src);
-
-    ks_str_free(&src);
+    // ensure there were no errors
     if (ks_err_dumpall()) return -1;
 
-    //ks_parse_ksasm(&kp, main_c);
-    //if (ks_err_dumpall()) return -1;
+    // construct a list to work as a constant pool
+    kso_list v_const = kso_list_new_empty();
 
-    ks_ast main_ast = ks_parse_code(&kp);
-    if (ks_err_dumpall()) return -1;
-
-    /*
-    ks_str ast_s = KS_STR_EMPTY;
-    ks_ast_pprint(main_ast, &ast_s);
-    printf("AST:\n%s\n", ast_s._);
-    */
-    ks_ast_codegen(main_ast, main_c);
-    ksc_retnone(main_c);
-
-    ks_str asm_s = KS_STR_EMPTY;
-    kso_code_tostr(main_c, &asm_s);
-    printf("ASM:\n%s\n", asm_s._);
-
-    if (ks_err_dumpall()) return -1;
-
-    // execute this
-    kso_vm_exec(vm, main_c);//, args->v_list.len, args->v_list.items);
-
-
-    //ks_set_loglvl(KS_LOGLVL_DEBUG);
-
-/*
-    ks_parse cp = KS_PARSE_EMPTY;
-    ks_parse_setsrc(&cp, KS_STR_CONST("cade"), KS_STR_CONST("print (a, 1)"));
-
-    ks_prog cprog = KS_PROG_EMPTY;
-
-    ks_ast cade = ks_parse_code(&cp);
-    ks_ast_codegen(cade, &cprog);
-    ksb_retnone(&cprog);
-
-    if (ks_err_dumpall()) return -1;
-
-    kso cadef = kso_new_kfunc(&cprog, 0);
-
-
-    // the global VM
-    ks_vm vm = KS_VM_EMPTY;
-
-    // tasks to run
+    // create some 'tasks' that contain their resources related to execution
     int n_tasks = 0;
     struct ks_task {
         ks_parse kp;
-        ks_prog prog;
+        kso_code code;
     }* tasks = NULL;
 
-    struct ks_task* this_task;
-
-    // set a global variable
-    #define SET_GLOBAL(_name, _val) { ks_dict_set_str(&vm.dict, KS_STR_CONST(_name), ks_hash_str(KS_STR_CONST(_name)), (kso)_val); }
-
-    SET_GLOBAL("print", kso_F_print);
-    SET_GLOBAL("exit" , kso_F_exit);
-    SET_GLOBAL("cade" , cadef);
-
-    // check errors
-    if (ks_err_dumpall()) return -1;
-
+    // the currently executing task
+    #define this_task (tasks[n_tasks - 1])
     
     // long options for commandline parsing
     static struct option long_options[] = {
@@ -122,50 +60,63 @@ int main(int argc, char** argv) {
 
     // extension of file
     const char* ext = NULL;
-    int stat = 0;
-
+    // option argument
     int c;
+
+    // before argument parsing, ensure its all worked so far
+    if (ks_err_dumpall()) return -1;
 
     while ((c = getopt_long (argc, argv, "e:f:Aivh", long_options, NULL)) != -1)
     switch (c){
         case 'e':
             // do expression
+
+            // add on another task
             tasks = ks_realloc(tasks, sizeof(*tasks) * ++n_tasks);
             tasks[n_tasks - 1] = (struct ks_task){
                 .kp = KS_PARSE_EMPTY,
-                .prog = KS_PROG_EMPTY
+                .code = kso_code_new_empty(v_const)
             };
-            this_task = &tasks[n_tasks - 1];
-            ks_parse_setsrc(&this_task->kp, KS_STR_CONST("-e"), KS_STR_VIEW(optarg, strlen(optarg)));
+
+            // set source, and tokenize the expression
+            ks_parse_setsrc(&this_task.kp, KS_STR_CONST("-e"), KS_STR_VIEW(optarg, strlen(optarg)));
             if (ks_err_dumpall()) return -1;
 
-            ks_ast ast = ks_parse_code(&this_task->kp);
+            // parse the code/expression
+            ks_ast ast = ks_parse_code(&this_task.kp);
             if (ks_err_dumpall()) return -1;
             
-            ks_ast_codegen(ast, &this_task->prog);
-            ksb_retnone(&this_task->prog);
+            // do a code generation on the resulting AST
+            ks_ast_codegen(ast, this_task.code);
             if (ks_err_dumpall()) return -1;
 
             // now, run it
-            ks_debug("Running `-e`: '%s' (compiled to %db)", this_task->kp.src._, this_task->prog.bc_n);
-            ks_str ns = KS_STR_EMPTY;
-            ks_prog_tostr(&this_task->prog, &ns);
-            printf("%s\n", ns._);
-            ks_str_free(&ns);
-            
-            ks_exec(&vm, &this_task->prog, 0);
+            ks_debug("Running `-e`: '%s' (compiled to %db)", this_task.kp.src._, this_task.code->bc_n);
+
+            // trace out the assembly source code
+            if (ks_get_loglvl() <= KS_LOGLVL_DEBUG) {
+                ks_str s_asm = KS_STR_EMPTY;
+                kso_code_tostr(this_task.code, &s_asm);
+                ks_debug("# -*- ASM -*-\n%s", s_asm._);
+                ks_str_free(&s_asm);
+            }
+
+            // now, execute on a VM
+            kso_vm_exec(vm, this_task.code);
             if (ks_err_dumpall()) return -1;
 
             break;
         case 'f':
             // do a file
+
+            // add on a task
             tasks = ks_realloc(tasks, sizeof(*tasks) * ++n_tasks);
             tasks[n_tasks - 1] = (struct ks_task){
                 .kp = KS_PARSE_EMPTY,
-                .prog = KS_PROG_EMPTY
+                .code = kso_code_new_empty(v_const)
             };
-            this_task = &tasks[n_tasks - 1];
 
+            // read in the source code from a file
             ks_str src_code = KS_STR_EMPTY;
             FILE* fp = fopen(optarg, "r");
             if (fp == NULL) {
@@ -175,26 +126,28 @@ int main(int argc, char** argv) {
             ks_str_readfp(&src_code, fp);
             fclose(fp);
 
-            ks_parse_setsrc(&this_task->kp, KS_STR_VIEW(optarg, strlen(optarg)), src_code);
+            // set source and tokenize
+            ks_parse_setsrc(&this_task.kp, KS_STR_VIEW(optarg, strlen(optarg)), src_code);
             if (ks_err_dumpall()) return -1;
             
             // free our local copy, since it has been duplicated
             ks_str_free(&src_code);
 
+            // get the file extension
             ext = strrchr(optarg, '.');
             if (strcmp(ext, ".ksasm") == 0) {
+                // in this case, we want to parse an assembly code file
 
-                // parse assembly
-                ks_parse_bc(&this_task->kp, &this_task->prog);
-                ksb_retnone(&this_task->prog);
+                ks_parse_ksasm(&this_task.kp, this_task.code);
                 if (ks_err_dumpall()) return -1;
 
             } else if (strcmp(ext, ".kscript") == 0) {
-                ks_ast ast = ks_parse_code(&this_task->kp);
+                // in this case, we want to parse the code to an AST, then generate bytecode for it
+                ks_ast ast = ks_parse_code(&this_task.kp);
                 if (ks_err_dumpall()) return -1;
 
-                stat = ks_ast_codegen(ast, &this_task->prog);
-                ksb_retnone(&this_task->prog);
+                // generate the code for it
+                ks_ast_codegen(ast, this_task.code);
                 if (ks_err_dumpall()) return -1;
 
             } else {
@@ -202,10 +155,19 @@ int main(int argc, char** argv) {
                 return -1;
             }
 
+            // debug it out
+            ks_debug("Running `-f`: '%s' (compiled to %db)", this_task.kp.src_name._, this_task.code->bc_n);
 
-            // now, run
-            ks_debug("Running `-f`: '%s' (compiled to %db)", this_task->kp.src_name._, this_task->prog.bc_n);
-            ks_exec(&vm, &this_task->prog, 0);
+            // now, trace out the assembly
+            if (ks_get_loglvl() <= KS_LOGLVL_DEBUG) {
+                ks_str s_asm = KS_STR_EMPTY;
+                kso_code_tostr(this_task.code, &s_asm);
+                ks_debug("# -*- ASM -*-\n%s", s_asm._);
+                ks_str_free(&s_asm);
+            }
+
+            // execute on the virtual machine
+            kso_vm_exec(vm, this_task.code);
 
             break;
         case 'h':
@@ -228,10 +190,10 @@ int main(int argc, char** argv) {
             break;
     }
 
+
     if (optind < argc) {
         ks_error("Unhandled arguments!");
     }
-    */
 
     return 0;
 }

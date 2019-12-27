@@ -32,6 +32,10 @@ void _kso_vm_run(kso_vm vm) {
 
         &&do_list,
         &&do_call,
+
+        &&do_getattr,
+        &&do_setattr,
+
         &&do_get,
         &&do_set,
 
@@ -50,18 +54,14 @@ void _kso_vm_run(kso_vm vm) {
         &&do_jmpf,
 
         &&do_ret,
-        &&do_retnone
+        &&do_retnone,
+
+        &&do_scope,
+        &&do_new_type
     };
 
-    // record where we started executing
+    // record where we started executing, so we know when to stop
     int call_stk_n__start = vm->call_stk_n;
-
-    // where did we start on the stack?
-    //int start_call_stk_n = vm->call_stk_n + 1;
-
-    // pushes an item onto the call stack
-    //#define PUSH_CALL_STK() { vm->call_stk_n++; }
-    //#define POP_CALL_STK() { vm->call_stk_n--; }
 
     // creates a new call stack item (i.e. eval frame)
     #define PUSH_CALL_STK() { vm->call_stk_n++; vm->call_stk[vm->call_stk_n - 1].locals = KS_DICT_EMPTY; }
@@ -73,10 +73,26 @@ void _kso_vm_run(kso_vm vm) {
     // local variables as a dictionary
     #define local_vars (vm->call_stk[vm->call_stk_n - 1].locals)
 
+    // variables to define once, and use in multiple dispatches
+    // so that no allocas happen while executing
     kso_str name;
     kso found, top, val, func;
-    kso* args;
 
+    // a pointer to arguments, useful when no reallocation would be neccessary
+    kso* args_p = NULL;
+    // operator arguments, for things that take a small and fixed number of args
+    kso op_args[8];
+
+    // array of arguments
+    kso* args = NULL;
+
+    // number the args has been allocated for
+    int __args_len_max = 0;
+
+    #define ENSURE_ARGS_HAS(_len) if (_len > __args_len_max) { __args_len_max = _len; args = ks_realloc(args, _len * sizeof(*args)); }
+    #define ARGS_COPY(_n, _from) memcpy(args, _from, sizeof(*args) * _n)
+
+    // common variable for number of args or items in an operation
     int n_args;
 
     // the union of all instructions, for decoding
@@ -98,7 +114,6 @@ void _kso_vm_run(kso_vm vm) {
     // macro to decrement references for a list
     #define DECREF_N(_list, _n) { int _i; for (_i = 0; _i < _n; ++_i) { KSO_DECREF((_list[_i])); } }
 
-
     // start evaluating
     NEXT();
 
@@ -111,7 +126,8 @@ void _kso_vm_run(kso_vm vm) {
         do_discard:
             PASS(ks_bc);
             etrace("discard");
-            ks_list_popu(&vm->stk);
+            top = ks_list_pop(&vm->stk);
+            KSO_DECREF(top);
             NEXT();
 
         do_const:
@@ -144,8 +160,6 @@ void _kso_vm_run(kso_vm vm) {
             etrace("load \"%s\" [%d]", name->v_str._, inst.nameop.name_idx);
 
             // now, look it up
-            //found = ks_dict_get(&vm->globals, (kso)_ostr, _ostr->v_hash);
-            //found = ks_dict_get(&local_vars, (kso)_ostr, _ostr->v_hash);
             found = NULL;
 
             // start at the most local variable scope
@@ -181,9 +195,8 @@ void _kso_vm_run(kso_vm vm) {
                 goto handle_exception;
             }
 
-            // get top object, just peeking
+            // get top object, just peeking, because it should stay on the stack
             top = vm->stk.items[vm->stk.len - 1];
-            //top = ks_list_pop(&vm->stk);
 
             // now store top->"_str"
             //ks_dict_set(&vm->globals, (kso)_ostr, _ostr->v_hash, top);
@@ -193,21 +206,23 @@ void _kso_vm_run(kso_vm vm) {
 
             NEXT();
 
-
         do_list:
 
             // decode number of args/items
             DECODE(ks_bc_call);
             n_args = (int)inst.call.n_args;
-            etrace("list %d", n_items);
+            etrace("list %d", n_args);
 
             // pluck of arguments
-            args = &vm->stk.items[vm->stk.len -= n_args];
+            args_p = &vm->stk.items[vm->stk.len -= n_args];
 
             // add a new list
-            ks_list_push(&vm->stk, (kso)kso_list_new(n_args, args));
+            ks_list_push(&vm->stk, (kso)kso_list_new(n_args, args_p));
+
+            //DECREF_N(args_p, n_args);
 
             NEXT();
+
         do_call:
 
             // decode number of args
@@ -217,23 +232,67 @@ void _kso_vm_run(kso_vm vm) {
             etrace("call %d", n_args);
 
             // arguments (including function)
-            args = &(vm->stk.items[vm->stk.len -= n_args]);
+            args_p = &(vm->stk.items[vm->stk.len -= n_args]);
             // just take out the function
-            func = *args++;
+            func = *args_p++;
             n_args--;
 
-            if (func->type == kso_T_cfunc) {
+            kso_obj new_obj = NULL;
+
+            if (func->type == kso_T_type) {
+                if (((kso_type)func)->f_call != NULL) {
+                    // just do the call
+                    func = ((kso_type)func)->f_call;
+                    //   for example by calling a kfunc from the C func
+                    ENSURE_ARGS_HAS(n_args);
+                    ARGS_COPY(n_args, args_p);
+                } else if (((kso_type)func)->f_init != NULL) {
+
+                    kso_type ftype = (kso_type)func;
+
+                    // we will construct it
+                    new_obj = kso_obj_new();
+                    new_obj->type = ftype;
+                    KSO_INCREF(new_obj);
+                    
+                    // copy arguments
+                    ++n_args;
+                    ENSURE_ARGS_HAS(n_args);
+                    args[0] = (kso)new_obj;
+
+                    memcpy(&args[1], args_p, (n_args - 1) * sizeof(*args));
+                    func = ((kso_type)func)->f_init;
+                } else {
+                    ks_err_add_str_fmt("Tried calling type, but did not have .init() or .call()");
+                    goto handle_exception;
+
+                }
+
+            } else {
+                // copy arguments, in case the stack gets modified by the C func,
+                //   for example by calling a kfunc from the C func
+                ENSURE_ARGS_HAS(n_args);
+                ARGS_COPY(n_args, args_p);
+            }
+
+            if (func == NULL) {
+                ks_err_add_str_fmt("Tried calling uncallable object");
+                goto handle_exception;
+
+            } else if (func->type == kso_T_cfunc) {
+
                 // evaluate the C function
                 val = ((kso_cfunc)func)->v_cfunc(vm, n_args, args);
                 if (val == NULL) {
                     goto handle_exception;
                 }
-                KSO_INCREF(val);
-                DECREF_N(args, n_args);
-                
+
+                // update reference counts
                 ks_list_push(&vm->stk, val);
+
             } else if (func->type == kso_T_kfunc) {
 
+                // ensure correct size
                 if (n_args != ((kso_kfunc)func)->params->v_list.len) {
                     ks_err_add_str_fmt("Tried calling function that takes %d args with %d args", ((kso_kfunc)func)->params->v_list.len, n_args);
                     goto handle_exception;
@@ -242,15 +301,13 @@ void _kso_vm_run(kso_vm vm) {
                 // expand call stack
                 PUSH_CALL_STK();
 
-                // set the arguments as a local variable
+                // set the arguments as a local variable in the inner most scope
                 int i;
                 for (i = 0; i < n_args; ++i) {
                     kso_str name = (kso_str)(((kso_kfunc)func)->params->v_list.items[i]);
                     ks_dict_set(&local_vars, (kso)name, name->v_hash, args[i]);
+                    //KSO_DECREF(new_obj);
                 }
-
-                // now, the arguments should be in in the global dictionary TODO: make scopes
-                DECREF_N(args, n_args);
 
                 // set cur prog/pc
                 PC = ((kso_kfunc)func)->code->bc;
@@ -258,12 +315,62 @@ void _kso_vm_run(kso_vm vm) {
                 vm->call_stk[vm->call_stk_n - 1].v_const = ((kso_kfunc)func)->code->v_const;
 
             } else {
+
                 ks_err_add_str_fmt("Invalid type to call, tried calling on type `%s`", func->type->name._);
                 //ks_error("Calling something other than 'cfunc'");
                 goto handle_exception;
             }
 
-            KSO_DECREF(func);
+            //KSO_DECREF(func);
+            // now, the arguments should be in in the locals dictionary,
+            // so decrement them
+            DECREF_N(args, n_args);
+
+            //if (new_obj != NULL) KSO_DECREF(new_obj);
+
+            NEXT();
+
+
+        do_getattr:
+            // decode get
+            DECODE(ks_bc_nameop);
+            name = (kso_str)GET_CONST(inst.nameop.name_idx);
+            etrace("getattr \"%s\" [%d]", name->v_str._, inst.nameop.name_idx);
+
+            // set up arguments
+            args_p = &vm->stk.items[vm->stk.len -= 1];
+            op_args[0] = args_p[0];
+            op_args[1] = (kso)name;
+
+            // run the global get function
+            val = kso_F_getattr->v_cfunc(vm, 2, op_args);
+            if (val == NULL) goto handle_exception;
+
+            ks_list_push(&vm->stk, val);
+
+            KSO_DECREF(op_args[0]);
+
+            NEXT();
+
+        do_setattr:
+            // decode set
+            DECODE(ks_bc_nameop);
+            name = (kso_str)GET_CONST(inst.nameop.name_idx);
+            etrace("setattr \"%s\" [%d]", name->v_str._, inst.nameop.name_idx);
+
+            // set up arguments
+            args_p = &vm->stk.items[vm->stk.len -= 2];
+            op_args[0] = args_p[0];
+            op_args[1] = (kso)name;
+            op_args[2] = args_p[1];
+
+            // run the global get function
+            val = kso_F_setattr->v_cfunc(vm, 3, op_args);
+            if (val == NULL) goto handle_exception;
+
+            ks_list_push(&vm->stk, val);
+            KSO_DECREF(op_args[0]);
+            KSO_DECREF(op_args[2]);
 
             NEXT();
 
@@ -272,15 +379,18 @@ void _kso_vm_run(kso_vm vm) {
             DECODE(ks_bc_call);
             n_args = inst.call.n_args;
             etrace("get %d", n_args);
-            args = &vm->stk.items[vm->stk.len -= n_args];
+
+            // get arguments into the array
+            args_p = &vm->stk.items[vm->stk.len -= n_args];
+            ENSURE_ARGS_HAS(n_args);
+            ARGS_COPY(n_args, args_p);
 
             // run the global get function
             val = kso_F_get->v_cfunc(vm, n_args, args);
             if (val == NULL) goto handle_exception;
 
-            KSO_INCREF(val);
-            DECREF_N(args, n_args);
             ks_list_push(&vm->stk, val);
+            DECREF_N(args, n_args);
 
             NEXT();
 
@@ -289,18 +399,20 @@ void _kso_vm_run(kso_vm vm) {
             DECODE(ks_bc_call);
             n_args = inst.call.n_args;
             etrace("set %d", n_args);
-            args = &vm->stk.items[vm->stk.len -= n_args];
+            
+            // get arguments into the array
+            args_p = &vm->stk.items[vm->stk.len -= n_args];
+            ENSURE_ARGS_HAS(n_args);
+            ARGS_COPY(n_args, args_p);
 
             // run the global get function
             val = kso_F_set->v_cfunc(vm, n_args, args);
             if (val == NULL) goto handle_exception;
 
-            KSO_INCREF(val);
-            DECREF_N(args, n_args);
             ks_list_push(&vm->stk, val);
+            DECREF_N(args, n_args);
 
             NEXT();
-
 
 
         /* binary operators are just function calls of length 2 */
@@ -310,10 +422,12 @@ void _kso_vm_run(kso_vm vm) {
         do_##_name: \
             PASS(ks_bc); \
             etrace("bop " _str); \
-            args = &(vm->stk.items[vm->stk.len -= 2]); \
-            val = ((kso_cfunc)kso_F_##_name)->v_cfunc(vm, 2, args); \
+            args_p = &(vm->stk.items[vm->stk.len -= 2]); \
+            op_args[0] = args_p[0]; op_args[1] = args_p[1]; \
+            val = ((kso_cfunc)kso_F_##_name)->v_cfunc(vm, 2, op_args); \
             if (val == NULL) goto handle_exception; \
             ks_list_push(&vm->stk, val); \
+            DECREF_N(op_args, 2); \
             NEXT(); \
             break;
 
@@ -340,7 +454,7 @@ void _kso_vm_run(kso_vm vm) {
             etrace("jmpt %+d", inst.jmp.relamt);
 
             top = ks_list_pop(&vm->stk);
-            if (top->type == kso_T_bool && KSO_CAST(kso_bool, top)->v_bool) {
+            if (top == (kso)KSO_TRUE) {
                 PC += inst.jmp.relamt;
             }
 
@@ -353,7 +467,7 @@ void _kso_vm_run(kso_vm vm) {
             etrace("jmpf %+d", inst.jmp.relamt);
 
             top = ks_list_pop(&vm->stk);
-            if (top->type == kso_T_bool && !KSO_CAST(kso_bool, top)->v_bool) {
+            if (top != (kso)KSO_TRUE) {
                 PC += inst.jmp.relamt;
             }
 
@@ -371,6 +485,7 @@ void _kso_vm_run(kso_vm vm) {
 
             if (vm->call_stk_n < call_stk_n__start) {
                 // return, now the VM has the result at the top of the stack
+                if (args != NULL) ks_free(args);
                 return;
             } else {
                 // just keep going, there are nested layers
@@ -380,6 +495,7 @@ void _kso_vm_run(kso_vm vm) {
 
         do_retnone:
             PASS(ks_bc);
+            etrace("retnone");
 
             // take off a frame
             POP_CALL_STK();
@@ -387,10 +503,65 @@ void _kso_vm_run(kso_vm vm) {
             if (vm->call_stk_n < call_stk_n__start) {
                 ks_list_push(&vm->stk, (kso)kso_V_none);
                 // ready to return
+                if (args != NULL) ks_free(args);
                 return;
             } else {
                 ks_list_push(&vm->stk, (kso)kso_V_none);
             }
+
+            NEXT();
+
+        do_scope:
+            PASS(ks_bc);
+            etrace("scope");
+
+            // put on a new scope
+            PUSH_CALL_STK();
+            vm->call_stk[vm->call_stk_n - 1] = KSO_VM_CALL_STK_ITEM_EMPTY;
+            vm->call_stk[vm->call_stk_n - 1].pc = vm->call_stk[vm->call_stk_n - 2].pc;
+            vm->call_stk[vm->call_stk_n - 1].v_const = vm->call_stk[vm->call_stk_n - 2].v_const;
+
+            NEXT();
+
+
+        do_new_type:
+
+            PASS(ks_bc);
+            etrace("new_type");
+
+            int type_mem_idx;
+            kso_type new_type = kso_type_new();
+            new_type->f_init = NULL;
+            new_type->f_free = kso_T_obj->f_free;
+            new_type->name = KS_STR_CREATE("CUSTOM");
+            new_type->f_str = kso_T_obj->f_str;
+            new_type->f_setattr = kso_T_obj->f_setattr;
+            new_type->f_getattr = kso_T_obj->f_getattr;
+
+            for (type_mem_idx = 0; type_mem_idx < local_vars.n_buckets; ++type_mem_idx) {
+                struct ks_dict_entry bucket = local_vars.buckets[type_mem_idx];
+                if (bucket.val != NULL) {
+                    // we have a used bucket, add it to type
+                    if (ks_hash_str(KS_STR_CONST("str")) == bucket.hash) {
+                        new_type->f_str = bucket.val;
+                        KSO_INCREF(bucket.val);
+                    } else if (ks_hash_str(KS_STR_CONST("init")) == bucket.hash) {
+                        new_type->f_init = bucket.val;
+                        KSO_INCREF(bucket.val);
+                    } else if (ks_hash_str(KS_STR_CONST("add")) == bucket.hash) {
+                        new_type->f_add = bucket.val;
+                        KSO_INCREF(bucket.val);
+                    }
+                }
+            }
+
+            // first, fall the PC down
+            vm->call_stk[vm->call_stk_n - 2].pc = vm->call_stk[vm->call_stk_n - 1].pc;
+
+            // remove the stack
+            POP_CALL_STK();
+
+            ks_list_push(&vm->stk, (kso)new_type);
 
             NEXT();
 
@@ -447,7 +618,11 @@ kso kso_vm_call(kso_vm vm, kso func, int n_args, kso* args) {
         // now, execute
         _kso_vm_run(vm);
 
-        return ks_list_pop(&vm->stk);
+        kso ret = ks_list_pop(&vm->stk);
+        ret->refcnt--;
+    
+        // the last item on the stack should be the one
+        return ret;
     }
 }
 

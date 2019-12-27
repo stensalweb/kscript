@@ -707,6 +707,9 @@ void ks_parse_ksasm(ks_parse* kp, kso_code to) {
     ks_free(links);
     ks_free(lbls);
     ks_str_free(&st);
+
+    // always add a return none to the end
+    ksc_retnone(to);
 }
 
 
@@ -856,6 +859,9 @@ ks_ast ks_parse_expr(ks_parse* kp) {
     // for keeping track of parenthesis, ensuring its correct
     int n_lparens = 0, n_rparens = 0;
 
+    // for keeping track of brackets
+    int n_lbracks = 0, n_rbracks = 0;
+
 
     bool is_func = false, is_subscript = false;
 
@@ -965,6 +971,22 @@ ks_ast ks_parse_expr(ks_parse* kp) {
                 Spush(out_stk, new_ast);
             }
 
+        } else if (ctok.type == KS_TOK_DOT) {
+            // do dot reference, like getattr
+
+            if (!KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; can't take '.' of something that's not a value");
+
+            // skip the dot
+            ctok = kp->tokens[++kp->tok_i];
+            if (ctok.type != KS_TOK_IDENT) {
+                KSPAE_ERR(ctok, "Invalid Syntax; attribute name must be a valid identifier");
+            }
+
+            // create the dot operator
+            new_ast = ks_ast_new_attr(Spop(out_stk), KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len));
+
+            Spush(out_stk, new_ast);
+
         } else if (ctok.type == KS_TOK_COMMA) {
             // Comma, which should be used in a function call, condense the output
             if (ltok.type == KS_TOK_COMMA) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; can't have multiple commas like this");
@@ -1052,6 +1074,7 @@ ks_ast ks_parse_expr(ks_parse* kp) {
             }
 
         } else if (ctok.type == KS_TOK_LBRACK) {
+            n_lbracks++;
 
             if (KS_TOK_ISVAL(ltok.type)) {
                 // do a subscript call
@@ -1070,6 +1093,7 @@ ks_ast ks_parse_expr(ks_parse* kp) {
             }
 
         } else if (ctok.type == KS_TOK_RBRACK) {
+            n_rbracks++;
 
             int outsp = out_stk.p, nargs = 0;
             while (outsp >= 0 && Sget(out_stk, outsp) != NULL) {
@@ -1161,6 +1185,14 @@ ks_ast ks_parse_expr(ks_parse* kp) {
         KSPAE_ERR(ctok, "Invalid Syntax; mismatched parentheses, expected another ')' after this");
     } else if (n_lparens < n_rparens) {
         KSPAE_ERR(ctok, "Invalid Syntax; mismatched parentheses, have an extra ')'");
+    }
+
+
+
+    if (n_lbracks > n_rbracks) {
+        KSPAE_ERR(ctok, "Invalid Syntax; mismatched brackets, expected another ']' after this");
+    } else if (n_lbracks < n_rbracks) {
+        KSPAE_ERR(ctok, "Invalid Syntax; mismatched brackets, have an extra ']'");
     }
 
     // while operators on the stack, should only be binary or unary, because
@@ -1276,6 +1308,21 @@ ks_ast ks_parse_block(ks_parse* kp) {
         if (body == NULL) return NULL;
         
         return ks_ast_new_while(cond, body);
+    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "for"))) {
+        // parse for (ITER) { BODY }
+        // skip `for`
+        ++kp->tok_i;
+
+        //ctok = kp->tokens[*kpi];
+        ks_ast iter = ks_parse_expr(kp);
+        if (iter == NULL) return NULL;
+
+        ks_ast body = ks_parse_block(kp);
+        if (body == NULL) return NULL;
+        
+        return ks_ast_new_for(iter, body);
+
+
     } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "func"))) {
         // parse func NAME(arg, arg, ...) { BODY }
         // skip `func`
@@ -1299,19 +1346,27 @@ ks_ast ks_parse_block(ks_parse* kp) {
         }
         ++kp->tok_i;
 
+
         // now, parse arguments
-        while (true) {
-            ctok = kp->tokens[kp->tok_i];
+        while ((ctok = kp->tokens[kp->tok_i]).type != KS_TOK_RPAREN) {
+
+            
             if (ctok.type != KS_TOK_IDENT) {
                 ks_parse_err(kp, ctok, "Expected a parameter name identifier here");
                 return NULL;
             }
+            
             // now, add a parameter
             ks_ast_func_add_param(func, KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len));
 
-            // skip ahead
-            ctok = kp->tokens[++kp->tok_i];
+            if (++kp->tok_i >= kp->tokens_n) {
+                ks_parse_err(kp, ctok, "Unexpected EOF");
+                return NULL;
+            }
+            ctok = kp->tokens[kp->tok_i];
+
             if (ctok.type == KS_TOK_COMMA) {
+                kp->tok_i++;
                 continue;
             } else {
                 break;
@@ -1337,12 +1392,75 @@ ks_ast ks_parse_block(ks_parse* kp) {
 
         return ks_ast_new_bop(KS_AST_BOP_ASSIGN, ks_ast_new_var(func_name), func);
 
+    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "type"))) {
+        // parse a type declaration;
+        // type NAME {
+        //   FUNCTIONS
+        // }
+
+        // skip `type`
+        ++kp->tok_i;
+
+        ctok = kp->tokens[kp->tok_i];
+        if (ctok.type != KS_TOK_IDENT) {
+            ks_parse_err(kp, ctok, "Expected a type name identifier here");
+            return NULL;
+        }
+
+        ks_str type_name = KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len);
+
+        ctok = kp->tokens[++kp->tok_i];
+
+        ks_ast vtype = ks_ast_new_type();
+        vtype->_type.body = ks_parse_block(kp);
+        /*
+
+        if (ctok.type != KS_TOK_LBRACE) {
+            ks_parse_err(kp, ctok, "Expected a '{' to begin type declaration here");
+            return NULL;
+        }
+
+        while ((ctok = kp->tokens[kp->tok_i]).type != KS_TOK_LBRACE) {
+
+            // keep parsing function declarations
+            if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "func"))) {
+                ks_ast new_func = ks_parse_block(kp);
+                // add function to type
+                ks_ast_type_add_member(vtype, new_func);
+            } else {
+                ks_parse_err(kp, ctok, "Expected a function definition for the type here");
+                return NULL;
+            }
+        }
+
+
+        ctok = kp->tokens[kp->tok_i];
+        if (ctok.type != KS_TOK_LBRACE) {
+            ks_parse_err(kp, ctok, "Expected a '}' to end type declaration here");
+            return NULL;
+        }
+
+        */
+        ks_ast ret = ks_ast_new_bop(KS_AST_BOP_ASSIGN, ks_ast_new_var(type_name), vtype);;
+
+        return ret;
+
     } else if (ctok.type == KS_TOK_RBRACE) {
         // this just means its the end
         return NULL;
     } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_LPAREN || ctok.type == KS_TOK_INT) {
         // assums its just a normal expression, add it
-        return ks_parse_expr(kp);
+        ks_ast expr = ks_parse_expr(kp);
+        if (expr == NULL) return NULL;
+
+        ctok = kp->tokens[kp->tok_i];
+        if (kp->tok_i >= kp->tokens_n) return expr;
+
+        if (!(ctok.type == KS_TOK_SEMI || ctok.type == KS_TOK_NEWLINE)) {
+            ks_parse_err(kp, ctok, "Invalid Syntax");
+            return NULL;
+        }
+        return expr;
     } else {
         ks_parse_err(kp, ctok, "Invalid Syntax");
         return NULL;

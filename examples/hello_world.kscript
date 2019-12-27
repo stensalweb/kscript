@@ -1,28 +1,16 @@
-
-
-func sieve(p) {
-    bits = [true] * p
-
-    i = 2
-    while i * i < p {
-        if bits[i] {
-            print (i)
-            j = i * i
-            while j < p {
-                bits[j] = false
-                j = j + i
-            }
-        }
-        i = i + 1
+#!kscript 
+type Q {
+    func init(self) {
+        self._items = []
+        ret self
     }
 
-    while i < p {
-        if bits[i] {
-            print (i)
-        }
-        i = i + 1
+    func pop(self) {
+        ret self._items[0]
     }
 }
 
+x = Q()
 
+print (x.pop())
 

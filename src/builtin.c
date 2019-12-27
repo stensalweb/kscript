@@ -127,11 +127,14 @@ FUNC(print) {
             return ks_err_add_str_fmt(_FUNCSIG ": `args[%d]`'s type (`%s`) did not have a `str()` function, so it can't be printed", i, args[i]->type->name._);
         } else if (f_str->type == kso_T_cfunc) {
             a_str = KSO_CAST(kso_cfunc, f_str)->v_cfunc(vm, 1, &args[i]);
-            if (a_str == NULL) return NULL;
+            KSO_INCREF(a_str);
+        } else if (f_str->type == kso_T_kfunc) {
+            a_str = kso_vm_call(vm, f_str, 1, &args[i]);
         } else {
             return ks_err_add_str_fmt(_FUNCSIG ": `str(args[%d])` failed, `%s.str(self)` was not callable", i, args[i]->type->name._);
         }
 
+        if (a_str == NULL) return NULL;
         // check and make sure it is a string
         if (a_str->type != kso_T_str) {
             return ks_err_add_str_fmt(_FUNCSIG ": `str(args[%d])` failed, `%s.str(self)` was not of type `str`", i, args[i]->type->name._);
@@ -141,7 +144,8 @@ FUNC(print) {
         printf("%s ", KSO_CAST(kso_str, a_str)->v_str._);
 
         // free the result that was given back
-        kso_free(a_str);
+        //kso_free(a_str);
+        KSO_DECREF(a_str);
     }
 
     // print a newline, by default
@@ -202,13 +206,60 @@ FUNC(exit) {
 }
 
 
+/* returns total memory usage */
+FUNC(memuse) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "memuse()"
+    REQ_N_ARGS(0);
+    return kso_int_new(ks_memuse());
+}
+
+
 /* OPERATORS/BUILTINS */
+
+
+FUNC(getattr) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "getattr(A, aname)"
+    REQ_N_ARGS(2);
+
+    kso A = args[0];
+
+    kso T_getattr = A->type->f_getattr;
+    if (T_getattr == NULL) {
+        return ks_err_add_str_fmt(_FUNCSIG ": Object `A` of type `%s` has no `.getattr()` method", A->type->name._);
+    } else {
+
+        return kso_vm_call(vm, T_getattr, n_args, args);
+    }
+
+    return (kso)KSO_NONE;
+}
+
+
+FUNC(setattr) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "setattr(A, aname, val)"
+    REQ_N_ARGS(3);
+
+    kso A = args[0];
+
+    kso T_setattr = A->type->f_setattr;
+
+    if (T_setattr == NULL) {
+        return ks_err_add_str_fmt(_FUNCSIG ": Object `A` of type `%s` has no `.setattr()` method", A->type->name._);
+    } else {
+        return kso_vm_call(vm, T_setattr, n_args, args);
+    }
+
+    return (kso)KSO_NONE;
+}
+
 
 
 FUNC(get) {
     #undef _FUNCSIG
     #define _FUNCSIG "get(A, idx...)"
-    // special case so that it will still exit, even if called weirdly
     REQ_N_ARGS_MIN(2);
 
     kso A = args[0];
@@ -257,14 +308,19 @@ FUNC(set) {
     if (_A->type == _B->type) { \
         kso T_opf = _A->type->_opfname; \
         if (T_opf == NULL) { TYPE_MISMATCH(_A, _B); } \
-        else return kso_vm_call(vm, T_opf, 2, _args); \
+        else { \
+            return kso_vm_call(vm, T_opf, 2, _args); \
+        } \
     } else { \
         kso AT_opf = _A->type->_opfname; \
         if (AT_opf == NULL) { TYPE_MISMATCH(_A, _B); } \
-        else return kso_vm_call(vm, AT_opf, 2, _args); \
+        else { \
+            return kso_vm_call(vm, AT_opf, 2, _args); \
+        } \
     } \
     return (kso)KSO_NONE; \
 }
+
 FUNC(add) {
     #undef _FUNCSIG
     #define _FUNCSIG "add(A, B)"
@@ -658,32 +714,36 @@ TYPEFUNC(int, eq) {
 
 /* TYPE: str */
 
-TYPEFUNC(str, init) {
+TYPEFUNC(str, from) {
     #undef _FUNCSIG
-    #define _FUNCSIG "str.init(self, val=\"\")"
-    REQ_N_ARGS_B(1, 2);
-    REQ_TYPE("self", args[0], kso_T_str);
+    #define _FUNCSIG "str.from(val=\"\")"
+    REQ_N_ARGS_B(0, 1);
 
-    kso_str self = KSO_CAST(kso_str, args[0]);
-
-    if (n_args == 1) {
-        // default to 0
-        self->v_str = KS_STR_EMPTY;
+    if (n_args == 0) {
+        // default to empty
+        return (kso)kso_str_new(KS_STR_CONST(""));
     } else {
-        kso val = args[1];
-        //TRYCALL(),
-        kso res = NULL;
-        TRYCALL("val.str()", "val.str", res, val->type->f_str, 1, &val);
+        kso val = args[0];
+        kso T_str = val->type->f_str;
+
+        if (T_str == NULL) {
+            return ks_err_add_str_fmt("No str method");
+        }
+
+        kso res = kso_vm_call(vm, T_str, 1, &val);
+
+        if (res == NULL) return NULL;
 
         REQ_TYPE("val.str()", res, kso_T_str);
 
         // now, just make it the string
         // we can do this, because `str()` should return a string, 
         // so this internal method is the only reference
-        self->v_str._ = KSO_CAST(kso_str, res)->v_str._;
+        //self->v_str._ = KSO_CAST(kso_str, res)->v_str._;
+        return res;
     }
 
-    return (kso)self;
+    return (kso)KSO_NONE;
 }
 
 TYPEFUNC(str, bool) {
@@ -739,10 +799,24 @@ TYPEFUNC(str, free) {
 
     kso_str self = KSO_CAST(kso_str, args[0]);
 
-    //ks_str_free(&self->v_str._);
+    ks_str_free(&self->v_str._);
 
     return (kso)KSO_NONE;
 }
+
+TYPEFUNC(str, add) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "str.add(A, B)"
+    REQ_N_ARGS(2);
+    REQ_TYPE("A", args[0], kso_T_str);
+    REQ_TYPE("B", args[1], kso_T_str);
+
+    kso_str A = KSO_CAST(kso_str, args[0]);
+    kso_str B = KSO_CAST(kso_str, args[1]);
+
+    return (kso)kso_str_new_cfmt("%s%s", A->v_str._, B->v_str._);
+}
+
 
 
 
@@ -904,6 +978,65 @@ TYPEFUNC(list, set) {
 }
 
 
+/* TYPE: obj */
+
+TYPEFUNC(obj, free) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "obj.free(self)"
+    REQ_N_ARGS(1);
+
+    kso_obj self = (kso_obj)args[0];
+    ks_dict_free(&self->v_attrs);
+
+    return (kso)KSO_NONE;
+}
+
+TYPEFUNC(obj, str) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "obj.str(self)"
+    REQ_N_ARGS(1);
+
+    return (kso)kso_str_new_cfmt("<'%s' obj @ %p>", args[0]->type->name._, args[0]);
+}
+
+
+TYPEFUNC(obj, getattr) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "obj.getattr(self, key)"
+    REQ_N_ARGS(2);
+    //REQ_TYPE("self", args[0], kso_T_obj);
+    REQ_TYPE("key", args[1], kso_T_str);
+
+    kso_obj self = (kso_obj)args[0];
+    kso_str key = (kso_str)args[1];
+
+    kso val = ks_dict_get(&self->v_attrs, (kso)key, key->v_hash);
+
+    if (val == NULL) {
+        return ks_err_add_str_fmt("KeyError: '%s'", key->v_str._);
+    } else {
+        return val;
+    }
+}
+
+TYPEFUNC(obj, setattr) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "obj.setattr(self, key, val)"
+    REQ_N_ARGS(3);
+    //REQ_TYPE("self", args[0], kso_T_obj);
+    REQ_TYPE("key", args[1], kso_T_str);
+
+    kso_obj self = (kso_obj)args[0];
+    kso_str key = (kso_str)args[1];
+    kso val = args[2];
+
+    ks_dict_set(&self->v_attrs, (kso)key, key->v_hash, val);
+
+    return val;
+}
+
+
+
 static struct kso_type T_cfunc;
 
 // creates a CFUNC object from a C function
@@ -940,19 +1073,25 @@ static struct kso_cfunc
     _CFUNC(int_gt),
     _CFUNC(int_eq),
 
-    _CFUNC(str_init),
+    _CFUNC(str_from),
     _CFUNC(str_free),
     _CFUNC(str_bool),
     _CFUNC(str_int),
     _CFUNC(str_str),
     _CFUNC(str_repr),
+    _CFUNC(str_add),
 
     _CFUNC(list_str),
     _CFUNC(list_repr),
     _CFUNC(list_add),
     _CFUNC(list_mul),
     _CFUNC(list_get),
-    _CFUNC(list_set)
+    _CFUNC(list_set),
+
+    _CFUNC(obj_free),
+    _CFUNC(obj_str),
+    _CFUNC(obj_getattr),
+    _CFUNC(obj_setattr)
 
 ;
 
@@ -968,64 +1107,43 @@ static struct kso_type
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("type"),
-        .f_init = NULL,
-        .f_free = NULL,
-
-        .f_bool = NULL,
-        .f_int  = NULL,
-        .f_str  = NULL,
-        .f_repr = NULL,
-
-        .f_get  = NULL,
-        .f_set  = NULL,
+        KSO_TYPE_EMPTYFILL
 
     },
     T_none = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("none"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
         .f_bool = (kso)&_none_bool,
         .f_int  = (kso)&_none_int,
         .f_str  = (kso)&_none_str,
         .f_repr = (kso)&_none_repr,
 
-        .f_get  = NULL,
-        .f_set  = NULL,
-
     },
     T_bool = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("bool"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
         .f_bool = (kso)&_bool_bool,
         .f_int  = (kso)&_bool_int,
         .f_str  = (kso)&_bool_str,
         .f_repr = (kso)&_bool_repr,
 
-        .f_get  = NULL,
-        .f_set  = NULL,
-
     },
     T_int = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("int"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
         .f_bool = (kso)&_int_bool,
         .f_int  = (kso)&_int_int,
         .f_str  = (kso)&_int_str,
         .f_repr = (kso)&_int_repr,
-
-        .f_get  = NULL,
-        .f_set  = NULL,
 
         .f_add  = (kso)&_int_add,
         .f_sub  = (kso)&_int_sub,
@@ -1043,7 +1161,9 @@ static struct kso_type
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("str"),
-        .f_init = (kso)&_str_init,
+        KSO_TYPE_EMPTYFILL
+
+        .f_call = (kso)&_str_from,
         .f_free = (kso)&_str_free,
 
         .f_bool = (kso)&_str_bool,
@@ -1051,19 +1171,15 @@ static struct kso_type
         .f_str  = (kso)&_str_str,
         .f_repr = (kso)&_str_repr,
 
-        .f_get  = NULL,
-        .f_set  = NULL,
+        .f_add  = (kso)&_str_add,
 
     },
     T_list = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("list"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
-        .f_bool = NULL,
-        .f_int  = NULL,
         .f_str  = (kso)&_list_str,
         .f_repr = (kso)&_list_repr,
 
@@ -1078,63 +1194,42 @@ static struct kso_type
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("cfunc"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
-        .f_bool = NULL,
-        .f_int  = NULL,
-        .f_str  = NULL,
-        .f_repr = NULL,
-
-        .f_get  = NULL,
-        .f_set  = NULL,
     },
     T_vm = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("vm"),
-        .f_init = NULL,
-        .f_free = NULL,
-
-        .f_bool = NULL,
-        .f_int  = NULL,
-        .f_str  = NULL,
-        .f_repr = NULL,
-
-        .f_get  = NULL,
-        .f_set  = NULL,
+        KSO_TYPE_EMPTYFILL
 
     },
     T_code = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("code"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
-        .f_bool = NULL,
-        .f_int  = NULL,
-        .f_str  = NULL,
-        .f_repr = NULL,
-
-        .f_get  = NULL,
-        .f_set  = NULL,
 
     },
     T_kfunc = {
         .type = &T_type,
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("kfunc"),
-        .f_init = NULL,
-        .f_free = NULL,
+        KSO_TYPE_EMPTYFILL
 
-        .f_bool = NULL,
-        .f_int  = NULL,
-        .f_str  = NULL,
-        .f_repr = NULL,
+    },
+    T_obj = {
+        .type = &T_type,
+        .flags = KSOF_IMMORTAL,
+        .name = KS_STR_CONST("obj"),
+        KSO_TYPE_EMPTYFILL
+        .f_free  = (kso)&_obj_free,
 
-        .f_get  = NULL,
-        .f_set  = NULL,
+        .f_str  = (kso)&_obj_str,
+
+        .f_getattr  = (kso)&_obj_getattr,
+        .f_setattr  = (kso)&_obj_setattr,
     }
 ;
 
@@ -1179,8 +1274,28 @@ static struct kso_cfunc
         .refcnt = 1,
         .v_cfunc = _F_exit
     },
-
+    F_memuse = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_memuse
+    },
     /* builtins */
+
+    F_getattr = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_getattr
+    },
+
+    F_setattr = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_setattr
+    },
+
 
     F_get = {
         .type = &T_cfunc,
@@ -1261,6 +1376,10 @@ static struct kso_cfunc
 kso_cfunc
     kso_F_print = &F_print,
     kso_F_exit = &F_exit,
+    kso_F_memuse = &F_memuse,
+
+    kso_F_getattr = &F_getattr,
+    kso_F_setattr = &F_setattr,
 
     kso_F_get = &F_get,
     kso_F_set = &F_set,
@@ -1297,7 +1416,8 @@ kso_type
     kso_T_cfunc  = &T_cfunc,
     kso_T_vm     = &T_vm,
     kso_T_code   = &T_code,
-    kso_T_kfunc  = &T_kfunc
+    kso_T_kfunc  = &T_kfunc,
+    kso_T_obj  = &T_obj
 
 ;
 
