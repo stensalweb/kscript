@@ -1062,8 +1062,7 @@ ks_ast ks_parse_expr(ks_parse* kp) {
 
                     // process all greater precedence operators:
                     while (op_stk.p >= 0) {
-                        //bool do_op = false;// || Stop(op_stk).type == SYT_SUBSCRIPT;
-                        //bool do_op = Stop(op_stk).type == SYT_FUNC || Stop(op_stk).type == SYT_SUBSCRIPT;
+                        //bool do_op = Stop(op_stk).type == SYT_FUNC;
                         bool do_op = false;
                         do_op = do_op || (Stop(op_stk).prec >= cur_op.prec + ((cur_op.assoc == SYA_LEFT) ? 0 : 1));
                         do_op = do_op && (Stop(op_stk).type != SYT_LPAREN && Stop(op_stk).type != SYT_LBRACK);
@@ -1146,8 +1145,6 @@ ks_ast ks_parse_expr(ks_parse* kp) {
                 // this is like a 'start group', so the parser knows where the function started
                 Spush(op_stk, (syop) { .type = SYT_FUNC });
             } else {
-
-                Spush(out_stk, NULL);
 
                 // just do a normal group start
                 Spush(op_stk, (syop) { .type = SYT_LPAREN });
