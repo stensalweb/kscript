@@ -231,15 +231,15 @@ static void ks_parse_tokenize(ks_parse* kp) {
             // TODO: Also support parsing multiline comments
 
             // keep parsing until a newline
-            do {
+            while ((c = ks_parse_get(kp)) && c != '\n') {
                 ks_parse_adv(kp, 1);
-            } while ((c = ks_parse_get(kp)) && c != '\n');
+            }
 
             // since we are parsing a newline, add the token first, then skip the newline
             ks_parse_addtok(kp, TOK(KS_TOK_COMMENT));
             
-            // skip the newline
-            ks_parse_adv(kp, 1);
+            // don't skip the newline
+            //ks_parse_adv(kp, 1);
         }
 
     // the `else if` case for a token that is just represents a keyword/operator/string, or anything
@@ -1184,6 +1184,9 @@ ks_ast ks_parse_expr(ks_parse* kp) {
                     KSPAE_ERR(ctok, "Invalid Syntax; unexpected ')'");
                 }
             }
+        } else if (ctok.type == KS_TOK_COMMENT) {
+            // do nothing
+            continue;
 
         } else if (ctok.type == KS_TOK_LBRACE || ctok.type == KS_TOK_RBRACE || ctok.type == KS_TOK_SEMI || ctok.type == KS_TOK_COLON) {
             // this means the expression has stopped, because it now is block syntax

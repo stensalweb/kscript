@@ -32,12 +32,12 @@ func angle(pt) {
     ret math.atan2(pt[1], pt[0])
 }
 
-x = Point(1, 0)
+x = Point(1, 0-2)
 y = Point(0, 1)
 
 
 
 
-
+print (x[0]*x[1])
 print (memuse())
 
