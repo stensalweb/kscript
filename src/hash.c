@@ -23,4 +23,10 @@ ks_hash_t ks_hash_str(ks_str str) {
 }
 
 
-
+ks_int ks_hash_obj(kso obj) {
+    if (obj->type == kso_T_str) {
+        return ((kso_str)obj)->v_hash;
+    } else {
+        return ((ks_int)obj);
+    }
+}

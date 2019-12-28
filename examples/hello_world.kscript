@@ -1,16 +1,43 @@
 #!kscript 
-type Q {
-    func init(self) {
-        self._items = []
+
+type Point {
+    func init(self, x, y) {
+        self.x = x; self.y = y
         ret self
     }
 
-    func pop(self) {
-        ret self._items[0]
+    func str(self) {
+        ret "(" + str(self.x) + ", " + str(self.y) + ")"
+    }
+
+    func get(self, i) {
+        if i == 0; ret self.x
+        if i == 1; ret self.y
+    }
+
+    # ops
+
+    func add(self, other) {
+        ret Point(self[0] + other[0], self[1] + other[1])
+    }
+
+    func mul(self, other) {
+        if type(other) == int {
+            ret Point(self[0] * other, self[1] * other)
+        }
     }
 }
 
-x = Q()
+func angle(pt) {
+    ret math.atan2(pt[1], pt[0])
+}
 
-print (x.pop())
+x = Point(1, 0)
+y = Point(0, 1)
+
+
+
+
+
+print (memuse())
 

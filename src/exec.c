@@ -9,7 +9,7 @@ This uses computed goto, essentially jumping directly to addresses
 
 // enable trace
 #ifndef NOTRACE
-#define etrace(...) ks_trace("EXEC: " __VA_ARGS__)
+#define etrace(...) ks_debug("EXEC: " __VA_ARGS__)
 #else
 #define etrace(...)
 #endif
@@ -263,7 +263,7 @@ void _kso_vm_run(kso_vm vm) {
                     memcpy(&args[1], args_p, (n_args - 1) * sizeof(*args));
                     func = ((kso_type)func)->f_init;
                 } else {
-                    ks_err_add_str_fmt("Tried calling type, but did not have .init() or .call()");
+                    ks_err_add_str_fmt("Tried calling type '%s', but did not have .init() or .call()", ((kso_type)func)->name._);
                     goto handle_exception;
 
                 }
@@ -550,6 +550,15 @@ void _kso_vm_run(kso_vm vm) {
                         KSO_INCREF(bucket.val);
                     } else if (ks_hash_str(KS_STR_CONST("add")) == bucket.hash) {
                         new_type->f_add = bucket.val;
+                        KSO_INCREF(bucket.val);
+                    } else if (ks_hash_str(KS_STR_CONST("mul")) == bucket.hash) {
+                        new_type->f_mul = bucket.val;
+                        KSO_INCREF(bucket.val);
+                    } else if (ks_hash_str(KS_STR_CONST("get")) == bucket.hash) {
+                        new_type->f_get = bucket.val;
+                        KSO_INCREF(bucket.val);
+                    } else if (ks_hash_str(KS_STR_CONST("set")) == bucket.hash) {
+                        new_type->f_set = bucket.val;
                         KSO_INCREF(bucket.val);
                     }
                 }

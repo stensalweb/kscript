@@ -165,13 +165,21 @@ FUNC(repr) {
     kso A = args[0];
 
     // get the tostring method from the ith arg
-    kso f_repr = A->type->f_str;
+    kso f_repr = A->type->f_repr;
 
     if (f_repr == NULL) {
         return (kso)kso_str_new_cfmt("<'%s' obj @ %p>", A->type->name._, A);
     } else {
         return kso_vm_call(vm, f_repr, 1, &A);
     }
+}
+/* type - get the type of an object */
+FUNC(type) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "type(A)"
+    REQ_N_ARGS(1);
+
+    return (kso_type)args[0]->type;
 }
 
 
@@ -211,7 +219,7 @@ FUNC(memuse) {
     #undef _FUNCSIG
     #define _FUNCSIG "memuse()"
     REQ_N_ARGS(0);
-    return kso_int_new(ks_memuse());
+    return (kso)kso_int_new(ks_memuse());
 }
 
 
@@ -409,6 +417,22 @@ FUNC(eq) {
 
     // do standard operator resolving
     OP_RESOLVE(f_eq, args);
+
+}
+
+
+/* TYPE: type
+
+Represents the type defining a type in kscript
+
+*/
+
+TYPEFUNC(type, eq) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "type.eq(A, B)"
+    REQ_N_ARGS(2);
+
+    return kso_bool_new(args[0] == args[1]);
 }
 
 
@@ -723,6 +747,7 @@ TYPEFUNC(str, from) {
         // default to empty
         return (kso)kso_str_new(KS_STR_CONST(""));
     } else {
+
         kso val = args[0];
         kso T_str = val->type->f_str;
 
@@ -799,7 +824,7 @@ TYPEFUNC(str, free) {
 
     kso_str self = KSO_CAST(kso_str, args[0]);
 
-    ks_str_free(&self->v_str._);
+    ks_str_free(&self->v_str);
 
     return (kso)KSO_NONE;
 }
@@ -816,6 +841,11 @@ TYPEFUNC(str, add) {
 
     return (kso)kso_str_new_cfmt("%s%s", A->v_str._, B->v_str._);
 }
+
+
+
+
+
 
 
 
@@ -946,8 +976,6 @@ TYPEFUNC(list, mul) {
 }
 
 
-
-
 TYPEFUNC(list, get) {
     #undef _FUNCSIG
     #define _FUNCSIG "list.get(self, idx)"
@@ -976,6 +1004,106 @@ TYPEFUNC(list, set) {
     
     return val;
 }
+
+
+
+/* TYPE: dict */
+
+TYPEFUNC(dict, call) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "dict.call(key0, val0, ...)"
+
+    int entries = n_args / 2;
+    kso_dict res = kso_dict_new_empty();
+    
+    int i;
+    for (i = 0; i < entries; ++i) {
+        ks_dict_set(&res->v_dict, args[2 * i], ks_hash_obj(args[2 * i]), args[2 * i + 1]);
+    }
+
+    return (kso)res;
+}
+
+
+TYPEFUNC(dict, str) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "dict.str(self)"
+    REQ_N_ARGS(1);
+    REQ_TYPE("self", args[0], kso_T_dict);
+
+    kso_dict self = KSO_CAST(kso_dict, args[0]);
+
+    kso_str strval = kso_str_new(KS_STR_CONST("["));
+
+    int i, num = 0;
+    for (i = 0; i < self->v_dict.n_buckets; ++i) {
+        struct ks_dict_entry entry = self->v_dict.buckets[i];
+        if (entry.val != NULL && entry.key != NULL) {
+
+            // get repr
+            kso key = entry.key, val = entry.val;
+            kso_str Kr = (kso_str)_F_repr(vm, 1, &key);
+            kso_str Vr = (kso_str)_F_repr(vm, 1, &val);
+
+            if (Kr->type != kso_T_str || Vr->type != kso_T_str) {
+                return ks_err_add_str_fmt(_FUNCSIG ": Internal error");
+            }
+
+            // append
+            if (num != 0) ks_str_append(&strval->v_str, KS_STR_CONST(", "));
+
+            ks_str_append(&strval->v_str, Kr->v_str);
+            ks_str_append(&strval->v_str, KS_STR_CONST(": "));
+            ks_str_append(&strval->v_str, Vr->v_str);
+
+            // clean up if possible
+            KSO_CHKREF(Kr);
+            KSO_CHKREF(Vr);
+            num++;
+        }
+
+    }
+
+    ks_str_append(&strval->v_str, KS_STR_CONST("]"));
+    return (kso)strval;
+}
+
+
+
+
+TYPEFUNC(dict, get) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "dict.get(self, key)"
+    REQ_N_ARGS(2);
+    REQ_TYPE("self", args[0], kso_T_dict);
+
+    kso_dict self = KSO_CAST(kso_dict, args[0]);
+    kso key = args[1];
+    kso res = ks_dict_get(&self->v_dict, key, ks_hash_obj(key));
+
+    if (res == NULL) {
+        return ks_err_add_str_fmt(_FUNCSIG ": KeyError");
+    } else {
+        return res;
+    }
+
+}
+
+TYPEFUNC(dict, set) {
+    #undef _FUNCSIG
+    #define _FUNCSIG "dict.get(self, key, val)"
+    REQ_N_ARGS(3);
+    REQ_TYPE("self", args[0], kso_T_dict);
+
+    kso_dict self = KSO_CAST(kso_dict, args[0]);
+    kso key = args[1];
+    kso val = args[2];
+    ks_dict_set(&self->v_dict, key, ks_hash_obj(key), val);
+
+    return val;
+
+}
+
 
 
 /* TYPE: obj */
@@ -1049,6 +1177,9 @@ list of C-functions implementing type functions
 */
 
 static struct kso_cfunc 
+
+    _CFUNC(type_eq),
+
     _CFUNC(none_bool),
     _CFUNC(none_int),
     _CFUNC(none_str),
@@ -1088,6 +1219,11 @@ static struct kso_cfunc
     _CFUNC(list_get),
     _CFUNC(list_set),
 
+    _CFUNC(dict_call),
+    _CFUNC(dict_str),
+    _CFUNC(dict_get),
+    _CFUNC(dict_set),
+
     _CFUNC(obj_free),
     _CFUNC(obj_str),
     _CFUNC(obj_getattr),
@@ -1108,6 +1244,8 @@ static struct kso_type
         .flags = KSOF_IMMORTAL,
         .name = KS_STR_CONST("type"),
         KSO_TYPE_EMPTYFILL
+
+        .f_eq   = (kso)&_type_eq,
 
     },
     T_none = {
@@ -1188,6 +1326,20 @@ static struct kso_type
         
         .f_get  = (kso)&_list_get,
         .f_set  = (kso)&_list_set,
+
+    },
+    T_dict = {
+        .type = &T_type,
+        .flags = KSOF_IMMORTAL,
+        .name = KS_STR_CONST("dict"),
+        KSO_TYPE_EMPTYFILL
+
+        .f_str  = (kso)&_dict_str,
+
+        .f_call = (kso)&_dict_call,
+
+        .f_get = (kso)&_dict_get,
+        .f_set = (kso)&_dict_set,
 
     },
     T_cfunc = {
@@ -1280,6 +1432,20 @@ static struct kso_cfunc
         .refcnt = 1,
         .v_cfunc = _F_memuse
     },
+    F_type = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_type
+    },
+
+    F_repr = {
+        .type = &T_cfunc,
+        .flags = KSOF_IMMORTAL,
+        .refcnt = 1,
+        .v_cfunc = _F_repr
+    },
+
     /* builtins */
 
     F_getattr = {
@@ -1377,6 +1543,8 @@ kso_cfunc
     kso_F_print = &F_print,
     kso_F_exit = &F_exit,
     kso_F_memuse = &F_memuse,
+    kso_F_type = &F_type,
+    kso_F_repr = &F_repr,
 
     kso_F_getattr = &F_getattr,
     kso_F_setattr = &F_setattr,
@@ -1413,6 +1581,7 @@ kso_type
     kso_T_int    = &T_int,
     kso_T_str    = &T_str,
     kso_T_list   = &T_list,
+    kso_T_dict   = &T_dict,
     kso_T_cfunc  = &T_cfunc,
     kso_T_vm     = &T_vm,
     kso_T_code   = &T_code,

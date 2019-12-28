@@ -237,5 +237,11 @@ void ks_dict_free(ks_dict* dict) {
     *dict = KS_DICT_EMPTY;
 }
 
-
-
+kso_dict kso_dict_new_empty() {
+    kso_dict ret = (kso_dict)ks_malloc(sizeof(*ret));
+    ret->type = kso_T_dict;
+    ret->flags = KSOF_NONE;
+    ret->refcnt = 0;
+    ret->v_dict = KS_DICT_EMPTY;
+    return ret;
+}

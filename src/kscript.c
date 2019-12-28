@@ -12,8 +12,8 @@
 int main(int argc, char** argv) {
 
     ks_init();
-    //ks_set_loglvl(KS_LOGLVL_TRACE);
     ks_set_loglvl(KS_LOGLVL_DEBUG);
+    //ks_set_loglvl(KS_LOGLVL_TRACE);
 
     // construct a virtual machine to run code on
     kso_vm vm = kso_vm_new_empty();
@@ -25,13 +25,17 @@ int main(int argc, char** argv) {
 
     // set a few globals, the built-ins
     SET_GLOBAL("print", kso_F_print)
+    SET_GLOBAL("repr", kso_F_repr)
     SET_GLOBAL("memuse", kso_F_memuse)
+    SET_GLOBAL("type", kso_F_type)
 
     // operators
     SET_GLOBAL("add", kso_F_add)
 
     // types
+    SET_GLOBAL("int", kso_T_int)
     SET_GLOBAL("str", kso_T_str)
+    SET_GLOBAL("dict", kso_T_dict)
 
     // ensure there were no errors
     if (ks_err_dumpall()) return -1;

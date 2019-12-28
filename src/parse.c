@@ -826,18 +826,18 @@ syop
 ks_ast ks_parse_expr(ks_parse* kp) {
 
     // stack macros
-    #define Spush(_stk, _val) { if (++_stk.p >= _stk.p_max - 2) { _stk.base = ks_realloc(_stk.base, (_stk.p + 1) * sizeof(_stk.base[0])); } _stk.base[_stk.p] = _val; }
+    #define Spush(_stk, _val) { _stk.p++; if (_stk.p >= _stk.p_max - 4) { _stk.base = ks_realloc(_stk.base, (_stk.p + 1) * sizeof(_stk.base[0])); } _stk.base[_stk.p] = _val; }
     #define Spop(_stk) _stk.base[_stk.p--]
     #define Spop_unused(_stk) _stk.p--
     #define Stop(_stk) _stk.base[_stk.p]
     #define Sget(_stk, _idx) _stk.base[_idx]
 
-    static struct {
+    struct {
         int p, p_max;
         syop* base;
     } op_stk = { -1, 0, NULL };
 
-    static struct {
+    struct {
         int p, p_max;
         ks_ast* base;
     } out_stk = { -1, 0, NULL };
@@ -872,8 +872,6 @@ ks_ast ks_parse_expr(ks_parse* kp) {
     //   scooping up values and forming the ASTs
     #define PROCESS_OPERATOR { \
         syop top = Spop(op_stk); \
-        is_func = false; \
-        is_subscript = false; \
         if (top.type == SYT_BOP) { \
             if (out_stk.p+1 < 2) { \
                 KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of operator"); \
@@ -911,10 +909,10 @@ ks_ast ks_parse_expr(ks_parse* kp) {
             ks_ast node = ks_ast_new_subscript(Sget(out_stk, outsp - 1), nargs, &Sget(out_stk, outsp + 1)); \
             out_stk.p = outsp; \
             if (Spop(out_stk) != NULL) { \
-                KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of function call"); \
+                KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of subscript call"); \
             } \
             out_stk.p--; \
-            /* push out the function call */ \
+            /* push out the subscript call */ \
             Spush(out_stk, node); \
             is_subscript = true; \
             break; \
@@ -944,7 +942,9 @@ ks_ast ks_parse_expr(ks_parse* kp) {
 
             ks_str_copy(&str, KS_STR_VIEW(kp->src._+ctok.state.i, ctok.len));
             new_ast = ks_ast_new_const_int(atoll(str._));
+
             Spush(out_stk, new_ast);
+
         } else if (ctok.type == KS_TOK_STR) {
             if (KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; didn't expect 2 values in a row like this");
 
@@ -954,6 +954,7 @@ ks_ast ks_parse_expr(ks_parse* kp) {
 
         } else if (ctok.type == KS_TOK_IDENT) {
             if (KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; didn't expect 2 values in a row like this");
+
 
             /* first, check for keywords */
             if (TOK_EQ(ctok, "true")) {
@@ -990,14 +991,18 @@ ks_ast ks_parse_expr(ks_parse* kp) {
         } else if (ctok.type == KS_TOK_COMMA) {
             // Comma, which should be used in a function call, condense the output
             if (ltok.type == KS_TOK_COMMA) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; can't have multiple commas like this");
-            if (ltok.type == KS_TOK_LPAREN) KSPAE_ERR(ltok, "Invalid Syntax; expected some value after this");
+            if (ltok.type == KS_TOK_LPAREN || ltok.type == KS_TOK_LBRACK) KSPAE_ERR(ltok, "Invalid Syntax; expected some value after this");
 
             if (KS_TOK_ISOP(ltok.type)) KSPAE_ERR(ctok, "Invalid Syntax; didn't expect a `,` after an operator");
 
+            //printf("THING[%d], %p\n", out_stk.p, out_stk.base[1]);
+
             // reduce top of stack
-            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_FUNC && Stop(op_stk).type != SYT_LBRACK) {
+            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_FUNC && Stop(op_stk).type != SYT_SUBSCRIPT 
+                    && Stop(op_stk).type != SYT_LBRACK) {
                 PROCESS_OPERATOR
             }
+
 
         } else if (KS_TOK_ISOP(ctok.type)) {
 
@@ -1007,7 +1012,7 @@ ks_ast ks_parse_expr(ks_parse* kp) {
             #define KPE_OC(_in, _opstr, _opval) if (strlen(_opstr) == _in.len && strncmp(kp->src._ + _in.state.i, _opstr, _in.len) == 0) { cur_op = _opval; }
 
 
-            if (ltok.type == KS_TOK_NONE || ltok.type == KS_TOK_COMMA || ltok.type == KS_TOK_LPAREN || (KS_TOK_ISOP(ltok.type) && last_op.type == SYT_BOP)) {
+            if (ltok.type == KS_TOK_NONE || ltok.type == KS_TOK_COMMA || ltok.type == KS_TOK_LPAREN || ltok.type == KS_TOK_LBRACK || (KS_TOK_ISOP(ltok.type) && last_op.type == SYT_BOP)) {
                 // unary prefix operator
 
                 //KPE_OC(ctok, "++", syuop_preinc) else 
@@ -1057,9 +1062,11 @@ ks_ast ks_parse_expr(ks_parse* kp) {
 
                     // process all greater precedence operators:
                     while (op_stk.p >= 0) {
-                        bool do_op = Stop(op_stk).type == SYT_FUNC;
-                        do_op = do_op || Stop(op_stk).prec >= cur_op.prec + ((cur_op.assoc == SYA_LEFT) ? 0 : 1);
-                        do_op = do_op && Stop(op_stk).type != SYT_LPAREN && Stop(op_stk).type != SYT_FUNC;
+                        //bool do_op = false;// || Stop(op_stk).type == SYT_SUBSCRIPT;
+                        //bool do_op = Stop(op_stk).type == SYT_FUNC || Stop(op_stk).type == SYT_SUBSCRIPT;
+                        bool do_op = false;
+                        do_op = do_op || (Stop(op_stk).prec >= cur_op.prec + ((cur_op.assoc == SYA_LEFT) ? 0 : 1));
+                        do_op = do_op && (Stop(op_stk).type != SYT_LPAREN && Stop(op_stk).type != SYT_LBRACK);
                         if (do_op) {
                             PROCESS_OPERATOR
                         } else {
@@ -1083,28 +1090,33 @@ ks_ast ks_parse_expr(ks_parse* kp) {
 
                 Spush(out_stk, NULL);
 
+
                 // this is like a 'start group', so the parser knows where the function started
                 Spush(op_stk, (syop) { .type = SYT_SUBSCRIPT });
+            
             } else {
-                // add on a [] group start
+                // add a marker
                 Spush(out_stk, NULL);
-                Spush(op_stk, (syop) { .type = SYT_LBRACK });
 
+                // add on a [] group start
+                Spush(op_stk, (syop) { .type = SYT_LBRACK });
             }
 
         } else if (ctok.type == KS_TOK_RBRACK) {
             n_rbracks++;
+            is_func = false;
+            is_subscript = false;
 
-            int outsp = out_stk.p, nargs = 0;
+            int nargs = 0;
+            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_LBRACK) {
+                PROCESS_OPERATOR
+            }
+
+            int outsp = out_stk.p;
             while (outsp >= 0 && Sget(out_stk, outsp) != NULL) {
                 outsp--;
                 nargs++;
             }
-            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_LBRACK) {
-                PROCESS_OPERATOR
-                nargs--;
-            }
-
 
             if (is_subscript) {
                 // already handled it
@@ -1112,8 +1124,10 @@ ks_ast ks_parse_expr(ks_parse* kp) {
 
                 ks_ast node = ks_ast_new_list(nargs, &Sget(out_stk, outsp + 1));
                 out_stk.p = outsp;
-                if (Spop(out_stk) != NULL) {
-                    KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of list creation via []");
+                ks_ast rpop = Spop(out_stk);
+
+                if (rpop != NULL) {
+                    KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of list creation via [...]");
                 }
                 Spush(out_stk, node);
             }
@@ -1132,12 +1146,17 @@ ks_ast ks_parse_expr(ks_parse* kp) {
                 // this is like a 'start group', so the parser knows where the function started
                 Spush(op_stk, (syop) { .type = SYT_FUNC });
             } else {
+
+                Spush(out_stk, NULL);
+
                 // just do a normal group start
                 Spush(op_stk, (syop) { .type = SYT_LPAREN });
             }
 
         } else if (ctok.type == KS_TOK_RPAREN) {
             n_rparens++;
+            is_func = false;
+            is_subscript = false;
 
             if (ltok.type == KS_TOK_COMMA || (KS_TOK_ISOP(ltok.type) && last_op.type == SYT_UOP && last_op.assoc == SYA_UNARY_PRE)) {
                 KSPAE_ERR(ltok, "Invalid Syntax; expected some value after this");
@@ -1186,8 +1205,6 @@ ks_ast ks_parse_expr(ks_parse* kp) {
     } else if (n_lparens < n_rparens) {
         KSPAE_ERR(ctok, "Invalid Syntax; mismatched parentheses, have an extra ')'");
     }
-
-
 
     if (n_lbracks > n_rbracks) {
         KSPAE_ERR(ctok, "Invalid Syntax; mismatched brackets, expected another ']' after this");
@@ -1255,7 +1272,8 @@ ks_ast ks_parse_block(ks_parse* kp) {
             // recursively parse it
             ks_ast_block_add(body, body_sub);
 
-        } while (true);
+        } while (kp->tok_i < kp->tokens_n);
+        if (kp->tok_i >= kp->tokens_n) kp->tok_i--;
 
         // expect '}'
         if (ctok.type != KS_TOK_RBRACE) {
@@ -1270,8 +1288,6 @@ ks_ast ks_parse_block(ks_parse* kp) {
         // parse ret val
         // skip `ret`
         ++kp->tok_i;
-
-        //printf("::%s\n", kp->src._ + kp->tokens[kp->tok_i].state.i);
 
         ks_ast val = ks_parse_expr(kp);
         if (val == NULL) return NULL;
@@ -1448,7 +1464,7 @@ ks_ast ks_parse_block(ks_parse* kp) {
     } else if (ctok.type == KS_TOK_RBRACE) {
         // this just means its the end
         return NULL;
-    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_LPAREN || ctok.type == KS_TOK_INT) {
+    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_LPAREN || ctok.type == KS_TOK_LBRACK || ctok.type == KS_TOK_INT) {
         // assums its just a normal expression, add it
         ks_ast expr = ks_parse_expr(kp);
         if (expr == NULL) return NULL;
@@ -1456,7 +1472,7 @@ ks_ast ks_parse_block(ks_parse* kp) {
         ctok = kp->tokens[kp->tok_i];
         if (kp->tok_i >= kp->tokens_n) return expr;
 
-        if (!(ctok.type == KS_TOK_SEMI || ctok.type == KS_TOK_NEWLINE)) {
+        if (!(ctok.type == KS_TOK_SEMI || ctok.type == KS_TOK_NEWLINE || ctok.type == KS_TOK_RBRACE)) {
             ks_parse_err(kp, ctok, "Invalid Syntax");
             return NULL;
         }

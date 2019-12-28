@@ -98,6 +98,18 @@ ks_ast ks_ast_new_list(int items_n, ks_ast* items) {
     }
     return ret;
 }
+ks_ast ks_ast_new_tuple(int items_n, ks_ast* items) {
+    ks_ast ret = (ks_ast)ks_malloc(sizeof(*ret));
+    ret->type = KS_AST_TUPLE;
+    ret->_tuple.items_n = items_n;
+    if (items_n > 0) {
+        ret->_tuple.items = ks_malloc(sizeof(*ret->_tuple.items) * items_n);
+        memcpy(ret->_tuple.items, items, sizeof(*ret->_tuple.items) * items_n);
+    } else {
+        ret->_tuple.items = NULL;
+    }
+    return ret;
+}
 
 
 ks_ast ks_ast_new_ret(ks_ast val) {
@@ -373,6 +385,16 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
 
         DEPINC(1-ast->_list.items_n);
 
+    } else if (ast->type == KS_AST_TUPLE) {
+        int i;
+        for (i = 0; i < ast->_list.items_n; ++i) {
+            _ks_ast_codegen(ast->_list.items[i], to, geni);
+        }
+
+        ksc_list(to, ast->_list.items_n);
+
+        DEPINC(1-ast->_list.items_n);
+
     } else if (ast->type == KS_AST_IF) {
         // compute the conditional, so it is at the top of the stack
         _ks_ast_codegen(ast->_if.cond, to, geni);
@@ -385,6 +407,7 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
         // position of the body, fill this in later
         int p_body = to->bc_n;
         _ks_ast_codegen(ast->_if.body, to, geni);
+        RESET_STK(0);
 
         int32_t diff = to->bc_n - p_body;
 
@@ -406,6 +429,7 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
         // position of the body, fill this in later
         int p_body = to->bc_n;
         _ks_ast_codegen(ast->_while.body, to, geni);
+        RESET_STK(0);
 
         // now, jump to start of loop and try again
         int32_t diff = p_cond - to->bc_n;
@@ -468,11 +492,7 @@ void _ks_ast_codegen(ks_ast ast, kso_code to, cgi* geni) {
             _ks_ast_codegen(ast->_block.subs[i], to, geni);
 
             // unless, its returning something, reset the stack back
-            while (geni->stk_depth > start_depth) {
-                ksc_discard(to);
-                DEPINC(-1);
-            }
-            //RESET_STK(start_depth);
+            RESET_STK(0);
         }
     } else if (ast->type == KS_AST_FUNC) {
         kso_code func_code = kso_code_new_empty(to->v_const);

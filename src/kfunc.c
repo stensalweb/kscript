@@ -10,6 +10,8 @@ kso_kfunc kso_kfunc_new(kso_list params, kso_code code) {
     ret->refcnt = 0;
     ret->code = code;
     ret->params = params;
+
+    // record references
     KSO_INCREF(ret->code);
     KSO_INCREF(ret->params);
 

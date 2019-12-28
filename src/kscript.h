@@ -195,6 +195,8 @@ void ks_dict_free(ks_dict* dict);
 
 typedef struct kso_str* kso_str;
 
+typedef struct kso_dict* kso_dict;
+
 typedef struct kso_vm* kso_vm;
 
 // a type representing a C-callable function, taking any number of arguments
@@ -412,6 +414,23 @@ typedef struct kso_list {
 kso_list kso_list_new_empty();
 kso_list kso_list_new(int len, kso* items);
 
+
+/* the 'dict'-type, representing a dictionary of values */
+
+extern kso_type kso_T_dict;
+
+struct kso_dict {
+    KSO_BASE
+
+    // the actual dictionary
+    ks_dict v_dict;
+};
+
+
+// construct an empty dictionary
+kso_dict kso_dict_new_empty();
+
+
 /* the `iter`-type, representing an iterable collection */
 
 extern kso_type kso_T_iter;
@@ -442,6 +461,8 @@ typedef struct kso_cfunc {
 // the builtin C functions
 
 extern kso_cfunc
+    kso_F_repr,
+    kso_F_type,
     kso_F_print,
     kso_F_exit,
     kso_F_memuse,
@@ -924,6 +945,9 @@ enum {
     // [...]
     KS_AST_LIST,
 
+    // (...,)
+    KS_AST_TUPLE,
+
     // binary operators
     KS_AST_BOP_ADD,
     KS_AST_BOP_SUB,
@@ -1001,6 +1025,14 @@ struct ks_ast {
         } _list;
 
         struct {
+            // number of items in the list
+            int items_n;
+
+            // list of items
+            ks_ast* items;
+        } _tuple;
+
+        struct {
             // left and right arguments
             ks_ast L, R;
         } _bop;
@@ -1057,6 +1089,7 @@ ks_ast ks_ast_new_attr(ks_ast obj, ks_str aname);
 ks_ast ks_ast_new_call(ks_ast func, int args_n, ks_ast* args);
 ks_ast ks_ast_new_subscript(ks_ast obj, int args_n, ks_ast* args);
 ks_ast ks_ast_new_list(int items_n, ks_ast* items);
+ks_ast ks_ast_new_tuple(int items_n, ks_ast* items);
 ks_ast ks_ast_new_ret(ks_ast val);
 
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
@@ -1302,7 +1335,8 @@ ks_hash_t ks_hash_bytes(uint8_t* data, int n);
 // returns the hash of a string
 ks_hash_t ks_hash_str(ks_str str);
 
-
+// returns the hash of an object
+ks_int ks_hash_obj(kso obj);
 
 /* logging */
 

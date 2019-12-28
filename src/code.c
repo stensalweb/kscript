@@ -8,6 +8,7 @@ kso_code kso_code_new_empty(kso_list v_const) {
     ret->type = kso_T_code;
     ret->flags = KSOF_NONE;
     ret->refcnt = 0;
+
     if (v_const != NULL) KSO_INCREF(v_const);
     ret->v_const = v_const;
     ret->bc = NULL;

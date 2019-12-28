@@ -25,6 +25,8 @@ kso_list kso_list_new(int len, kso* items) {
         int i;
         for (i = 0; i < len; ++i) {
             ret->v_list.items[i] = items[i];
+
+            // record references to items
             KSO_INCREF(items[i]);
         }
     }

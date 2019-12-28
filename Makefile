@@ -21,9 +21,6 @@ libkscript_src := $(addprefix src/, util.c log.c mem.c hash.c error.c int.c str.
 #   commandline)
 kscript_src    := $(addprefix src/, kscript.c)
 
-# the standard module
-MOD_std_src    := $(addprefix std/, )
-
 # testers source
 tests_src      := $(addprefix tests/, dict.c)
 
@@ -31,7 +28,6 @@ tests_src      := $(addprefix tests/, dict.c)
 # now, generate a list of `.o` files needed
 libkscript_o   := $(patsubst %.c,%.o, $(libkscript_src))
 kscript_o      := $(patsubst %.c,%.o, $(kscript_src))
-MOD_std_o      := $(patsubst %.c,%.o, $(MOD_std_src))
 tests_o        := $(patsubst %,%.o, $(tests_src))
 
 # -*- OUTPUT FILES
@@ -40,9 +36,6 @@ tests_o        := $(patsubst %,%.o, $(tests_src))
 libkscript_so  := libkscript.so
 # and static
 libkscript_a   := libkscript.a
-
-# modules
-MOD_std_so     := libMOD_std.so
 
 # where to build the executable to
 kscript_exe    := kscript
@@ -59,7 +52,7 @@ default: $(kscript_exe)
 # using wildcard means it only removes what exists, which makes for more useful
 #   messages
 clean:
-	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a) $(MOD_std_so) $(MOD_std_o))
+	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a))
 
 # rule to built the testers
 tests/%: tests/%.c
@@ -82,13 +75,9 @@ $(libkscript_so): $(libkscript_o)
 $(libkscript_a): $(libkscript_o)
 	$(AR) cr $@ $^
 
-# rule to build a library
-$(MOD_std_so): $(MOD_std_o)
-	$(CC) $(CFLAGS) -L./ -shared $^ -lkscript -o $@
-
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
 $(kscript_exe): $(kscript_o) $(libkscript_so) $(MOD_std_so)
-	$(CC) $(CFLAGS) -Wl,-rpath=./ -L./ $(kscript_o) -lkscript -lMOD_std -lm -ldl -o $@
+	$(CC) $(CFLAGS) -Wl,-rpath=./ -L./ $(kscript_o) -lkscript -lm -ldl -o $@
 
