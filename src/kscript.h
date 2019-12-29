@@ -239,7 +239,6 @@ enum {
 
 /* the 'type'-type, representing a type of data */
 
-
 typedef struct kso_type {
     KSO_BASE
 
