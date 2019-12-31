@@ -3,20 +3,22 @@
 Uses exponential reallocation for better performance,
 instead of reallocing `size`, it reallocs `A*size+B`
 
-
 */
 
-#include "kscript.h"
+#include "ks.h"
 
-// A in A*size+B
-#define MEM_EQ_A 1.2
-// B in A*size+B
-#define MEM_EQ_B 8
+// constants for the memory upsizing equation
+#define MEM_CONST_A 1.3
+#define MEM_CONST_B 4
 
-// trace the memory
-//#define memtrace(...) ks_trace(__VA_ARGS__)
-#define memtrace(...) 
+// rounds up to the next memory size for the reallocation scheme
+#define MEM_NEXT_SIZE(_num) ((uint64_t)((_num) * MEM_CONST_A + MEM_CONST_B))
 
+// trace the memory allocations
+#define memtrace(...) ks_trace(__VA_ARGS__)
+//#define memtrace(...) 
+
+// prefixes for sizes
 static const char* size_pfx[] = {
     "B ",
     "KB",
@@ -26,6 +28,7 @@ static const char* size_pfx[] = {
     "PB"
 };
 
+// get the prefix for a byte-size
 static const char* bs_pfx(size_t bytes) {
     int idx = 0;
     while (bytes > 1024) {
@@ -35,6 +38,7 @@ static const char* bs_pfx(size_t bytes) {
     return size_pfx[idx];
 }
 
+// get the manissa value for a given size
 static int bs_mantissa(size_t bytes) {
     int idx = 0;
     while (bytes > 1024) {
@@ -45,79 +49,106 @@ static int bs_mantissa(size_t bytes) {
 }
 
 
+// keep track of the sum of all memory allocated - freed
 static size_t total_mem = 0;
 
-// internal buffer structure
+// internal buffer structure, which holds meta-data about how many bytes were actually allocated,
+// and then the pointer is right on top of it
 struct ksi_buf {
 
-    uint32_t size;
-    char data[1];
+    uint64_t size;
+    void* data[0];
 
 };
 
-
+// allocate `bytes` bytes of memories
 void* ks_malloc(size_t bytes) {
     if (bytes == 0) return NULL;
 
-    // 500MB info
+    // give information about allocations > 500 MB
     if (bytes > 500 * 1024 * 1024) {
-        ks_info("[LARGE] allocating %lu%s", bs_mantissa(bytes), bs_pfx(bytes));
+        ks_debug("[LARGE] allocating %lu%s...", bs_mantissa(bytes), bs_pfx(bytes));
     }
     
-    struct ksi_buf* p = malloc(sizeof(uint32_t) + bytes);
-    if (p == NULL) {
+    // use the C standard library malloc to get a large enough buffer to hold the meta and data size requestd
+    struct ksi_buf* buf = malloc(sizeof(struct ksi_buf) + bytes);
+
+    // check for a problem
+    if (buf == NULL) {
         ks_error("ks_malloc(%lu%s) failed!", bs_mantissa(bytes), bs_pfx(bytes));
     }
+    // set the size
+    buf->size = bytes;
 
-    total_mem += bytes;
-    p->size = bytes;
-    void* res = (void*)&p->data;
+    // get the offset giving the user pointer
+    void* usr_ptr = (void*)&buf->data;
 
-    memtrace("ks_malloc(%lu) -> %p", bytes, res);
+    // do tracing
+    memtrace("ks_malloc(%lu) -> %p # size: %lu%s", bytes, usr_ptr, bs_mantissa(bytes), bs_pfx(bytes));
 
-    return res;
+    // now, add the amount of memory to our totals
+    total_mem += buf->size;
+
+    return usr_ptr;
 }
 
 void* ks_realloc(void* ptr, size_t bytes) {
+    if (bytes == 0) return NULL;
     if (ptr == NULL) return ks_malloc(bytes);
 
-    // 500MB info
+    // give information when reallocing 500MB or larger
     if (bytes > 500 * 1024 * 1024) {
         ks_info("[LARGE] re-allocating %lu%s", bs_mantissa(bytes), bs_pfx(bytes));
     }
 
-    struct ksi_buf* p = (struct ksi_buf*)(((uintptr_t)ptr) - sizeof(uint32_t));
-    void* res = NULL;
+    // first, rewind behind the buffer and read the metadata
+    struct ksi_buf* buf = &((struct ksi_buf*)ptr)[-1];
 
-    if (p->size < bytes) {
-        bytes = (size_t)(MEM_EQ_A * bytes + MEM_EQ_B);
-        p = realloc(p, sizeof(uint32_t) + bytes);
+    uint64_t start_size = buf->size;
 
-        if (p == NULL) {
-            ks_error("ks_realloc(%p, %lu) failed!", ptr, bytes);
+    if (buf->size < bytes) {
+        // calculate the next size up
+        buf->size = MEM_NEXT_SIZE(bytes);
+        /*buf->size = MEM_NEXT_SIZE(buf->size);
+        // keep going until its large enough
+        while (buf->size < bytes) {
+            buf->size = MEM_NEXT_SIZE(buf->size);
+        }*/
+
+        // now, reallocate it
+        buf = realloc(buf, sizeof(struct ksi_buf) + buf->size);
+
+        if (buf == NULL) {
+            ks_error("ks_realloc(%p, %lu) failed!", ptr, buf->size);
             return NULL;
         }
     }
 
-    res = (void*)&p->data;
+    // get the user pointer
+    void* usr_ptr = (void*)&buf->data;
 
-    total_mem += bytes - p->size; 
-    p->size = bytes;
+    memtrace("ks_realloc(%p, %lu) -> %p", ptr, bytes, usr_ptr);
 
-    memtrace("ks_realloc(%p, %lu) -> %p", ptr, bytes, res);
+    // record memory changes
+    total_mem += buf->size - start_size; 
 
-    return res;
+    return usr_ptr;
 }
 
 
 void ks_free(void* ptr) {
     if (ptr == NULL) return;
 
-    struct ksi_buf* p = (struct ksi_buf*)((uintptr_t)ptr - sizeof(uint32_t));
-    total_mem -= p->size;
-    free(p);
+    // get the buffer from underneath the data
+    struct ksi_buf* buf = &((struct ksi_buf*)ptr)[-1];
 
-    memtrace("ks_free(%p)", ptr);
+    // record memory difference
+    total_mem -= buf->size;
+
+    memtrace("ks_free(%p) # size: %lu%s", ptr, bs_mantissa(buf->size), bs_pfx(buf->size));
+
+    // internally free it
+    free(buf);
 
 }
 

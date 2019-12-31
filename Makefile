@@ -15,20 +15,16 @@ CFLAGS     ?= -O3 -std=c99
 
 # the sources for our kscript library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libkscript_src := $(addprefix src/, util.c log.c mem.c hash.c error.c int.c str.c list.c dict.c type.c code.c kfunc.c vm.c exec.c obj.c parse.c ast.c builtin.c )
+libkscript_src := $(addprefix src/, mem.c log.c err.c kso.c exec.c funcs.c codegen.c parse.c util.c )
 
 # the sources for the kscript executable (so things can be ran from 
 #   commandline)
-kscript_src    := $(addprefix src/, kscript.c)
-
-# testers source
-tests_src      := $(addprefix tests/, dict.c)
+kscript_src    := $(addprefix src/, ks.c)
 
 
 # now, generate a list of `.o` files needed
 libkscript_o   := $(patsubst %.c,%.o, $(libkscript_src))
 kscript_o      := $(patsubst %.c,%.o, $(kscript_src))
-tests_o        := $(patsubst %,%.o, $(tests_src))
 
 # -*- OUTPUT FILES
 
@@ -53,11 +49,6 @@ default: $(kscript_exe)
 #   messages
 clean:
 	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a))
-
-# rule to built the testers
-tests/%: tests/%.c
-	$(CC) $(CFLAGS) -L./ -Isrc -fPIC $< -lkscript -o $@
-
 
 # rule to build the object files (.o's) from a C file
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`

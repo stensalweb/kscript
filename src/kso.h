@@ -1,0 +1,758 @@
+/* kso.h - implementation of builtin objects/types */
+
+
+#pragma once
+
+#ifndef KSO_H__
+#define KSO_H__
+
+#include "ks.h"
+
+/* explanation:
+
+Everything in kscript is an object, and can be casted to a `kso`
+
+Primarily, these things are reference counted, using the `->refcnt` value
+
+And so, they can be garbage collected when it reaches 0.
+
+By default, when an object is created, its reference count is 0, you need to always make any reference apparanent
+
+*/
+
+// kscript object, as a pointer to the internal structure
+typedef struct kso* kso;
+
+// forward declaration of the type-type
+typedef struct ks_type* ks_type;
+
+// the base that should begin every object definition
+// `refcnt` is the number of alive references
+// `flags` are object flags (see KSOF_* macro/enums)
+// `type` is a pointer to the type
+#define KSO_BASE int32_t refcnt; uint32_t flags; ks_type type;
+
+enum {
+    KSOF_NONE = 0
+};
+
+// something to initialize, with a reference count
+#define KSO_BASE_INIT_R(_type, _flags, _refcnt) .refcnt = (int32_t)(_refcnt), .flags = (uint32_t)(_flags), .type = (ks_type)(_type), 
+
+// something to place in the base initializer, which includes 0 references
+#define KSO_BASE_INIT(_type, _flags) KSO_BASE_INIT_R(_type, _flags, 0)
+
+// increments (i.e. records) a reference to an object
+#define KSO_INCREF(_obj) (++(_obj)->refcnt)
+
+// decrements (i.e. unrecords) a reference to an object, freeing the object if its reference count goes
+//   to 0
+#define KSO_DECREF(_obj) { if (--(_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
+
+// checks the reference count, and frees the object if it is unreachable
+#define KSO_CHKREF(_obj) { if ((_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
+
+/* builtin object types */
+
+
+/* kso -> the generic object type, which all other objects can be casted down to.
+Objects down-casted to `kso` can only see the type, reference count, and flags for that object
+*/
+struct kso {
+    KSO_BASE;
+};
+
+/* none -> the NULL/empty value
+NOTE: There is always a global singleton, `ks_V_none`. No other 'nones' should be allocated or deallocated
+*/
+typedef struct ks_none {
+    KSO_BASE
+
+}* ks_none;
+
+extern ks_none ks_V_none;
+
+// the global `none` value
+#define KS_NONE (ks_V_none)
+
+#define KSO_NONE ((kso)ks_V_none)
+
+/* int -> represents a whole number
+For now, is just a 64bit integer, but in the future, it will be arbitrary size too
+This type is immutable
+*/
+typedef struct ks_int {
+    KSO_BASE
+
+    // the actual integer value, as a 64 bit signed integer
+    int64_t v_int;
+
+}* ks_int;
+
+/* str -> the string type, a collection of ASCII characters
+This type is immutable, and internally is both length encoded & NUL-terminated
+(so chr can be passed to C functions)
+mem of object: sizeof(struct ks_str) + len + 1
+*/
+typedef struct ks_str {
+    KSO_BASE
+
+    // the hash of the string, cached, because it seems to be useful to precompute them
+    uint64_t v_hash;
+
+    // the number of characters in the string, not including a NUL-terminator
+    // len("Hello") -> 5
+    uint32_t len;
+
+    // the actual string value. In memory, ks_str's are allocated so taking `->chr` just gives the address of
+    // the start of the NUL-terminated part of the string. The [2] is to make sure that sizeof(ks_str) will allow
+    // for enough room for two characters (this is useful for the internal constants for single-length strings)
+    char chr[2];
+
+}* ks_str;
+
+/* tuple -> an ordered collection of objects, which essentially tuples them together as a single value
+This type is immutable
+mem of object: sizeof(struct ks_tuple) + len * sizeof(kso)
+*/
+typedef struct ks_tuple {
+    KSO_BASE
+
+    // the number of items in the tuple
+    uint32_t len;
+
+    // the address of the first item. The tuple is allocated with the items in the main buffer
+    kso items[0];
+
+}* ks_tuple;
+
+/* list -> the list type, a collection of other objects
+This type is mutable, extendable, etc
+*/
+typedef struct ks_list {
+    KSO_BASE
+
+    // the number of items in the list
+    uint32_t len;
+
+    // the items in the list, of at least `len`
+    kso* items;
+
+}* ks_list;
+
+// the signature for a C-function taking arguments
+typedef kso (*ks_cfunc_sig)(int n_args, kso* args);
+
+
+/* dict -> generic dictionary that pairs hashable keys to values
+This type is mutable, flexible, and general
+
+Internally, it is using a hash-table implementation, similar to the new Python 3.6/7 dictionary
+*/
+typedef struct ks_dict {
+    KSO_BASE
+
+    // number of entries in the hash-table
+    uint32_t n_items;
+
+    // dense array of `n_entries` entries in the hash table
+    struct ks_dict_entry {
+        // hash(key)
+        int64_t hash;
+
+        // the key for this entry
+        kso key;
+
+        // the value at this entry
+        kso val;
+
+    }* items;
+
+    // how many buckets are in the hash table. This should be a prime number
+    uint32_t n_buckets;
+
+    // every 'bucket' is just a reference to the dense item list, or a negative value for some special purposes
+    int32_t* buckets;
+
+}* ks_dict;
+
+
+// return a new empty dictionary
+ks_dict ks_dict_new_empty();
+
+// set an item in the dictionary
+int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val);
+
+// get an item in the dictionary
+kso ks_dict_get(ks_dict self, kso key, uint64_t hash);
+
+
+// create a C-function with a given name
+#define KS_CFUNC_DECL(_cfunc_name) kso _cfunc_name(int n_args, kso* args)
+
+// createa a C function with a type, function name (with an underscore between them)
+#define KS_CFUNC_TDECL(_type_name, _cfunc_name) kso _type_name##_##_cfunc_name(int n_args, kso* args)
+
+/* cfunc -> a type wrapping a C-function which operates on kscript objects as args
+*/
+typedef struct ks_cfunc {
+    KSO_BASE
+
+    ks_cfunc_sig v_cfunc;
+
+}* ks_cfunc;
+
+
+
+
+/* bytecode enumerations, detailing different instructions
+This is also the main reference for the functionality of the bytecode, outside of the
+  interprereter source code
+Scheme: SIZE[TYPE description], SIZE in bytes of the section, TYPE being what it can be casted to
+  and a short description of what that parameter does
+*/
+enum {
+
+    /* NOOP - does nothing, changes nothing, just skips over the instruction
+    1[KSBC_NOOP]
+    */
+    KSBC_NOOP = 0,
+
+    /* CONST - used to pop a constant/literal (which is stored in the `v_const` of the code)
+        which comes from the 4 byte `int` value stored in the instruction itself
+    1[KSBC_CONST] 4[int v_const_idx, index into the `v_const` list for which constant it is]
+    */
+    KSBC_CONST,
+
+    /* POPU - pops off a value from the stack, which is unused (i.e. will remove the stack's ref)
+        and possibly free the object, if the refcnt reaches 0
+    1[KSBC_POP]
+    */
+    KSBC_POPU,
+
+    /* LOAD - reads an index into the `v_const` list, and then treats that as a key to the current VM state,
+        looking up a value by that key. This is the generic lookup function that will search locals/globals
+    1[KSBC_LOAD] 4[int v_const_idx, the name of the object to load]
+    */
+    KSBC_LOAD,
+
+    /* STORE - reads an index into the `v_const` list, and then treats that as a key to the current VM state,
+        looking up a value by that key, and setting its entry to the top of the stack. This is the generic
+        setting function to locals. NOTE: The top object is not popped off, so it should be followed by a
+        `KSBC_POPU` if its not used subsequently
+    1[KSBC_LOAD] 4[int v_const_idx, the name of the object to load]
+    */
+    KSBC_STORE,
+
+    /* CALL - pops off `n_items` items, and performs a functor-like call, with the first such object
+        as the functor. So, `A B C call(3)` yields `A(B, C)`. To call with no arguments, `n_items` should
+        still be at least 1. 
+    1[KSBC_CALL] 4[int n_items, number of items (including the functor) that the call should have]
+    */
+    KSBC_CALL,
+    
+    /** binary operators **/
+
+    /* ADD - pops off 2 objects, binary-adds them
+    1[KSBC_ADD] */
+    KSBC_ADD,
+
+    /* SUB - pops off 2 objects, binary-subtracts them
+    1[KSBC_SUB] */
+    KSBC_SUB,
+
+    /* MUL - pops off 2 objects, binary-muliplies them
+    1[KSBC_MUL] */
+    KSBC_MUL,
+
+    /* div - pops off 2 objects, binary-divides them
+    1[KSBC_DIV] */
+    KSBC_DIV,
+
+    // phony enum value to denote the end
+    KSBC__END
+};
+
+
+/* structure definitions */
+
+// if the compiler supports it, pack to a single byte, to minimize space
+#pragma pack(push, 1)
+
+// instruction only, for 1 byte instructions
+typedef struct {
+    // the first byte, always the opcode, one of the KSBC_* enum values
+    uint8_t op;
+
+} ksbc_;
+
+// instruction + a 4 byte signed integer
+typedef struct {
+    // the first byte, opcode, one of the KSBC_* enum values
+    uint8_t op;
+
+    // the signed, 32 bit integer encoded with the instruction
+    int32_t i32;
+
+} ksbc_i32;
+
+
+// the generic bytecode object which can hold all of them
+typedef union {
+
+    // opcode only
+    ksbc_ _;
+
+    // 1[opcode] 4[int i32]
+    ksbc_i32 i32;
+
+} ksbc;
+
+// stop our single byte alignment
+#pragma pack(pop)
+
+
+/* code -> a bytecode object which can be executed*/
+typedef struct ks_code {
+    KSO_BASE
+
+    // a reference to a list of constants the bytecode references
+    // (since internally, instructions just store an index into this array)
+    ks_list v_const;
+
+    // number of bytes the bytecode currently holds
+    int bc_n;
+
+    // the actual bytecode
+    uint8_t* bc;
+
+}* ks_code;
+
+
+/* type -> a type of an object, which can be built-in or user defined */
+struct ks_type {
+    KSO_BASE
+
+    // the type's common name (i.e. "int", "str", etc)
+    ks_str name;
+
+    // type.str(self) -> should return a string of the object
+    kso f_str;
+
+    // type.free(self) -> should free all the resources associated with the object, including references
+    // except the object itself
+    kso f_free;
+
+};
+
+#define KS_TYPE_INIT KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = NULL, .f_str = NULL, 
+
+/* token enum, tells the kinds of tokens */
+enum {
+
+    /* none/error token */
+    KS_TOK_NONE = 0,
+
+    /* an integer literal */
+    KS_TOK_INT,
+
+    /* a string literal */
+    KS_TOK_STR,
+
+    /* a variable identifier (this can also be a keyword in a language) */
+    KS_TOK_IDENT,
+
+    /* a comment, which is typically ignored */
+    KS_TOK_COMMENT,
+
+    /* a newline, \n */
+    KS_TOK_NEWLINE,
+
+    /* the end of file token */
+    KS_TOK_EOF,
+
+
+    /* a literal comma, ',' */
+    KS_TOK_COMMA,
+
+    /* a literal colon, ':' */
+    KS_TOK_COLON,
+
+    /* a literal semicolon, ';' */
+    KS_TOK_SEMI,
+
+
+    /* left parenthes
+    is, '(' */
+    KS_TOK_LPAR,
+    /* right parenthesis, ')' */
+    KS_TOK_RPAR,
+
+    /* left bracket, '[' */
+    KS_TOK_LBRACK,
+    /* right bracket, ']' */
+    KS_TOK_RBRACK,
+
+    /* left brace, '{' */
+    KS_TOK_LBRACE,
+    /* right brace, '}' */
+    KS_TOK_RBRACE,
+
+    /** operators **/
+
+    /* add operator, '+' */
+    KS_TOK_O_ADD,
+    /* add operator, '-' */
+    KS_TOK_O_SUB,
+    /* add operator, '*' */
+    KS_TOK_O_MUL,
+    /* add operator, '/' */
+    KS_TOK_O_DIV,
+
+
+    // phony ending member
+    KS_TOK__END
+
+};
+
+/* parser -> an object which can be used to parse the grammar/language into ASTs, and bytecode objects */
+typedef struct ks_parser* ks_parser;
+
+/* tok -> a token type which represents a piece of input for a given length, and being of some classification (see above) */
+typedef struct ks_tok {
+    // the token type, see an above KS_TOK_* enum value
+    int ttype;
+
+    // reference to the parser
+    ks_parser v_parser;
+
+    // offset and length in bytes
+    int offset, len;
+
+    // the line and column which it starts
+    int line, col;
+
+} ks_tok;
+
+/* parser -> an object which can be used to parse the grammar/language into ASTs, and bytecode objects */
+struct ks_parser {
+    KSO_BASE
+
+    // the human readable name of the source.
+    // If a file input, then this is just the name of the file given
+    ks_str src_name;
+
+    // the source of the entire file
+    ks_str src;
+
+    // the current token index
+    int tok_i;
+
+    // number of tokens
+    int n_toks;
+
+    // array of tokens
+    ks_tok* toks;
+
+};
+
+
+/* vm -> the virtual machine object, which can run code */
+typedef struct ks_vm {
+    KSO_BASE
+
+    // the global stack
+    ks_list stk;
+
+    // the global dictionary of variables (i.e. builtins)
+    ks_dict globals;
+
+    // the number of scopes currently on the VM
+    int n_scopes;
+
+    // list 
+    struct ks_vm_scope {
+
+        // the program counter for this scope
+        uint8_t* pc;
+
+        // the const for this list
+        ks_list v_const;
+
+    }* scopes;
+
+}* ks_vm;
+
+
+
+/* enumeration of the types of AST */
+enum {
+
+    /* none/error AST */
+    KS_AST_NONE = 0,
+
+    /* means this AST represents a constant integer value */
+    KS_AST_INT,
+
+    /* means this AST represents a constant string value */
+    KS_AST_STR,
+
+    /* means this AST represents a variable reference, which will be looked up */
+    KS_AST_VAR,
+
+    /* means this AST represents a function call with a given number of arguments */
+    KS_AST_CALL,
+
+    /* means this AST represents a list of other ASTs in a block */
+    KS_AST_BLOCK,
+
+    /* means the AST represents a block of code (assembly code) to be ran */
+    KS_AST_CODE,
+
+    /** binary operators **/
+
+    // the first binary operator
+    #define KS_AST_BOP__START KS_AST_BOP_ADD
+    // the last binary operator
+    #define KS_AST_BOP__END KS_AST_BOP_DIV
+
+    /* add: +, the sum of two objects */
+    KS_AST_BOP_ADD,
+    /* sub: -, the diff of two objects */
+    KS_AST_BOP_SUB,
+    /* mul: *, the prod of two objects */
+    KS_AST_BOP_MUL,
+    /* div: /, the quot of two objects */
+    KS_AST_BOP_DIV,
+
+
+    // phony member to denote the end
+    KS_AST__END
+
+};
+
+
+/* AST -> an abstract syntax tree, representing a tree of computations */
+typedef struct ks_ast* ks_ast;
+
+/* AST -> an abstract syntax tree, representing a tree of computations */
+struct ks_ast {
+    KSO_BASE
+
+    // the type of AST, one of the above `KS_AST_*` enum values
+    int atype;
+
+
+    // a union representing all the possible values of the AST
+    union {
+
+        /* int value iff atype==KS_AST_INT */
+        ks_int v_int;
+
+        /* str value iff atype==KS_AST_STR */
+        ks_str v_str;
+
+        /* var name iff atype==KS_AST_VAR */
+        ks_str v_var;
+
+        /* a list of the function & its arguments iff atype==KS_AST_CALL 
+        So, `f(A, B, C)` would have a list of size 4 containing [f, A, B, C]
+        */
+        ks_list v_call;
+
+        /* a list of the sub items of the block iff atype==KS_AST_BLOCK */
+        ks_list v_block;
+
+        /* the code object representing the assembly iff atype==KS_AST_CODE */
+        ks_code v_code;
+
+        /* the left and right hand sides of the binary operator iff KS_BOP_START <= atype <= KS_BOP_END */
+        struct {
+
+            ks_ast L, R;
+
+        } v_bop;
+
+    };
+
+};
+
+
+
+
+/* constructing primitives */
+
+// constructs a new integer, returning the result
+ks_int ks_int_new(int64_t v_int);
+
+
+// create a new string from a character array
+ks_str ks_str_new(int len, const char* chr);
+
+// create a new string, taking length as strlen(chr)
+ks_str ks_str_new_r(const char* chr);
+
+// creates a new string from C-style format arguments, in va_list passing style
+// NOTE: This is a custom implementation, there may be bugs.
+ks_str ks_str_new_vcfmt(const char* fmt, va_list ap);
+
+// creates a new string from C-style format arguments (i.e. only C-types are supported, not arbitrary kscript objects)
+ks_str ks_str_new_cfmt(const char* fmt, ...);
+
+
+// create a new empty tuple
+ks_tuple ks_tuple_new_empty();
+
+
+// create a new tuple from var-args, being NUL-terminated
+// so, ks_tuple_new_va(NULL) -> empty tuple
+// ks_tuple_new_va(a, NULL) -> (a, )
+// so have ks_tuple_new_va(a, b, ..., NULL)
+#define ks_tuple_new_va(_first, ...) _ks_tuple_new_va((kso)(_first), __VA_ARGS__)
+ks_tuple _ks_tuple_new_va(kso first, ...);
+
+// create a tuple containing a single object, o0
+ks_tuple ks_tuple_new_1(kso o0);
+// create a tuple containing two objects, (o0, o1)
+ks_tuple ks_tuple_new_2(kso o0, kso o1);
+// create a tuple containing 3 objects, (o0, o1, o2)
+ks_tuple ks_tuple_new_3(kso o0, kso o1, kso o2);
+
+// create a new tuple containing some items
+ks_tuple ks_tuple_new(int len, kso* items);
+
+
+// create a new empty list
+ks_list ks_list_new_empty();
+
+// create a new list containing some items
+ks_list ks_list_new(int len, kso* items);
+
+// push an object onto the list, returning the index
+// NOTE: This adds a reference to the object
+int ks_list_push(ks_list self, kso obj);
+
+// pops an object off of the list, transfering the reference to the caller
+// NOTE: Call KSO_DECREF when the object reference is dead
+kso ks_list_pop(ks_list self);
+
+// pops off an object from the list, with it not being used
+// NOTE: This decrements the reference originally added with the push function
+void ks_list_popu(ks_list self);
+
+// clears the list, resetting it to empty
+void ks_list_clear(ks_list self);
+
+
+// create a new C-function wrapper
+ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc);
+
+// create a new C-function wrapper with a new reference
+ks_cfunc ks_cfunc_newref(ks_cfunc_sig v_cfunc);
+
+
+// create a new (empty) collection of bytecode, given a refrence to a constant list
+ks_code ks_code_new_empty(ks_list v_const);
+
+
+// link in another code object, appending it to the end
+void ks_code_linkin(ks_code self, ks_code other);
+
+
+/* bytecode generation helpers */
+void ksc_noop(ks_code code);
+void ksc_popu(ks_code code);
+void ksc_load(ks_code code, const char* v_name);
+void ksc_loadl(ks_code code, int len, const char* v_name);
+void ksc_loado(ks_code code, kso obj);
+void ksc_store(ks_code code, const char* v_name);
+void ksc_storeo(ks_code code, kso obj);
+void ksc_const(ks_code code, kso val);
+void ksc_int(ks_code code, int64_t v_int);
+void ksc_cstr(ks_code code, const char* v_cstr);
+void ksc_cstrl(ks_code code, int len, const char* v_cstr);
+void ksc_call(ks_code code, int n_items);
+void ksc_add(ks_code code);
+void ksc_sub(ks_code code);
+void ksc_mul(ks_code code);
+void ksc_div(ks_code code);
+
+
+// create a new AST representing a constant int
+ks_ast ks_ast_new_int(int64_t v_int);
+
+// create a new AST representing a constant string
+ks_ast ks_ast_new_str(const char* v_str);
+
+// create a new AST representing a string
+ks_ast ks_ast_new_stro(ks_str v_str);
+
+
+// create a new AST representing a variable reference
+ks_ast ks_ast_new_var(const char* var_name);
+
+// create a new AST representing a variable reference
+ks_ast ks_ast_new_varl(int len, const char* var_name);
+
+// create a new AST representing a functor call, with `items[0]` being the function
+// so, `n_items` should be `n_args+1`, since it includes function, then arguments
+ks_ast ks_ast_new_call(int n_items, ks_ast* items);
+
+// create a new AST representing a binary operator, assumes KS_BOP__START <= bop_type <= KS_BOP__END
+ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
+
+// returns a new, empty block AST
+ks_ast ks_ast_new_block_empty();
+
+// returns a new block populated by the given arguments
+ks_ast ks_ast_new_block(int n_items, ks_ast* items);
+
+// returns a new AST representing a bytecode assembly segment
+ks_ast ks_ast_new_code(ks_code code);
+
+
+// generates the bytecode for a given AST, returns the code object
+// NOTE: this is implemented in codegen.c, rather than kso.c
+ks_code ks_ast_codegen(ks_ast self);
+
+// return a new, empty virtual machine
+ks_vm ks_vm_new_empty();
+
+// internal execution routine, this should only really be used by internal functions
+void ks_vm_exec(ks_vm vm, ks_code code);
+
+
+
+// create a new token
+ks_tok ks_tok_new(int ttype, ks_parser kp, int offset, int len, int line, int col);
+
+// create a new parser from a file
+ks_parser ks_parser_new_file(const char* fname);
+
+// create a new parser from an expression
+ks_parser ks_parser_new_expr(const char* expr);
+
+// parse out an AST representing assembly
+ks_ast ks_parse_asm(ks_parser self);
+
+// parse out an AST from the most general parser, which handles a lot of sub-cases, sub-blocks, etc
+ks_ast ks_parse_all(ks_parser self);
+
+
+
+/* GENERIC OBJECT FUNCTIONALITY */
+
+// calls an object as if it was a function with a list of arguments
+kso kso_call(kso func, int n_args, kso* args);
+
+// returns the hash of the object
+uint64_t kso_hash(kso obj);
+
+// return whether or not the 2 objects are equal
+bool kso_eq(kso A, kso B);
+
+// frees an object, returns true if successful, false otherwise
+bool kso_free(kso obj);
+
+#endif
+

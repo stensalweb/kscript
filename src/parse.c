@@ -1,15 +1,7 @@
-/* parse.c - implementation of parsing routines
+/* parse.c - kscript language (& bytecode assembly) parser and tools */
 
+#include "ks.h"
 
-includes:
-
-  * bytecode/assembly parsing
-  * normal infix notation program parsing
-
-
-*/
-
-#include "kscript.h"
 #include <ctype.h>
 
 // whether or not a character is whitespace
@@ -27,92 +19,96 @@ static inline bool isidentm(char c) {
     return isidents(c) || isdigit(c);
 }
 
-// gets the current character
-static inline char ks_parse_get(ks_parse* kp) {
-    return kp->src._[kp->state.i];
+ks_tok ks_tok_new(int ttype, ks_parser kp, int offset, int len, int line, int col) {
+    return (struct ks_tok) {
+        .ttype = ttype,
+        .v_parser = kp,
+        .offset = offset, .len = len,
+        .line = line, .col = col
+    };
 }
 
-// appends a token to ks_parse
-static void ks_parse_addtok(ks_parse* kp, ks_token tok) {
-    int idx = kp->tokens_n++;
-    kp->tokens = ks_realloc(kp->tokens, sizeof(ks_token) * kp->tokens_n);
-    kp->tokens[idx] = tok;
+// gets an integer from a token, assuming its a token type
+static int64_t tok_getint(ks_tok tok) {
+    static char tmp[100];
+    int len = tok.len;
+    if (len > 99) len = 99;
+    memcpy(tmp, tok.v_parser->src->chr + tok.offset, len);
+    tmp[len] = '\0';
+    return atoll(tmp);
 }
 
-// takes a token, and outputs it as a string literal to `to`.
-// Example: "Hello\nWorld" -> "Hello
-// World"
-static void ks_token_strlit(ks_parse* kp, ks_token tok, ks_str* to) {
-    ks_str_copy(to, KS_STR_CONST(""));
+static ks_str tok_getstr(ks_tok tok) {
+    ks_str start = ks_str_new_r("");
 
-    if (tok.type == KS_TOK_STR) {
-        char* s = kp->src._ + tok.state.i;
-        if (*s == '"') {
-            s++;
-        }
+    char* src = tok.v_parser->src->chr + tok.offset;
 
-        char c;
-        while ((c = *s) && c != '"') {
-            s++;
-
-            if (c == '\\') {
-                c = *s++;
-                if (c == 'n') {
-                    ks_str_append_c(to, '\n');
-                } else {
-                    ks_parse_err(kp, tok, "Invalid String literal escape code '\\%c'", c);
-                }
-            } else {
-                ks_str_append_c(to, c);
-            }
-        }
-
-    } else {
-        // error
-    }
-}
-
-// advances 'nchr' characters forward
-static void ks_parse_adv(ks_parse* kp, int nchr) {
+    // skip '"'
     int i;
-    for (i = 0; i < nchr; ++i) {
-        char c = ks_parse_get(kp);
-
-        if (c == '\0') {
-            return;
-        } else if (c == '\n') {
-            kp->state.line++;
-            kp->state.col = 0;
-        } else {
-            kp->state.col++;
+    for (i = 1; i < tok.len && src[i] != '"'; ) {
+        int j = 0;
+        // go for as many literals as possible
+        while (src[i + j] != '\0' && src[i + j] != '"' && src[i + j] != '\\') {
+            j++;
         }
 
-        kp->state.i++;
+        if (j > 0) {
+            // handle literals
+            ks_str new_str = ks_str_new_cfmt("%*s%*s", start->len, start->chr, j, src+i);
+            KSO_CHKREF(start);
+            start = new_str;
+            i += j;
+        } else if (src[i] == '\\') {
+            // handle an escape code
+            char c = src[++i];
+            char lit = '\0';
+            bool hasOne = true;
+            if (c == 'n') {
+                lit = '\n';
+            } else {
+                hasOne = false;
+            }
+
+            if (hasOne) {
+                ks_str new_str = ks_str_new_cfmt("%*s%c", start->len, start->chr, lit);
+                KSO_CHKREF(start);
+                start = new_str;
+            }
+
+            // skip the escape code
+            i++;
+        } else {
+            // something weird happen, just stop
+            return start;
+        }
+
     }
+
+    return start;
 }
 
-// set an error related to parsing, given a token
-void ks_parse_err(ks_parse* kp, ks_token tok, const char* fmt, ...) {
 
-    // the string to print to
-    ks_str errstr = KS_STR_EMPTY;
+// have an error from a token
+static void* tok_err(ks_tok tok, const char* fmt, ...) {
 
-    // string format it with what is given
+    // first, just compute the error string
     va_list ap;
     va_start(ap, fmt);
-    ks_str_vcfmt(&errstr, fmt, ap);
+    ks_str errstr = ks_str_new_vcfmt(fmt, ap);
     va_end(ap);
 
-    // now, try and print additional information out if the token was valid
-    if (tok.len >= 0) {
-        int i = tok.state.i;
-        int lineno = tok.state.line;
+
+    if (tok.len > 0) {
+        // we have a valid token
+        int i = tok.offset;
+        int lineno = tok.line;
         char c;
 
+        char* src = tok.v_parser->src->chr;
 
         // rewind to the start of the line
         while (i >= 0) {
-            c = kp->src._[i];
+            c = src[i];
 
             if (c == '\n') {
                 i++;
@@ -121,1388 +117,794 @@ void ks_parse_err(ks_parse* kp, ks_token tok, const char* fmt, ...) {
             i--;
         }
 
+
         if (i < 0) i++;
-        if (kp->src._[i] == '\n') i++;
+        if (src[i] == '\n') i++;
 
         // line start i
         int lsi = i;
 
-        while (c = kp->src._[i]) {
+        while (c = src[i]) {
             if (c == '\n' || c == '\0') break;
             i++;
         }
 
         // line length
         int ll = i - lsi;
-
-        // format and append a little pointer to the error
-        ks_str_cfmt(&errstr, "%s\n%.*s\n%.*s^%.*s", errstr._, ll, kp->src._ + lsi, 
-            tok.state.i - lsi, "                                                                                                                                                                                             ", 
-            tok.len > 0 ? (tok.len - 1) : 0, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~..."
+        ks_str new_err_str = ks_str_new_cfmt("%*s\n%*s\n%*c^%*c\n@ Line %i, Col %i, in '%*s'", 
+            (int)errstr->len, errstr->chr, 
+            ll, src + lsi,
+            tok.col, ' ',
+            tok.len - 1, '~',
+            tok.line + 1, tok.col + 1, 
+            tok.v_parser->src_name->len, tok.v_parser->src_name->chr
         );
-        
-        // add line/column information
-        ks_str_cfmt(&errstr, "%s\n@ Line %d, Col %d, in '%s'", errstr._, tok.state.line + 1, tok.state.col + 1, kp->src_name._);
 
-    } else {
-        // not a valid token, so leave it off
-    }
+        KSO_CHKREF(errstr);
+        errstr = new_err_str;
 
-    // add the error globally
-    ks_err_add_str(errstr);
-
-    // remove the local copy we made of the string
-    ks_str_free(&errstr);
-}
-
-// only call this once when the source is set, internally
-static void ks_parse_tokenize(ks_parse* kp) {
-
-    // current character in the input stream
-    char c;
-
-    // generates a token from the current state, length, etc
-    #define TOK(_type) ((ks_token){ .type = (_type), .state = (stok), .len = (kp->state.i - stok.i) })
-
-    while (c = ks_parse_get(kp)) {
-
-        // skip whitespace/etc
-        while ((c = ks_parse_get(kp)) && iswhite(c)) {
-            if (!c) break;
-
-            ks_parse_adv(kp, 1);
-        }
-        // make sure not EOF
-        if (!c) break;
-
-        // start of the token state
-        struct ks_parse_state stok = kp->state;
-
-        if (isdigit(c)) {
-            // parse int (or float)
-            // TODO: Add float support
-
-            // keep checking digits
-            do {
-                ks_parse_adv(kp, 1);
-            } while ((c = ks_parse_get(kp)) && isdigit(c));
-
-            ks_parse_addtok(kp, TOK(KS_TOK_INT));
-        } else if (isidents(c)) {
-            // parse identifier
-
-            // parse while its a valid identifier
-            do {
-                ks_parse_adv(kp, 1);
-            } while ((c = ks_parse_get(kp)) && isidentm(c));
-
-            ks_parse_addtok(kp, TOK(KS_TOK_IDENT));
-        } else if (c == '"') {
-            // parse a string literal
-            // TODO: Support for """ literals
-
-            // skip first '"'
-            ks_parse_adv(kp, 1);
-
-            while ((c = ks_parse_get(kp)) && c != '"') {
-                if (c == '\\') {
-                    // this means there will also be an escape code here,
-                    //   so skip it
-                    // TODO: Validate escape codes here
-                    ks_parse_adv(kp, 1);
-                }
-
-                // skip over the next character
-                ks_parse_adv(kp, 1);
-            }
-
-            // expect it to end with quotes
-            if (ks_parse_get(kp) != '"') {
-                return ks_parse_err(kp, TOK(KS_TOK_STR), "Expected terminating '\"' for string literal");
-            }
-
-            // skip the ending `"`
-            ks_parse_adv(kp, 1);
-
-            ks_parse_addtok(kp, TOK(KS_TOK_STR));
-            
-        } else if (c == '#') {
-            // parse a comment token
-            // TODO: Also support parsing multiline comments
-
-            // keep parsing until a newline
-            while ((c = ks_parse_get(kp)) && c != '\n') {
-                ks_parse_adv(kp, 1);
-            }
-
-            // since we are parsing a newline, add the token first, then skip the newline
-            ks_parse_addtok(kp, TOK(KS_TOK_COMMENT));
-            
-            // don't skip the newline
-            //ks_parse_adv(kp, 1);
-        }
-
-    // the `else if` case for a token that is just represents a keyword/operator/string, or anything
-    //   that is always the same
-    #define CASE_TOK_LIT(_str, _type) else if ((strncmp((_str), kp->src._+kp->state.i, sizeof(_str) - 1) == 0)) { \
-        ks_parse_adv(kp, sizeof(_str) - 1); \
-        ks_parse_addtok(kp, TOK(_type)); \
-    }
-
-        /* misc grammars */
-
-        CASE_TOK_LIT(":", KS_TOK_COLON)
-        CASE_TOK_LIT(";", KS_TOK_SEMI)
-        CASE_TOK_LIT(".", KS_TOK_DOT)
-        CASE_TOK_LIT(",", KS_TOK_COMMA)
-
-        CASE_TOK_LIT("(", KS_TOK_LPAREN)
-        CASE_TOK_LIT(")", KS_TOK_RPAREN)
-
-        CASE_TOK_LIT("{", KS_TOK_LBRACE)
-        CASE_TOK_LIT("}", KS_TOK_RBRACE)
-
-        CASE_TOK_LIT("[", KS_TOK_LBRACK)
-        CASE_TOK_LIT("]", KS_TOK_RBRACK)
-
-        /* somewhat special symbols */
-
-        CASE_TOK_LIT("\n", KS_TOK_NEWLINE)
-
-        /** operators **/
-
-        /* unary operators */
-        CASE_TOK_LIT("~", KS_TOK_U_TIL)
-
-        /* binary/normal operators */
-        CASE_TOK_LIT("+", KS_TOK_O_ADD)
-        CASE_TOK_LIT("-", KS_TOK_O_SUB)
-        CASE_TOK_LIT("*", KS_TOK_O_MUL)
-        CASE_TOK_LIT("/", KS_TOK_O_DIV)
-        CASE_TOK_LIT("%", KS_TOK_O_MOD)
-        CASE_TOK_LIT("^", KS_TOK_O_POW)
-        CASE_TOK_LIT("==", KS_TOK_O_EQ)
-        CASE_TOK_LIT("<", KS_TOK_O_LT)
-        CASE_TOK_LIT(">", KS_TOK_O_GT)
-
-        /* special case operators */
-        CASE_TOK_LIT("=", KS_TOK_O_ASSIGN)
-        CASE_TOK_LIT(":=", KS_TOK_O_DEFINE)
-
-        else {
-            // there was either an unsupported character, or it didn't match the pattern
-            return ks_parse_err(kp, TOK(KS_TOK_IDENT), "Invalid Syntax (unexpected '%c')", c);
-        }
-    }
-}
-
-// set the source code, and a name
-void ks_parse_setsrc(ks_parse* kp, ks_str src_name, ks_str src) {
-    ks_str_copy(&kp->src_name, src_name);
-    ks_str_copy(&kp->src, src);
-    ks_str_copy(&kp->err, KS_STR_EMPTY);
-    kp->state = KS_PARSE_STATE_BEGINNING;
-
-    // now, tokenize it
-    ks_parse_tokenize(kp);
-
-}
-
-// free resources of the parser
-void ks_parse_free(ks_parse* kp) {
-    ks_str_free(&kp->src);
-    ks_str_free(&kp->src_name);
-    ks_free(&kp->tokens);
-
-    *kp = KS_PARSE_EMPTY;
-}
-
-// yield a token which encapsulates both of these tokens, combining them
-#define COMBO_TOKS(_tok0, _tok1) ((ks_token){ .len = (_tok1).state.i + (_tok1).len - (_tok0).state.i, .state = (_tok0).state })
-
-
-/* SPECIFIC LANGUAGE PARSERS */
-
-void ks_parse_ksasm(ks_parse* kp, kso_code to) {
-    // arguments for assembly directives
-    // example:
-    // cmd a0 a1 a2 ...
-    ks_token a0, a1, a2;
-
-    // number of labels defined
-    int lbls_n = 0;
-
-    // a structure describing a named label
-    struct ksalbl {
-        // the token that defined the label
-        ks_token tok;
-
-        // the string (as a view string, so should not be freed) of the label name
-        ks_str lbl_name;
-
-        // the pointer in the bytecode where the label points
-        int bc_p;
-
-    }* lbls = NULL;
-
-    // number of links that need to be performed after parsing
-    int links_n = 0;
-
-    // a structure describing a link that references a label name,
-    //   which will ultimately be resolved after the label has been added
-    struct ksalink {
-        // the token that defined the link
-        ks_token tok;
-
-        // the string (as a view-string, so should not be freed) of the label
-        //   which the link references
-        ks_str lbl_name;
-
-        // index in to->bc where the jump will be occuring from.
-        // most of the time this is the current bc + sizeof(instruction)
-        int from_p;
-
-        // index in to->bc where the relative amount of the jump needs to be written
-        int relamt_p;
-
-    }* links = NULL;
-
-    // helper string
-    ks_str st = KS_STR_EMPTY;
-
-    // return whether or not a token is equal to a literal
-    #define TOK_EQ(_tok, _str) ((sizeof(_str) - 1) == _tok.len && strncmp(_str, kp->src._ + _tok.state.i, (sizeof(_str) - 1)) == 0)
-
-
-    for (; kp->tok_i < kp->tokens_n; ++kp->tok_i) {
-
-        switch (kp->tokens[kp->tok_i].type) {
-            // these don't matter, skip them
-            case KS_TOK_COMMENT:
-            case KS_TOK_SEMI:
-            case KS_TOK_NEWLINE:
-                break;
-
-            case KS_TOK_RBRACE:
-                // this means that we are out of scope, and a parent has called us, so just return
-                goto _kspas_end;
-                break;
-
-            case KS_TOK_IDENT:
-                // parse off a command, or a label:
-                if (TOK_EQ(kp->tokens[kp->tok_i], "const")) {
-                    a0 = kp->tokens[++kp->tok_i];
-                    // now, have `const $a0`, and deduce which kind of constant it is
-                    if (a0.type == KS_TOK_INT) {
-                        // const [int], so add an int constant instruction
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksc_const_int(to, (ks_int)atoll(st._));
-                    } else if (a0.type == KS_TOK_IDENT && TOK_EQ(a0, "true")) {
-                        // constr true, add boolean
-                        ksc_const_true(to);
-                    } else if (a0.type == KS_TOK_IDENT && TOK_EQ(a0, "false")) {
-                        // constr false, add boolean
-                        ksc_const_false(to);
-                    } else if (a0.type == KS_TOK_STR) {
-                        // generate the string literal, and add as a string constant
-                        ks_token_strlit(kp, a0, &st);
-                        ksc_const_str(to, st);
-                    } else if (a0.type == KS_TOK_LPAREN) {
-
-                        // now, parse a function
-                        // should be like:
-                        // const (arg0, arg1, ...) > {
-                        //   BODY
-                        // }
-                        // skip the '('
-                        ++kp->tok_i;
-                        kso_list param_list = kso_list_new_empty();
-                        while (kp->tokens[kp->tok_i].type != KS_TOK_RPAREN) {
-                            // parse name,
-                            if (kp->tokens[kp->tok_i].type != KS_TOK_IDENT) {
-                                ks_parse_err(kp, kp->tokens[kp->tok_i], "Invalid Syntax, expected an identifier for the name of a function parameter");
-                                goto _kspas_end;
-                            }
-                            ks_list_push(&param_list->v_list, (kso)kso_str_new(KS_STR_VIEW(kp->src._ + kp->tokens[kp->tok_i].state.i, kp->tokens[kp->tok_i].len)));
-                            kp->tok_i++;
-                            // now, assume a comma or RPAREN
-                            if (kp->tokens[kp->tok_i].type == KS_TOK_COMMA) {
-                                kp->tok_i++;
-                            } else if (kp->tokens[kp->tok_i].type == KS_TOK_RPAREN) {
-                                // do nothing
-                            } else {
-                                ks_parse_err(kp, kp->tokens[kp->tok_i], "Invalid Syntax, expected either a ',' to continue parameter list, or a ')' to end the parameter list");
-                                goto _kspas_end;
-                            }
-                        }
-
-                        // expect/skip ')'
-                        if (kp->tokens[kp->tok_i].type != KS_TOK_RPAREN) {
-                            ks_parse_err(kp, kp->tokens[kp->tok_i], "Invalid Syntax, expected a ')' to end the parameter list");
-                            goto _kspas_end;
-                        }
-                        ++kp->tok_i;
-
-
-                        // expect/skip '{'
-                        if (kp->tokens[kp->tok_i].type != KS_TOK_LBRACE) {
-                            ks_parse_err(kp, kp->tokens[kp->tok_i], "Invalid Syntax, expected a '{' to start the function body");
-                            goto _kspas_end;
-                        }
-                        ++kp->tok_i;
-
-
-                        // create another code object
-                        kso_code new_func_code = kso_code_new_empty(to->v_const);
-                        // create another function
-                        kso_kfunc new_func = kso_kfunc_new(param_list, new_func_code);
-                        // parse into the new function
-                        ks_parse_ksasm(kp, new_func_code);
-
-                        // now, add the instruction
-                        //ksc_func_lit(to, new_func);
-                        ksc_const(to, (kso)new_func);
-
-                        // expect/skip '}'
-                        if (kp->tokens[kp->tok_i].type != KS_TOK_RBRACE) {
-                            ks_parse_err(kp, kp->tokens[kp->tok_i], "Invalid Syntax, expected a '}' to end the function body");
-                            goto _kspas_end;
-                        }
-                        ++kp->tok_i;
-                        
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `const` instruction, it should be a `int`, `bool`, `none`, `float`, or `str`");
-                        goto _kspas_end;
-                    }
-                    
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "bop")) {
-                    // handle a binary operator
-
-                    // get the specific operator
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (TOK_EQ(a0, "+"))      ksc_add(to);
-                    else if (TOK_EQ(a0, "-")) ksc_sub(to);
-                    else if (TOK_EQ(a0, "*")) ksc_mul(to);
-                    else if (TOK_EQ(a0, "/")) ksc_div(to);
-                    else if (TOK_EQ(a0, "<")) ksc_lt(to);
-                    else {
-                        ks_parse_err(kp, a0, "Unknown operator");
-                        goto _kspas_end;
-                    }
-
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "load")) {
-                    // load variable
-                    // load $a0
-
-                    // should take a string
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (a0.type == KS_TOK_STR) {
-                        // valid
-                        ks_token_strlit(kp, a0, &st);
-                        ksc_load(to, st);
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `load` instruction, it should be a `str` (try adding '\"' around it)");
-                        goto _kspas_end;
-                    }
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "store")) {
-                    // store top of stack into variable name
-                    // store $a0
-
-                    // should take string
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (a0.type == KS_TOK_STR) {
-                        ks_token_strlit(kp, a0, &st);;
-                        ksc_store(to, st);
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `store` instruction, it should be a `str` (try adding '\"' around it)");
-                        goto _kspas_end;
-                    }
-
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "call")) {
-                    // call [n_args]
-
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (a0.type == KS_TOK_INT) {
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksc_call(to, (int)atoll(st._));
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `call` instruction, it should be a `int`");
-                        goto _kspas_end;
-                    }
-                /*
-                } else if (TOK_EQ(kp->tokens[i], "get")) {
-                    a0 = kp->tokens[++i];
-
-                    if (a0.type == KS_TOK_INT) {
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksb_get(to, (int16_t)atol(st._));
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `get` instruction, it should be a `int`");
-                        goto _kspas_end;
-                    }
-                } else if (TOK_EQ(kp->tokens[i], "set")) {
-                    a0 = kp->tokens[++i];
-
-                    if (a0.type == KS_TOK_INT) {
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksb_set(to, (int16_t)atol(st._));
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `set` instruction, it should be `int`");
-                        goto _kspas_end;
-                    }
-                */
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "create_list")) {
-                    // create_list [num]
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (a0.type == KS_TOK_INT) {
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        //ksc_create_list(to, (int16_t)atol(st._));
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `create_list` instruction, it should be `int`");
-                        goto _kspas_end;
-                    }
-
-                /* simple instructions */
-
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "retnone")) {
-                    ksc_retnone(to);
-
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "discard")) {
-                    ksc_discard(to);
-
-
-                /* jumping/conditionals */
-
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "jmpt")) {
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (a0.type == KS_TOK_INT) {
-                        // interpreted as relative amt, literally
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksc_jmpt(to, (int)atol(st._));
-                    } else if (a0.type == KS_TOK_U_TIL && kp->tokens[kp->tok_i+1].type == KS_TOK_IDENT) {
-                        // read the a0 as the label name
-                        a0 = kp->tokens[++kp->tok_i];
-
-                        // add a delayed link, so it will be linked at the end
-                        links = ks_realloc(links, sizeof(*links) * ++links_n);
-                        links[links_n - 1] = (struct ksalink) { 
-                            .tok = a0,
-                            .lbl_name = KS_STR_VIEW(kp->src._ + a0.state.i, a0.len),
-                            .from_p = to->bc_n + sizeof(struct ks_bc_jmp),
-                            .relamt_p = to->bc_n + offsetof(struct ks_bc_jmp, relamt)
-                        };
-
-                        // this '0' will be filled in later by the link
-                        ksc_jmpt(to, 0);
-
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `jmpt` instruction, it should be a `int`, or a `~label`");
-                        goto _kspas_end;
-                    }
-                } else if (TOK_EQ(kp->tokens[kp->tok_i], "jmpf")) {
-                    a0 = kp->tokens[++kp->tok_i];
-
-                    if (a0.type == KS_TOK_INT) {
-                        // interpreted as relative amt
-                        ks_str_copy_cp(&st, kp->src._ + a0.state.i, a0.len);
-                        ksc_jmpf(to, (int)atol(st._));
-                    } else if (a0.type == KS_TOK_U_TIL && kp->tokens[kp->tok_i+1].type == KS_TOK_IDENT) {
-                        // read the a0 as the label name
-                        a0 = kp->tokens[++kp->tok_i];
-
-                      // add a delayed link, so it will be linked at the end
-                        links = ks_realloc(links, sizeof(*links) * ++links_n);
-                        links[links_n - 1] = (struct ksalink) { 
-                            .tok = a0,
-                            .lbl_name = KS_STR_VIEW(kp->src._ + a0.state.i, a0.len),
-                            .from_p = to->bc_n + sizeof(struct ks_bc_jmp),
-                            .relamt_p = to->bc_n + offsetof(struct ks_bc_jmp, relamt)
-                        };
-
-                        // this '0' will be filled in later by the link
-                        ksc_jmpf(to, 0);
-
-                    } else {
-                        ks_parse_err(kp, a0, "Invalid argument for `jmpf` instruction, it should be a `int`, or a `~label`");
-                        goto _kspas_end;
-                    }
-
-                } else if (kp->tok_i < kp->tokens_n - 1 && kp->tokens[kp->tok_i+1].type == KS_TOK_COLON) {
-                    // a0 is the label name to define
-                    a0 = kp->tokens[kp->tok_i];
-
-                    //ks_info("label: %.*s", a0.len, kp->src._ + a0.state.i);
-
-                    // we are defining a label, so add it to the list
-                    lbls = ks_realloc(lbls, sizeof(*lbls) * ++lbls_n);
-                    lbls[lbls_n - 1] = (struct ksalbl) { 
-                        .tok = a0,
-                        .lbl_name = KS_STR_VIEW(kp->src._ + a0.state.i, a0.len),
-                        .bc_p = to->bc_n
-                    };
-
-                    ++kp->tok_i;
-
-                } else {
-                    ks_parse_err(kp, kp->tokens[kp->tok_i], "Unknown instruction '%.*s'", kp->tokens[kp->tok_i].len, kp->src._ + kp->tokens[kp->tok_i].state.i);
-                    goto _kspas_end;
-                }
-
-                if (kp->tok_i+1 < kp->tokens_n) {
-                    ks_token next_tok = kp->tokens[kp->tok_i+1];
-                    // check for extra arguments
-                    if (!(next_tok.type == KS_TOK_NEWLINE || next_tok.type == KS_TOK_SEMI || next_tok.type == KS_TOK_COMMENT)) {
-                        ks_parse_err(kp, next_tok, "Extra argument '%.*s'", next_tok.len, kp->src._ + next_tok.state.i);
-                        goto _kspas_end;
-                    }
-                }
-
-                break;
-
-            default:
-                ks_parse_err(kp, kp->tokens[kp->tok_i], "Invalid Syntax: Unexpected token type (expected an identifier)");
-                goto _kspas_end;
-        }
-    }
-
-    // now, run back and link the program
-    int i;
-    for (i = 0; i < links_n; ++i) {
-        // get the current link
-        struct ksalink klink = links[i];
-
-        // locate the current label
-        struct ksalbl klbl = (struct ksalbl){ .bc_p = -1 };
-
-        // search through
-        int j;
-        for (j = 0; j < lbls_n; ++j) {
-            if (ks_str_eq(klink.lbl_name, lbls[j].lbl_name)) {
-                klbl = lbls[j];
-                break;
-            }
-        }
-
-        if (klbl.bc_p < 0) {
-            ks_parse_err(kp, klink.tok, "Unknown label: `%.*s`", klink.lbl_name.len, klink.lbl_name._);
-            goto _kspas_end; 
-        }
-
-        // now, compute the relative amount off
-        int32_t relamt = klbl.bc_p - klink.from_p;
-
-        // and finish the link
-        *(int32_t*)(to->bc + klink.relamt_p) = relamt;
     }
 
 
-    // go here when ready to clean up, or in case of error
-    _kspas_end: ;
-    ks_free(links);
-    ks_free(lbls);
-    ks_str_free(&st);
-
-    // always add a return none to the end
-    ksc_retnone(to);
-}
-
-
-/* infix parsing */
-
-// shunting yard operator
-typedef struct syop {
-
-    // string representing the representation of the operator
-    const char* str;
-
-    // what kind of association (+,-,... are left), (^ is right), etc,
-    //   and unary operators are either pre or post
-    // ++i -> pre
-    // i++ -> post
-    enum syassoc {
-        SYA_NONE = 0,
-
-        SYA_LEFT,
-        SYA_RIGHT,
-
-        // unary associations
-        SYA_UNARY_PRE,
-        SYA_UNARY_POST,
-
-        SYA__END
-    } assoc;
-
-    // the precedence of the operator, which should be sorted from lowest to highest.
-    // low precedence means its the last to evaluate,
-    // and high precedence means very close arguments are the one used:
-    // low precdence: =, like:
-    // a = 3 + 4 * 5, because +,* are evaluated first (they have higher precedence)
-    // but * has highest in that example
-    enum syprec {
-        SYP_NONE = 0,
-
-        // unary has the highest precedence, unconditionallity
-        SYP_UNARY,
-        
-        // assignment, i.e. A=B, because it should be the largest in scope
-        SYP_ASSIGN,
-
-        // define `:=` should be slightly lower than assignment
-        SYP_DEFINE,
-
-        // comparison operators, i.e. ==, <=, <, >, .etc
-        SYP_CMP,
-
-        // +,-
-        SYP_ADDSUB,
-        // *,/ , but also % (modulo)
-        SYP_MULDIV,
-        // ^, exponentiaion
-        SYP_POW,
-
-        SYP_N
-
-    } prec;
-
-    // the type of shunting yard operator
-    enum sytype { 
-        SYT_NONE = 0,
-
-        // binary operator, i.e. infixed between two expressions
-        SYT_BOP,
-
-        // unary operator, i.e. takes an argument. Can be post or pre
-        SYT_UOP,
-        
-        // psuedo-operators, i.e. aren't operators, but are similar
-        // f(...)
-        SYT_FUNC,
-        // (...)
-        SYT_LPAREN,
-        // a[...]
-        SYT_SUBSCRIPT,
-        // [...]
-        SYT_LBRACK,
-
-        SYT_N
-    } type;
-
-    // what type to construct an AST via?
-    int ast_type;
-
-} syop;
-
-// binary operator left associative
-#define MAKE_BOPL(_str, _prec, _ast_type) ((syop){ _str, SYA_LEFT, _prec, SYT_BOP, .ast_type = _ast_type })
-#define MAKE_BOPR(_str, _prec, _ast_type) ((syop){ _str, SYA_RIGHT, _prec, SYT_BOP, .ast_type = _ast_type })
-
-// built in operators
-// binary operators
-syop
-    sybop_add = MAKE_BOPL("+", SYP_ADDSUB, KS_AST_BOP_ADD), sybop_sub = MAKE_BOPL("-", SYP_ADDSUB, KS_AST_BOP_SUB),
-    sybop_mul = MAKE_BOPL("*", SYP_MULDIV, KS_AST_BOP_MUL), sybop_div = MAKE_BOPL("/", SYP_MULDIV, KS_AST_BOP_DIV),
-    sybop_mod = MAKE_BOPL("%", SYP_MULDIV, KS_AST_BOP_MOD), sybop_pow = MAKE_BOPR("^", SYP_POW, KS_AST_BOP_POW),
-    sybop_lt = MAKE_BOPL("<", SYP_CMP, KS_AST_BOP_LT), 
-    sybop_gt = MAKE_BOPL(">", SYP_CMP, KS_AST_BOP_GT), 
-    sybop_eq = MAKE_BOPL("==", SYP_CMP, KS_AST_BOP_EQ),
-    sybop_assign = MAKE_BOPR("=", SYP_ASSIGN, KS_AST_BOP_ASSIGN),
-    sybop_define = MAKE_BOPR(":=", SYP_DEFINE, KS_AST_BOP_DEFINE)
-    
-;
-
-// true if the token type is an operator type
-#define KS_TOK_ISOP(_toktype) ((_toktype) == KS_TOK_O_ADD || (_toktype) == KS_TOK_O_SUB || (_toktype) == KS_TOK_O_MUL || (_toktype) == KS_TOK_O_DIV || (_toktype) == KS_TOK_O_MOD || (_toktype) == KS_TOK_O_POW || (_toktype) == KS_TOK_O_LT || (_toktype) == KS_TOK_O_GT || (_toktype) == KS_TOK_O_EQ || (_toktype) == KS_TOK_O_ASSIGN)
-
-// true if the token means it ends a value
-#define KS_TOK_ISVAL(_toktype) ((_toktype) == KS_TOK_INT || (_toktype) == KS_TOK_STR || (_toktype) == KS_TOK_IDENT || (_toktype) == KS_TOK_RPAREN || (_toktype) == KS_TOK_RBRACK)
-
-// parse an infix expression, return the AST
-ks_ast ks_parse_expr(ks_parse* kp) {
-
-    // stack macros
-    #define Spush(_stk, _val) { _stk.p++; if (_stk.p >= _stk.p_max - 4) { _stk.base = ks_realloc(_stk.base, (_stk.p + 1) * sizeof(_stk.base[0])); } _stk.base[_stk.p] = _val; }
-    #define Spop(_stk) _stk.base[_stk.p--]
-    #define Spop_unused(_stk) _stk.p--
-    #define Stop(_stk) _stk.base[_stk.p]
-    #define Sget(_stk, _idx) _stk.base[_idx]
-
-    struct {
-        int p, p_max;
-        syop* base;
-    } op_stk = { -1, 0, NULL };
-
-    struct {
-        int p, p_max;
-        ks_ast* base;
-    } out_stk = { -1, 0, NULL };
-
-    bool wasErr = false;
-
-    // current and last token
-    ks_token ctok = KS_TOK_EMPTY, ltok = KS_TOK_EMPTY;
-
-    // the last operator parsed
-    syop last_op = { .type = SYT_NONE };
-
-    // a helper string
-    ks_str str = KS_STR_EMPTY;
-
-    // for constructing ASTs
-    ks_ast new_ast = NULL;
-
-    // for keeping track of parenthesis, ensuring its correct
-    int n_lparens = 0, n_rparens = 0;
-
-    // for keeping track of brackets
-    int n_lbracks = 0, n_rbracks = 0;
-
-
-    bool is_func = false, is_subscript = false;
-
-    int took_off = 0;
-
-    // processes through a single operator,
-    //   basically taking the operator off the stack, and then altering the output stack,
-    //   scooping up values and forming the ASTs
-    #define PROCESS_OPERATOR { \
-        syop top = Spop(op_stk); \
-        if (top.type == SYT_BOP) { \
-            if (out_stk.p+1 < 2) { \
-                KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of operator"); \
-            } \
-            ks_ast R = Spop(out_stk); \
-            ks_ast L = Spop(out_stk); \
-            ks_ast node = ks_ast_new_bop(top.ast_type, L, R); \
-            Spush(out_stk, node); \
-        } else if (top.type == SYT_FUNC) { \
-            /* scan down until we hit the NULL, which tells us when the function call started */ \
-            int outsp = out_stk.p, nargs = 0; \
-            while (outsp >= 0 && Sget(out_stk, outsp) != NULL) { \
-                outsp--; \
-                nargs++; \
-            } \
-            /* now, out_stk_ptr should point to NULL */ \
-            ks_ast node = ks_ast_new_call(Sget(out_stk, outsp - 1), nargs, &Sget(out_stk, outsp + 1)); \
-            out_stk.p = outsp; \
-            if (Spop(out_stk) != NULL) { \
-                KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of function call"); \
-            } \
-            out_stk.p--; \
-            /* push out the function call */ \
-            Spush(out_stk, node); \
-            is_func = true; \
-            break; \
-        } else if (top.type == SYT_SUBSCRIPT) { \
-            /* scan down until we hit the NULL, which tells us when the function call started */ \
-            int outsp = out_stk.p, nargs = 0; \
-            while (outsp >= 0 && Sget(out_stk, outsp) != NULL) { \
-                outsp--; \
-                nargs++; \
-            } \
-            /* now, out_stk_ptr should point to NULL */ \
-            ks_ast node = ks_ast_new_subscript(Sget(out_stk, outsp - 1), nargs, &Sget(out_stk, outsp + 1)); \
-            out_stk.p = outsp; \
-            if (Spop(out_stk) != NULL) { \
-                KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of subscript call"); \
-            } \
-            out_stk.p--; \
-            /* push out the subscript call */ \
-            Spush(out_stk, node); \
-            is_subscript = true; \
-            break; \
-        } else if (top.type == SYT_LPAREN) { \
-            continue; \
-        } else if (top.type == SYT_LBRACK) { \
-            continue; \
-        } else { \
-            KSPAE_ERR(ctok, "InternalError; Did not pop off operator correctly (got %d)", top.type); \
-        } \
-    }
-
-
-    #define KSPAE_ERR(...) { wasErr = true; ks_parse_err(kp, __VA_ARGS__); goto _kspco_end; }
-
-    #define ESC_LOOP { ++kp->tok_i; break; }
-
-    for (; kp->tok_i < kp->tokens_n; ++kp->tok_i) {
-        ctok = kp->tokens[kp->tok_i];
-
-        if (ctok.type == KS_TOK_NEWLINE) {
-            ctok = ltok;
-            break;
-        } else if (ctok.type == KS_TOK_INT) {
-            
-            if (KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; didn't expect 2 values in a row like this");
-
-            ks_str_copy(&str, KS_STR_VIEW(kp->src._+ctok.state.i, ctok.len));
-            new_ast = ks_ast_new_const_int(atoll(str._));
-
-            Spush(out_stk, new_ast);
-
-        } else if (ctok.type == KS_TOK_STR) {
-            if (KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; didn't expect 2 values in a row like this");
-
-            ks_token_strlit(kp, ctok, &str);
-            new_ast = ks_ast_new_const_str(str);
-            Spush(out_stk, new_ast);
-
-        } else if (ctok.type == KS_TOK_IDENT) {
-            if (KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; didn't expect 2 values in a row like this");
-
-
-            /* first, check for keywords */
-            if (TOK_EQ(ctok, "true")) {
-                // boolean constant
-                new_ast = ks_ast_new_const_true();
-                Spush(out_stk, new_ast);
-            } else if (TOK_EQ(ctok, "false")) {
-                // boolean constant
-                new_ast = ks_ast_new_const_false();
-                Spush(out_stk, new_ast);
-            } else {
-                // otherwise, default to variable reference
-                ks_str_copy(&str, KS_STR_VIEW(kp->src._+ctok.state.i, ctok.len));
-                new_ast = ks_ast_new_var(str);
-                Spush(out_stk, new_ast);
-            }
-
-        } else if (ctok.type == KS_TOK_DOT) {
-            // do dot reference, like getattr
-
-            if (!KS_TOK_ISVAL(ltok.type)) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; can't take '.' of something that's not a value");
-
-            // skip the dot
-            ctok = kp->tokens[++kp->tok_i];
-            if (ctok.type != KS_TOK_IDENT) {
-                KSPAE_ERR(ctok, "Invalid Syntax; attribute name must be a valid identifier");
-            }
-
-            // create the dot operator
-            new_ast = ks_ast_new_attr(Spop(out_stk), KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len));
-
-            Spush(out_stk, new_ast);
-
-        } else if (ctok.type == KS_TOK_COMMA) {
-            // Comma, which should be used in a function call, condense the output
-            if (ltok.type == KS_TOK_COMMA) KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; can't have multiple commas like this");
-            if (ltok.type == KS_TOK_LPAREN || ltok.type == KS_TOK_LBRACK) KSPAE_ERR(ltok, "Invalid Syntax; expected some value after this");
-
-            if (KS_TOK_ISOP(ltok.type)) KSPAE_ERR(ctok, "Invalid Syntax; didn't expect a `,` after an operator");
-
-            //printf("THING[%d], %p\n", out_stk.p, out_stk.base[1]);
-
-            // reduce top of stack
-            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_FUNC && Stop(op_stk).type != SYT_SUBSCRIPT 
-                    && Stop(op_stk).type != SYT_LBRACK) {
-                PROCESS_OPERATOR
-            }
-
-
-        } else if (KS_TOK_ISOP(ctok.type)) {
-
-            // current operator
-            syop cur_op = { .type = SYT_NONE };
-
-            #define KPE_OC(_in, _opstr, _opval) if (strlen(_opstr) == _in.len && strncmp(kp->src._ + _in.state.i, _opstr, _in.len) == 0) { cur_op = _opval; }
-
-
-            if (ltok.type == KS_TOK_NONE || ltok.type == KS_TOK_COMMA || ltok.type == KS_TOK_LPAREN || ltok.type == KS_TOK_LBRACK || (KS_TOK_ISOP(ltok.type) && last_op.type == SYT_BOP)) {
-                // unary prefix operator
-
-                //KPE_OC(ctok, "++", syuop_preinc) else 
-                {
-                    KSPAE_ERR(ctok, "InternalError; Unhandled operator");
-                }
-
-                Spush(op_stk, cur_op);
-
-
-            } else if (KS_TOK_ISVAL(ltok.type) || (KS_TOK_ISOP(ltok.type) && last_op.type == SYT_UOP)) {
-                // this can be either a binary infix operator or a unary postfix operator, handle unary postfix first
-
-                //KPE_OC(ctok, "++", syuop_postinc) else 
-                //{
-                    // do nothing, as it should now be a binary operator
-                //}
-
-                if (cur_op.type != SYT_NONE) {
-                    // if not none, then it was a post-fix unary operator, so pop stuff off
-                    //PROCESS_OPERATOR
-                    //Spush(op_stk, cur_op);
-                    Spush(op_stk, cur_op);
-                    PROCESS_OPERATOR
-
-                    //kast_p node = kast_new();
-                    ////kast_init_uop(node, cur_op.uop_type, Spop(out_stk));
-                    //Spush(out_stk, node);
-
-                } else {
-                    // other than that, it should be a normal binary operator
-                    //kparse_error(kp, &ctok, "SyntaxError: This operator was not expected");
-
-                    KPE_OC(ctok, "=" , sybop_assign) else
-                    KPE_OC(ctok, "+" , sybop_add) else
-                    KPE_OC(ctok, "-" , sybop_sub) else
-                    KPE_OC(ctok, "*" , sybop_mul) else
-                    KPE_OC(ctok, "/" , sybop_div) else
-                    KPE_OC(ctok, "%" , sybop_mod) else
-                    KPE_OC(ctok, "^" , sybop_pow) else
-                    KPE_OC(ctok, "<" , sybop_lt) else
-                    KPE_OC(ctok, ">" , sybop_gt) else
-                    KPE_OC(ctok, "==" , sybop_eq) else
-                    {
-                        KSPAE_ERR(ctok, "InternalError; Unhandled operator");
-                    }
-
-                    // process all greater precedence operators:
-                    while (op_stk.p >= 0) {
-                        //bool do_op = Stop(op_stk).type == SYT_FUNC;
-                        bool do_op = false;
-                        do_op = do_op || (Stop(op_stk).prec >= cur_op.prec + ((cur_op.assoc == SYA_LEFT) ? 0 : 1));
-                        do_op = do_op && (Stop(op_stk).type != SYT_LPAREN && Stop(op_stk).type != SYT_LBRACK);
-                        if (do_op) {
-                            PROCESS_OPERATOR
-                        } else {
-                            break;
-                        }
-                    }
-
-                    Spush(op_stk, cur_op);
-                }
-            } else {
-                KSPAE_ERR(ctok, "Invalid Syntax; incorrect use of operators");
-            }
-
-        } else if (ctok.type == KS_TOK_LBRACK) {
-            n_lbracks++;
-
-            if (KS_TOK_ISVAL(ltok.type)) {
-                // do a subscript call
-                // op_stk = ... func
-                // out_stk = ... NULL
-
-                Spush(out_stk, NULL);
-
-
-                // this is like a 'start group', so the parser knows where the function started
-                Spush(op_stk, (syop) { .type = SYT_SUBSCRIPT });
-            
-            } else {
-                // add a marker
-                Spush(out_stk, NULL);
-
-                // add on a [] group start
-                Spush(op_stk, (syop) { .type = SYT_LBRACK });
-            }
-
-        } else if (ctok.type == KS_TOK_RBRACK) {
-            n_rbracks++;
-            is_func = false;
-            is_subscript = false;
-
-            int nargs = 0;
-            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_LBRACK) {
-                PROCESS_OPERATOR
-            }
-
-            int outsp = out_stk.p;
-            while (outsp >= 0 && Sget(out_stk, outsp) != NULL) {
-                outsp--;
-                nargs++;
-            }
-
-            if (is_subscript) {
-                // already handled it
-            } else {
-
-                ks_ast node = ks_ast_new_list(nargs, &Sget(out_stk, outsp + 1));
-                out_stk.p = outsp;
-                ks_ast rpop = Spop(out_stk);
-
-                if (rpop != NULL) {
-                    KSPAE_ERR(ctok, "Invalid Syntax; incorrect usage of list creation via [...]");
-                }
-                Spush(out_stk, node);
-            }
-
-
-        } else if (ctok.type == KS_TOK_LPAREN) {
-            n_lparens++;
-
-            if (KS_TOK_ISVAL(ltok.type)) {
-                // do a function call
-                // op_stk = ... func
-                // out_stk = ... NULL
-
-                Spush(out_stk, NULL);
-
-                // this is like a 'start group', so the parser knows where the function started
-                Spush(op_stk, (syop) { .type = SYT_FUNC });
-            } else {
-
-                // just do a normal group start
-                Spush(op_stk, (syop) { .type = SYT_LPAREN });
-            }
-
-        } else if (ctok.type == KS_TOK_RPAREN) {
-            n_rparens++;
-            is_func = false;
-            is_subscript = false;
-
-            if (ltok.type == KS_TOK_COMMA || (KS_TOK_ISOP(ltok.type) && last_op.type == SYT_UOP && last_op.assoc == SYA_UNARY_PRE)) {
-                KSPAE_ERR(ltok, "Invalid Syntax; expected some value after this");
-            }
-
-            //took_off = 0;
-            while (op_stk.p >= 0 && Stop(op_stk).type != SYT_LPAREN) {
-                PROCESS_OPERATOR
-                //took_off++;
-            }
-
-            if (is_func) {
-                // if we parsed off a function, we already handled it
-                //ks_parse_err(kp, ctok, "Function call");
-
-            } else {
-
-                if (ltok.type == KS_TOK_LPAREN) {
-                    KSPAE_ERR(COMBO_TOKS(ltok, ctok), "Invalid Syntax; this is an empty group");
-                }
-            
-                // if we parsed off a normal group, expect it to end like this
-                if (Stop(op_stk).type == SYT_LPAREN) {
-                    // pop it off, continue
-                    Spop_unused(op_stk);
-                } else {
-                    // when encountering another parentheses
-                    KSPAE_ERR(ctok, "Invalid Syntax; unexpected ')'");
-                }
-            }
-        } else if (ctok.type == KS_TOK_COMMENT) {
-            // do nothing
-            continue;
-
-        } else if (ctok.type == KS_TOK_LBRACE || ctok.type == KS_TOK_RBRACE || ctok.type == KS_TOK_SEMI || ctok.type == KS_TOK_COLON) {
-            // this means the expression has stopped, because it now is block syntax
-            //ctok = ltok;
-            break;
-
-        } else {
-            KSPAE_ERR(ctok, "Invalid Syntax; unexpected token");
-        }
-
-        ltok = ctok;
-    }
-
-    if (n_lparens > n_rparens) {
-        KSPAE_ERR(ctok, "Invalid Syntax; mismatched parentheses, expected another ')' after this");
-    } else if (n_lparens < n_rparens) {
-        KSPAE_ERR(ctok, "Invalid Syntax; mismatched parentheses, have an extra ')'");
-    }
-
-    if (n_lbracks > n_rbracks) {
-        KSPAE_ERR(ctok, "Invalid Syntax; mismatched brackets, expected another ']' after this");
-    } else if (n_lbracks < n_rbracks) {
-        KSPAE_ERR(ctok, "Invalid Syntax; mismatched brackets, have an extra ']'");
-    }
-
-    // while operators on the stack, should only be binary or unary, because
-    //   all functions/things should have already been popped off
-    while (op_stk.p >= 0) {
-        PROCESS_OPERATOR
-    }
-
-    if (out_stk.p != 0) {
-        KSPAE_ERR(ctok, "Invalid Syntax (internal); The expression was malformed (ended with out:%d, ops:%d)", out_stk.p + 1, op_stk.p + 1);
-    }
-
-    //if (ks_ast_codegen(out_stk.base[0], to) != 0) {
-    //    rc = ks_parse_err(kp, ctok, "Internal Error in ks_ast_codegen()");
-    //    goto _kspas_end;
-    //}
-
-    _kspco_end: ;
-    int p = out_stk.p;
-    ks_str_free(&str);
-    out_stk.p = -1;
-    op_stk.p = -1;
-    return wasErr ? NULL : (p == 0 ? out_stk.base[0] : NULL);
-}
-
-ks_ast ks_parse_block(ks_parse* kp) {
-
-    ks_token ctok = kp->tokens[kp->tok_i];
-
-    // skip newlines
-    while (ctok.type == KS_TOK_NEWLINE || ctok.type == KS_TOK_COMMENT) {
-        ctok = kp->tokens[++kp->tok_i];
-    }
-
-    if (kp->tok_i >= kp->tokens_n) {
-        return ks_ast_new_block(0, NULL);
-    }
-
-    if (ctok.type == KS_TOK_LBRACE) {
-        // parse list
-        // skip '{'
-        ++kp->tok_i;
-
-        ks_ast body = ks_ast_new_block(0, NULL);
-
-        do {
-            ctok = kp->tokens[kp->tok_i];
-
-            if (ctok.type == KS_TOK_RBRACE) {
-                break;
-            }
-
-            if (ctok.type == KS_TOK_NEWLINE || ctok.type == KS_TOK_SEMI) {
-                ++kp->tok_i;
-                continue;
-            }
-
-            ks_ast body_sub = ks_parse_block(kp);
-            if (body_sub == NULL) return NULL;
-            // recursively parse it
-            ks_ast_block_add(body, body_sub);
-
-        } while (kp->tok_i < kp->tokens_n);
-        if (kp->tok_i >= kp->tokens_n) kp->tok_i--;
-
-        // expect '}'
-        if (ctok.type != KS_TOK_RBRACE) {
-            ks_parse_err(kp, ctok, "Expected '}'");
-            return NULL;
-        }
-        ++kp->tok_i;
-
-        return body;
-
-    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "ret"))) {
-        // parse ret val
-        // skip `ret`
-        ++kp->tok_i;
-
-        ks_ast val = ks_parse_expr(kp);
-        if (val == NULL) return NULL;
-
-        return ks_ast_new_ret(val);
-
-    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "if"))) {
-        // parse if (COND) { BODY }
-        // skip `if`
-        ++kp->tok_i;
-
-        ks_ast cond = ks_parse_expr(kp);
-        if (cond == NULL) return NULL;
-        
-        // skip past semi
-        ctok = kp->tokens[kp->tok_i];
-        if (ctok.type == KS_TOK_SEMI) kp->tok_i++;
-
-        ks_ast body = ks_parse_block(kp);
-        if (body == NULL) return NULL;
-        
-        return ks_ast_new_if(cond, body);
-
-    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "while"))) {
-        // parse while (COND) { BODY }
-        // skip `while`
-        ++kp->tok_i;
-
-        //ctok = kp->tokens[*kpi];
-        ks_ast cond = ks_parse_expr(kp);
-        if (cond == NULL) return NULL;
-
-        ks_ast body = ks_parse_block(kp);
-        if (body == NULL) return NULL;
-        
-        return ks_ast_new_while(cond, body);
-    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "for"))) {
-        // parse for (ITER) { BODY }
-        // skip `for`
-        ++kp->tok_i;
-
-        //ctok = kp->tokens[*kpi];
-        ks_ast iter = ks_parse_expr(kp);
-        if (iter == NULL) return NULL;
-
-        ks_ast body = ks_parse_block(kp);
-        if (body == NULL) return NULL;
-        
-        return ks_ast_new_for(iter, body);
-
-
-    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "func"))) {
-        // parse func NAME(arg, arg, ...) { BODY }
-        // skip `func`
-        ++kp->tok_i;
-        
-        ctok = kp->tokens[kp->tok_i];
-        if (ctok.type != KS_TOK_IDENT) {
-            ks_parse_err(kp, ctok, "Expected a function name identifier here");
-            return NULL;
-        }
-
-        ks_str func_name = KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len);
-
-        ks_ast func = ks_ast_new_func();
-
-        // expect '('
-        ctok = kp->tokens[++kp->tok_i];
-        if (ctok.type != KS_TOK_LPAREN) {
-            ks_parse_err(kp, ctok, "Expected a '(' to begin function parameters here");
-            return NULL;
-        }
-        ++kp->tok_i;
-
-
-        // now, parse arguments
-        while ((ctok = kp->tokens[kp->tok_i]).type != KS_TOK_RPAREN) {
-
-            
-            if (ctok.type != KS_TOK_IDENT) {
-                ks_parse_err(kp, ctok, "Expected a parameter name identifier here");
-                return NULL;
-            }
-            
-            // now, add a parameter
-            ks_ast_func_add_param(func, KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len));
-
-            if (++kp->tok_i >= kp->tokens_n) {
-                ks_parse_err(kp, ctok, "Unexpected EOF");
-                return NULL;
-            }
-            ctok = kp->tokens[kp->tok_i];
-
-            if (ctok.type == KS_TOK_COMMA) {
-                kp->tok_i++;
-                continue;
-            } else {
-                break;
-            }
-
-        }
-
-        // expect ')'
-        ctok = kp->tokens[kp->tok_i];
-        if (ctok.type != KS_TOK_RPAREN) {
-            ks_parse_err(kp, ctok, "Expected a ')' to end function parameters here");
-            return NULL;
-        }
-
-        // now, parse body block
-        ++kp->tok_i;
-
-        // parse the body
-        ks_ast body = ks_parse_block(kp);
-        if (body == NULL) return NULL;
-
-        func->_func.body = body;
-
-        return ks_ast_new_bop(KS_AST_BOP_ASSIGN, ks_ast_new_var(func_name), func);
-
-    } else if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "type"))) {
-        // parse a type declaration;
-        // type NAME {
-        //   FUNCTIONS
-        // }
-
-        // skip `type`
-        ++kp->tok_i;
-
-        ctok = kp->tokens[kp->tok_i];
-        if (ctok.type != KS_TOK_IDENT) {
-            ks_parse_err(kp, ctok, "Expected a type name identifier here");
-            return NULL;
-        }
-
-        ks_str type_name = KS_STR_VIEW(kp->src._ + ctok.state.i, ctok.len);
-
-        ctok = kp->tokens[++kp->tok_i];
-
-        ks_ast vtype = ks_ast_new_type();
-        vtype->_type.body = ks_parse_block(kp);
-        /*
-
-        if (ctok.type != KS_TOK_LBRACE) {
-            ks_parse_err(kp, ctok, "Expected a '{' to begin type declaration here");
-            return NULL;
-        }
-
-        while ((ctok = kp->tokens[kp->tok_i]).type != KS_TOK_LBRACE) {
-
-            // keep parsing function declarations
-            if (ctok.type == KS_TOK_IDENT && (TOK_EQ(ctok, "func"))) {
-                ks_ast new_func = ks_parse_block(kp);
-                // add function to type
-                ks_ast_type_add_member(vtype, new_func);
-            } else {
-                ks_parse_err(kp, ctok, "Expected a function definition for the type here");
-                return NULL;
-            }
-        }
-
-
-        ctok = kp->tokens[kp->tok_i];
-        if (ctok.type != KS_TOK_LBRACE) {
-            ks_parse_err(kp, ctok, "Expected a '}' to end type declaration here");
-            return NULL;
-        }
-
-        */
-        ks_ast ret = ks_ast_new_bop(KS_AST_BOP_ASSIGN, ks_ast_new_var(type_name), vtype);;
-
-        return ret;
-
-    } else if (ctok.type == KS_TOK_RBRACE) {
-        // this just means its the end
-        return NULL;
-    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_LPAREN || ctok.type == KS_TOK_LBRACK || ctok.type == KS_TOK_INT) {
-        // assums its just a normal expression, add it
-        ks_ast expr = ks_parse_expr(kp);
-        if (expr == NULL) return NULL;
-
-        ctok = kp->tokens[kp->tok_i];
-        if (kp->tok_i >= kp->tokens_n) return expr;
-
-        if (!(ctok.type == KS_TOK_SEMI || ctok.type == KS_TOK_NEWLINE || ctok.type == KS_TOK_RBRACE)) {
-            ks_parse_err(kp, ctok, "Invalid Syntax");
-            return NULL;
-        }
-        return expr;
-    } else {
-        ks_parse_err(kp, ctok, "Invalid Syntax");
-        return NULL;
-    }
+    kse_addo(errstr);
+    KSO_CHKREF(errstr);
 
     return NULL;
 }
 
-ks_ast ks_parse_code(ks_parse* kp) {
 
-    ks_ast body = ks_ast_new_block(0, NULL);
+// internal method to initialize the parser, tokenize it, etc
+static void parser_init(ks_parser self) {
 
-    for (; kp->tok_i < kp->tokens_n; ++kp->tok_i) {
-        ks_token ctok = kp->tokens[kp->tok_i];
+    // get a pointer to the contents
+    char* contents = self->src->chr;
 
-        if (ctok.type == KS_TOK_NEWLINE || ctok.type == KS_TOK_SEMI) {
-            continue;
+    // current line and column
+    int line = 0, col = 0;
+
+    // advance `n` characters 
+    #define ADV(_n) { int _i; for (_i = 0; _i < (_n); ++_i) { char _c = contents[i]; if (!_c) break; if (_c == '\n') { line++; col = 0; } else { col++; } i++; } }
+
+    int i = 0;
+    while (contents[i]) {
+        // skip whitespace
+        while (contents[i] && iswhite(contents[i])) {
+            ADV(1);
         }
 
-        // by default, just treat it as a block expression
-        ks_ast expr = ks_parse_block(kp);
-        if (expr == NULL) return NULL;
-        ks_ast_block_add(body, expr);
+        char c = contents[i];
+
+        // check for NUL
+        if (!c) break;
+
+        // adds a token, given the internal variables start_i, and i
+        #define ADD_TOK(_type) { self->toks = ks_realloc(self->toks, sizeof(*self->toks) * ++self->n_toks); self->toks[self->n_toks - 1] = ks_tok_new(_type, self, start_i, i - start_i, start_line, start_col); }
+
+        int start_i = i, start_line = line, start_col = col;
+
+        if (c == '#') {
+            // parse a comment
+            ADV(1);
+
+            while (contents[i] && contents[i] != '\n') {
+                ADV(1);
+
+            }
+
+            ADD_TOK(KS_TOK_COMMENT);
+
+            // skip newline if it exists
+            ADV(1);
+
+        } else if (isdigit(c)) {
+            // parse a string literal
+
+            do {
+                ADV(1);
+            } while (isdigit(contents[i]));
+
+            ADD_TOK(KS_TOK_INT);
+
+        } else if (isidents(c)) {
+            // parse an identifier
+            do {
+                ADV(1);
+            } while (isidentm(contents[i]));
+
+            ADD_TOK(KS_TOK_IDENT);
+        
+        } else if (c == '\"') {
+            int st_i = i, st_line = line, st_col = col;
+
+            // parse a string literal
+            // skip opening quotes
+            ADV(1);
+
+            while ((c = contents[i]) && c != '"') {
+                if (c == '\\') {
+                    // skip an escape code
+                    ADV(2);
+                } else {
+                    ADV(1);
+                }
+            }
+
+            if (contents[i] != '"') {
+                // rewind back for the error
+                i = st_i + 2;
+
+                ADD_TOK(KS_TOK_NONE);
+                tok_err((ks_tok)self->toks[self->n_toks - 1], "Expected terminating '\"' for string literal that began here:");
+                self->n_toks--;
+                break;
+            }
+
+            ADV(1);
+
+            ADD_TOK(KS_TOK_STR)
+
+        }
+
+        // macro for 1-1 translation of string to tokens
+        #define STR_TOK(_type, _str) else if (strncmp(&contents[i], _str, sizeof(_str) - 1) == 0) { \
+            ADV(sizeof(_str) - 1);\
+            ADD_TOK(_type);\
+        }
+
+        // misc
+        STR_TOK(KS_TOK_NEWLINE, "\n")
+
+        // random grammars
+        STR_TOK(KS_TOK_COMMA, ",")
+        STR_TOK(KS_TOK_COLON, ":")
+        STR_TOK(KS_TOK_SEMI, ";")
+
+        // pairs
+        STR_TOK(KS_TOK_LPAR, "(") STR_TOK(KS_TOK_RPAR, ")")
+        STR_TOK(KS_TOK_LBRACK, "[") STR_TOK(KS_TOK_RBRACK, "]")
+        STR_TOK(KS_TOK_LBRACE, "{") STR_TOK(KS_TOK_RBRACE, "}")
+
+        // operators
+        STR_TOK(KS_TOK_O_ADD, "+") STR_TOK(KS_TOK_O_SUB, "-")
+        STR_TOK(KS_TOK_O_MUL, "*") STR_TOK(KS_TOK_O_SUB, "/")
+
+        else {
+            i++;
+            ADD_TOK(KS_TOK_NONE);
+            tok_err(self->toks[self->n_toks - 1], "Unexpected character '%c'", c);
+            self->n_toks--;
+            break;
+        }
+
     }
 
-    return body;
-    
+    // add the ending token
+    int start_i = i, start_line = line, start_col = col;
+    ADD_TOK(KS_TOK_EOF);
+
+    // start at the beginning
+    self->tok_i = 0;
+
 }
+
+ks_parser ks_parser_new_expr(const char* expr) {
+
+    ks_parser self = (ks_parser)ks_malloc(sizeof(*self));
+    *self = (struct ks_parser) {
+        KSO_BASE_INIT(ks_T_parser, KSOF_NONE)
+        .src_name = ks_str_new_r("-e"),
+        .src = ks_str_new_r(expr),
+        .tok_i = 0,
+        .n_toks = 0,
+        .toks = NULL,
+    };
+
+    // record reference
+    KSO_INCREF(self->src);
+    KSO_INCREF(self->src_name);
+
+    /* now, finalize/tokenize the input */
+    parser_init(self);
+
+    return self;
+
+}
+
+
+ks_parser ks_parser_new_file(const char* fname) {
+
+    FILE* fp = fopen(fname, "r");
+    if (fp == NULL) {
+        return kse_fmt("While opening file '%s', could not open file!", fname);
+    }
+
+    fseek(fp, 0, SEEK_END);
+    size_t bytes = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    char* contents = ks_malloc(bytes + 1);
+    if (bytes != fread(contents, 1, bytes, fp)) {
+        ks_warn("File being read acted oddly...");
+    }
+    contents[bytes] = '\0';
+
+    fclose(fp);
+
+    ks_parser self = (ks_parser)ks_malloc(sizeof(*self));
+    *self = (struct ks_parser) {
+        KSO_BASE_INIT(ks_T_parser, KSOF_NONE)
+        .src_name = ks_str_new_r(fname),
+        .src = ks_str_new(bytes, contents),
+        .tok_i = 0,
+        .n_toks = 0,
+        .toks = NULL,
+    };
+
+    // record reference
+    KSO_INCREF(self->src);
+    KSO_INCREF(self->src_name);
+
+    // since we made a new string from it
+    ks_free(contents);
+
+    /* now, finalize/tokenize the input */
+    parser_init(self);
+
+    return self;
+
+}
+
+// yield whether a token equals another value
+#define TOK_EQ(_p, _tok, _str) (_tok.len == (sizeof(_str) - 1) && (0 == strncmp(self->src->chr + _tok.offset, _str, (sizeof(_str) - 1))))
+
+// parse out an AST from assembly source file
+ks_ast ks_parse_asm(ks_parser self) {
+
+    ks_list v_const = ks_list_new_empty();
+    ks_code code = ks_code_new_empty(v_const);
+    ks_ast code_ast = ks_ast_new_code(code);
+
+    bool wasErr = false;
+
+    // for keeping tokens to strings
+    ks_str tostr;
+
+    // arguments for the instructions
+    ks_tok a0, a1;
+
+    #define PASM_ERR(...) { tok_err(__VA_ARGS__); wasErr = true; goto parseasm_end; }
+
+    while (true) {
+        // keep parsing in a loop
+
+        // check if we're out
+        if (self->tok_i >= self->n_toks) return code_ast;
+
+        // get current token
+        ks_tok ctok = (ks_tok)self->toks[self->tok_i];
+
+        // check if we should skip
+        if (ctok.ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_COMMENT) {
+            self->tok_i++;
+            continue;
+        };
+
+        // check if we should stop parsing
+        if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_RBRACE) return code_ast;
+
+        if (ctok.ttype == KS_TOK_IDENT) {
+            // we will have an assembly command
+
+            // skip that token, but keep ctok as the name of the command
+            self->tok_i++;
+
+            if (TOK_EQ(self, ctok, "load")) {
+                a0 = (ks_tok)self->toks[self->tok_i++];
+                if (a0.ttype == KS_TOK_STR) {
+                    // load a string literal name
+                    tostr = tok_getstr(a0);
+                    ksc_loado(code, (kso)tostr);
+                } else {
+                    PASM_ERR(a0, "Arg #0 to 'load' instruction must be a string literal");
+                }
+            } else if (TOK_EQ(self, ctok, "const")) {
+                a0 = (ks_tok)self->toks[self->tok_i++];
+                if (a0.ttype == KS_TOK_STR) {
+                    // load a string literal
+                    tostr = tok_getstr(a0);
+                    ksc_const(code, (kso)tostr);
+                } else if (a0.ttype == KS_TOK_INT) {
+                    // load an int literal
+                    ksc_int(code, tok_getint(a0));
+                } else {
+                    PASM_ERR(a0, "Arg #0 to 'const' instruction must be a int literal or string literal");
+                }
+            } else if (TOK_EQ(self, ctok, "call")) {
+                a0 = (ks_tok)self->toks[self->tok_i++];
+                if (a0.ttype == KS_TOK_INT) {
+                    // call with an integer number of arguments
+                    ksc_call(code, (int)tok_getint(a0));
+                } else {
+                    PASM_ERR(a0, "Arg #0 to 'call' instruction must be an integer");
+                }
+            } else if (TOK_EQ(self, ctok, "popu")) {
+                ksc_popu(code);
+            } else {
+                PASM_ERR(ctok, "Unknown assembly instruction '%*s'", ctok.len, self->src->chr + ctok.offset);
+            }
+
+            ks_tok ntok = (ks_tok)self->toks[self->tok_i];
+            // make sure it ended correctly
+            if (!(ntok.ttype == KS_TOK_NEWLINE || ntok.ttype == KS_TOK_COMMENT || ntok.ttype == KS_TOK_RBRACK)) {
+                PASM_ERR(ntok, "Extra argument for assembly instruction '%*s'", ctok.len, self->src->chr + ctok.offset);
+            }
+
+        } else {
+            PASM_ERR(ctok, "Unexpected token for asm");
+        }
+    }
+
+    parseasm_end: ;
+
+    if (wasErr) {
+        KSO_DECREF(code_ast);
+        return NULL;
+    } else {
+        return code_ast;
+    }
+}
+
+
+/* expression parsing */
+
+// shunting yard operator structure
+typedef struct syop {
+
+    // what type of operator is it?
+    enum {
+        // err/empty type
+        SYT_NONE = 0,
+
+        // unary operator, like -A, ~A
+        SYT_UOP,
+
+        // a binary operator, like A+B, A-B
+        SYT_BOP,
+
+
+        /* psuedo-operators */
+        // just a left parenthesis (not a function call)
+        SYT_LPAR,
+
+        // a function call (including the left parenthesis)
+        SYT_FUNC,
+
+
+        SYT__END
+
+    } type;
+
+    // what is the precedence of the operator
+    enum {
+
+        SYP_NONE = 0,
+
+
+        // assignment i.e. A=B, should always be highest other than that
+        SYP_ASSIGN,
+
+        // +,-, in PEMDAS order
+        SYP_ADDSUB,
+
+        // *,/ (and %), second highest in PEMDAS
+        SYP_MULDIV,
+
+        // ^ exponetentiation, highest in PEMDAS
+        SYP_POW,
+
+        // unary operators always have the highest precedence
+        SYP_UNARY,
+
+
+        SYP__END
+
+    } prec;
+
+    // what is the associativity of the operator. left means A+B+C==(A+B)+C, right means A+B+C=A+(B+C)
+    enum {
+
+        SYA_NONE = 0,
+
+        // binary operator, left associative
+        // this handles most cases, like +,-,*,/,...
+        SYA_BOP_LEFT,
+
+        // binary operator, right associative
+        // some things are a bit weird, like exponentiation; they are associative from the right
+        // essentially, this is the power, as well as the assignment operator
+        SYA_BOP_RIGHT,
+
+        // unary prefix operator, like ++x, --x
+        SYA_UOP_PRE,
+
+        // unary postfix operator, like x++, x--
+        SYA_UOP_POST,
+
+
+        SYA__END
+
+    } assoc;
+
+    int bop_type;
+
+} syop;
+
+// construct a basic syop
+#define SYOP(_type) ((syop){.type = _type})
+
+// construct a binary operator
+#define SYBOP(_prec, _assoc, _bop_type) ((syop){ .type = SYT_BOP, .prec = _prec, .assoc = _assoc, .bop_type = _bop_type })
+
+// construct a fully-loaded sy-operator
+#define SYOP_FULL(_type, _prec, _assoc) ((syop){ .type = _type, .prec = _prec, .assoc = _assoc })
+
+
+
+
+/* operator definitions */
+syop
+    // binary operators
+    syb_add = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_ADD), syb_sub = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_SUB),
+    syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV)
+
+
+;
+
+
+
+// parses a normal infix expression from 'self', using a hybrid shunting yard algorithm
+// It seems efficient, but I've been wanting to do larger tests with it
+ks_ast ks_parse_expr(ks_parser self) {
+
+    // the output stack, for values
+    struct {
+        // current length of the stack
+        int len;
+        // the pointer to the elements
+        ks_ast* base;
+    } Out = {0, NULL};
+
+    // the operator stack
+    struct {
+        // current length of the stack
+        int len;
+        // the pointer to the elements
+        syop* base;
+    } Ops = {0, NULL};
+
+    /* stack manipulation macros */
+
+    // pushes an item onto the stack
+    #define Spush(_stk, _val) { int _idx = (_stk).len++; (_stk).base = ks_realloc((_stk).base, sizeof(*(_stk).base) * _stk.len); (_stk).base[_idx] = (_val); }
+    // pops off an item from the stack, yielding the value
+    #define Spop(_stk) (_stk).base[--(_stk).len]
+    // yields the top value of the stack
+    #define Stop(_stk) (_stk).base[(_stk).len - 1]
+    // pops off an unused object from the stack (just use this one on Out, not Ops)
+    #define Spopu(_stk) { kso _obj = Spop(_stk); KSO_CHKREF(_obj); }
+    // gets `idx`'th item of `_stk`
+    #define Sget(_stk, _idx) (_stk).base[_idx]
+
+    // pops an operator from `Ops`, takes arguments from `Out`, and then replaces that output in `Out`
+    #define POP_OP() { \
+        syop top = Stop(Ops); \
+        if (top.type == SYT_FUNC) { \
+            /* basically: start at the top of the stack, scanning down for our NULL we added to the output 
+            to signify the start of the function call */ \
+            int osp = Out.len - 1; \
+            while (osp >= 0 && Sget(Out, osp) != NULL) osp--; \
+            int n_args = Out.len - osp - 1; \
+            Sget(Out, osp) = Sget(Out, osp - 1); /* effectively swaps the NULL and the actual function call */ \
+            /* now, they are contiguous in memory */ \
+            ks_ast new_call = ks_ast_new_call(n_args + 1, &Sget(Out, osp)); \
+            Out.len -= n_args + 2; \
+            Spush(Out, new_call);\
+        } else if (top.type == SYT_BOP) { \
+            /* construct a binary operator from the last two values on the stack */ \
+            ks_ast new_bop = ks_ast_new_bop(top.bop_type, Sget(Out, Out.len-2), Sget(Out, Out.len-1)); \
+            Out.len -= 2; \
+            Spush(Out, new_bop); \
+        } else if (top.type == SYT_LPAR) { \
+            /* just skip it */\
+        } else { \
+            PEXPR_ERR(ctok, "Internal Operator Error (%i)", top.type); \
+        } \
+        Spop(Ops); \
+    }
+
+    // whether or not there was an error
+    bool wasErr = false;
+
+    // macro to cause a token error
+    #define PEXPR_ERR(...) { tok_err(__VA_ARGS__); wasErr = true; goto parseexpr_end; }
+
+    // current and last tokens
+    ks_tok ctok = { .ttype = KS_TOK_NONE }, ltok = { .ttype = KS_TOK_NONE };
+
+
+    // tells you whether or not a given token type means that the last value was a value, or an operator
+    #define TOKE_ISVAL(_type) (_type == KS_TOK_INT || _type == KS_TOK_STR || _type == KS_TOK_IDENT || _type == KS_TOK_RPAR)
+
+    // tells you whether or not a given token is a binary operator
+    #define TOKE_ISBOP(_type) (_type >= KS_TOK_O_ADD && _type <= KS_TOK_O_DIV)
+
+    // tells you whether ot not a given token is a unary operator
+    #define TOKE_ISUOP(_type) (false)
+
+    // tells you whether or not a given token is any kind of operator
+    #define TOKE_ISOP(_type) (TOKE_ISBOP(_type) || TOKE_ISUOP(_type))
+
+
+    // number of parenthesis, left - right, this number should always be >= 0
+    int n_pars = 0;
+
+    // get the starting token
+    int start_tok_i = self->tok_i;
+
+
+    while (true) {
+        // make sure we're in bounds
+        if (self->tok_i >= self->n_toks) goto parseexpr_end;
+
+        // get current token
+        ctok = (ks_tok)self->toks[self->tok_i];
+
+        // check if we should skip
+        if (ctok.ttype == KS_TOK_COMMENT) {
+            self->tok_i++;
+            continue;
+        };
+
+        // check if we should stop parsing
+        if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_SEMI) goto parseexpr_end;
+
+
+        if (ctok.ttype == KS_TOK_INT) {
+            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
+    
+            // just push this onto the value stack
+            ks_ast new_int = ks_ast_new_int(tok_getint(ctok));
+            Spush(Out, new_int);
+        } else if (ctok.ttype == KS_TOK_STR) {
+            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
+
+            // just push this onto the value stack
+            ks_str strval = tok_getstr(ctok);
+            ks_ast new_str = ks_ast_new_stro(strval);
+            Spush(Out, new_str);
+        } else if (ctok.ttype == KS_TOK_IDENT) {
+            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
+
+            // do a variable reference
+            ks_ast new_var = ks_ast_new_varl(ctok.len, self->src->chr + ctok.offset);
+            Spush(Out, new_var);
+        } else if (ctok.ttype == KS_TOK_COMMA) {
+            
+            while (Ops.len > 0 && Stop(Ops).type != SYT_FUNC && Stop(Ops).type != SYT_LPAR) {
+                POP_OP();
+            }
+
+        } else if (ctok.ttype == KS_TOK_LPAR) {
+            n_pars++;
+            
+            if (TOKE_ISVAL(ltok.ttype))  {
+                // then the previous item parsed was a 'value' type, so this is a function call
+                Spush(Ops, SYOP(SYT_FUNC));
+
+                // we add a 'NULL', so we know where the function starts
+                Spush(Out, NULL);
+
+            } else {
+                // this is a normal group, just parenthetical expressions
+                Spush(Ops, SYOP(SYT_LPAR));
+            }
+
+        } else if (ctok.ttype == KS_TOK_RPAR) {
+            n_pars--;
+            if (n_pars < 0) PEXPR_ERR(ctok, "Invalid Syntax; extra ')', remove it")
+
+            // a right parenthesis should clear the stack, to the nearest function call
+            // or group
+            while (Ops.len > 0) {
+                syop cur = Stop(Ops);
+                POP_OP();
+                if (cur.type == SYT_FUNC || cur.type == SYT_LPAR) break;
+            }
+
+        } else if (TOKE_ISOP(ctok.ttype)) {
+
+            // try and find the current operator, store it here
+            syop cur_op = { .type = SYT_NONE };
+
+            // if case for an operator
+            #define KPE_OPCASE(_tok, _opstr, _opval) if (TOK_EQ(self, _tok, _opstr)) { cur_op = _opval; goto kpe_op_resolve; }
+
+
+            // TODO: implement unary operators
+            if (TOKE_ISOP(ltok.ttype) || ltok.ttype == KS_TOK_COMMA || ltok.ttype == KS_TOK_LPAR) PEXPR_ERR(ctok, "Invalid Syntax");
+
+
+
+            if (TOKE_ISVAL(ltok.ttype)) {
+                // since the last token was a value, this must either be a unary postfix or a binary infix
+                KPE_OPCASE(ctok, "+", syb_add)
+                KPE_OPCASE(ctok, "-", syb_sub)
+                KPE_OPCASE(ctok, "*", syb_mul)
+                KPE_OPCASE(ctok, "/", syb_div)
+            } else {
+                PEXPR_ERR(ctok, "Invalid Syntax; Unexpected operator");
+            }
+
+            kpe_op_resolve: ;
+
+            if (cur_op.type == SYT_NONE) {
+                // it was not found
+                PEXPR_ERR(ctok, "Unexpected operator");
+            }
+
+            // now, we have a valid operator, so clear the stack of anything with higher precedence than it
+
+            while (Ops.len > 0) {
+                bool do_op = false;
+                // check if the precedence makes sense
+                do_op = (Stop(Ops).prec >= cur_op.prec + ((cur_op.assoc == SYA_BOP_LEFT) ? 0 : 1));
+
+                // make sure we're obeying PEMDAS and always putting parenthesis at the highest level
+                do_op = do_op && (Stop(Ops).type != SYT_LPAR && Stop(Ops).type != SYT_FUNC);
+
+                if (do_op) {
+                    // process the operator
+                    POP_OP();
+                } else {
+                    // stop
+                    break;
+                }
+            }
+
+            // always push it to the op stack
+            Spush(Ops, cur_op);
+
+        } else {
+
+            PEXPR_ERR(ctok, "Unexpected token for expr");
+        }
+
+
+        // transfer the reference to the last token
+        ltok = ctok;
+
+        // increment counter
+        self->tok_i++;
+    }
+
+    parseexpr_end: ;
+
+    if (wasErr) {
+        ks_free(Out.base);
+        ks_free(Ops.base);
+        
+        return NULL;
+    } else {
+        while (Ops.len > 0) {
+            POP_OP();
+        }
+
+        if (n_pars > 0) {
+            int i, encountered = 0;
+            ks_tok last_lpar;
+            // try and find the parenthesis that caused the error
+            for (i = start_tok_i; i < self->tok_i && encountered < n_pars; ++i) {
+                if (self->toks[i].ttype == KS_TOK_LPAR) {
+                    encountered++;
+                    last_lpar = self->toks[i];
+                }
+            }
+
+            if (encountered > 0) {
+                // we found one to use for the error message
+                PEXPR_ERR(last_lpar, "Invalid Syntax; have an extra '(', remove it");
+            } else {
+                // just use the last one
+                PEXPR_ERR(ctok, "Invalid Syntax; have an extra '(', remove it");
+            }
+        }
+
+        if (Out.len != 1) {
+            // this means there are just multiple statements, seperated by commas:
+            // x = 2, y = 3, so just return them as a block
+            ks_ast ret = ks_ast_new_block(Out.len, Out.base);
+            ks_free(Out.base);
+            ks_free(Ops.base);
+            return ret;
+        } else {
+            ks_ast ret = Sget(Out, 0);
+            ks_free(Out.base);
+            ks_free(Ops.base);
+            return ret;
+        }
+    }
+}
+
+
+// generic parser, which is the general one used
+ks_ast ks_parse_all(ks_parser self) {
+
+    ks_ast block = ks_ast_new_block_empty();
+    bool wasErr = false;
+
+    // raise a parsing error here
+    #define PALL_ERR(...) { tok_err(__VA_ARGS__); wasErr = true; goto parseall_end; }
+
+    // external error, quit without additional message
+    #define PALL_ERREXT() { wasErr = true; goto parseall_end; }
+
+    while (true) {
+        // make sure we're in bounds
+        if (self->tok_i >= self->n_toks) goto parseall_end;
+
+        // get current token
+        ks_tok ctok = (ks_tok)self->toks[self->tok_i];
+
+        // check if we should skip
+        if (ctok.ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_COMMENT || ctok.ttype == KS_TOK_SEMI) {
+            self->tok_i++;
+            continue;
+        };
+
+        // check if we should stop parsing
+        if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_RBRACK) goto parseall_end;
+
+        if (ctok.ttype == KS_TOK_IDENT) {
+
+            // check for keywords/directives
+            if (TOK_EQ(self, ctok, "asm")) {
+                self->tok_i++;
+
+                // now, expect an opening brace '{'
+
+                ctok = (ks_tok)self->toks[self->tok_i++];
+                if (ctok.ttype != KS_TOK_LBRACE) PALL_ERR(ctok, "Expected '{' to start the assembly block");
+
+                ks_ast asm_block = ks_parse_asm(self);
+                if (asm_block == NULL) PALL_ERREXT();
+
+                ks_list_push(block->v_block, (kso)asm_block);
+
+                ctok = (ks_tok)self->toks[self->tok_i++];
+                if (ctok.ttype != KS_TOK_RBRACE) PALL_ERR(ctok, "Expected '}' to end the assembly block");
+
+
+            } else {
+                ks_ast expr = ks_parse_expr(self);
+                if (expr == NULL) PALL_ERREXT();
+                ks_list_push(block->v_block, (kso)expr);
+            }
+        } else {
+            ks_ast expr = ks_parse_expr(self);
+            if (expr == NULL) PALL_ERREXT();
+            ks_list_push(block->v_block, (kso)expr);
+        }
+    }
+
+
+    parseall_end: ;
+
+    if (wasErr) {
+        KSO_CHKREF(block);
+        return NULL;
+    } else {
+        return block;
+    }
+}
+
 
