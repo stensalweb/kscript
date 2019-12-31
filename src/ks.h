@@ -27,6 +27,37 @@
 // -lm
 #include <math.h>
 
+
+/* object interface */
+#include "kso.h"
+
+/* the builtin types */
+extern ks_type
+    ks_T_none,
+    ks_T_int,
+    ks_T_str,
+    ks_T_tuple,
+    ks_T_list,
+    ks_T_dict,
+    ks_T_cfunc,
+    ks_T_code,
+    ks_T_ast,
+    ks_T_parser,
+    ks_T_vm,
+    ks_T_type
+;
+
+/* builtin functions */
+extern ks_cfunc
+    ks_F_print,
+    ks_F_add,
+    ks_F_sub,
+    ks_F_mul,
+    ks_F_div
+;
+
+
+
 /* general library functions */
 
 // initializes the kscript library. This should be the first function you call, and it should
@@ -113,61 +144,30 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 // prints a error message, assuming the current log level allows for it
 #define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
-
-
-/* object interface */
-#include "kso.h"
-
-/* the builtin types */
-extern ks_type
-    ks_T_none,
-    ks_T_int,
-    ks_T_str,
-    ks_T_tuple,
-    ks_T_list,
-    ks_T_dict,
-    ks_T_cfunc,
-    ks_T_code,
-    ks_T_ast,
-    ks_T_parser,
-    ks_T_vm,
-    ks_T_type
-;
-
-/* builtin functions */
-extern ks_cfunc
-    ks_F_print,
-    ks_F_add,
-    ks_F_sub,
-    ks_F_mul,
-    ks_F_div
-;
-
-
-
-
-/* error subsystem */
+/* global error system */
 
 // add a C-string as an error message
 void* kse_add(const char* errmsg);
 
-// add a ks-str as an error message
+// add a ks_str as an error message
 void* kse_addo(ks_str errmsg);
 
-// add a C-style format string (internally using ks_str_new_vcfmt)
+// add a C-style format string (internally using ks_str_new_vcfmt) to generate an error message
+// NOTE: Not all common formats are supported
 void* kse_fmt(const char* fmt, ...);
 
-// get number of errors
+// number of errors currently being held, 0 if none
 int kse_N();
 
-// pop off an error
+// pop off an error, NULL if there is no error
 kso kse_pop();
 
-// dump out all errors, returns true if there were any, false if none
+// dump out all errors to the console, returns true if there were any, false if none
 bool kse_dumpall();
 
 
 
+/* internal methods */
 
 // INTERNAL METHOD, DO NOT CALL
 void kso_init();

@@ -18,5 +18,45 @@ At the same time, I also wanted something which could rival Python as a usable s
 
 Python has a ~20-40ms startup time for me, varying on which machine I use, etc. But this is just to print out a single string! For system utilities (which may be called in a loop from a shell), this time can start adding up.
 
+## Progress
+
+At this point in writing, I am still working on parsing, code generation, VM implementation, and standard types, but not really started on the standard library. It will, of course, be a WIP for some time before it's really stable, but it will be usable fairly soon.
+
+Here is the progress on builtin types:
+
+  * `int`: 90%, represents a 64 bit signed integer
+  * `long`: 0%, represents an arbitrarily long integer (this will come at a later date)
+  * `str`: 75%, represents a string of characters. Most of what needs to be done is interning, i.e. keeping only one copy of each string alive at a time
+  * `cfunc`: 100%, just a wrapper around a callable C function
+  * `code`: 25%, executable bytecode wrapper, needs serialization to disk & all the bytecode instructions
+  * `parser`: 40%, still needs things like subscripting, function definitions, dictionaries, but the infrastructure is all there
+  * `ast`: 40%, still needs many features, like branches, all the operators, loops, functions
+  * `list`/`tuple`: 70%: may need an optimized reallocation function, and freeing memory once the list gets small enough
+  * `dict`: 70%, fully working as is with generic types, but of course it needs to be profiled and optimized
+  * `type`: 20%, needs operator functions, creation functions, freeing functions, etc to be defined more clearly
+
+Here is the progress on builtin functions:
+  * `add`/operators: 10%, barely started them
+
+## Examples
+
+See the `examples/` folder for examples. Here are some of the basics:
+
+```
+print ("Hello World")
+```
+
+
+## Basic Syntax
+
+The syntax is fairly simple:
+
+  * `#...` denotes a single line comment (like python)
+  * `#* ... *#` denotes a start/end comment
+  * `a + b` yields the result of the sum of `a` and `b` (works the same for operators like `-`,`*`,`/`,`%`,...)
+  * normal order of operations applies here: `a + (b * c)` evaluates `b * c` first, then adds `a` and the result
+  * `f(a, b, c)` is a function call with 3 arguments onto the function `f`
+  * `f[a]` is a get call, which will work the way it does for most other language for respective types (lists will treat `a` as the index into the values, dictionaries will treat `a` as the key, etc)
+
 
 

@@ -1,6 +1,6 @@
 # Makefile - describes building the kscript project
 #
-# @author   : Cade Brown <cade@chemicaldevelopment.us>
+# @author   : Cade Brown <brown.cade@gmail.com>
 # @license  : WTFPL (http://www.wtfpl.net/)
 
 # -*- CONFIGURATION
