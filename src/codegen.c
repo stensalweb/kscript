@@ -63,6 +63,19 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         ksc_cstr(to, self->v_str->chr);
         STK_GROW(1);
         break;
+    case KS_AST_TRUE:
+        ksc_const_true(to);
+        STK_GROW(1);
+        break;
+    case KS_AST_FALSE:
+        ksc_const_false(to);
+        STK_GROW(1);
+        break;
+    case KS_AST_NONE:
+        ksc_const_none(to);
+        STK_GROW(1);
+        break;
+
     case KS_AST_VAR:
         ksc_load(to, self->v_var->chr);
         STK_GROW(1);
@@ -120,6 +133,35 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
             STK_TO(0);
 
         }
+
+        break;
+
+    case KS_AST_IF:
+
+        // first, generate the conditional
+        // TODO: generate short-circuit jumping code
+        codegen(self->v_if.cond, to, geni);
+
+        // capture the position where the jump instruction begins
+        int cond_jmpf_p = to->bc_n;
+        // this will be filled in later
+        ksc_jmpf(to, -1);
+        // jmpf consumes one argument
+        STK_GROW(-1);
+        // capture the position where the jump shall be made from
+        int cond_jmpf_a_p = to->bc_n;
+
+        // next, generate the body
+        codegen(self->v_if.body, to, geni);
+        STK_TO(0);
+        // capture the position after the body
+        int body_a_p = to->bc_n;
+
+        // now, get the actual instruction
+        ksbc_i32* jmpf_i = (ksbc_i32*)(to->bc + cond_jmpf_p);
+
+        // fill in the bytecode
+        jmpf_i->i32 = body_a_p - cond_jmpf_a_p;
 
         break;
 

@@ -75,7 +75,37 @@ extern ks_none ks_V_none;
 // the global `none` value
 #define KS_NONE (ks_V_none)
 
+// `none` as an object, downcasted
 #define KSO_NONE ((kso)ks_V_none)
+
+
+/* bool -> the boolean type, representing true or false
+NOTE: There are always just 2 global singltons, `ks_V_true`, and `ks_V_false`. No other booleans should be allocated
+  or deallocated, and a boolean comparison is equivalent to their pointer comparison
+*/
+typedef struct ks_bool {
+    KSO_BASE
+
+    bool v_bool;
+
+}* ks_bool;
+
+// the global singletons representing `true` and `false` respectively
+extern ks_bool ks_V_true, ks_V_false;
+
+// the `true` value
+#define KS_TRUE (ks_V_true)
+
+// the `false` value
+#define KS_FALSE (ks_V_false)
+
+// the `true` value, downcasted to an object
+#define KSO_TRUE ((kso)KS_TRUE)
+
+// the `false` value, downcasted to an object
+#define KSO_FALSE ((kso)KS_FALSE)
+
+
 
 /* int -> represents a whole number
 For now, is just a 64bit integer, but in the future, it will be arbitrary size too
@@ -218,11 +248,24 @@ enum {
     */
     KSBC_NOOP = 0,
 
-    /* CONST - used to pop a constant/literal (which is stored in the `v_const` of the code)
+    /* CONST - used to push a constant/literal (which is stored in the `v_const` of the code)
         which comes from the 4 byte `int` value stored in the instruction itself
     1[KSBC_CONST] 4[int v_const_idx, index into the `v_const` list for which constant it is]
     */
     KSBC_CONST,
+
+    /* CONST_TRUE - push on the constant 'true' (boolean), without using the extra 4 bytes 
+    1[KSBC_CONST_TRUE]
+    */
+    KSBC_CONST_TRUE,
+    /* CONST_FALSE - push on the constant 'false' (boolean), without using the extra 4 bytes 
+    1[KSBC_CONST_FALSE]
+    */
+    KSBC_CONST_FALSE,
+    /* CONST_NONE - push on the constant 'none' (none-type), without using the extra 4 bytes 
+    1[KSBC_CONST_NONE]
+    */
+    KSBC_CONST_NONE,
 
     /* POPU - pops off a value from the stack, which is unused (i.e. will remove the stack's ref)
         and possibly free the object, if the refcnt reaches 0
@@ -251,6 +294,7 @@ enum {
     */
     KSBC_CALL,
     
+    
     /** binary operators **/
 
     /* ADD - pops off 2 objects, binary-adds them
@@ -265,9 +309,28 @@ enum {
     1[KSBC_MUL] */
     KSBC_MUL,
 
-    /* div - pops off 2 objects, binary-divides them
+    /* DIV - pops off 2 objects, binary-divides them
     1[KSBC_DIV] */
     KSBC_DIV,
+
+
+    /** jumps/branches **/
+    
+    /* JMP - unconditionally jumps ahead `relamt` bytes in the bytecode
+    1[JMP] 4[int relamt] */
+    KSBC_JMP,
+
+    /* JMPT - pops off a value from the stack, jumps ahead `relamt` bytes in the bytecode
+        if the value was exactly `ks_V_true`, otherwise jump ahead 0
+    1[JMPT] 4[int relamt] */
+    KSBC_JMPT,
+
+    /* JMPF - pops off a value from the stack, jumps ahead `relamt` bytes in the bytecode
+        if the value was exactly `ks_V_false`, otherwise jump ahead 0
+    1[JMPF] 4[int relamt] */
+    KSBC_JMPF,
+
+
 
     // phony enum value to denote the end
     KSBC__END
@@ -489,7 +552,7 @@ typedef struct ks_vm {
 enum {
 
     /* none/error AST */
-    KS_AST_NONE = 0,
+    KS_AST_ERR = 0,
 
     /* means this AST represents a constant integer value */
     KS_AST_INT,
@@ -500,11 +563,21 @@ enum {
     /* means this AST represents a variable reference, which will be looked up */
     KS_AST_VAR,
 
+    /* means this AST represents the `true` constant */
+    KS_AST_TRUE,
+    /* means this AST represents the `false` constant */
+    KS_AST_FALSE,
+    /* means this AST represents the `none` constant */
+    KS_AST_NONE,
+
     /* means this AST represents a function call with a given number of arguments */
     KS_AST_CALL,
 
     /* means this AST represents a list of other ASTs in a block */
     KS_AST_BLOCK,
+
+    /* means this AST represents a conditional block */
+    KS_AST_IF,
 
     /* means the AST represents a block of code (assembly code) to be ran */
     KS_AST_CODE,
@@ -562,6 +635,16 @@ struct ks_ast {
 
         /* a list of the sub items of the block iff atype==KS_AST_BLOCK */
         ks_list v_block;
+
+        /* the condition and code to be ran if true iff atype==KS_AST_IF */
+        struct {
+            // the conditional in the parentheticals
+            ks_ast cond;
+
+            // the body inside the braces
+            ks_ast body;
+
+        } v_if;
 
         /* the code object representing the assembly iff atype==KS_AST_CODE */
         ks_code v_code;
@@ -668,6 +751,9 @@ void ksc_loado(ks_code code, kso obj);
 void ksc_store(ks_code code, const char* v_name);
 void ksc_storeo(ks_code code, kso obj);
 void ksc_const(ks_code code, kso val);
+void ksc_const_true(ks_code code);
+void ksc_const_false(ks_code code);
+void ksc_const_none(ks_code code);
 void ksc_int(ks_code code, int64_t v_int);
 void ksc_cstr(ks_code code, const char* v_cstr);
 void ksc_cstrl(ks_code code, int len, const char* v_cstr);
@@ -676,6 +762,9 @@ void ksc_add(ks_code code);
 void ksc_sub(ks_code code);
 void ksc_mul(ks_code code);
 void ksc_div(ks_code code);
+void ksc_jmp(ks_code code, int relamt);
+void ksc_jmpt(ks_code code, int relamt);
+void ksc_jmpf(ks_code code, int relamt);
 
 
 // create a new AST representing a constant int
@@ -687,6 +776,12 @@ ks_ast ks_ast_new_str(const char* v_str);
 // create a new AST representing a string
 ks_ast ks_ast_new_stro(ks_str v_str);
 
+// create a new AST representing the 'true' value
+ks_ast ks_ast_new_true();
+// create a new AST representing the 'false' value
+ks_ast ks_ast_new_false();
+// create a new AST representing the 'none' value
+ks_ast ks_ast_new_none();
 
 // create a new AST representing a variable reference
 ks_ast ks_ast_new_var(const char* var_name);
@@ -706,6 +801,9 @@ ks_ast ks_ast_new_block_empty();
 
 // returns a new block populated by the given arguments
 ks_ast ks_ast_new_block(int n_items, ks_ast* items);
+
+// return a new AST representing an `if`
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
 
 // returns a new AST representing a bytecode assembly segment
 ks_ast ks_ast_new_code(ks_code code);
@@ -750,6 +848,22 @@ uint64_t kso_hash(kso obj);
 
 // return whether or not the 2 objects are equal
 bool kso_eq(kso A, kso B);
+
+
+// returns the result of turning `A` into a boolean. It returns 0 if A->false, 1 if A->true, and
+//   -1 if it could not be determined
+// RULES:
+//   if A==KSO_TRUE, ret 1
+//   if A==KSO_FALSE, ret 0
+//   if A==KSO_NONE, ret 0
+//   if A is an int, ret 0 if A==0, 1 otherwise
+//   if A is a string, ret 0 if len(A)==0, 1 otherwise
+//   if A is a list, ret 0 if len(A)==0, 1 otherwise
+//   if A is a tuple, ret 0 if len(A)==0, 1 otherwise
+//   if A is a dict, ret 0 if it is empty, 1 otherwise
+// TODO: also add a lookup function for custom types
+// otherwise, return -1, because it could not be determined
+int kso_bool(kso A);
 
 // frees an object, returns true if successful, false otherwise
 bool kso_free(kso obj);

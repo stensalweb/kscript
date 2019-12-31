@@ -34,6 +34,7 @@
 /* the builtin types */
 extern ks_type
     ks_T_none,
+    ks_T_bool,
     ks_T_int,
     ks_T_str,
     ks_T_tuple,
@@ -87,7 +88,6 @@ void  ks_free(void* ptr);
 // actually being used, because internally the system may request blocks which are larger than neccessary.
 // These are just the bytes that ks_malloc/& know about
 size_t ks_memuse();
-
 
 // enumeration for levels of logging, from least important to most important
 enum {

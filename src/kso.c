@@ -2,25 +2,56 @@
 
 #include "ks.h"
 
-
-struct ks_type 
-    T_none,    *ks_T_none    = &T_none,
-    T_int,     *ks_T_int     = &T_int,
-    T_str,     *ks_T_str     = &T_str,
-    T_tuple,   *ks_T_tuple   = &T_tuple,
-    T_list,    *ks_T_list    = &T_list,
-    T_dict,    *ks_T_dict    = &T_dict,
-    T_type,    *ks_T_type    = &T_type,
-    T_code,    *ks_T_code    = &T_code,
-    T_ast,     *ks_T_ast     = &T_ast,
-    T_parser,  *ks_T_parser  = &T_parser,
-    T_vm,      *ks_T_vm      = &T_vm,
-    T_cfunc,   *ks_T_cfunc   = &T_cfunc
+// have the types
+static struct ks_type 
+    T_none,
+    T_bool,
+    T_int,
+    T_str,
+    T_tuple,
+    T_list,
+    T_dict,
+    T_type,
+    T_code,
+    T_ast,
+    T_parser,
+    T_vm,
+    T_cfunc
 ;
 
-struct ks_none 
-    V_none = { KSO_BASE_INIT_R(&T_none, KSOF_NONE, 1) }, *ks_V_none = &V_none
+// construct the `none` global value
+static struct ks_none 
+    V_none = { KSO_BASE_INIT_R(&T_none, KSOF_NONE, 1) }
 ;
+
+// construct the 2 booleans
+static struct ks_bool
+    V_true = { KSO_BASE_INIT_R(&T_bool, KSOF_NONE, 1) .v_bool = true },
+    V_false = { KSO_BASE_INIT_R(&T_bool, KSOF_NONE, 1) .v_bool = false }
+;
+
+
+
+// export them all with the same names as declared in the header
+
+ks_type 
+    ks_T_none = &T_none,
+    ks_T_bool = &T_bool,
+    ks_T_int = &T_int,
+    ks_T_str = &T_str,
+    ks_T_tuple = &T_tuple,
+    ks_T_list = &T_list,
+    ks_T_dict = &T_dict,
+    ks_T_type = &T_type,
+    ks_T_code = &T_code,
+    ks_T_ast = &T_ast,
+    ks_T_parser = &T_parser,
+    ks_T_vm = &T_vm,
+    ks_T_cfunc = &T_cfunc
+;
+
+ks_none ks_V_none = &V_none;
+ks_bool ks_V_true = &V_true, ks_V_false = &V_false;
 
 
 
@@ -28,7 +59,7 @@ struct ks_none
 #define _INT_CONST_MAX 256
 
 // table of -_INT_CONSTMAX<=x<_INT_CONST_MAX
-struct ks_int int_const[2 * _INT_CONST_MAX];
+static struct ks_int int_const[2 * _INT_CONST_MAX];
 
 ks_int ks_int_new(int64_t v_int) {
     if (v_int >= -_INT_CONST_MAX && v_int < _INT_CONST_MAX) {
@@ -49,7 +80,7 @@ ks_int ks_int_new(int64_t v_int) {
 #define _STR_CHR_MAX 256
 
 // list of the single character constants (+NULL)
-struct ks_str str_const_chr[_STR_CHR_MAX];
+static struct ks_str str_const_chr[_STR_CHR_MAX];
 
 // returns a good hash function for some data
 inline uint64_t str_hash(int len, const char* chr) {
@@ -789,6 +820,9 @@ void ksc_const(ks_code code, kso val) {
     int idx = ksc_addconst(code, val);
     KSC_I32(KSBC_CONST, idx); 
 }
+void ksc_const_true(ks_code code) { KSC_(KSBC_CONST_TRUE); }
+void ksc_const_false(ks_code code) { KSC_(KSBC_CONST_FALSE); }
+void ksc_const_none(ks_code code) { KSC_(KSBC_CONST_NONE); }
 void ksc_int(ks_code code, int64_t v_int) { 
     ks_int iobj = ks_int_new(v_int); 
     int idx = ksc_addconst(code, (kso)iobj); 
@@ -839,6 +873,9 @@ void ksc_add(ks_code code) { KSC_(KSBC_ADD); }
 void ksc_sub(ks_code code) { KSC_(KSBC_SUB); }
 void ksc_mul(ks_code code) { KSC_(KSBC_MUL); }
 void ksc_div(ks_code code) { KSC_(KSBC_DIV); }
+void ksc_jmp(ks_code code, int relamt) { KSC_I32(KSBC_JMP, relamt); }
+void ksc_jmpt(ks_code code, int relamt) { KSC_I32(KSBC_JMPT, relamt); }
+void ksc_jmpf(ks_code code, int relamt) { KSC_I32(KSBC_JMPF, relamt); }
 
 
 // create a new AST representing a constant int
@@ -876,6 +913,39 @@ ks_ast ks_ast_new_stro(ks_str v_str) {
     KSO_INCREF(self->v_str);
     return self;
 }
+
+
+// create a new AST representing 'true'
+ks_ast ks_ast_new_true() {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        .atype = KS_AST_TRUE
+    };
+    return self;
+}
+
+// create a new AST representing 'false'
+ks_ast ks_ast_new_false() {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        .atype = KS_AST_FALSE
+    };
+    return self;
+}
+
+// create a new AST representing 'none'
+ks_ast ks_ast_new_none() {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        .atype = KS_AST_NONE
+    };
+    return self;
+}
+
+
 
 // create a new AST representing a variable reference
 ks_ast ks_ast_new_var(const char* var_name) {
@@ -923,6 +993,20 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
     };
     KSO_INCREF(L);
     KSO_INCREF(R);
+    return self;
+}
+
+// create a new if block AST
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        .atype = KS_AST_IF,
+        .v_if = {cond, body}
+    };
+    KSO_INCREF(cond);
+    KSO_INCREF(body);
+
     return self;
 }
 
@@ -974,6 +1058,12 @@ KS_CFUNC_TDECL(ast, free) {
     case KS_AST_STR:
         KSO_DECREF(self->v_str);
         break;
+    case KS_AST_TRUE:
+    case KS_AST_FALSE:
+    case KS_AST_NONE:
+        // do nothing, they don't hold refs
+        break;
+
     case KS_AST_VAR:
         KSO_DECREF(self->v_var);
         break;
@@ -988,6 +1078,12 @@ KS_CFUNC_TDECL(ast, free) {
     case KS_AST_BLOCK:
         KSO_DECREF(self->v_block);
         break;
+
+    case KS_AST_IF:
+        KSO_DECREF(self->v_if.cond);
+        KSO_DECREF(self->v_if.body);
+        break;
+
 
     // handle all binary operators
     case KS_AST_BOP_ADD:
@@ -1335,6 +1431,28 @@ kso kso_call(kso func, int n_args, kso* args) {
     }
 }
 
+
+// try to convert A to a boolean, return 0 if it would be false, 1 if it would be true,
+//   and -1 if we couldn't decide
+int kso_bool(kso A) {
+    if (A == KSO_TRUE) return 1;
+    if (A == KSO_FALSE) return 0;
+    if (A == KSO_NONE) return 0;
+
+    if (A->type == ks_T_int) return ((ks_int)A)->v_int == 0 ? 0 : 1;
+
+    // containers are determined by their length
+    if (A->type == ks_T_str) return ((ks_str)A)->len == 0 ? 0 : 1;
+    if (A->type == ks_T_tuple) return ((ks_tuple)A)->len == 0 ? 0 : 1;
+    if (A->type == ks_T_list) return ((ks_list)A)->len == 0 ? 0 : 1;
+    if (A->type == ks_T_dict) return ((ks_dict)A)->n_items == 0 ? 0 : 1;
+
+    // else, we couldn't decide
+
+    return -1;
+
+}
+
 // return whether or not the 2 objects are equal
 bool kso_eq(kso A, kso B) {
     // same pointer should always be equal
@@ -1389,6 +1507,11 @@ void kso_init() {
     *ks_T_none = (struct ks_type) {
         KS_TYPE_INIT
         .name = ks_str_new_r("none"),
+    };
+
+    *ks_T_bool = (struct ks_type) {
+        KS_TYPE_INIT
+        .name = ks_str_new_r("bool"),
     };
 
     *ks_T_int = (struct ks_type) {

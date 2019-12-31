@@ -40,6 +40,9 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INIT_INST_LABEL(KSBC_NOOP)
         INIT_INST_LABEL(KSBC_CONST)
+        INIT_INST_LABEL(KSBC_CONST_TRUE)
+        INIT_INST_LABEL(KSBC_CONST_FALSE)
+        INIT_INST_LABEL(KSBC_CONST_NONE)
         INIT_INST_LABEL(KSBC_POPU)
         INIT_INST_LABEL(KSBC_LOAD)
         INIT_INST_LABEL(KSBC_STORE)
@@ -49,6 +52,10 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         INIT_INST_LABEL(KSBC_SUB)
         INIT_INST_LABEL(KSBC_MUL)
         INIT_INST_LABEL(KSBC_DIV)
+
+        INIT_INST_LABEL(KSBC_JMP)
+        INIT_INST_LABEL(KSBC_JMPT)
+        INIT_INST_LABEL(KSBC_JMPF)
 
     };
 
@@ -122,16 +129,34 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             #ifdef DO_EXEC_TRACE
             // do type generic logging
             if (v_c->type == ks_T_int) {
-                _exec_trace("const %ld # [%d]", ((ks_int)v_c)->v_int, inst.i32.i32);
+                _exec_trace("const %ld # [%i]", ((ks_int)v_c)->v_int, inst.i32.i32);
             } else if (v_c->type == ks_T_str) {
-                _exec_trace("const '%s' # [%d]", ((ks_str)v_c)->chr, inst.i32.i32);
+                _exec_trace("const '%s' # [%i]", ((ks_str)v_c)->chr, inst.i32.i32);
             } else {
-                _exec_trace("const <'%s' obj @ %p> # [%d]", v_c->type->name->chr, v_c, inst.i32.i32);
+                _exec_trace("const <'%s' obj @ %p> # [%i]", v_c->type->name->chr, v_c, inst.i32.i32);
             }
             #endif
 
             ks_list_push(vm->stk, v_c);
 
+            NEXT_INST();
+
+        INST_LABEL(KSBC_CONST_TRUE)
+            DECODE(ksbc_);
+            _exec_trace("const true");
+            ks_list_push(vm->stk, KSO_TRUE);
+            NEXT_INST();
+
+        INST_LABEL(KSBC_CONST_FALSE)
+            DECODE(ksbc_);
+            _exec_trace("const false");
+            ks_list_push(vm->stk, KSO_FALSE);
+            NEXT_INST();
+
+        INST_LABEL(KSBC_CONST_NONE)
+            DECODE(ksbc_);
+            _exec_trace("const none");
+            ks_list_push(vm->stk, KSO_NONE);
             NEXT_INST();
 
         INST_LABEL(KSBC_POPU)
@@ -148,9 +173,9 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             #ifdef DO_EXEC_TRACE
             // do type generic logging
             if (v_str->type == ks_T_str) {
-                _exec_trace("load '%s' # [%d]", ((ks_str)v_str)->chr, inst.i32.i32);
+                _exec_trace("load '%s' # [%i]", ((ks_str)v_str)->chr, inst.i32.i32);
             } else {
-                _exec_trace("load <'%s' obj @ %p> # [%d]", v_str->type->name->chr, v_str, inst.i32.i32);
+                _exec_trace("load <'%s' obj @ %p> # [%i]", v_str->type->name->chr, v_str, inst.i32.i32);
             }
             #endif
 
@@ -159,7 +184,6 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
                 // ERROR
                 ks_error("UNKNOWN");
             }
-
 
             // otherwise, it was found, so pop it on the stack
             ks_list_push(vm->stk, found);
@@ -172,9 +196,9 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             #ifdef DO_EXEC_TRACE
             // do type generic logging
             if (v_str->type == ks_T_str) {
-                _exec_trace("store '%s' # [%d]", v_str->chr, inst.i32.i32);
+                _exec_trace("store '%s' # [%i]", v_str->chr, inst.i32.i32);
             } else {
-                _exec_trace("store <'%s' obj @ %p> # [%d]", v_str->type->name->chr, v_str, inst.i32.i32);
+                _exec_trace("store <'%s' obj @ %p> # [%i]", v_str->type->name->chr, v_str, inst.i32.i32);
             }
             #endif
 
@@ -187,7 +211,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_CALL)
             DECODE(ksbc_i32);
-            _exec_trace("call %d", inst.i32.i32);
+            _exec_trace("call %i", inst.i32.i32);
 
             // get a pointer to the arguments
             args_p = &vm->stk->items[vm->stk->len -= inst.i32.i32];
@@ -221,6 +245,43 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         T_BOP_LABEL(KSBC_SUB, "-", ks_F_sub)
         T_BOP_LABEL(KSBC_MUL, "*", ks_F_mul)
         T_BOP_LABEL(KSBC_DIV, "/", ks_F_div)
+
+
+        INST_LABEL(KSBC_JMP)
+            DECODE(ksbc_i32);
+            _exec_trace("jmp %+i", inst.i32.i32);
+
+            pc += inst.i32.i32;
+
+            NEXT_INST();
+
+        INST_LABEL(KSBC_JMPT)
+            DECODE(ksbc_i32);
+            _exec_trace("jmpt %+i", inst.i32.i32);
+
+            popped = ks_list_pop(vm->stk);
+
+            if (kso_bool(popped) == 1) {
+                // check whether it would be a `true` boolean
+                pc += inst.i32.i32;
+            }
+
+            KSO_DECREF(popped);
+            NEXT_INST();
+
+        INST_LABEL(KSBC_JMPF)
+            DECODE(ksbc_i32);
+            _exec_trace("jmpf %+i", inst.i32.i32);
+
+            popped = ks_list_pop(vm->stk);
+
+            if (kso_bool(popped) != 1) {
+                // check whether it would not be a `true` boolean
+                pc += inst.i32.i32;
+            }
+            
+            KSO_DECREF(popped);
+            NEXT_INST();
 
 
 
