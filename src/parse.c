@@ -677,6 +677,7 @@ ks_ast ks_parse_expr(ks_parser self) {
     ks_tok ctok = { .ttype = KS_TOK_NONE }, ltok = { .ttype = KS_TOK_NONE };
 
 
+
     // tells you whether or not a given token type means that the last value was a value, or an operator
     #define TOKE_ISVAL(_type) (_type == KS_TOK_INT || _type == KS_TOK_STR || _type == KS_TOK_IDENT || _type == KS_TOK_RPAR)
 
@@ -1017,21 +1018,21 @@ ks_ast ks_parse_all(ks_parser self) {
     // external error, quit without additional message
     #define PALL_ERREXT() { wasErr = true; goto parseall_end; }
 
+    
+    // skips the irrelevant tokens/details
+    #define PALL_SKIPIRR() { \
+        while (self->tok_i < self->n_toks && ((ctok = self->toks[self->tok_i]).ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_COMMENT || ctok.ttype == KS_TOK_SEMI)) { \
+            self->tok_i++; \
+        } \
+        if (self->tok_i >= self->n_toks || ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_RBRACK) goto parseall_end; \
+    }
+
+    ks_tok ctok;
+
     while (true) {
-        // make sure we're in bounds
-        if (self->tok_i >= self->n_toks) goto parseall_end;
 
-        // get current token
-        ks_tok ctok = (ks_tok)self->toks[self->tok_i];
-
-        // check if we should skip
-        if (ctok.ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_COMMENT || ctok.ttype == KS_TOK_SEMI) {
-            self->tok_i++;
-            continue;
-        };
-
-        // check if we should stop parsing
-        if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_RBRACK) goto parseall_end;
+        // skip irrevalnt
+        PALL_SKIPIRR();
 
         if (ctok.ttype == KS_TOK_IDENT) {
 
@@ -1041,8 +1042,9 @@ ks_ast ks_parse_all(ks_parser self) {
                 // asm { BODY }
                 self->tok_i++;
 
-                // now, expect an opening brace '{'
+                PALL_SKIPIRR();
 
+                // now, expect an opening brace '{'
                 ctok = (ks_tok)self->toks[self->tok_i++];
                 if (ctok.ttype != KS_TOK_LBRACE) PALL_ERR(ctok, "Expected '{' to start the assembly block");
 
@@ -1054,21 +1056,79 @@ ks_ast ks_parse_all(ks_parser self) {
                 ctok = (ks_tok)self->toks[self->tok_i++];
                 if (ctok.ttype != KS_TOK_RBRACE) PALL_ERR(ctok, "Expected '}' to end the assembly block");
 
+            } else if (TOK_EQ(self, ctok, "ret")) {
+                // parse a return statement:
+                // ret EXPR 
+                // or
+                // ret
+
+                // skip ret
+                self->tok_i++;
+
+                ks_ast expr = ks_parse_expr(self);
+                if (expr == NULL) PALL_ERREXT();
+
+                ks_list_push(block->v_block, (kso)ks_ast_new_ret(expr));
+
+
             } else if (TOK_EQ(self, ctok, "if")) {
                 // parse an if block:
                 // if (COND) { BODY } ?(elif (COND1) { BODY1 })* ?(else (CONDLAST) { BODYLAST })
                 self->tok_i++;
 
+                PALL_SKIPIRR();
 
                 // now, expect an expression
                 ks_ast cond = ks_parse_expr(self);
                 if (cond == NULL) PALL_ERREXT();
+
+                PALL_SKIPIRR();
 
                 // recurse here, parse a whole block
                 ks_ast body = ks_parse_all(self);
                 if (body == NULL) PALL_ERREXT();
 
                 ks_list_push(block->v_block, (kso)ks_ast_new_if(cond, body));
+            } else if (TOK_EQ(self, ctok, "func")) {
+
+                // parse a function definition
+                // func NAME(ARGS...) { BODY }
+                self->tok_i++;
+
+                if ((ctok = self->toks[self->tok_i++]).ttype != KS_TOK_IDENT) PALL_ERR(ctok, "Expected a function name identifier here");
+
+                ks_ast func_name = ks_ast_new_varl(ctok.len, self->src->chr + ctok.offset);
+
+                if ((ctok = self->toks[self->tok_i++]).ttype != KS_TOK_LPAR) PALL_ERR(ctok, "Expected a '(' to begin the list of function parameters here");
+                
+                // TODO: parse argument names
+                ks_list param_names = ks_list_new_empty();
+
+                while ((ctok = self->toks[self->tok_i]).ttype != KS_TOK_RPAR) {
+                    if (ctok.ttype != KS_TOK_IDENT) PALL_ERR(ctok, "Expected a parameter name identifier here");
+
+                    // add it as a parameter
+                    ks_list_push(param_names, (kso)ks_str_new(ctok.len, self->src->chr + ctok.offset));
+
+                    ctok = self->toks[++self->tok_i];
+                    if (ctok.ttype == KS_TOK_COMMA) self->tok_i++;
+
+                }
+
+                if ((ctok = self->toks[self->tok_i++]).ttype != KS_TOK_RPAR) PALL_ERR(ctok, "Expected a ')' to end the list of function parameters here");
+
+                PALL_SKIPIRR();
+
+                if ((ctok = self->toks[self->tok_i]).ttype != KS_TOK_LBRACE) PALL_ERR(ctok, "Expected a '{' to begin the function body here");
+
+                // parse a body block from the function
+                ks_ast body = ks_parse_all(self);
+                if (body == NULL) PALL_ERREXT();
+
+                ks_ast func_val = ks_ast_new_func(param_names, body);
+
+                // add it to the current block
+                ks_list_push(block->v_block, (kso)ks_ast_new_bop(KS_AST_BOP_ASSIGN, func_name, func_val));
 
             } else {
                 ks_ast expr = ks_parse_expr(self);

@@ -1,13 +1,8 @@
 #!ks
 
 
-x = (3, 4, ["my", "test"])
-
-y = (x, x)
-
-print (x)
-
-if (y) {
-    print("Y TRUE", y)
+func f(x) {
+    ret 3
 }
 
+print(f(4))

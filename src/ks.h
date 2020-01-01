@@ -41,6 +41,7 @@ extern ks_type
     ks_T_list,
     ks_T_dict,
     ks_T_cfunc,
+    ks_T_kfunc,
     ks_T_code,
     ks_T_ast,
     ks_T_parser,

@@ -327,19 +327,29 @@ enum {
     /** jumps/branches **/
     
     /* JMP - unconditionally jumps ahead `relamt` bytes in the bytecode
-    1[JMP] 4[int relamt] */
+    1[KSBC_JMP] 4[int relamt] */
     KSBC_JMP,
 
     /* JMPT - pops off a value from the stack, jumps ahead `relamt` bytes in the bytecode
         if the value was exactly `ks_V_true`, otherwise jump ahead 0
-    1[JMPT] 4[int relamt] */
+    1[KSBC_JMPT] 4[int relamt] */
     KSBC_JMPT,
 
     /* JMPF - pops off a value from the stack, jumps ahead `relamt` bytes in the bytecode
         if the value was exactly `ks_V_false`, otherwise jump ahead 0
-    1[JMPF] 4[int relamt] */
+    1[KSBC_JMPF] 4[int relamt] */
     KSBC_JMPF,
 
+
+    /** return/higher order control flow **/
+
+    /* RET - return the last value on the stack as the function result
+    1[KSBC_RET] */
+    KSBC_RET,
+
+    /* RET_NONE - return a new none (i.e. does not touch the stack) as the function result
+    1[KSBC_RET_NONE] */
+    KSBC_RET_NONE,
 
 
     // phony enum value to denote the end
@@ -385,7 +395,7 @@ typedef union {
 #pragma pack(pop)
 
 
-/* code -> a bytecode object which can be executed*/
+/* code -> a bytecode object which can be executed */
 typedef struct ks_code {
     KSO_BASE
 
@@ -414,6 +424,17 @@ typedef struct ks_code {
 
 }* ks_code;
 
+/* kfunc -> a bytecode function that is callable from C and kscript */
+typedef struct ks_kfunc {
+    KSO_BASE
+
+    // the internal bytecode used by the function
+    ks_code code;
+
+    // a list of `ks_str` which represents the parameter names
+    ks_list params;
+
+}* ks_kfunc;
 
 /* type -> a type of an object, which can be built-in or user defined */
 struct ks_type {
@@ -580,6 +601,9 @@ typedef struct ks_vm {
         // the const for this list
         ks_list v_const;
 
+        // the locals for the scope
+        ks_dict locals;
+
     }* scopes;
 
 }* ks_vm;
@@ -623,6 +647,12 @@ enum {
 
     /* means this AST represents a conditional block */
     KS_AST_IF,
+
+    /* means this AST represents a function-literal, aka a lambda */
+    KS_AST_FUNC,
+
+    /* means this AST represents a return statement */
+    KS_AST_RET,
 
     /* means the AST represents a block of code (assembly code) to be ran */
     KS_AST_CODE,
@@ -703,6 +733,20 @@ struct ks_ast {
             ks_ast body;
 
         } v_if;
+
+        /* the structure describing a function literal */
+        struct {
+            
+            // list of the strings of the function names (all of these should be ks_str objects)
+            ks_list params;
+
+            // the body of the function
+            ks_ast body;
+
+        } v_func;
+
+        /* the value to return iff atype==KS_AST_RET */
+        ks_ast v_ret;
 
         /* the code object representing the assembly iff atype==KS_AST_CODE */
         ks_code v_code;
@@ -798,6 +842,10 @@ ks_cfunc ks_cfunc_newref(ks_cfunc_sig v_cfunc);
 // create a new (empty) collection of bytecode, given a refrence to a constant list
 ks_code ks_code_new_empty(ks_list v_const);
 
+// create a new kfunc from a code and a list of parameters
+ks_kfunc ks_kfunc_new(ks_list params, ks_code code);
+
+
 // sets a new meta ast for debugging/error messages
 void ks_code_add_meta(ks_code self, ks_ast ast);
 
@@ -830,6 +878,10 @@ void ksc_div(ks_code code);
 void ksc_jmp(ks_code code, int relamt);
 void ksc_jmpt(ks_code code, int relamt);
 void ksc_jmpf(ks_code code, int relamt);
+void ksc_ret(ks_code code);
+void ksc_ret_none(ks_code code);
+
+
 
 // create a new AST representing a constant int
 ks_ast ks_ast_new_int(int64_t v_int);
@@ -876,13 +928,19 @@ ks_ast ks_ast_new_block(int n_items, ks_ast* items);
 // return a new AST representing an `if`
 ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
 
+// return a new function representing a function literal
+ks_ast ks_ast_new_func(ks_list params, ks_ast body);
+
+// return a new ast representing a return
+ks_ast ks_ast_new_ret(ks_ast val);
+
 // returns a new AST representing a bytecode assembly segment
 ks_ast ks_ast_new_code(ks_code code);
 
 
 // generates the bytecode for a given AST, returns the code object
 // NOTE: this is implemented in codegen.c, rather than kso.c
-ks_code ks_ast_codegen(ks_ast self);
+ks_code ks_ast_codegen(ks_ast self, ks_list v_const);
 
 // return a new, empty virtual machine
 ks_vm ks_vm_new_empty();

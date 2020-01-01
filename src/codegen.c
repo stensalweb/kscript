@@ -154,6 +154,37 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // 1 is for the result of the function, minus all the things used to call it
         STK_GROW(1 - self->v_call->len);
         break;
+
+    case KS_AST_FUNC: ;
+
+        // generate the function code
+        ks_code new_code = ks_ast_codegen(self->v_func.body, NULL);
+
+        // create a function
+        ks_kfunc new_kfunc = ks_kfunc_new(self->v_func.params, new_code);
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        // load the object
+        ksc_const(to, (kso)new_kfunc);
+        // we add on one object
+        STK_GROW(1);
+
+        break;
+
+    case KS_AST_RET:
+
+        // generate the value
+        codegen(self->v_ret, to, geni);
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        ksc_ret(to);
+
+        break;
+
     case KS_AST_TUPLE:
         // calculate all the elements (use the same thing as list)
         for (i = 0; i < self->v_list->len; ++i) {
@@ -245,11 +276,19 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         break;
     }
 
+    geni->call_depth--;
+
+    //set the main level call depth last value
+    if (geni->call_depth == 1) {
+        geni->last_main = self;
+    }
+
 }
 
 
-ks_code ks_ast_codegen(ks_ast self) {
-    ks_list v_const = ks_list_new_empty();
+ks_code ks_ast_codegen(ks_ast self, ks_list v_const) {
+
+    if (v_const == NULL) v_const = ks_list_new_empty();
     ks_code code = ks_code_new_empty(v_const);
 
     struct cgi geni;
@@ -259,8 +298,9 @@ ks_code ks_ast_codegen(ks_ast self) {
 
     codegen(self, code, &geni);
 
-    // end it with a noop, TODO: make it return
-    ksc_noop(code);
+    // end with a return none, if it hasn't been filled out yet
+    if (geni.last_main == NULL || (geni.last_main->atype != KS_AST_RET)) ksc_ret_none(code);
+    
 
     return code;
 }

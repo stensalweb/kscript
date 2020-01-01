@@ -13,10 +13,11 @@ static struct ks_type
     T_dict,
     T_type,
     T_code,
+    T_kfunc,
+    T_cfunc,
     T_ast,
     T_parser,
-    T_vm,
-    T_cfunc
+    T_vm
 ;
 
 // construct the `none` global value
@@ -44,10 +45,11 @@ ks_type
     ks_T_dict = &T_dict,
     ks_T_type = &T_type,
     ks_T_code = &T_code,
+    ks_T_kfunc = &T_kfunc,
+    ks_T_cfunc = &T_cfunc,
     ks_T_ast = &T_ast,
     ks_T_parser = &T_parser,
-    ks_T_vm = &T_vm,
-    ks_T_cfunc = &T_cfunc
+    ks_T_vm = &T_vm
 ;
 
 ks_none ks_V_none = &V_none;
@@ -845,6 +847,33 @@ ks_cfunc ks_cfunc_newref(ks_cfunc_sig v_cfunc) {
     return self;
 }
 
+// create a new kfunc
+ks_kfunc ks_kfunc_new(ks_list params, ks_code code) {
+    ks_kfunc self = (ks_kfunc)ks_malloc(sizeof(*self));
+    *self = (struct ks_kfunc) {
+        KSO_BASE_INIT(ks_T_kfunc, KSOF_NONE)
+        .code = code,
+        .params = params
+    };
+
+    KSO_INCREF(params);
+    KSO_INCREF(code);
+    return self;
+}
+
+
+KS_CFUNC_TDECL(kfunc, free) {
+
+    // get the arguments
+    ks_kfunc self = (ks_kfunc)args[0];
+
+    KSO_DECREF(self->params);
+    KSO_DECREF(self->code);
+
+    ks_free(self);
+
+    return KSO_NONE;
+}
 
 
 // create a new empty piece of code
@@ -1049,6 +1078,11 @@ void ksc_jmp(ks_code code, int relamt) { KSC_I32(KSBC_JMP, relamt); }
 void ksc_jmpt(ks_code code, int relamt) { KSC_I32(KSBC_JMPT, relamt); }
 void ksc_jmpf(ks_code code, int relamt) { KSC_I32(KSBC_JMPF, relamt); }
 
+void ksc_ret(ks_code code) { KSC_(KSBC_RET); }
+void ksc_ret_none(ks_code code) { KSC_(KSBC_RET_NONE); }
+
+
+
 #define _AST_TOK_INIT .tok = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0), .tok_expr = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0),
 
 // create a new AST representing a constant int
@@ -1243,6 +1277,31 @@ ks_ast ks_ast_new_block(int n_items, ks_ast* items) {
     return self;
 }
 
+// createa a new AST representing a function literal
+ks_ast ks_ast_new_func(ks_list params, ks_ast body) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
+        .atype = KS_AST_FUNC,
+        .v_func = {params, body}
+    };
+    KSO_INCREF(params);
+    KSO_INCREF(body);
+    return self;
+}
+// create a new AST representing a return statement
+ks_ast ks_ast_new_ret(ks_ast val) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
+        .atype = KS_AST_RET,
+        .v_ret = val
+    };
+    KSO_INCREF(val);
+    return self;
+}
 // createa a new AST representing a block of code
 ks_ast ks_ast_new_code(ks_code code) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -1291,6 +1350,15 @@ KS_CFUNC_TDECL(ast, free) {
     case KS_AST_CODE:
         KSO_DECREF(self->v_code);
         break;
+    case KS_AST_FUNC:
+        KSO_DECREF(self->v_func.params);
+        KSO_DECREF(self->v_func.body);
+        break;
+
+    case KS_AST_RET:
+        KSO_DECREF(self->v_ret);
+        break;
+
 
     case KS_AST_BLOCK:
         KSO_DECREF(self->v_block);
@@ -1777,6 +1845,12 @@ void kso_init() {
         KS_TYPE_INIT
         .name = ks_str_new_r("code"),
         .f_free = (kso)ks_cfunc_newref(code_free),
+    };
+
+    *ks_T_kfunc = (struct ks_type) {
+        KS_TYPE_INIT
+        .name = ks_str_new_r("kfunc"),
+        .f_free = (kso)ks_cfunc_newref(kfunc_free),
     };
 
     *ks_T_ast = (struct ks_type) {
