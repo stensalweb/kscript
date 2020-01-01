@@ -63,7 +63,9 @@ FUNC(print) {
         } else if (arg_i->type == ks_T_int) {
             printf("%ld", ((ks_int)arg_i)->v_int);
         } else {
-            printf("<'%s' obj @ %p>", arg_i->type->name->chr, arg_i);
+            ks_str str_arg_i = kso_tostr(arg_i);
+            fwrite(str_arg_i->chr, 1, str_arg_i->len, stdout);
+            KSO_CHKREF(str_arg_i);
         }
 
     }

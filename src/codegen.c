@@ -41,6 +41,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         return;
     }
 
+    // just testing the errors
+    //ks_tok_err(self->tok_expr, "test...%i", self->atype);
+
     // loop variable
     int i;
 
@@ -56,27 +59,33 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
     switch (self->atype)
     {
     case KS_AST_INT:
+        ks_code_add_meta(to, self);
         ksc_int(to, self->v_int->v_int);
         STK_GROW(1);
         break;
     case KS_AST_STR:
+        ks_code_add_meta(to, self);
         ksc_cstr(to, self->v_str->chr);
         STK_GROW(1);
         break;
     case KS_AST_TRUE:
+        ks_code_add_meta(to, self);
         ksc_const_true(to);
         STK_GROW(1);
         break;
     case KS_AST_FALSE:
+        ks_code_add_meta(to, self);
         ksc_const_false(to);
         STK_GROW(1);
         break;
     case KS_AST_NONE:
+        ks_code_add_meta(to, self);
         ksc_const_none(to);
         STK_GROW(1);
         break;
 
     case KS_AST_VAR:
+        ks_code_add_meta(to, self);
         ksc_load(to, self->v_var->chr);
         STK_GROW(1);
         break;
@@ -90,6 +99,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         codegen(self->v_bop.L, to, geni);
         codegen(self->v_bop.R, to, geni);
 
+        // add meta after arguments
+        ks_code_add_meta(to, self);
+
         /**/ if (self->atype == KS_AST_BOP_ADD) ksc_add(to);
         else if (self->atype == KS_AST_BOP_SUB) ksc_sub(to);
         else if (self->atype == KS_AST_BOP_MUL) ksc_mul(to);
@@ -98,8 +110,33 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // pop 2, but push result back on
         STK_GROW(1 - 2);
 
+
         break;
 
+    case KS_AST_BOP_ASSIGN:
+
+        // assignment is special, because only certain kinds of ASTs are assignable
+
+        // first generate the value
+        codegen(self->v_bop.R, to, geni);
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        if (self->v_bop.L->atype == KS_AST_VAR) {
+            // assign to a name, i.e. NAME = val
+
+            // now, just store
+            ksc_storeo(to, (kso)self->v_bop.L->v_var);
+
+            // nothing changes
+            STK_GROW(0);
+
+        } else {
+            ks_tok_err(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable!");
+        }
+
+        break;
 
     case KS_AST_CALL:
 
@@ -108,11 +145,45 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
             codegen((ks_ast)self->v_call->items[i], to, geni);
         }
 
+        // add meta
+        ks_code_add_meta(to, self);
+
         // call those items on the stack
         ksc_call(to, self->v_call->len);
 
         // 1 is for the result of the function, minus all the things used to call it
         STK_GROW(1 - self->v_call->len);
+        break;
+    case KS_AST_TUPLE:
+        // calculate all the elements (use the same thing as list)
+        for (i = 0; i < self->v_list->len; ++i) {
+            codegen((ks_ast)self->v_list->items[i], to, geni);
+        }
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        // call those items on the stack
+        ksc_tuple(to, self->v_list->len);
+
+        // 1 is for the result of the function, minus all the things used to call it
+        STK_GROW(1 - self->v_list->len);
+        break;
+
+    case KS_AST_LIST:
+        // calculate all the elements
+        for (i = 0; i < self->v_list->len; ++i) {
+            codegen((ks_ast)self->v_list->items[i], to, geni);
+        }
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        // call those items on the stack
+        ksc_list(to, self->v_list->len);
+
+        // 1 is for the result of the function, minus all the things used to call it
+        STK_GROW(1 - self->v_list->len);
         break;
 
     case KS_AST_CODE:
@@ -120,6 +191,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // output some literal assembly, by linking it in using the method provided in kso.c
         // this will also merge the constants list
         ks_code_linkin(to, self->v_code);
+
+        // add meta
+        ks_code_add_meta(to, self);
 
         break;
     

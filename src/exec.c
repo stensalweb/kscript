@@ -47,6 +47,8 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         INIT_INST_LABEL(KSBC_LOAD)
         INIT_INST_LABEL(KSBC_STORE)
         INIT_INST_LABEL(KSBC_CALL)
+        INIT_INST_LABEL(KSBC_TUPLE)
+        INIT_INST_LABEL(KSBC_LIST)
 
         INIT_INST_LABEL(KSBC_ADD)
         INIT_INST_LABEL(KSBC_SUB)
@@ -65,6 +67,20 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
     // variable to hold the currently executing instruction's data
     ksbc inst;
+
+    // execution exception, such as value not found, etc
+    // give it printf-style strings
+    #define EXEC_EXC(...) { \
+        int i, bc_n = (int)((pc - sizeof(ksbc_i32)) - CUR_SCOPE.start_bc); \
+        for (i = 0; i < CUR_SCOPE.code->meta_ast_n; ++i) { \
+            if (CUR_SCOPE.code->meta_ast[i].bc_n >= bc_n) { \
+                ks_tok_err(CUR_SCOPE.code->meta_ast[i].ast->tok_expr, __VA_ARGS__); \
+                goto EXC; \
+            } \
+        } \
+        kse_fmt(__VA_ARGS__); \
+        goto EXC; \
+    }
 
 
     /* values/temporary variables */
@@ -100,8 +116,13 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
     // now, record where we started on the VM's scopes
     int start_scope = vm->n_scopes++;
     vm->scopes = ks_realloc(vm->scopes, sizeof(*vm->scopes) * vm->n_scopes);
+    CUR_SCOPE.start_bc = code->bc;
     CUR_SCOPE.pc = code->bc;
     CUR_SCOPE.v_const = code->v_const;
+    CUR_SCOPE.code = code;
+
+    // relative address in the bytecode
+    #define RELADDR ((int)(pc - CUR_SCOPE.start_bc))
 
 
     /* execution time */
@@ -118,7 +139,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_NOOP)
             DECODE(ksbc_);
-            _exec_trace("noop");
+            _exec_trace("noop # :%i", RELADDR);
 
             return ;
             NEXT_INST();
@@ -129,11 +150,11 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             #ifdef DO_EXEC_TRACE
             // do type generic logging
             if (v_c->type == ks_T_int) {
-                _exec_trace("const %ld # [%i]", ((ks_int)v_c)->v_int, inst.i32.i32);
+                _exec_trace("const %ld # [%i], :%i", ((ks_int)v_c)->v_int, inst.i32.i32, RELADDR);
             } else if (v_c->type == ks_T_str) {
-                _exec_trace("const '%s' # [%i]", ((ks_str)v_c)->chr, inst.i32.i32);
+                _exec_trace("const '%s' # [%i], :%i", ((ks_str)v_c)->chr, inst.i32.i32, RELADDR);
             } else {
-                _exec_trace("const <'%s' obj @ %p> # [%i]", v_c->type->name->chr, v_c, inst.i32.i32);
+                _exec_trace("const <'%s' obj @ %p> # [%i], :%i", v_c->type->name->chr, v_c, inst.i32.i32, RELADDR);
             }
             #endif
 
@@ -143,25 +164,25 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_CONST_TRUE)
             DECODE(ksbc_);
-            _exec_trace("const true");
+            _exec_trace("const true # :%i", RELADDR);
             ks_list_push(vm->stk, KSO_TRUE);
             NEXT_INST();
 
         INST_LABEL(KSBC_CONST_FALSE)
             DECODE(ksbc_);
-            _exec_trace("const false");
+            _exec_trace("const false # :%i", RELADDR);
             ks_list_push(vm->stk, KSO_FALSE);
             NEXT_INST();
 
         INST_LABEL(KSBC_CONST_NONE)
             DECODE(ksbc_);
-            _exec_trace("const none");
+            _exec_trace("const none # :%i", RELADDR);
             ks_list_push(vm->stk, KSO_NONE);
             NEXT_INST();
 
         INST_LABEL(KSBC_POPU)
             DECODE(ksbc_);
-            _exec_trace("popu");
+            _exec_trace("popu # :%i", RELADDR);
 
             ks_list_popu(vm->stk);
 
@@ -173,16 +194,15 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             #ifdef DO_EXEC_TRACE
             // do type generic logging
             if (v_str->type == ks_T_str) {
-                _exec_trace("load '%s' # [%i]", ((ks_str)v_str)->chr, inst.i32.i32);
+                _exec_trace("load '%s' # [%i], :%i", ((ks_str)v_str)->chr, inst.i32.i32, RELADDR);
             } else {
-                _exec_trace("load <'%s' obj @ %p> # [%i]", v_str->type->name->chr, v_str, inst.i32.i32);
+                _exec_trace("load <'%s' obj @ %p> # [%i], :%i", v_str->type->name->chr, v_str, inst.i32.i32, RELADDR);
             }
             #endif
 
             found = ks_dict_get(vm->globals, (kso)v_str, v_str->v_hash);
             if (found == NULL) {
-                // ERROR
-                ks_error("UNKNOWN");
+                EXEC_EXC("Unknown variable '%s'", v_str->chr);
             }
 
             // otherwise, it was found, so pop it on the stack
@@ -196,9 +216,9 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             #ifdef DO_EXEC_TRACE
             // do type generic logging
             if (v_str->type == ks_T_str) {
-                _exec_trace("store '%s' # [%i]", v_str->chr, inst.i32.i32);
+                _exec_trace("store '%s' # [%i], :%i", v_str->chr, inst.i32.i32, RELADDR);
             } else {
-                _exec_trace("store <'%s' obj @ %p> # [%i]", v_str->type->name->chr, v_str, inst.i32.i32);
+                _exec_trace("store <'%s' obj @ %p> # [%i], :%i", v_str->type->name->chr, v_str, inst.i32.i32, RELADDR);
             }
             #endif
 
@@ -211,7 +231,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_CALL)
             DECODE(ksbc_i32);
-            _exec_trace("call %i", inst.i32.i32);
+            _exec_trace("call %i # :%i", inst.i32.i32, RELADDR);
 
             // get a pointer to the arguments
             args_p = &vm->stk->items[vm->stk->len -= inst.i32.i32];
@@ -221,7 +241,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
             new_obj = kso_call(func, inst.i32.i32 - 1, args_p);
             if (new_obj == NULL) {
-                ks_error("ERROR DURING FUNC CALL");
+                EXEC_EXC("During function call, tried calling on obj: `%V`, which did not work", func);
             }
 
             // otherwise, 
@@ -230,6 +250,56 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             DECREF_N(args_p, inst.i32.i32 - 1);
 
             NEXT_INST();
+
+
+        INST_LABEL(KSBC_TUPLE)
+            DECODE(ksbc_i32);
+            _exec_trace("tuple %i # :%i", inst.i32.i32, RELADDR);
+
+            // get a pointer to the arguments
+            args_p = &vm->stk->items[vm->stk->len -= inst.i32.i32];
+
+            new_obj = (kso)ks_tuple_new(inst.i32.i32, args_p);
+            if (new_obj == NULL) {
+                EXEC_EXC("Internal error during tuple creation");
+            }
+
+            // now, add the tuple
+            KSO_INCREF(new_obj);
+
+            // since the objects will now be referenced by the tuple, remove the stack's reference
+            // TODO: Maybe have a more efficient way of constructing a tuple from freshly moved references?
+            DECREF_N(args_p, inst.i32.i32);
+            
+            // add list
+            ks_list_push(vm->stk, new_obj);
+            KSO_DECREF(new_obj);
+            
+            NEXT_INST();
+
+        INST_LABEL(KSBC_LIST)
+            DECODE(ksbc_i32);
+            _exec_trace("list %i, # :%i", inst.i32.i32, RELADDR);
+
+            // get a pointer to the arguments
+            args_p = &vm->stk->items[vm->stk->len -= inst.i32.i32];
+
+            new_obj = (kso)ks_list_new(inst.i32.i32, args_p);
+            if (new_obj == NULL) {
+                EXEC_EXC("Internal error during list creation");
+            }
+
+            // now, add the list
+            KSO_INCREF(new_obj);
+
+            DECREF_N(args_p, inst.i32.i32);
+
+            // add list
+            ks_list_push(vm->stk, new_obj);
+            KSO_DECREF(new_obj);
+            
+            NEXT_INST();
+
 
         // binary operator template
         #define T_BOP_LABEL(_BOP, _opstr, _opcfunc) INST_LABEL(_BOP) \
@@ -249,7 +319,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_JMP)
             DECODE(ksbc_i32);
-            _exec_trace("jmp %+i", inst.i32.i32);
+            _exec_trace("jmp %+i # :%i", inst.i32.i32, RELADDR);
 
             pc += inst.i32.i32;
 
@@ -257,7 +327,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_JMPT)
             DECODE(ksbc_i32);
-            _exec_trace("jmpt %+i", inst.i32.i32);
+            _exec_trace("jmpt %+i # :%i", inst.i32.i32, RELADDR);
 
             popped = ks_list_pop(vm->stk);
 
@@ -271,7 +341,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         INST_LABEL(KSBC_JMPF)
             DECODE(ksbc_i32);
-            _exec_trace("jmpf %+i", inst.i32.i32);
+            _exec_trace("jmpf %+i # :%i", inst.i32.i32, RELADDR);
 
             popped = ks_list_pop(vm->stk);
 
@@ -287,7 +357,11 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
 
         /* exception handling  */
         EXC:
+
+            //ks_error("EXCEPTION");
+
             if (kse_dumpall()) exit(1);
+
             return;
 
     }

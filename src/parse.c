@@ -28,6 +28,14 @@ ks_tok ks_tok_new(int ttype, ks_parser kp, int offset, int len, int line, int co
     };
 }
 
+#define _MIN(_a, _b) ((_a) < (_b) ? (_a) : (_b))
+#define _MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
+
+// combine A and B to form a larger meta token
+ks_tok ks_tok_combo(ks_tok A, ks_tok B) {
+    return ks_tok_new(KS_TOK_COMBO, A.v_parser, _MIN(A.offset, B.offset), _MAX(A.offset+A.len, B.offset+B.len) - _MIN(A.offset, B.offset), _MIN(A.line, B.line), _MIN(A.col, B.col));
+}
+
 // gets an integer from a token, assuming its a token type
 static int64_t tok_getint(ks_tok tok) {
     static char tmp[100];
@@ -88,8 +96,9 @@ static ks_str tok_getstr(ks_tok tok) {
 }
 
 
+#define tok_err ks_tok_err
 // have an error from a token
-static void* tok_err(ks_tok tok, const char* fmt, ...) {
+void* ks_tok_err(ks_tok tok, const char* fmt, ...) {
 
     // first, just compute the error string
     va_list ap;
@@ -98,7 +107,7 @@ static void* tok_err(ks_tok tok, const char* fmt, ...) {
     va_end(ap);
 
 
-    if (tok.len > 0) {
+    if (tok.v_parser != NULL && tok.len > 0) {
         // we have a valid token
         int i = tok.offset;
         int lineno = tok.line;
@@ -268,6 +277,9 @@ static void parser_init(ks_parser self) {
         STR_TOK(KS_TOK_O_ADD, "+") STR_TOK(KS_TOK_O_SUB, "-")
         STR_TOK(KS_TOK_O_MUL, "*") STR_TOK(KS_TOK_O_SUB, "/")
 
+        // special operators
+        STR_TOK(KS_TOK_O_ASSIGN, "=")
+
         else {
             i++;
             ADD_TOK(KS_TOK_NONE);
@@ -374,6 +386,9 @@ ks_ast ks_parse_asm(ks_parser self) {
 
     #define PASM_ERR(...) { tok_err(__VA_ARGS__); wasErr = true; goto parseasm_end; }
 
+    // keep track of first token
+    ks_tok tok_first = {.ttype = KS_TOK_NONE };
+
     while (true) {
         // keep parsing in a loop
 
@@ -388,9 +403,10 @@ ks_ast ks_parse_asm(ks_parser self) {
             self->tok_i++;
             continue;
         };
-
         // check if we should stop parsing
         if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_RBRACE) return code_ast;
+
+        if (tok_first.ttype == KS_TOK_NONE) tok_first = ctok;
 
         if (ctok.ttype == KS_TOK_IDENT) {
             // we will have an assembly command
@@ -450,6 +466,8 @@ ks_ast ks_parse_asm(ks_parser self) {
         KSO_DECREF(code_ast);
         return NULL;
     } else {
+        code_ast->tok = tok_first;
+        code_ast->tok_expr = ks_tok_combo(tok_first, self->toks[self->tok_i]);
         return code_ast;
     }
 }
@@ -479,6 +497,11 @@ typedef struct syop {
         // a function call (including the left parenthesis)
         SYT_FUNC,
 
+        // just a left bracket (not a subscript operation )
+        SYT_LBRACK,
+
+        // a subscript operation, i.e. `a[b]`
+        SYT_SUBSCRIPT,
 
         SYT__END
 
@@ -537,10 +560,16 @@ typedef struct syop {
 
     int bop_type;
 
+    // the token the operator came from
+    ks_tok tok;
+
+    // true if there was a comma associated (useful for parsing singlet tuples)
+    bool had_comma;
+
 } syop;
 
 // construct a basic syop
-#define SYOP(_type) ((syop){.type = _type})
+#define SYOP(_type) ((syop){.type = _type, .had_comma = false})
 
 // construct a binary operator
 #define SYBOP(_prec, _assoc, _bop_type) ((syop){ .type = SYT_BOP, .prec = _prec, .assoc = _assoc, .bop_type = _bop_type })
@@ -554,7 +583,10 @@ typedef struct syop {
 static syop
     // binary operators
     syb_add = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_ADD), syb_sub = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_SUB),
-    syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV)
+    syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV),
+
+    // special case
+    syb_assign = SYBOP(SYP_ASSIGN, SYA_BOP_RIGHT, KS_AST_BOP_ASSIGN)
 
 ;
 
@@ -605,15 +637,30 @@ ks_ast ks_parse_expr(ks_parser self) {
             Sget(Out, osp) = Sget(Out, osp - 1); /* effectively swaps the NULL and the actual function call */ \
             /* now, they are contiguous in memory */ \
             ks_ast new_call = ks_ast_new_call(n_args + 1, &Sget(Out, osp)); \
+            new_call->tok = top.tok; \
+            new_call->tok_expr = ks_tok_combo(((ks_ast)new_call->v_call->items[0])->tok_expr, ctok); \
             Out.len -= n_args + 2; \
             Spush(Out, new_call);\
         } else if (top.type == SYT_BOP) { \
             /* construct a binary operator from the last two values on the stack */ \
             ks_ast new_bop = ks_ast_new_bop(top.bop_type, Sget(Out, Out.len-2), Sget(Out, Out.len-1)); \
+            new_bop->tok = top.tok; \
+            new_bop->tok_expr = ks_tok_combo(new_bop->v_bop.L->tok_expr, new_bop->v_bop.R->tok_expr); \
             Out.len -= 2; \
             Spush(Out, new_bop); \
         } else if (top.type == SYT_LPAR) { \
             /* just skip it */\
+        } else if (top.type == SYT_LBRACK) { \
+            /* we've encountered a list literal, scan down and find how many objects */ \
+            int osp = Out.len - 1; \
+            while (osp >= 0 && Sget(Out, osp) != NULL) osp--; \
+            int n_args = Out.len - osp - 1; \
+            /* now, they are contiguous in memory */ \
+            ks_ast new_list = ks_ast_new_list(n_args, &Sget(Out, osp+1)); \
+            new_list->tok = top.tok; \
+            new_list->tok_expr = ks_tok_combo(top.tok, ctok); \
+            Out.len -= n_args + 1; \
+            Spush(Out, new_list);\
         } else { \
             PEXPR_ERR(ctok, "Internal Operator Error (%i)", top.type); \
         } \
@@ -634,7 +681,7 @@ ks_ast ks_parse_expr(ks_parser self) {
     #define TOKE_ISVAL(_type) (_type == KS_TOK_INT || _type == KS_TOK_STR || _type == KS_TOK_IDENT || _type == KS_TOK_RPAR)
 
     // tells you whether or not a given token is a binary operator
-    #define TOKE_ISBOP(_type) (_type >= KS_TOK_O_ADD && _type <= KS_TOK_O_DIV)
+    #define TOKE_ISBOP(_type) (_type >= KS_TOK_O_ADD && _type <= KS_TOK_O_ASSIGN)
 
     // tells you whether ot not a given token is a unary operator
     #define TOKE_ISUOP(_type) (false)
@@ -646,6 +693,9 @@ ks_ast ks_parse_expr(ks_parser self) {
     // number of parenthesis, left - right, this number should always be >= 0
     int n_pars = 0;
 
+    // number of brackets, left - right, this number should always be >= 0
+    int n_bracks = 0;
+
     // get the starting token
     int start_tok_i = self->tok_i;
 
@@ -655,7 +705,7 @@ ks_ast ks_parse_expr(ks_parser self) {
         if (self->tok_i >= self->n_toks) goto parseexpr_end;
 
         // get current token
-        ctok = (ks_tok)self->toks[self->tok_i];
+        ctok = self->toks[self->tok_i];
 
         // check if we should skip
         if (ctok.ttype == KS_TOK_COMMENT) {
@@ -668,20 +718,23 @@ ks_ast ks_parse_expr(ks_parser self) {
             ctok.ttype == KS_TOK_SEMI || 
             ctok.ttype == KS_TOK_LBRACE || ctok.ttype == KS_TOK_RBRACE) goto parseexpr_end;
 
-
         if (ctok.ttype == KS_TOK_INT) {
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
     
             // just push this onto the value stack
             ks_ast new_int = ks_ast_new_int(tok_getint(ctok));
+            new_int->tok_expr = new_int->tok = ctok;
             Spush(Out, new_int);
+
         } else if (ctok.ttype == KS_TOK_STR) {
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
 
             // just push this onto the value stack
             ks_str strval = tok_getstr(ctok);
             ks_ast new_str = ks_ast_new_stro(strval);
+            new_str->tok_expr = new_str->tok = ctok;
             Spush(Out, new_str);
+
         } else if (ctok.ttype == KS_TOK_IDENT) {
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
 
@@ -689,53 +742,149 @@ ks_ast ks_parse_expr(ks_parser self) {
             if (TOK_EQ(self, ctok, "true")) {
                 // treat it as a constant value
                 ks_ast new_true = ks_ast_new_true();
+                new_true->tok_expr = new_true->tok = ctok;
                 Spush(Out, new_true);
             } else if (TOK_EQ(self, ctok, "false")) {
                 // treat it as a constant value
                 ks_ast new_false = ks_ast_new_false();
+                new_false->tok_expr = new_false->tok = ctok;
                 Spush(Out, new_false);
             } else if (TOK_EQ(self, ctok, "none")) {
                 // treat it as a constant value
                 ks_ast new_none = ks_ast_new_none();
+                new_none->tok_expr = new_none->tok = ctok;
                 Spush(Out, new_none);
             } else {
                 // do a variable reference
                 ks_ast new_var = ks_ast_new_varl(ctok.len, self->src->chr + ctok.offset);
+                new_var->tok_expr = new_var->tok = ctok;
                 Spush(Out, new_var);
             }
 
-
         } else if (ctok.ttype == KS_TOK_COMMA) {
-            
-            while (Ops.len > 0 && Stop(Ops).type != SYT_FUNC && Stop(Ops).type != SYT_LPAR) {
+
+            if (n_pars < 1 && n_bracks < 1) PEXPR_ERR(ctok, "Unexpected `,`, must have a comma within a group")
+
+            while (Ops.len > 0 && Stop(Ops).type != SYT_FUNC && Stop(Ops).type != SYT_LPAR && Stop(Ops).type != SYT_SUBSCRIPT && Stop(Ops).type != SYT_LBRACK) {
                 POP_OP();
+            }
+
+            // set it
+            if (Ops.len > 0) {
+                Stop(Ops).had_comma = true;
+            }
+
+        } else if (ctok.ttype == KS_TOK_LBRACK) {
+            n_bracks++;
+
+            if (TOKE_ISVAL(ltok.ttype))  {
+
+                // we add a 'NULL', so we know where the subscript starts
+                Spush(Out, NULL);
+                // add a subscript operation, since it is like `val[`
+                syop new_op = SYOP(SYT_SUBSCRIPT);
+                new_op.tok = ctok;
+                Spush(Ops, new_op);
+
+            } else {
+                // this is a list literal
+                // output a spacer
+                Spush(Out, NULL);
+
+                // and just a token
+                syop new_op = SYOP(SYT_LBRACK);
+                new_op.tok = ctok;
+                Spush(Ops, new_op);
+            }
+
+        } else if (ctok.ttype == KS_TOK_RBRACK) {
+            n_bracks--;
+            if (n_bracks < 0) PEXPR_ERR(ctok, "Invalid Syntax; extra ']', remove it")
+
+            // a right bracket should clear the stack, to the nearest subscript, or list literal
+            while (Ops.len > 0) {
+                syop cur = Stop(Ops);
+                POP_OP();
+                if (cur.type == SYT_SUBSCRIPT || cur.type == SYT_LBRACK) break;
             }
 
         } else if (ctok.ttype == KS_TOK_LPAR) {
             n_pars++;
             
             if (TOKE_ISVAL(ltok.ttype))  {
-                // then the previous item parsed was a 'value' type, so this is a function call
-                Spush(Ops, SYOP(SYT_FUNC));
-
-                // we add a 'NULL', so we know where the function starts
+                // start a function call
+                // we add a 'NULL', so we know where the function call starts
                 Spush(Out, NULL);
 
+                // then the previous item parsed was a 'value' type, so this is a function call
+                syop new_op = SYOP(SYT_FUNC);
+                new_op.tok = ctok;
+                Spush(Ops, new_op);
+
             } else {
-                // this is a normal group, just parenthetical expressions
-                Spush(Ops, SYOP(SYT_LPAR));
+                // either a normal expression or a tuple
+                // output a spacer
+                Spush(Out, NULL);
+
+                // add an operator denoting this
+                syop new_op = SYOP(SYT_LPAR);
+                new_op.tok = ctok;
+                Spush(Ops, new_op);
             }
 
         } else if (ctok.ttype == KS_TOK_RPAR) {
             n_pars--;
             if (n_pars < 0) PEXPR_ERR(ctok, "Invalid Syntax; extra ')', remove it")
 
+            bool is_func = false;
+
+            syop cur;
+
             // a right parenthesis should clear the stack, to the nearest function call
             // or group
             while (Ops.len > 0) {
-                syop cur = Stop(Ops);
+                cur = Stop(Ops);
                 POP_OP();
-                if (cur.type == SYT_FUNC || cur.type == SYT_LPAR) break;
+                if ((is_func = cur.type == SYT_FUNC) || cur.type == SYT_LPAR) break;
+            }
+
+            if (is_func) {
+                // it has already been handled, we're done
+            } else {
+                // handle a group, which could be a tuple
+                int osp = Out.len - 1;
+
+                while (osp > 0 && Sget(Out, osp) != NULL) osp--;
+
+                if (osp >= 0) {
+                    // we found NULL
+                    int n_items = Out.len - osp - 1;
+
+                    // construct a value
+                    ks_ast new_val = NULL;
+
+                    if (n_items > 1 || n_items == 0 || cur.had_comma) {
+                        // there's definitely a tuple here, so create it
+                        new_val = ks_ast_new_tuple(n_items, &Sget(Out, osp+1));
+                        new_val->tok = cur.tok;
+                        // join the first and last
+                        new_val->tok_expr = ks_tok_combo(new_val->tok, ctok);
+                        
+                    } else {
+                        // else, just yield the value as a math operation
+                        new_val = Sget(Out, osp+1);
+                    }
+
+                    // remove all values
+                    Out.len -= n_items;
+
+                    // take off the NULL
+                    Spop(Out);
+
+                    if (new_val != NULL) {
+                        Spush(Out, new_val);
+                    }
+                }
             }
 
         } else if (TOKE_ISOP(ctok.ttype)) {
@@ -746,11 +895,8 @@ ks_ast ks_parse_expr(ks_parser self) {
             // if case for an operator
             #define KPE_OPCASE(_tok, _opstr, _opval) if (TOK_EQ(self, _tok, _opstr)) { cur_op = _opval; goto kpe_op_resolve; }
 
-
             // TODO: implement unary operators
             if (TOKE_ISOP(ltok.ttype) || ltok.ttype == KS_TOK_COMMA || ltok.ttype == KS_TOK_LPAR) PEXPR_ERR(ctok, "Invalid Syntax");
-
-
 
             if (TOKE_ISVAL(ltok.ttype)) {
                 // since the last token was a value, this must either be a unary postfix or a binary infix
@@ -758,6 +904,7 @@ ks_ast ks_parse_expr(ks_parser self) {
                 KPE_OPCASE(ctok, "-", syb_sub)
                 KPE_OPCASE(ctok, "*", syb_mul)
                 KPE_OPCASE(ctok, "/", syb_div)
+                KPE_OPCASE(ctok, "=", syb_assign)
             } else {
                 PEXPR_ERR(ctok, "Invalid Syntax; Unexpected operator");
             }
@@ -768,6 +915,9 @@ ks_ast ks_parse_expr(ks_parser self) {
                 // it was not found
                 PEXPR_ERR(ctok, "Unexpected operator");
             }
+
+            // set the metadata
+            cur_op.tok = ctok;
 
             // now, we have a valid operator, so clear the stack of anything with higher precedence than it
 
@@ -815,7 +965,6 @@ ks_ast ks_parse_expr(ks_parser self) {
         while (Ops.len > 0) {
             POP_OP();
         }
-
         if (n_pars > 0) {
             int i, encountered = 0;
             ks_tok last_lpar;
@@ -910,11 +1059,12 @@ ks_ast ks_parse_all(ks_parser self) {
                 // if (COND) { BODY } ?(elif (COND1) { BODY1 })* ?(else (CONDLAST) { BODYLAST })
                 self->tok_i++;
 
+
                 // now, expect an expression
                 ks_ast cond = ks_parse_expr(self);
                 if (cond == NULL) PALL_ERREXT();
 
-                // recurse here
+                // recurse here, parse a whole block
                 ks_ast body = ks_parse_all(self);
                 if (body == NULL) PALL_ERREXT();
 
@@ -934,18 +1084,20 @@ ks_ast ks_parse_all(ks_parser self) {
             // skip '{'
             ks_tok s_tok = self->toks[self->tok_i++];
 
+            // recursively call it, to get the inner block
             ks_ast body = ks_parse_all(self);
             if (body == NULL) PALL_ERREXT();
 
-            // skip '}'
+            // expect/skip '}'
             if (self->toks[self->tok_i++].ttype != KS_TOK_RBRACE) {
                 PALL_ERR(s_tok, "Expected matching '}' to this");
             }
 
             // good to go
             ks_list_push(block->v_block, (kso)body);
+            goto parseall_end;
 
-        } else if (TOKE_ISVAL(ctok.ttype)) {
+        } else if (TOKE_ISVAL(ctok.ttype) || ctok.ttype == KS_TOK_LBRACK) {
             // just parse a normal expression
             ks_ast expr = ks_parse_expr(self);
             if (expr == NULL) PALL_ERREXT();

@@ -26,6 +26,9 @@ typedef struct kso* kso;
 // forward declaration of the type-type
 typedef struct ks_type* ks_type;
 
+/* AST -> an abstract syntax tree, representing a tree of computations */
+typedef struct ks_ast* ks_ast;
+
 // the base that should begin every object definition
 // `refcnt` is the number of alive references
 // `flags` are object flags (see KSOF_* macro/enums)
@@ -177,13 +180,16 @@ typedef kso (*ks_cfunc_sig)(int n_args, kso* args);
 /* dict -> generic dictionary that pairs hashable keys to values
 This type is mutable, flexible, and general
 
-Internally, it is using a hash-table implementation, similar to the new Python 3.6/7 dictionary
+Internally, it is using a hash-table implementation, similar to the new Python 3.6/7 dictionary (maybe, WIP)
 */
 typedef struct ks_dict {
     KSO_BASE
 
-    // number of entries in the hash-table
+    // number of actual items in the dictionary
     uint32_t n_items;
+
+    // number of buckets in the hash-table
+    uint32_t n_buckets;
 
     // dense array of `n_entries` entries in the hash table
     struct ks_dict_entry {
@@ -196,13 +202,7 @@ typedef struct ks_dict {
         // the value at this entry
         kso val;
 
-    }* items;
-
-    // how many buckets are in the hash table. This should be a prime number
-    uint32_t n_buckets;
-
-    // every 'bucket' is just a reference to the dense item list, or a negative value for some special purposes
-    int32_t* buckets;
+    }* buckets;
 
 }* ks_dict;
 
@@ -294,6 +294,16 @@ enum {
     */
     KSBC_CALL,
     
+    /* TUPLE - pops off `n_items` items, and turns them into a tuple, pushing on the result
+    1[KSBC_TUPLE] 4[int n_items, number of items in the tuple]
+    */
+    KSBC_TUPLE,
+
+    /* LIST - pops off `n_items` items, and turns them into a list, pushing on the result
+    1[KSBC_LIST] 4[int n_items, number of items in the list]
+    */
+    KSBC_LIST,
+
     
     /** binary operators **/
 
@@ -389,6 +399,19 @@ typedef struct ks_code {
     // the actual bytecode
     uint8_t* bc;
 
+    // number of meta-asts for things like debugging
+    int meta_ast_n;
+
+    // list of those meta-asts
+    struct {
+        // the point where it 'takes over' as the current ast
+        int bc_n;
+
+        // the ast itself
+        ks_ast ast;
+
+    }* meta_ast;
+
 }* ks_code;
 
 
@@ -399,8 +422,11 @@ struct ks_type {
     // the type's common name (i.e. "int", "str", etc)
     ks_str name;
 
-    // type.str(self) -> should return a string of the object
+    // type.str(self) -> should return a string of the object, like a toString method
     kso f_str;
+
+    // type.repr(self) -> should return a string representation of the object, like a repr method
+    kso f_repr;
 
     // type.free(self) -> should free all the resources associated with the object, including references
     // except the object itself
@@ -408,13 +434,16 @@ struct ks_type {
 
 };
 
-#define KS_TYPE_INIT KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = NULL, .f_str = NULL, 
+#define KS_TYPE_INIT KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = NULL, .f_str = NULL, .f_repr = NULL, 
 
 /* token enum, tells the kinds of tokens */
 enum {
 
     /* none/error token */
     KS_TOK_NONE = 0,
+
+    /* combo token, combination of multiples */
+    KS_TOK_COMBO,
 
     /* an integer literal */
     KS_TOK_INT,
@@ -471,6 +500,9 @@ enum {
     KS_TOK_O_MUL,
     /* add operator, '/' */
     KS_TOK_O_DIV,
+
+    /* assignment operator, '=' */
+    KS_TOK_O_ASSIGN,
 
 
     // phony ending member
@@ -536,8 +568,14 @@ typedef struct ks_vm {
     // list 
     struct ks_vm_scope {
 
+        // reference to the code the scope is in
+        ks_code code;
+
         // the program counter for this scope
         uint8_t* pc;
+
+        // the start of the bytecode, for computing relative addresses
+        uint8_t* start_bc;
 
         // the const for this list
         ks_list v_const;
@@ -570,6 +608,13 @@ enum {
     /* means this AST represents the `none` constant */
     KS_AST_NONE,
 
+    /* means this AST represents a tuple to be created */
+    KS_AST_TUPLE,
+
+    /* means this AST represents a list to be created */
+    KS_AST_LIST,
+
+
     /* means this AST represents a function call with a given number of arguments */
     KS_AST_CALL,
 
@@ -587,7 +632,7 @@ enum {
     // the first binary operator
     #define KS_AST_BOP__START KS_AST_BOP_ADD
     // the last binary operator
-    #define KS_AST_BOP__END KS_AST_BOP_DIV
+    #define KS_AST_BOP__END KS_AST_BOP_ASSIGN
 
     /* add: +, the sum of two objects */
     KS_AST_BOP_ADD,
@@ -597,16 +642,20 @@ enum {
     KS_AST_BOP_MUL,
     /* div: /, the quot of two objects */
     KS_AST_BOP_DIV,
+    /* mod: %, modulo */
+    KS_AST_BOP_MOD,
+    /* pow: ^, power */
+    KS_AST_BOP_POW,
+    
+    /* assign: =, special operator denoting a name setting */
+    KS_AST_BOP_ASSIGN,
+
 
 
     // phony member to denote the end
     KS_AST__END
 
 };
-
-
-/* AST -> an abstract syntax tree, representing a tree of computations */
-typedef struct ks_ast* ks_ast;
 
 /* AST -> an abstract syntax tree, representing a tree of computations */
 struct ks_ast {
@@ -615,6 +664,11 @@ struct ks_ast {
     // the type of AST, one of the above `KS_AST_*` enum values
     int atype;
 
+    // the token that this AST directly references (i.e. a single token)
+    ks_tok tok;
+
+    // the token that represents all sub expressions, i.e. all children combined into a token
+    ks_tok tok_expr;
 
     // a union representing all the possible values of the AST
     union {
@@ -627,6 +681,10 @@ struct ks_ast {
 
         /* var name iff atype==KS_AST_VAR */
         ks_str v_var;
+
+        /* list of ASTs iff atype==KS_AST_LIST or atype==KS_AST_TUPLE */
+        ks_list v_list;
+
 
         /* a list of the function & its arguments iff atype==KS_AST_CALL 
         So, `f(A, B, C)` would have a list of size 4 containing [f, A, B, C]
@@ -704,6 +762,9 @@ ks_tuple ks_tuple_new_3(kso o0, kso o1, kso o2);
 // create a new tuple containing some items
 ks_tuple ks_tuple_new(int len, kso* items);
 
+// create a new tuple containing some items, return a reference to it
+ks_tuple ks_tuple_newref(int len, kso* items);
+
 
 // create a new empty list
 ks_list ks_list_new_empty();
@@ -737,6 +798,8 @@ ks_cfunc ks_cfunc_newref(ks_cfunc_sig v_cfunc);
 // create a new (empty) collection of bytecode, given a refrence to a constant list
 ks_code ks_code_new_empty(ks_list v_const);
 
+// sets a new meta ast for debugging/error messages
+void ks_code_add_meta(ks_code self, ks_ast ast);
 
 // link in another code object, appending it to the end
 void ks_code_linkin(ks_code self, ks_code other);
@@ -758,6 +821,8 @@ void ksc_int(ks_code code, int64_t v_int);
 void ksc_cstr(ks_code code, const char* v_cstr);
 void ksc_cstrl(ks_code code, int len, const char* v_cstr);
 void ksc_call(ks_code code, int n_items);
+void ksc_tuple(ks_code code, int n_items);
+void ksc_list(ks_code code, int n_items);
 void ksc_add(ks_code code);
 void ksc_sub(ks_code code);
 void ksc_mul(ks_code code);
@@ -765,7 +830,6 @@ void ksc_div(ks_code code);
 void ksc_jmp(ks_code code, int relamt);
 void ksc_jmpt(ks_code code, int relamt);
 void ksc_jmpf(ks_code code, int relamt);
-
 
 // create a new AST representing a constant int
 ks_ast ks_ast_new_int(int64_t v_int);
@@ -782,6 +846,13 @@ ks_ast ks_ast_new_true();
 ks_ast ks_ast_new_false();
 // create a new AST representing the 'none' value
 ks_ast ks_ast_new_none();
+
+
+// create a new AST representing a tuple of objects
+ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
+
+// create a new AST representing a list of objects
+ks_ast ks_ast_new_list(int n_items, ks_ast* items);
 
 // create a new AST representing a variable reference
 ks_ast ks_ast_new_var(const char* var_name);
@@ -824,6 +895,12 @@ void ks_vm_exec(ks_vm vm, ks_code code);
 // create a new token
 ks_tok ks_tok_new(int ttype, ks_parser kp, int offset, int len, int line, int col);
 
+// combine A and B to form a larger meta token
+ks_tok ks_tok_combo(ks_tok A, ks_tok B);
+
+// output an error from a given token
+void* ks_tok_err(ks_tok tok, const char* fmt, ...);
+
 // create a new parser from a file
 ks_parser ks_parser_new_file(const char* fname);
 
@@ -864,6 +941,31 @@ bool kso_eq(kso A, kso B);
 // TODO: also add a lookup function for custom types
 // otherwise, return -1, because it could not be determined
 int kso_bool(kso A);
+
+
+// returns the tostring of the object
+// if A is a string, just return A,
+// if A is an int, none, bool, just return those strings
+// if A's type defines a `f_str` method, call that and return the result
+// else, return the string:
+// <'%TYPE%' obj @ %ADDR%>
+// where %TYPE% is the object's type's name
+// and %ADDR% is the pointer formatted name (i.e. 0x238748237483)
+ks_str kso_tostr(kso A);
+
+// returns the string representation of an object
+// if A is a string, return A with quotes around it
+// if A is an int, none, bool, just return the same as tostr
+// if A's type defines an `f_repr` method, call that and return the result
+// else, return the string:
+// else, return the string:
+// <'%TYPE%' obj @ %ADDR%>
+// where %TYPE% is the object's type's name
+// and %ADDR% is the pointer formatted name (i.e. 0x238748237483)
+ks_str kso_torepr(kso A);
+
+
+
 
 // frees an object, returns true if successful, false otherwise
 bool kso_free(kso obj);

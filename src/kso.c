@@ -198,7 +198,8 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 c: char
                 s: char* 
                 p: void*
-                o: kso
+                o: kso, vague (never allocates another string, just uses `<type obj @ addr>` format)
+                V: kso, value (will turn into string)
             */
 
             if (spec == 'i') {
@@ -414,6 +415,17 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 VCFMT_ADD(tmp_i, tmp);
 
 
+            } else if (spec == 'V') {
+                // 'V' for value, print the kscript object as a value
+                kso o_val = va_arg(ap, kso);
+
+                ks_str to_str = kso_tostr(o_val);
+
+                // now, print out the string
+                VCFMT_ADD(to_str->len, to_str->chr);
+
+                KSO_CHKREF(to_str);
+
             } else if (spec == 'p') {
                 // `p` for pointer, void*, print as a hex address
                 
@@ -485,6 +497,13 @@ ks_tuple ks_tuple_new(int len, kso* items) {
         // record this list's reference to it
         KSO_INCREF(items[i]);
     }
+    return self;
+}
+
+// return a new reference to a new tuple
+ks_tuple ks_tuple_newref(int len, kso* items) {
+    ks_tuple self = ks_tuple_new(len, items);
+    KSO_INCREF(self);
     return self;
 }
 
@@ -572,7 +591,75 @@ ks_tuple _ks_tuple_new_va(kso first, ...) {
     return self;
 }
 
-// called when the object should be freed
+KS_CFUNC_TDECL(tuple, str) {
+    // get the arguments
+    ks_tuple self = (ks_tuple)args[0];
+
+    if (self->len == 0) {
+        // just return early
+        return (kso)ks_str_new_r("(,)");
+    } else if (self->len == 1) {
+        // return simple
+        ks_str arg_str = kso_torepr(self->items[0]);
+        ks_str ret = ks_str_new_cfmt("(%*s,)", arg_str->len, arg_str->chr);
+        KSO_CHKREF(arg_str);
+        return (kso)ret;
+    }
+
+    // now, generate a string
+    ks_str gen = ks_str_new_r("(");
+
+    // append all the items
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        ks_str i_str = kso_torepr(self->items[i]);
+        ks_str new_gen_str = ks_str_new_cfmt(i == 0 ? "%*s%*s" : ((i == self->len - 1) ? "%*s, %*s)" : "%*s, %*s"), 
+            gen->len, gen->chr,
+            i_str->len, i_str->chr
+        );
+
+        KSO_CHKREF(gen);
+        gen = new_gen_str;
+
+        KSO_CHKREF(i_str);
+    }
+    return (kso)gen;
+}
+
+KS_CFUNC_TDECL(tuple, repr) {
+    // get the arguments
+    ks_tuple self = (ks_tuple)args[0];
+
+    if (self->len == 0) {
+        // just return early
+        return (kso)ks_str_new_r("(,)");
+    } else if (self->len == 1) {
+        // return simple
+        ks_str arg_str = kso_torepr(self->items[0]);
+        ks_str ret = ks_str_new_cfmt("(%*s,)", arg_str->len, arg_str->chr);
+        KSO_CHKREF(arg_str);
+        return (kso)ret;
+    }
+
+    // now, generate a string
+    ks_str gen = ks_str_new_r("(");
+
+    // append all the items
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        ks_str i_str = kso_torepr(self->items[i]);
+        ks_str new_gen_str = ks_str_new_cfmt(i == 0 ? "%*s%*s" : ((i == self->len - 1) ? "%*s, %*s)" : "%*s, %*s"), 
+            gen->len, gen->chr,
+            i_str->len, i_str->chr
+        );
+
+        KSO_CHKREF(gen);
+        gen = new_gen_str;
+
+        KSO_CHKREF(i_str);
+    }
+    return (kso)gen;
+}
 
 KS_CFUNC_TDECL(tuple, free) {
 
@@ -647,9 +734,77 @@ void ks_list_clear(ks_list self) {
     }
 
     self->len = 0;
-
 }
 
+KS_CFUNC_TDECL(list, str) {
+    // get the arguments
+    ks_list self = (ks_list)args[0];
+
+    if (self->len == 0) {
+        // just return early
+        return (kso)ks_str_new_r("[]");
+    } else if (self->len == 1) {
+        // return simple
+        ks_str arg_str = kso_torepr(self->items[0]);
+        ks_str ret = ks_str_new_cfmt("[%*s]", arg_str->len, arg_str->chr);
+        KSO_CHKREF(arg_str);
+        return (kso)ret;
+    }
+
+    // now, generate a string
+    ks_str gen = ks_str_new_r("[");
+
+    // append all the items
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        ks_str i_str = kso_torepr(self->items[i]);
+        ks_str new_gen_str = ks_str_new_cfmt(i == 0 ? "%*s%*s" : ((i == self->len - 1) ? "%*s, %*s]" : "%*s, %*s"), 
+            gen->len, gen->chr,
+            i_str->len, i_str->chr
+        );
+
+        KSO_CHKREF(gen);
+        gen = new_gen_str;
+
+        KSO_CHKREF(i_str);
+    }
+    return (kso)gen;
+}
+
+KS_CFUNC_TDECL(list, repr) {
+    // get the arguments
+    ks_list self = (ks_list)args[0];
+
+    if (self->len == 0) {
+        // just return early
+        return (kso)ks_str_new_r("[]");
+    } else if (self->len == 1) {
+        // return simple
+        ks_str arg_str = kso_torepr(self->items[0]);
+        ks_str ret = ks_str_new_cfmt("[%*s]", arg_str->len, arg_str->chr);
+        KSO_CHKREF(arg_str);
+        return (kso)ret;
+    }
+
+    // now, generate a string
+    ks_str gen = ks_str_new_r("[");
+
+    // append all the items
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        ks_str i_str = kso_torepr(self->items[i]);
+        ks_str new_gen_str = ks_str_new_cfmt(i == 0 ? "%*s%*s" : ((i == self->len - 1) ? "%*s, %*s]" : "%*s, %*s"), 
+            gen->len, gen->chr,
+            i_str->len, i_str->chr
+        );
+
+        KSO_CHKREF(gen);
+        gen = new_gen_str;
+
+        KSO_CHKREF(i_str);
+    }
+    return (kso)gen;
+}
 
 KS_CFUNC_TDECL(list, free) {
 
@@ -697,12 +852,24 @@ ks_code ks_code_new_empty(ks_list v_const) {
     ks_code self = (ks_code)ks_malloc(sizeof(*self));
     *self = (struct ks_code) {
         KSO_BASE_INIT(ks_T_code, KSOF_NONE)
-        .v_const = v_const
+        .v_const = v_const,
+        .bc_n = 0, .bc = NULL,
+        .meta_ast_n = 0, .meta_ast = NULL
     };
 
     // record our reference
     KSO_INCREF(v_const);
     return self;
+}
+
+// set the meta-ast
+void ks_code_add_meta(ks_code self, ks_ast ast) {
+
+    int idx = self->meta_ast_n++;
+    self->meta_ast = ks_realloc(self->meta_ast, sizeof(*self->meta_ast) * self->meta_ast_n);
+    self->meta_ast[idx].ast = ast;
+    self->meta_ast[idx].bc_n = self->bc_n;
+
 }
 
 // link in another code object, appending it to the end
@@ -779,6 +946,9 @@ KS_CFUNC_TDECL(code, free) {
 
     // free the bytecode
     ks_free(self->bc);
+
+    // free meta
+    ks_free(self->meta_ast);
 
     ks_free(self);
 
@@ -868,6 +1038,8 @@ void ksc_storeo(ks_code code, kso obj) {
     KSC_I32(KSBC_STORE, idx);
 }
 void ksc_call(ks_code code, int n_items) { KSC_I32(KSBC_CALL, n_items); }
+void ksc_tuple(ks_code code, int n_items) { KSC_I32(KSBC_TUPLE, n_items); }
+void ksc_list(ks_code code, int n_items) { KSC_I32(KSBC_LIST, n_items); }
 
 void ksc_add(ks_code code) { KSC_(KSBC_ADD); }
 void ksc_sub(ks_code code) { KSC_(KSBC_SUB); }
@@ -877,6 +1049,7 @@ void ksc_jmp(ks_code code, int relamt) { KSC_I32(KSBC_JMP, relamt); }
 void ksc_jmpt(ks_code code, int relamt) { KSC_I32(KSBC_JMPT, relamt); }
 void ksc_jmpf(ks_code code, int relamt) { KSC_I32(KSBC_JMPF, relamt); }
 
+#define _AST_TOK_INIT .tok = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0), .tok_expr = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0),
 
 // create a new AST representing a constant int
 ks_ast ks_ast_new_int(int64_t v_int) {
@@ -884,6 +1057,7 @@ ks_ast ks_ast_new_int(int64_t v_int) {
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
         .atype = KS_AST_INT,
+        _AST_TOK_INIT
         .v_int = ks_int_new(v_int)
     };
     KSO_INCREF(self->v_int);
@@ -896,6 +1070,7 @@ ks_ast ks_ast_new_str(const char* v_str) {
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
         .atype = KS_AST_STR,
+        _AST_TOK_INIT
         .v_str = ks_str_new_r(v_str),
     };
     KSO_INCREF(self->v_str);
@@ -908,6 +1083,7 @@ ks_ast ks_ast_new_stro(ks_str v_str) {
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
         .atype = KS_AST_STR,
+        _AST_TOK_INIT
         .v_str = v_str
     };
     KSO_INCREF(self->v_str);
@@ -920,6 +1096,7 @@ ks_ast ks_ast_new_true() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_TRUE
     };
     return self;
@@ -930,6 +1107,7 @@ ks_ast ks_ast_new_false() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_FALSE
     };
     return self;
@@ -940,11 +1118,11 @@ ks_ast ks_ast_new_none() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_NONE
     };
     return self;
 }
-
 
 
 // create a new AST representing a variable reference
@@ -952,6 +1130,7 @@ ks_ast ks_ast_new_var(const char* var_name) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_VAR,
         .v_var = ks_str_new_r(var_name),
     };
@@ -963,6 +1142,7 @@ ks_ast ks_ast_new_varl(int len, const char* var_name) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_VAR,
         .v_var = ks_str_new(len, var_name),
     };
@@ -970,6 +1150,31 @@ ks_ast ks_ast_new_varl(int len, const char* var_name) {
     return self;
 }
 
+// new AST representing a tuple
+ks_ast ks_ast_new_tuple(int n_items, ks_ast* items) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
+        .atype = KS_AST_TUPLE,
+        .v_list = ks_list_new(n_items, (kso*)items),
+    };
+    KSO_INCREF(self->v_list);
+    return self;
+}
+
+// new AST representing a list
+ks_ast ks_ast_new_list(int n_items, ks_ast* items) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
+        .atype = KS_AST_LIST,
+        .v_list = ks_list_new(n_items, (kso*)items),
+    };
+    KSO_INCREF(self->v_list);
+    return self;
+}
 
 // create a new AST representing a functor call, with `items[0]` being the function
 // so, `n_items` should be `n_args+1`, since it includes function, then arguments
@@ -977,6 +1182,7 @@ ks_ast ks_ast_new_call(int n_items, ks_ast* items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_CALL,
         .v_call = ks_list_new(n_items, (kso*)items),
     };
@@ -988,6 +1194,7 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = bop_type,
         .v_bop = { L, R }
     };
@@ -1001,6 +1208,7 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_IF,
         .v_if = {cond, body}
     };
@@ -1015,11 +1223,11 @@ ks_ast ks_ast_new_block_empty() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_BLOCK,
         .v_block = ks_list_new_empty()
     };
     KSO_INCREF(self->v_block);
-
     return self;
 }
 
@@ -1027,6 +1235,7 @@ ks_ast ks_ast_new_block(int n_items, ks_ast* items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_BLOCK,
         .v_block = ks_list_new(n_items, (kso*)items)
     };
@@ -1039,6 +1248,7 @@ ks_ast ks_ast_new_code(ks_code code) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
         .atype = KS_AST_CODE,
         .v_code = code
     };
@@ -1067,6 +1277,13 @@ KS_CFUNC_TDECL(ast, free) {
     case KS_AST_VAR:
         KSO_DECREF(self->v_var);
         break;
+
+    case KS_AST_TUPLE:
+    case KS_AST_LIST:
+        // both use this
+        KSO_DECREF(self->v_list);
+        break;
+
     case KS_AST_CALL:
         KSO_DECREF(self->v_call);
         break;
@@ -1090,6 +1307,7 @@ KS_CFUNC_TDECL(ast, free) {
     case KS_AST_BOP_SUB:
     case KS_AST_BOP_MUL:
     case KS_AST_BOP_DIV:
+    case KS_AST_BOP_ASSIGN:
         KSO_DECREF(self->v_bop.L);
         KSO_DECREF(self->v_bop.R);
         break;
@@ -1123,23 +1341,11 @@ KS_CFUNC_TDECL(parser, free) {
 /*
 Dictionary implementation:
 
-
-ITEMS:
-[(k, h, v), (k, h, v), ...]
-Dense array of items that have been added to the dictionary, in the order they were added
-
-BUCKETS:
-[-1, -1, ... 5, ...]
-These hold indexes into the `items` array, _BUCK_EMPTY means that bucket is empty (unoccupied), while >= 0 means
-  that is the index into the items array
 */
 
 
 // starting length for the dictionary
 #define _DICT_MIN_LEN 8
-
-// represents an unused bucket
-#define _BUCK_EMPTY (-1)
 
 // the maximum load value (as a percentage used)
 // once the load factor exceeds this, the dictionary is resized
@@ -1154,14 +1360,13 @@ ks_dict ks_dict_new_empty() {
     *self = (struct ks_dict) {
         KSO_BASE_INIT(ks_T_dict, KSOF_NONE)
         .n_items = 0,
-        .items = NULL,
         .n_buckets = _DICT_MIN_LEN,
-        .buckets = (int32_t*)ks_malloc(sizeof(int32_t) * _DICT_MIN_LEN)
+        .buckets = ks_malloc(sizeof(*self->buckets) * _DICT_MIN_LEN)
     };
 
     int i;
     for (i = 0; i < _DICT_MIN_LEN; ++i) {
-        self->buckets[i] = _BUCK_EMPTY;
+        self->buckets[i] = (struct ks_dict_entry){ .key = NULL, .hash = 0, .val = NULL };
     }
     return self;
 }
@@ -1230,40 +1435,29 @@ void ks_dict_resize(ks_dict self, int new_size) {
     new_size = nextprime(new_size);
     //ks_trace("dict resize %d -> %d", self->n_buckets, new_size);
 
-    // save the old buckets
+    // get the old entries
     int old_n_buckets = self->n_buckets;
-    int32_t* old_buckets = self->buckets;
+    struct ks_dict_entry* old_buckets = self->buckets;
 
     // allocate the new buckets
-    self->n_buckets = nextprime(new_size);
+    self->n_buckets = new_size;
     self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
 
+    // initialize them to empty
     int i;
     for (i = 0; i < self->n_buckets; ++i) {
-        self->buckets[i] = _BUCK_EMPTY;
+        self->buckets[i] = (struct ks_dict_entry){ .key = NULL, .hash = 0, .val = NULL };
     }
 
-    for (i = 0; i < self->n_items; ++i) {
-        // now, set all the existing entries by rehashing them
-        struct ks_dict_entry entry = self->items[i];
-        int b_idx = dict_buck(self, entry.hash);
-        int tries = 0;
+    // go through all the buckets, and merge them over
+    for (i = 0; i < old_n_buckets; ++i) {
+        struct ks_dict_entry* old_entry = &old_buckets[i];
 
-        // keep going while there's not an empty bucket
-        while (self->buckets[b_idx] != _BUCK_EMPTY && ++tries < self->n_buckets) {
-            // search for the next dictionary
-            b_idx = dict_buck_next(b_idx, tries);
-
-            // make sure it wraps around
-            while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
-        }
-
-        if (self->buckets[b_idx] == _BUCK_EMPTY) {
-            // we found an open bucket
-            self->buckets[b_idx] = i;
-        } else {
-            // some error, which shouldn't happen
-            ks_error("INTERNAL DICT RESIZE ERROR");
+        if (old_entry->val != NULL) {
+            // we have a valid bucket that needs to be copied
+            ks_dict_set(self, old_entry->key, old_entry->hash, old_entry->val);
+            KSO_DECREF(old_entry->key);
+            KSO_DECREF(old_entry->val);
         }
     }
 
@@ -1273,86 +1467,67 @@ void ks_dict_resize(ks_dict self, int new_size) {
 
 int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
 
+    // make sure it is large enough
     if (self->n_buckets * _DICT_LOAD_MAX <= self->n_items * 100) {
         ks_dict_resize(self, _DICT_NEW_SIZE(self));
     }
 
-    int b_idx = dict_buck(self, hash), i_idx = -1;
-    int tries = 0;
+    struct ks_dict_entry* entry = NULL;
+    int b_idx = dict_buck(self, hash), tries = 0;
 
-    // keep going while there's not an empty bucket
-    while ((i_idx = self->buckets[b_idx]) != _BUCK_EMPTY && ++tries < self->n_buckets) {
+    // first, search through filled buckets (those)
+    while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
 
-        if (dict_entry_matches(self->items[i_idx], key, hash)) {
-            // we located it, so just update the value and return
-            kso old_val = self->items[i_idx].val;
-            self->items[i_idx].val = val;
-
-            // record reference changes; none is neccessary to the key, since it was already here
+        if (dict_entry_matches(*entry, key, hash)) {
+            // we've found it, just replace the value
             KSO_INCREF(val);
-            KSO_DECREF(old_val);
-
-            return i_idx;
-
-        } else {
-            // else, keep searching
-
-            // search for the next dictionary
-            b_idx = dict_buck_next(b_idx, tries);
-
-            // make sure it wraps around
-            while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
+            KSO_DECREF(entry->val);
+            entry->val = val;
+            return b_idx;
         }
+
+        // update the bucket index, try again
+        b_idx = dict_buck_next(b_idx, tries);
+        // wrap back around
+        while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
     }
 
-    if (self->buckets[b_idx] == _BUCK_EMPTY) {
-        // we found an empty bucket
+    // if we've gotten to here, it means we found an empty bucket, so just replace it
+    KSO_INCREF(key);
+    KSO_INCREF(val);
+    
+    *entry = (struct ks_dict_entry) {
+        .key = key,
+        .hash = hash,
+        .val = val
+    };
 
-        // so now, we need to append the item to the end of our items array
-        i_idx = self->n_items++;
-        self->buckets[b_idx] = i_idx;
-
-        // reallocate the items array
-        self->items = ks_realloc(self->items, sizeof(*self->items) * self->n_items);
-        self->items[i_idx] = (struct ks_dict_entry) {
-            .key = key,
-            .hash = hash,
-            .val = val
-        };
-
-        // record references, we took one to the key, and one to the value
-        KSO_INCREF(key);
-        KSO_INCREF(val);
-
-        return i_idx;
-    } else {
-        // otherwise, still collided all the way
-        ks_warn("COLLISION");
-        return -1;
-    }
+    return b_idx;
 }
 
 
 kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
-    int b_idx = dict_buck(self, hash);
-    int tries = 0;
+    if (self->n_buckets == 0) return NULL;
 
-    while (self->buckets[b_idx] == _BUCK_EMPTY && ++tries < self->n_buckets) {
-        // find a bucket by triangular probing
+    int b_idx = dict_buck(self, hash), tries = 0;
+    struct ks_dict_entry* entry = NULL;
+
+    // search through non-empty buckets
+    while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
+        if (dict_entry_matches(*entry, key, hash)) {
+            // we've found a match, just return it
+            return entry->val;
+        }
+
+        // update the bucket index, try again
         b_idx = dict_buck_next(b_idx, tries);
-
-        // make sure it wraps around
-        if (b_idx > self->n_buckets) b_idx -= self->n_buckets;
+        // wrap back around
+        while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
     }
 
-    if (self->buckets[b_idx] == _BUCK_EMPTY) {
-        // we still didn't find anything
-        return NULL;
-    } else {
-        // we found a bucket, now make sure it matches
-        int i_idx = self->buckets[b_idx];
-        return self->items[i_idx].val;
-    }
+    // not found, return NULL
+    return NULL;
+
 }
 
 KS_CFUNC_TDECL(dict, free) {
@@ -1362,13 +1537,13 @@ KS_CFUNC_TDECL(dict, free) {
 
     int i;
 
-    for (i = 0; i < self->n_items; ++i) {
-        KSO_DECREF(self->items[i].key);
-        KSO_DECREF(self->items[i].val);
+    for (i = 0; i < self->n_buckets; ++i) {
+        struct ks_dict_entry* entry = &self->buckets[i];
+        if (entry->val != NULL) {
+            KSO_DECREF(entry->key);
+            KSO_DECREF(entry->val);
+        }
     }
-
-    // free our dense items list
-    ks_free(self->items);
 
     // free the indices/buckets
     ks_free(self->buckets);
@@ -1453,6 +1628,53 @@ int kso_bool(kso A) {
 
 }
 
+// convert A to a string
+ks_str kso_tostr(kso A) {
+
+    if (A->type == ks_T_str) return (ks_str)A;
+    if (A->type == ks_T_none) return ks_str_new_r("none");
+    if (A->type == ks_T_bool) return ks_str_new_r(A == KSO_TRUE ? "true" : "false");
+    if (A->type == ks_T_int) {
+        ks_int Ai = (ks_int)A;
+        if (Ai->v_int >= 0 && Ai->v_int < 10) {
+            // return the single character
+            return &str_const_chr['0' + Ai->v_int];
+        }
+    }
+
+    ks_type T_A = A->type;
+    if (T_A->f_str != NULL) {
+        ks_str ret = (ks_str)kso_call(T_A->f_str, 1, &A);
+        if (ret != NULL) {
+            // only return if no error occured
+            return ret;
+        }
+    }
+
+    // else, nothing has been returned so do the default
+    return ks_str_new_cfmt("<'%*s' obj @ %p>", T_A->name->len, T_A->name->chr, A);
+}
+
+// convert A to its representation
+ks_str kso_torepr(kso A) {
+
+    if (A->type == ks_T_str) return ks_str_new_cfmt("\"%*s\"", ((ks_str)A)->len, ((ks_str)A)->chr);
+    if (A->type == ks_T_none || A->type == ks_T_bool || A->type == ks_T_int) return kso_tostr(A);
+
+    ks_type T_A = A->type;
+    if (T_A->f_repr != NULL) {
+        ks_str ret = (ks_str)kso_call(T_A->f_repr, 1, &A);
+        if (ret != NULL) {
+            // only return if no error occured
+            return ret;
+        }
+    }
+
+    // else, nothing has been returned so do the default
+    return ks_str_new_cfmt("<'%*s' obj @ %p>", T_A->name->len, T_A->name->chr, A);
+}
+
+
 // return whether or not the 2 objects are equal
 bool kso_eq(kso A, kso B) {
     // same pointer should always be equal
@@ -1527,12 +1749,16 @@ void kso_init() {
     *ks_T_tuple = (struct ks_type) {
         KS_TYPE_INIT
         .name = ks_str_new_r("tuple"),
+        .f_str  = (kso)ks_cfunc_newref(tuple_str),
+        .f_repr = (kso)ks_cfunc_newref(tuple_repr),
         .f_free = (kso)ks_cfunc_newref(tuple_free),
     };
 
     *ks_T_list = (struct ks_type) {
         KS_TYPE_INIT
         .name = ks_str_new_r("list"),
+        .f_str  = (kso)ks_cfunc_newref(list_str),
+        .f_repr = (kso)ks_cfunc_newref(list_repr),
         .f_free = (kso)ks_cfunc_newref(list_free),
     };
 

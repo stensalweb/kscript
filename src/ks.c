@@ -144,10 +144,13 @@ int main(int argc, char** argv) {
 
 
     // now, execute the code
+    ks_debug("memused: %lu", ks_memuse() - MU);
     
     KSO_CHKREF(vm);
 
-    ks_debug("memused: %lu", ks_memuse() - MU);
+    int total_diff = ks_memuse() - MU;
+    if (total_diff != 0) ks_warn("possible leak of %lu bytes detected", total_diff);
+
 
     return 0;
 }
