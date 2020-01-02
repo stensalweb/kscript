@@ -194,6 +194,11 @@ kso kse_pop();
 bool kse_dumpall();
 
 
+/* hash/utils */
+
+// returns a good hash function for some data
+uint64_t ks_hash_bytes(uint8_t* chr, int len);
+
 
 /* internal methods */
 

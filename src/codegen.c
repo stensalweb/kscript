@@ -193,12 +193,12 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         STK_GROW(1 - self->v_list->len);
     } else if (self->atype == KS_AST_CODE) {
 
+        // add meta
+        ks_code_add_meta(to, self);
+        
         // output some literal assembly, by linking it in using the method provided in kso.c
         // this will also merge the constants list
         ks_code_linkin(to, self->v_code);
-
-        // add meta
-        ks_code_add_meta(to, self);
 
     } else if (self->atype == KS_AST_BLOCK) {
     

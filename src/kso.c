@@ -84,16 +84,6 @@ ks_int ks_int_new(int64_t v_int) {
 // list of the single character constants (+NULL)
 static struct ks_str str_const_chr[_STR_CHR_MAX];
 
-// returns a good hash function for some data
-inline uint64_t str_hash(int len, const char* chr) {
-    uint64_t ret = 7;
-    int i;
-    for (i = 0; i < len; ++i) {
-        ret = ret * 31 + ((unsigned char*)chr)[i];
-    }
-    return ret;
-}
-
 
 // create a new string from a character array
 ks_str ks_str_new(int len, const char* chr) {
@@ -104,7 +94,7 @@ ks_str ks_str_new(int len, const char* chr) {
     ks_str self = (ks_str)ks_malloc(sizeof(*self) + len);
     *self = (struct ks_str) {
         KSO_BASE_INIT(ks_T_str, KSOF_NONE)
-        .v_hash = str_hash(len, chr),
+        .v_hash = ks_hash_bytes((uint8_t*)chr, len),
         .len = len,
     };
 
@@ -582,6 +572,16 @@ void ks_code_linkin(ks_code self, ks_code other) {
             ksc_popu(self);
             break;
         
+        case KSBC_RET:
+            DECODE(ksbc_);
+            ksc_ret(self);
+            break;
+        
+        case KSBC_RET_NONE:
+            DECODE(ksbc_);
+            ksc_ret_none(self);
+            break;
+
         case KSBC_LOAD:
             DECODE(ksbc_i32);
             v_c = GET_CONST(inst.i32.i32);
@@ -594,10 +594,28 @@ void ks_code_linkin(ks_code self, ks_code other) {
             ksc_storeo(self, v_c);
             break;
 
+
         case KSBC_CALL:
             DECODE(ksbc_i32);
             ksc_call(self, inst.i32.i32);
             break;
+        case KSBC_ADD:
+            DECODE(ksbc_);
+            ksc_add(self);
+            break;
+        case KSBC_SUB:
+            DECODE(ksbc_);
+            ksc_sub(self);
+            break;
+        case KSBC_MUL:
+            DECODE(ksbc_);
+            ksc_mul(self);
+            break;
+        case KSBC_DIV:
+            DECODE(ksbc_);
+            ksc_div(self);
+            break;
+
 
         default:
             kse_fmt("While linking (code @ %p) into (code @ %p), unknown instruction was encountered: %i (at pos=%i)", other, self, (int)other->bc[i], i);
@@ -1563,7 +1581,8 @@ void kso_init() {
     for (i = 0; i < _STR_CHR_MAX; ++i) {
         str_const_chr[i] = (struct ks_str) {
             KSO_BASE_INIT_R(ks_T_str, KSOF_NONE, 1)
-            .len = i == 0 ? 0 : 1
+            .len = i == 0 ? 0 : 1,
+            .v_hash = ks_hash_bytes((uint8_t*)&i, 1)
         };
         str_const_chr[i].chr[0] = (char)i;
         str_const_chr[i].chr[1] = (char)0;

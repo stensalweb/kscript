@@ -7,13 +7,8 @@
 #define DO_EXEC_TRACE
 
 
-#ifdef DO_EXEC_TRACE
 // if execution tracing is enabled, debug out the arguments
-#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
-#else
-// else, do nothing
-#define _exec_trace(...) { }
-#endif
+#define _exec_trace(...) { ks_debug("E!: " __VA_ARGS__); }
 
 
 // internal execution routine, this should only really be used by internal functions
@@ -132,6 +127,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         int sc_i = vm->n_scopes++; \
         vm->scopes = ks_realloc(vm->scopes, sizeof(*vm->scopes) * vm->n_scopes); \
         CUR_SCOPE.locals = ks_dict_new_empty(); \
+        CUR_SCOPE.start_stk_len = vm->stk->len; \
     }
 
     // pops off a scope
@@ -153,7 +149,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
     CUR_SCOPE.pc = CUR_SCOPE.start_bc = CUR_SCOPE.code->bc;
     CUR_SCOPE.v_const = CUR_SCOPE.code->v_const;
     CUR_SCOPE.locals = ks_dict_new_empty();
-
+    CUR_SCOPE.start_stk_len = vm->stk->len;
 
     // relative address in the bytecode
     #define RELADDR ((int)(pre_bc - CUR_SCOPE.start_bc))
@@ -215,14 +211,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         INST_LABEL(KSBC_LOAD)
             DECODE(ksbc_i32);
             v_str = (ks_str)GET_CONST(inst.i32.i32);
-            #ifdef DO_EXEC_TRACE
-            // do type generic logging
-            if (v_str->type == ks_T_str) {
-                _exec_trace("load '%s' # [%i], :%i", ((ks_str)v_str)->chr, inst.i32.i32, RELADDR);
-            } else {
-                _exec_trace("load <'%s' obj @ %p> # [%i], :%i", v_str->type->name->chr, v_str, inst.i32.i32, RELADDR);
-            }
-            #endif
+            _exec_trace("load %R # [%i], :%i", v_str, inst.i32.i32, RELADDR);
 
             int i;
             for (i = vm->n_scopes - 1; i >= 0; --i) {
@@ -432,6 +421,13 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             DECODE(ksbc_);
             _exec_trace("ret # :%i", RELADDR);
 
+
+            // we are expecting only one value to have been added during exec
+            while (vm->stk->len > 1 + CUR_SCOPE.start_stk_len) {
+                ks_list_popu(vm->stk);
+            }
+
+
             POP_SCOPE();
 
             // if we've reached where we're supposed to be executing
@@ -445,7 +441,12 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         INST_LABEL(KSBC_RET_NONE)
             DECODE(ksbc_);
             _exec_trace("ret_none # :%i", RELADDR);
-            
+
+            // we are expecting no values, since we are about to add a none
+            while (vm->stk->len > CUR_SCOPE.start_stk_len) {
+                ks_list_popu(vm->stk);
+            }
+
             POP_SCOPE();
 
             ks_list_push(vm->stk, KSO_NONE);

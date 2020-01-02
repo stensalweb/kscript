@@ -354,6 +354,9 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
     // NUL-terminate it
     self->chr[self->len] = '\0';
 
+    // calculate hash
+    self->v_hash = ks_hash_bytes(self->chr, self->len);
+
     // TODO: try and intern the string
     return self;
 }

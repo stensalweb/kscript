@@ -641,6 +641,9 @@ typedef struct ks_vm {
         // the start of the bytecode, for computing relative addresses
         uint8_t* start_bc;
 
+        // the starting stack length at the beginning of the scope
+        int start_stk_len;
+
         // the const for this list
         ks_list v_const;
 

@@ -30,3 +30,13 @@ double ks_time() {
     return (curtime.tv_sec - ks_stime.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_stime.tv_usec);
 }
 
+
+// returns a hash from some bytes
+uint64_t ks_hash_bytes(uint8_t* chr, int len) {
+    uint64_t ret = 7;
+    int i;
+    for (i = 0; i < len; ++i) {
+        ret = ret * 31 + chr[i];
+    }
+    return ret;
+}
