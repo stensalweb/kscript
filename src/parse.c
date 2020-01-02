@@ -277,6 +277,9 @@ static void parser_init(ks_parser self) {
         STR_TOK(KS_TOK_O_ADD, "+") STR_TOK(KS_TOK_O_SUB, "-")
         STR_TOK(KS_TOK_O_MUL, "*") STR_TOK(KS_TOK_O_SUB, "/")
 
+        // comp operators
+        STR_TOK(KS_TOK_O_LT, "<") STR_TOK(KS_TOK_O_GT, ">") STR_TOK(KS_TOK_O_EQ, "==")
+
         // special operators
         STR_TOK(KS_TOK_O_ASSIGN, "=")
 
@@ -516,6 +519,9 @@ typedef struct syop {
         // assignment i.e. A=B, should always be highest other than that
         SYP_ASSIGN,
 
+        // comparison operators, like <,>,==
+        SYP_CMP,
+
         // +,-, in PEMDAS order
         SYP_ADDSUB,
 
@@ -584,6 +590,7 @@ static syop
     // binary operators
     syb_add = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_ADD), syb_sub = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_SUB),
     syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV),
+    syb_lt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LT), syb_gt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GT), syb_eq = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_EQ),
 
     // special case
     syb_assign = SYBOP(SYP_ASSIGN, SYA_BOP_RIGHT, KS_AST_BOP_ASSIGN)
@@ -905,6 +912,9 @@ ks_ast ks_parse_expr(ks_parser self) {
                 KPE_OPCASE(ctok, "-", syb_sub)
                 KPE_OPCASE(ctok, "*", syb_mul)
                 KPE_OPCASE(ctok, "/", syb_div)
+                KPE_OPCASE(ctok, "<", syb_lt)
+                KPE_OPCASE(ctok, ">", syb_gt)
+                KPE_OPCASE(ctok, "==", syb_eq)
                 KPE_OPCASE(ctok, "=", syb_assign)
             } else {
                 PEXPR_ERR(ctok, "Invalid Syntax; Unexpected operator");
@@ -1089,6 +1099,27 @@ ks_ast ks_parse_all(ks_parser self) {
                 if (body == NULL) PALL_ERREXT();
 
                 ks_list_push(block->v_block, (kso)ks_ast_new_if(cond, body));
+
+            } else if (TOK_EQ(self, ctok, "while")) {
+                // parse an while block:
+                // while (COND) { BODY }
+                self->tok_i++;
+
+                PALL_SKIPIRR();
+
+                // now, expect an expression
+                ks_ast cond = ks_parse_expr(self);
+                if (cond == NULL) PALL_ERREXT();
+
+                PALL_SKIPIRR();
+
+                // recurse here, parse a whole block
+                ks_ast body = ks_parse_all(self);
+                if (body == NULL) PALL_ERREXT();
+
+                ks_list_push(block->v_block, (kso)ks_ast_new_while(cond, body));
+
+
             } else if (TOK_EQ(self, ctok, "func")) {
 
                 // parse a function definition

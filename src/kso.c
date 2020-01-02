@@ -123,359 +123,6 @@ ks_str ks_str_new_r(const char* chr) {
     }
 }
 
-// create a new string from C-style printf arguments
-ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
-    ks_str self = (ks_str)ks_malloc(sizeof(*self) + 0);
-    *self = (struct ks_str) {
-        KSO_BASE_INIT(ks_T_str, KSOF_NONE)
-        .len = 0,
-    };
-
-    // the fields for the format argument:
-    // i.e. '%*d' maps to `*` as a fmt_field
-    static char fmt_fld[256];
-
-    // temporary chars for constructing integers/etc
-    static char tmp[256];
-    static int tmp_i;
-
-    // digits for bases > 10
-    static const char base_digs[] = "0123456789abcdefghijklmnopqrstuv";
-
-    // macro to determine if a character is alpha (part of the alphabet)
-    #define ISALPHA(_c) (((_c) >= 'a' && (_c) <= 'z') || ((_c) >= 'A' && (_c) <= 'Z'))
-
-    // append characters to the string
-    #define VCFMT_ADD(_len, _ptr) { \
-        int __len = (_len); \
-        self = ks_realloc(self, sizeof(*self) + self->len + __len); \
-        memcpy(&(self->chr[self->len]), (_ptr), __len); \
-        self->len += __len;  \
-    }
-
-    // append to the tmp buffer
-    #define VCFMT_TMP_ADD(_len, _ptr) { \
-        memcpy(&tmp[tmp_i], _ptr, _len); \
-        tmp_i += _len; \
-    }
-
-
-    // reverse the temp buffer, starting at _start, and for _len number
-    #define VCFMT_TMP_REV(_start, _stop) { \
-        for (j = _start; 2 * (j - _start) < _stop - _start; ++j) { \
-            char tc = tmp[j]; \
-            tmp[j] = tmp[_stop - j - 1 + _start]; \
-            tmp[_stop - j - 1 + _start] = tc; \
-        } \
-    }
-
-    // number of digits for printing out the digits of a float/double
-    #define VCFMT_F_DIGITS 5
-
-    // current pointer to the format
-    int i, j;
-    for (i = 0; fmt[i] != '\0'; ) {
-
-        if (fmt[i] == '%') {
-            // we have hit a format specifier, time to parse
-            // skip the `%`
-            i++;
-
-            // length of the field
-            int fld_len = 0;
-
-            // parse until we get to an alpha characer
-            while (fmt[i] && !ISALPHA(fmt[i])) {
-                fmt_fld[fld_len++] = fmt[i];
-                i++;
-            }
-            fmt_fld[fld_len] = '\0';
-
-            // get the specifier, then skip it
-            char spec = fmt[i++];
-
-            /* valid specifiers: 
-                i: int
-                f: float/double
-                c: char
-                s: char* 
-                p: void*
-                o: kso, vague (never allocates another string, just uses `<type obj @ addr>` format)
-                V: kso, value (will turn into string)
-            */
-
-            if (spec == 'i') {
-                // i: int, print out an integer value, base 10, with sign
-                // %i -> integer, base 10
-                // %+i -> integer, with sign always prepended
-                // first, pull out the argument given
-                int d_val = va_arg(ap, int);
-
-                // extract if there was + in format field
-                bool f_sgn = strchr(fmt_fld, '+') != NULL;
-
-                // extract sign info
-                bool is_neg = d_val >= 0 ? false : (d_val = -d_val, true);
-
-                // we are outputting the base-10 representation into tmp, reversed
-                // NOTE: This will output at least one digit, so it will never be empty
-                tmp_i = 0;
-                do {
-                    // extract a digit at a time
-                    tmp[tmp_i++] = (d_val % 10) + '0';
-                    d_val /= 10;
-                } while (d_val > 0);
-
-                // add sign if negative, or the + field specifier was given
-                if (is_neg) tmp[tmp_i++] = '-';
-                else if (f_sgn) tmp[tmp_i++] = '+';
-
-                // reverse the whole string
-                VCFMT_TMP_REV(0, tmp_i)
-
-                // add the string to the output
-                VCFMT_ADD(tmp_i, tmp);
-
-            } else if (spec == 'f') {
-                // f: float, print out floating point value to some digits
-                // %f -> float, base 10, to 4 digits (which will be 0-filled)
-                // %+f -> float, with sign always prepended
-
-                // NOTE: as per the C spec, calling with float or double is always promoted to double:
-                //   https://stackoverflow.com/questions/11270588/variadic-function-va-arg-doesnt-work-with-float
-                double f_val = va_arg(ap, double);
-
-                // number of digits to print
-                int n_digs = VCFMT_F_DIGITS;
-
-                // the digit base
-                uint64_t dig_base = (uint64_t)(pow(10, n_digs));
-
-
-                // extract if there was + in format field
-                bool f_sgn = strchr(fmt_fld, '+') != NULL;
-
-                // extract sign info
-                bool is_neg = f_val >= 0 ? false : (f_val = -f_val, true);
-
-
-                // extract whether or not to print in scientific notation
-                bool do_sci = false;
-
-                // tell whether or not the scientific notation is negative or positive (small or large value)
-                bool sci_neg = false;
-
-                // number of exponentials to put at the end
-                int sci_exp = 0;
-
-
-                if (f_val > 1e6) {
-                    // do scientific notation
-                    while (f_val >= 10.0) {
-                        sci_exp++;
-                        f_val /= 100;
-                    }
-                    do_sci = true;
-                    sci_neg = false;
-
-
-                } else if (f_val < 1e-6) {
-                    // do scientific notation
-                    while (f_val < 1.0) {
-                        sci_exp++;
-                        f_val *= 10;
-                    }
-                    do_sci = true;
-                    sci_neg = true;
-                }
-                
-                // output into the temporary buffer
-                tmp_i = 0;
-
-
-                // holds a digit/integer value
-                uint64_t d_val;
-
-                if (do_sci) {
-                    // first, put out 'e+N', where N==sci_exp
-                    // but, it should be backwards
-                    d_val = sci_exp;
-                    do {
-                        tmp[tmp_i++] = (d_val % 10) + '0';
-                        d_val /= 10;
-                    } while (d_val > 0);
-
-                    // now, output sign
-                    tmp[tmp_i++] = sci_neg ? '-' : '+';
-
-                    // now, output the literal 'e'
-                    tmp[tmp_i++] = 'e';
-
-                }
-
-                // print in normal notation
-
-                // first, output the fractional part
-                d_val = (uint64_t)((f_val - (uint64_t)f_val) * dig_base);
-
-                do {
-                    tmp[tmp_i++] = (d_val % 10) + '0';
-                    d_val /= 10;
-                    n_digs--;
-                } while (n_digs > 0);
-
-                // add seperator
-                tmp[tmp_i++] = '.';
-
-                // now, output the whole number part
-                d_val = (uint64_t)(f_val);
-                do {
-                    tmp[tmp_i++] = (d_val % 10) + '0';
-                    d_val /= 10;
-                } while (d_val > 0);
-
-                // add sign if negative, or the + field specifier was given
-                if (is_neg) tmp[tmp_i++] = '-';
-                else if (f_sgn) tmp[tmp_i++] = '+';
-
-                // reverse the whole string
-                VCFMT_TMP_REV(0, tmp_i)
-
-                // add to the output
-                VCFMT_ADD(tmp_i, tmp);
-
-            } else if (spec == 'c') {
-
- 
-                // how many times should the character be printed?
-                int n_times = 1;
-
-                if (strcmp(fmt_fld, "*") == 0) {
-                    // we read in an integer to determine how many times to print
-                    n_times = va_arg(ap, int);
-
-                }
-
-                // get the char
-                int c_val = va_arg(ap, int);
-
-                int ii;
-                for (ii = 0; ii < n_times; ++ii) {
-                    VCFMT_ADD(1, &c_val);
-                }
-
-            } else if (spec == 's') {
-                // s for string, print a C-style NUL-terminated string
-                int s_val_len = -1;
-
-                // allow %*s to be given an integer value
-                if (strcmp(fmt_fld, "*") == 0) {
-                    // we read in an integer length of the string
-                    s_val_len = va_arg(ap, int);
-                }
-
-                const char* s_val = va_arg(ap, const char*);
-
-                if (s_val_len < 0) {
-                    // we calculate it, as it as not given
-                    s_val_len= strlen(s_val);
-                }
-
-                VCFMT_ADD(s_val_len, s_val);
-
-            } else if (spec == 'o') {
-                // 'o' for object, print the object's tostring
-                kso o_val = va_arg(ap, kso);
-
-                // get the type
-                ks_type o_T = o_val->type;
-
-                tmp_i = 0;
-
-                tmp[tmp_i++] = '<';
-                tmp[tmp_i++] = '\'';
-                VCFMT_TMP_ADD(o_T->name->len, o_T->name->chr);
-                tmp[tmp_i++] = '\'';
-
-                VCFMT_TMP_ADD(sizeof(" obj @ 0x") - 1, " obj @ 0x");
-
-                int addr_st = tmp_i;
-                uintptr_t p_val = (uintptr_t)o_val;
-                // output hex, backwards, into tmp
-                do {
-                    // extract a digit at a time
-                    tmp[tmp_i++] = base_digs[p_val % 16];
-                    p_val /= 16;
-                } while (p_val > 0);
-
-                // reverse the address
-                VCFMT_TMP_REV(addr_st, tmp_i);
-
-                tmp[tmp_i++] = '>';
-
-                // add the type name
-                VCFMT_ADD(tmp_i, tmp);
-
-
-            } else if (spec == 'V') {
-                // 'V' for value, print the kscript object as a value
-                kso o_val = va_arg(ap, kso);
-
-                ks_str to_str = kso_tostr(o_val);
-
-                // now, print out the string
-                VCFMT_ADD(to_str->len, to_str->chr);
-
-                KSO_CHKREF(to_str);
-
-            } else if (spec == 'p') {
-                // `p` for pointer, void*, print as a hex address
-                
-                uintptr_t p_val = (uintptr_t)(va_arg(ap, void*));
-
-                tmp_i = 0;
-
-                // output hex, backwards, into tmp
-                do {
-                    // extract a digit at a time
-                    tmp[tmp_i++] = base_digs[p_val % 16];
-                    p_val /= 16;
-                } while (p_val > 0);
-
-                tmp[tmp_i++] = 'x';
-                tmp[tmp_i++] = '0';
-
-                // now, reverse the string
-                VCFMT_TMP_REV(0, tmp_i)
-
-
-                // add the string to the output
-                VCFMT_ADD(tmp_i, tmp);
-
-            } else {
-                // take an argument off just in case, this may prevent an error
-                va_arg(ap, double);
-
-                // add a literal ! to signify an error
-                VCFMT_ADD(1, "!");
-            }
-
-        } else {
-            int s_i = i;
-            // else, go through, scan for all the literal values, until we hit the end or format specifier `%`
-            for (; fmt[i] != '\0' && fmt[i] != '%'; ++i) ;
-
-            // append them here
-            VCFMT_ADD((i - s_i), &fmt[s_i]);
-        }
-    }
-
-    self->chr[self->len] = '\0';
-    self->v_hash = str_hash(self->len, self->chr);
-
-    return self;
-}
-
 ks_str ks_str_new_cfmt(const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -1074,6 +721,9 @@ void ksc_add(ks_code code) { KSC_(KSBC_ADD); }
 void ksc_sub(ks_code code) { KSC_(KSBC_SUB); }
 void ksc_mul(ks_code code) { KSC_(KSBC_MUL); }
 void ksc_div(ks_code code) { KSC_(KSBC_DIV); }
+void ksc_lt(ks_code code) { KSC_(KSBC_LT); }
+void ksc_gt(ks_code code) { KSC_(KSBC_GT); }
+void ksc_eq(ks_code code) { KSC_(KSBC_EQ); }
 void ksc_jmp(ks_code code, int relamt) { KSC_I32(KSBC_JMP, relamt); }
 void ksc_jmpt(ks_code code, int relamt) { KSC_I32(KSBC_JMPT, relamt); }
 void ksc_jmpf(ks_code code, int relamt) { KSC_I32(KSBC_JMPF, relamt); }
@@ -1252,6 +902,22 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
     return self;
 }
 
+// create a new while block AST
+ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
+        _AST_TOK_INIT
+        .atype = KS_AST_WHILE,
+        .v_while = {cond, body}
+    };
+    KSO_INCREF(cond);
+    KSO_INCREF(body);
+
+    return self;
+}
+
+
 // create a new empty block AST
 ks_ast ks_ast_new_block_empty() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -1369,12 +1035,20 @@ KS_CFUNC_TDECL(ast, free) {
         KSO_DECREF(self->v_if.body);
         break;
 
+    case KS_AST_WHILE:
+        KSO_DECREF(self->v_while.cond);
+        KSO_DECREF(self->v_while.body);
+        break;
+
 
     // handle all binary operators
     case KS_AST_BOP_ADD:
     case KS_AST_BOP_SUB:
     case KS_AST_BOP_MUL:
     case KS_AST_BOP_DIV:
+    case KS_AST_BOP_LT:
+    case KS_AST_BOP_GT:
+    case KS_AST_BOP_EQ:
     case KS_AST_BOP_ASSIGN:
         KSO_DECREF(self->v_bop.L);
         KSO_DECREF(self->v_bop.R);
@@ -1633,6 +1307,9 @@ ks_vm ks_vm_new_empty() {
         .scopes = NULL
     };
 
+    KSO_INCREF(self->globals);
+    KSO_INCREF(self->stk);
+
     return self;
 }
 
@@ -1767,12 +1444,12 @@ bool kso_eq(kso A, kso B) {
 }
 
 bool kso_free(kso obj) {
-
     // if it can still be reached, don't free it
     if (obj->refcnt > 0) return false;
+    else if (obj->refcnt < 0) ks_warn("refcnt of %o was %i", obj, obj->refcnt);
 
     // otherwise, free it
-    ks_trace("freeing '%s' obj @ %p", obj->type->name->chr, (void*)obj);
+    ks_trace("kso_free(%o) (repr was: %R)", obj, obj);
 
     // check for a type function to free
     if (obj->type->f_free != NULL) {

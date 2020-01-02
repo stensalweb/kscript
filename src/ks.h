@@ -8,6 +8,14 @@
 #define KS_H__
 
 
+/* kscript configuration options */
+
+// if defined, `ks_trace` calls become nothing, so tracing is not available, but makes more efficient code
+//#define KS_C_NO_TRACE
+
+// if defined, `ks_debug` calls become nothing, so debugging is not available, but makes more efficient code
+//#define KS_C_NO_DEBUG
+
 /* standard system headers */
 
 #include <stdint.h>
@@ -21,7 +29,6 @@
 /* timing headers (which may be different on windows/mac) */
 #include <time.h>
 #include <sys/time.h>
-
 
 /* headers that require linker flags */
 // -lm
@@ -52,10 +59,15 @@ extern ks_type
 /* builtin functions */
 extern ks_cfunc
     ks_F_print,
+
+    /* operators */
     ks_F_add,
     ks_F_sub,
     ks_F_mul,
-    ks_F_div
+    ks_F_div,
+    ks_F_lt,
+    ks_F_gt,
+    ks_F_eq
 ;
 
 
@@ -89,6 +101,10 @@ void  ks_free(void* ptr);
 // actually being used, because internally the system may request blocks which are larger than neccessary.
 // These are just the bytes that ks_malloc/& know about
 size_t ks_memuse();
+
+// returns the maximum amount of memory that was allocated at a single time
+size_t ks_memuse_max();
+
 
 // enumeration for levels of logging, from least important to most important
 enum {
@@ -144,6 +160,17 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_warn(...) ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 // prints a error message, assuming the current log level allows for it
 #define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+/* handle config options, disable them */
+#ifdef KS_C_NO_TRACE
+#undef ks_trace
+#define ks_trace(...)
+#endif
+#ifdef KS_C_NO_DEBUG
+#undef ks_debug
+#define ks_debug(...)
+#endif
+
 
 /* global error system */
 

@@ -51,12 +51,7 @@ bool kse_dumpall() {
     for (i = 0; i < err_stk->len; ++i) {
         kso erri = err_stk->items[i];
 
-        if (erri->type == ks_T_str) {
-            ks_error("%s", ((ks_str)erri)->chr);
-        } else {
-            ks_error("obj @ %p", erri);
-        }
-        
+        ks_error("%V", erri);
     }
     
     ks_list_clear(err_stk);

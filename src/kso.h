@@ -102,12 +102,17 @@ extern ks_bool ks_V_true, ks_V_false;
 // the `false` value
 #define KS_FALSE (ks_V_false)
 
+// return a boolean, given an expression
+#define KS_BOOL(_val) ((_val) ? KS_TRUE : KS_FALSE)
+
 // the `true` value, downcasted to an object
 #define KSO_TRUE ((kso)KS_TRUE)
 
 // the `false` value, downcasted to an object
 #define KSO_FALSE ((kso)KS_FALSE)
 
+// return a boolean (as a generic object), given an expression
+#define KSO_BOOL(_val) ((_val) ? KSO_TRUE : KSO_FALSE)
 
 
 /* int -> represents a whole number
@@ -310,19 +315,25 @@ enum {
     /* ADD - pops off 2 objects, binary-adds them
     1[KSBC_ADD] */
     KSBC_ADD,
-
     /* SUB - pops off 2 objects, binary-subtracts them
     1[KSBC_SUB] */
     KSBC_SUB,
-
     /* MUL - pops off 2 objects, binary-muliplies them
     1[KSBC_MUL] */
     KSBC_MUL,
-
     /* DIV - pops off 2 objects, binary-divides them
     1[KSBC_DIV] */
     KSBC_DIV,
 
+    /* LT - pops off 2 objects, binary-less-than compares them
+    1[KSBC_DIV] */
+    KSBC_LT,
+    /* GT - pops off 2 objects, binary-greater-than compares them
+    1[KSBC_DIV] */
+    KSBC_GT,
+    /* EQ - pops off 2 objects, binary-equality checks them
+    1[KSBC_EQ] */
+    KSBC_EQ,
 
     /** jumps/branches **/
     
@@ -453,9 +464,30 @@ struct ks_type {
     // except the object itself
     kso f_free;
 
+
+    /** operator functions **/
+
+    // type.add(A, B) -> returns the + op of A, B
+    kso f_add;
+
+    // type.sub(A, B) -> returns the - op of A, B
+    kso f_sub;
+
+    // type.mul(A, B) -> returns the * op of A, B
+    kso f_mul;
+
+    // type.div(A, B) -> returns the / op of A, B
+    kso f_div;
+
+
+    /** comparison functions **/
+
+    // <, >, == functions
+    kso f_lt, f_gt, f_eq;
+
 };
 
-#define KS_TYPE_INIT KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = NULL, .f_str = NULL, .f_repr = NULL, 
+#define KS_TYPE_INIT KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = NULL, .f_str = NULL, .f_repr = NULL, .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_lt = NULL, .f_gt = NULL, .f_eq = NULL, 
 
 /* token enum, tells the kinds of tokens */
 enum {
@@ -515,12 +547,23 @@ enum {
 
     /* add operator, '+' */
     KS_TOK_O_ADD,
-    /* add operator, '-' */
+    /* sub operator, '-' */
     KS_TOK_O_SUB,
-    /* add operator, '*' */
+    /* mul operator, '*' */
     KS_TOK_O_MUL,
-    /* add operator, '/' */
+    /* div operator, '/' */
     KS_TOK_O_DIV,
+    /* mod operator, '%' */
+    KS_TOK_O_MOD,
+    ///* pow operator, '**' */
+    //KS_TOK_O_POW,
+
+    /* less-than operator, '<' */
+    KS_TOK_O_LT,
+    /* greater-than operator, '>' */
+    KS_TOK_O_GT,
+    /* equal-to operator, '==' */
+    KS_TOK_O_EQ,
 
     /* assignment operator, '=' */
     KS_TOK_O_ASSIGN,
@@ -648,6 +691,9 @@ enum {
     /* means this AST represents a conditional block */
     KS_AST_IF,
 
+    /* means this AST represents a while-loop block */
+    KS_AST_WHILE,
+
     /* means this AST represents a function-literal, aka a lambda */
     KS_AST_FUNC,
 
@@ -676,10 +722,15 @@ enum {
     KS_AST_BOP_MOD,
     /* pow: ^, power */
     KS_AST_BOP_POW,
-    
+    /* lt: <, less than */
+    KS_AST_BOP_LT,
+    /* gt: >, greater than */
+    KS_AST_BOP_GT,
+    /* eq: ==, equal to */
+    KS_AST_BOP_EQ,
+
     /* assign: =, special operator denoting a name setting */
     KS_AST_BOP_ASSIGN,
-
 
 
     // phony member to denote the end
@@ -734,6 +785,16 @@ struct ks_ast {
 
         } v_if;
 
+        /* the condition and code to be ran if true iff atype==KS_AST_WHILE */
+        struct {
+            // the conditional in the parentheticals
+            ks_ast cond;
+
+            // the body inside the braces
+            ks_ast body;
+
+        } v_while;
+
         /* the structure describing a function literal */
         struct {
             
@@ -779,6 +840,7 @@ ks_str ks_str_new_r(const char* chr);
 
 // creates a new string from C-style format arguments, in va_list passing style
 // NOTE: This is a custom implementation, there may be bugs.
+// NOTE: This is implemented in `fmt.c`, rather than `kso.c`
 ks_str ks_str_new_vcfmt(const char* fmt, va_list ap);
 
 // creates a new string from C-style format arguments (i.e. only C-types are supported, not arbitrary kscript objects)
@@ -875,6 +937,9 @@ void ksc_add(ks_code code);
 void ksc_sub(ks_code code);
 void ksc_mul(ks_code code);
 void ksc_div(ks_code code);
+void ksc_lt(ks_code code);
+void ksc_gt(ks_code code);
+void ksc_eq(ks_code code);
 void ksc_jmp(ks_code code, int relamt);
 void ksc_jmpt(ks_code code, int relamt);
 void ksc_jmpf(ks_code code, int relamt);
@@ -927,6 +992,9 @@ ks_ast ks_ast_new_block(int n_items, ks_ast* items);
 
 // return a new AST representing an `if`
 ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
+
+// return a new AST representing a `while`
+ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
 
 // return a new function representing a function literal
 ks_ast ks_ast_new_func(ks_list params, ks_ast body);

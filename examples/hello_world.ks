@@ -1,8 +1,5 @@
 #!ks
 
+print ("Hello World")
 
-func f(x) {
-    ret 3
-}
 
-print(f(4))

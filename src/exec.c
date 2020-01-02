@@ -9,7 +9,7 @@
 
 #ifdef DO_EXEC_TRACE
 // if execution tracing is enabled, debug out the arguments
-#define _exec_trace(...) { ks_debug("E!: " __VA_ARGS__); }
+#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
 #else
 // else, do nothing
 #define _exec_trace(...) { }
@@ -54,6 +54,9 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         INIT_INST_LABEL(KSBC_SUB)
         INIT_INST_LABEL(KSBC_MUL)
         INIT_INST_LABEL(KSBC_DIV)
+        INIT_INST_LABEL(KSBC_LT)
+        INIT_INST_LABEL(KSBC_GT)
+        INIT_INST_LABEL(KSBC_EQ)
 
         INIT_INST_LABEL(KSBC_JMP)
         INIT_INST_LABEL(KSBC_JMPT)
@@ -83,6 +86,16 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         } \
         kse_fmt(__VA_ARGS__); \
         goto EXC; \
+    }
+
+    // execution exception, reclaim from the global error stack, if possible
+    #define EXEC_EXC_RECLAIM(...) { \
+        if (kse_N() > 0) {\
+            kso last_err = kse_pop(); \
+            EXEC_EXC("%V", last_err); \
+        } else { \
+            EXEC_EXC(__VA_ARGS__); \
+        } \
     }
 
 
@@ -161,22 +174,13 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             DECODE(ksbc_);
             _exec_trace("noop # :%i", RELADDR);
 
-            return ;
             NEXT_INST();
 
         INST_LABEL(KSBC_CONST)
             DECODE(ksbc_i32);
             v_c = GET_CONST(inst.i32.i32);
-            #ifdef DO_EXEC_TRACE
             // do type generic logging
-            if (v_c->type == ks_T_int) {
-                _exec_trace("const %ld # [%i], :%i", ((ks_int)v_c)->v_int, inst.i32.i32, RELADDR);
-            } else if (v_c->type == ks_T_str) {
-                _exec_trace("const '%s' # [%i], :%i", ((ks_str)v_c)->chr, inst.i32.i32, RELADDR);
-            } else {
-                _exec_trace("const <'%s' obj @ %p> # [%i], :%i", v_c->type->name->chr, v_c, inst.i32.i32, RELADDR);
-            }
-            #endif
+            _exec_trace("const %R # [%i], :%i", v_c, inst.i32.i32, RELADDR);
 
             ks_list_push(vm->stk, v_c);
 
@@ -374,7 +378,7 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
             _exec_trace("bop " _opstr); \
             imm_args[1] = ks_list_pop(vm->stk); imm_args[0] = ks_list_pop(vm->stk); \
             new_obj = _opcfunc->v_cfunc(2, imm_args); \
-            if (new_obj == NULL) goto EXC; \
+            if (new_obj == NULL) EXEC_EXC_RECLAIM("Error in op " _opstr); \
             ks_list_push(vm->stk, new_obj); \
             DECREF_N(imm_args, 2); \
             NEXT_INST(); 
@@ -383,6 +387,9 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         T_BOP_LABEL(KSBC_SUB, "-", ks_F_sub)
         T_BOP_LABEL(KSBC_MUL, "*", ks_F_mul)
         T_BOP_LABEL(KSBC_DIV, "/", ks_F_div)
+        T_BOP_LABEL(KSBC_LT, "<", ks_F_lt)
+        T_BOP_LABEL(KSBC_GT, ">", ks_F_gt)
+        T_BOP_LABEL(KSBC_EQ, "==", ks_F_eq)
 
 
         INST_LABEL(KSBC_JMP)
@@ -455,8 +462,14 @@ void ks_vm_exec(ks_vm vm, ks_code code) {
         EXC:
 
             //ks_error("EXCEPTION");
+            // rewind, then exit
+            while (vm->n_scopes > start_scope) {
+                POP_SCOPE();
+            }
 
-            if (kse_dumpall()) exit(1);
+            if (kse_dumpall())  ;
+            
+            exit(1);
 
             return;
 

@@ -15,8 +15,12 @@ instead of reallocing `size`, it reallocs `A*size+B`
 #define MEM_NEXT_SIZE(_num) ((uint64_t)((_num) * MEM_CONST_A + MEM_CONST_B))
 
 // trace the memory allocations
+#ifdef KS_C_NO_TRACE
+#define memtrace(...) 
+#else
 #define memtrace(...) ks_trace(__VA_ARGS__)
-//#define memtrace(...) 
+//#define memtrace(fmt, ...) if (ks_log_level() <= KS_LOG_TRACE) { fprintf(stdout, fmt "\n", __VA_ARGS__); }
+#endif
 
 // prefixes for sizes
 static const char* size_pfx[] = {
@@ -25,23 +29,24 @@ static const char* size_pfx[] = {
     "MB",
     "GB",
     "TB",
-    "PB"
+    "PB",
+    "EB"
 };
 
-// get the prefix for a byte-size
-static const char* bs_pfx(size_t bytes) {
+// return the char for the unit string
+const char* ks_mem_us(size_t bytes) {
     int idx = 0;
-    while (bytes > 1024) {
+    while (bytes > 1024 && idx < sizeof(size_pfx) / sizeof(*size_pfx)) {
         idx++;
         bytes /= 1024;
     }
     return size_pfx[idx];
 }
 
-// get the manissa value for a given size
-static int bs_mantissa(size_t bytes) {
+// return the value of the unit string for an amount of bytes
+int ks_mem_uv(size_t bytes) {
     int idx = 0;
-    while (bytes > 1024) {
+    while (bytes > 1024 && idx < sizeof(size_pfx) / sizeof(*size_pfx)) {
         idx++;
         bytes /= 1024;
     }
@@ -50,7 +55,23 @@ static int bs_mantissa(size_t bytes) {
 
 
 // keep track of the sum of all memory allocated - freed
-static size_t total_mem = 0;
+static size_t mem_cur = 0;
+
+// keep track of the maximum memory allocated at one time
+static size_t mem_max = 0;
+
+
+// record a change in the memory, by a given amount
+static inline void rec_mem(int64_t amt) {
+    mem_cur += amt;
+
+    // update the maximum
+    if (mem_cur > mem_max) {
+        mem_max = mem_cur;
+    }
+}
+
+
 
 // internal buffer structure, which holds meta-data about how many bytes were actually allocated,
 // and then the pointer is right on top of it
@@ -67,7 +88,7 @@ void* ks_malloc(size_t bytes) {
 
     // give information about allocations > 500 MB
     if (bytes > 500 * 1024 * 1024) {
-        ks_debug("[LARGE] allocating %lu%s...", bs_mantissa(bytes), bs_pfx(bytes));
+        ks_debug("[MEM_LARGE] allocating %i%s...", ks_mem_uv(bytes), ks_mem_us(bytes));
     }
     
     // use the C standard library malloc to get a large enough buffer to hold the meta and data size requestd
@@ -75,7 +96,7 @@ void* ks_malloc(size_t bytes) {
 
     // check for a problem
     if (buf == NULL) {
-        ks_error("ks_malloc(%lu%s) failed!", bs_mantissa(bytes), bs_pfx(bytes));
+        ks_error("ks_malloc(%i%s) failed!", ks_mem_uv(bytes), ks_mem_us(bytes));
     }
     // set the size
     buf->size = bytes;
@@ -84,10 +105,10 @@ void* ks_malloc(size_t bytes) {
     void* usr_ptr = (void*)&buf->data;
 
     // do tracing
-    memtrace("ks_malloc(%lu) -> %p # size: %lu%s", bytes, usr_ptr, bs_mantissa(bytes), bs_pfx(bytes));
+    memtrace("ks_malloc(%i) -> %p # size: %i%s", bytes, usr_ptr, ks_mem_uv(bytes), ks_mem_us(bytes));
 
     // now, add the amount of memory to our totals
-    total_mem += buf->size;
+    rec_mem(buf->size);
 
     return usr_ptr;
 }
@@ -98,7 +119,7 @@ void* ks_realloc(void* ptr, size_t bytes) {
 
     // give information when reallocing 500MB or larger
     if (bytes > 500 * 1024 * 1024) {
-        ks_info("[LARGE] re-allocating %lu%s", bs_mantissa(bytes), bs_pfx(bytes));
+        ks_info("[LARGE] re-allocating %i%s", ks_mem_uv(bytes), ks_mem_us(bytes));
     }
 
     // first, rewind behind the buffer and read the metadata
@@ -119,7 +140,7 @@ void* ks_realloc(void* ptr, size_t bytes) {
         buf = realloc(buf, sizeof(struct ksi_buf) + buf->size);
 
         if (buf == NULL) {
-            ks_error("ks_realloc(%p, %lu) failed!", ptr, buf->size);
+            ks_error("ks_realloc(%p, %i) failed!", ptr, buf->size);
             return NULL;
         }
     }
@@ -127,10 +148,10 @@ void* ks_realloc(void* ptr, size_t bytes) {
     // get the user pointer
     void* usr_ptr = (void*)&buf->data;
 
-    memtrace("ks_realloc(%p, %lu) -> %p", ptr, bytes, usr_ptr);
+    memtrace("ks_realloc(%p, %i) -> %p", ptr, bytes, usr_ptr);
 
     // record memory changes
-    total_mem += buf->size - start_size; 
+    rec_mem(buf->size - start_size);
 
     return usr_ptr;
 }
@@ -142,10 +163,12 @@ void ks_free(void* ptr) {
     // get the buffer from underneath the data
     struct ksi_buf* buf = &((struct ksi_buf*)ptr)[-1];
 
-    // record memory difference
-    total_mem -= buf->size;
 
-    memtrace("ks_free(%p) # size: %lu%s", ptr, bs_mantissa(buf->size), bs_pfx(buf->size));
+    // record memory difference
+    rec_mem(-buf->size);
+
+    size_t bytes = buf->size;
+    memtrace("ks_free(%p) # size: %i%s", ptr, ks_mem_uv(bytes), ks_mem_us(bytes));
 
     // internally free it
     free(buf);
@@ -155,7 +178,11 @@ void ks_free(void* ptr) {
 
 
 size_t ks_memuse() {
-    return total_mem;
+    return mem_cur;
+}
+
+size_t ks_memuse_max() {
+    return mem_max;
 }
 
 

@@ -35,12 +35,22 @@ void ks_log_level_set(int new_level) {
     log_level = new_level;
 }
 
+
+// keep true if is logging
+static bool is_logging = false;
+
 // logs with a levl. use the macros `ks_info`, etc
 void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     if (level < log_level) {
         // not important
         return;
     }
+
+    // check for recursion
+    if (is_logging) return;
+
+    is_logging = true;
+
 
     // TODO: perhaps roll my own printf? similar to what I did for ks_str_new_cfmt()
     // by my tests, it performed about 9x-10x faster than using snprintf, even with small, simple arguments
@@ -50,10 +60,16 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     // print a header
     fprintf(stdout, BOLD "%s" RESET ": ", _level_strs[level]);
 
+
     // call the vfprintf
     va_list args;
     va_start(args, fmt);
-    vfprintf(stdout, fmt, args);
+
+    // use advanced formatting
+    ks_str rstr = ks_str_new_vcfmt(fmt, args);
+    fwrite(rstr->chr, 1, rstr->len, stdout);
+    KSO_CHKREF(rstr);
+    //vfprintf(stdout, fmt, args);
     va_end(args);
 
     // always end with a newline for this function
@@ -61,4 +77,7 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
 
     // flush the output
     fflush(stdout);
+
+    is_logging = false;
+
 }
