@@ -1,59 +1,50 @@
 /* funcs.c - standard/builtin functions to the kscript library */
 
-#include "ks.h"
+// include the common for help with standard procedures
+#include "ks_common.h"
 
 /* declarations  */
 
 ks_cfunc
     ks_F_print = NULL,
+    ks_F_dict = NULL,
+
+    ks_F_type = NULL,
+    ks_F_call = NULL,
+    
+    ks_F_getattr = NULL,
+    ks_F_setattr = NULL,
+
+    ks_F_getitem = NULL,
+    ks_F_setitem = NULL,
+
+    /* binary operators */
     ks_F_add = NULL,
     ks_F_sub = NULL,
     ks_F_mul = NULL,
     ks_F_div = NULL,
+    ks_F_mod = NULL,
+    ks_F_pow = NULL,
     ks_F_lt  = NULL,
+    ks_F_le  = NULL,
     ks_F_gt  = NULL,
-    ks_F_eq  = NULL
+    ks_F_ge  = NULL,
+    ks_F_eq  = NULL,
+    ks_F_ne  = NULL
 ;
-
-
-
-/* helper macros for standard errors */
-
-
-// define SIG as the C-string descibing the signature of the function. This will help with errors
-#define SIG
-
-
-// require a specific number of arguments
-#define REQ_N_ARGS(_num) if (n_args != _num) { return kse_fmt(SIG ": Expected %i args, but got %i", _num, n_args); }
-
-// require a minimum number of arguments
-#define REQ_N_ARGS_MIN(_min) if (n_args < _min) { return kse_fmt(SIG ": Expected >=%i args, but got %i", _min, n_args); }
-
-// require a maximum number of arguments
-#define REQ_N_ARGS_MAX(_max) if (n_args > _max) { return kse_fmt(SIG ": Expected <=%i args, but got %i", _max, n_args); }
-
-// require a range of number of arguments
-#define REQ_N_ARGS_RANGE(_min, _max) if (n_args > _max || n_args < _min) { return kse_fmt(SIG ": Expected %i<=args<=%i, but got %i", _min, _max, n_args); }
-
-
-// require an object _obj to be of type _type, or print an error. The object is referred to as its C-string style name `_objname`
-#define REQ_TYPE(_objname, _obj, _type) if (!(_obj) || (_obj)->type != (_type)) { return kse_fmt(SIG ": Expected %*s to be of type '%*s', but it was of type '%*s'", sizeof(_objname) - 1, objname, (_type)->name->len, (_type)->name->chr, (_obj)->type->name->len, (_obj)->type->name->chr); }
-
-
-// define a C-function with a given name
-// (the actual name has an _ appended)
-#define FUNC(_name) static KS_CFUNC_DECL(_name##_)
-
-// define a C-function with a given type and name
-// (the actual name has an _ appended)
-#define TFUNC(_type, _name) static KS_CFUNC_DECL(_type##_##_name##_)
 
 
 /* builtin default functions */
 
-FUNC(print) {
+FUNC(dict) {
+    #define SIG "dict()"
+    REQ_N_ARGS(0)
+
+    return (kso)ks_dict_new_empty();
     #undef SIG
+}
+
+FUNC(print) {
     #define SIG "print(args...)"
 
     // just print out all the arguments, then a newline
@@ -84,9 +75,105 @@ FUNC(print) {
     fflush(stdout);
 
     return KSO_NONE;
+    #undef SIG
 }
 
 
+/* misc util */
+FUNC(type) {
+    #define SIG "type(obj)"
+    REQ_N_ARGS(1);
+
+    return (kso)args[0]->type;
+    #undef SIG
+}
+
+
+FUNC(call) {
+    #define SIG "call(func, args=(,))"
+    REQ_N_ARGS_RANGE(1, 2);
+
+    if (n_args == 1) {
+        return kso_call(args[0], 0, NULL);
+    } else {
+        // return 2 arguments
+        kso func = args[0], values = args[1];
+        if (values->type == ks_T_tuple) {
+            return kso_call(func, ((ks_tuple)values)->len, ((ks_tuple)values)->items);
+        } else {
+            return kse_fmt("Tried calling with args=%R (should be a tuple)", values);
+        }
+    }
+
+    return NULL;
+    #undef SIG
+}
+
+/* attribute resolving */
+
+FUNC(getattr) {
+    #define SIG "getattr(obj, attr)"
+    REQ_N_ARGS(2);
+
+    kso obj = args[0], attr = args[1];
+
+    if (obj->type == ks_T_dict) {
+        return ks_dict_get((ks_dict)obj, attr, kso_hash(attr));
+    }
+
+    // try resolving this
+    if (obj->type->f_getattr != NULL) return kso_call(obj->type->f_getattr, 2, args);
+
+    return NULL;
+    #undef SIG
+}
+FUNC(setattr) {
+    #define SIG "setattr(obj, attr, val)"
+    REQ_N_ARGS(3);
+
+    kso obj = args[0], attr = args[1], val = args[2];
+
+    if (obj->type == ks_T_dict) {
+        ks_dict_set((ks_dict)obj, attr, kso_hash(attr), val);
+        return val;
+    }
+
+    // try resolving this
+    if (obj->type->f_setattr != NULL) return kso_call(obj->type->f_setattr, 2, args);
+
+
+    return NULL;
+    #undef SIG
+}
+
+
+/* item getting/setting */
+
+FUNC(getitem) {
+    #define SIG "getitem(obj, *keys)"
+    REQ_N_ARGS_MIN(2);
+
+    kso obj = args[0];
+
+    // resolve the function
+    if (obj->type->f_getitem != NULL) return kso_call(obj->type->f_getitem, 2, args);
+
+    return NULL;
+    #undef SIG
+}
+FUNC(setitem) {
+    #define SIG "setitem(obj, *keys, val)"
+    REQ_N_ARGS_MIN(3);
+
+    kso obj = args[0];
+
+    // try resolving this
+    if (obj->type->f_setitem != NULL) return kso_call(obj->type->f_setitem, 2, args);
+
+
+    return NULL;
+    #undef SIG
+}
 
 /* binary operators */
 
@@ -95,7 +182,6 @@ FUNC(print) {
     ks_type tA = (_A)->type, tB = (_B)->type; \
     return kse_fmt("Type mismatch for operator '" _ops "': '%*s' and '%*s'", tA->name->len, tA->name->chr, tB->name->len, tB->name->chr);\
 }
-
 // tries and resolves a binary operator, given the name of the type member
 // ex: BOP_RESOLVE(A, B, f_add)
 #define BOP_RESOLVE(_A, _B, _opf, _ops) { \
@@ -111,56 +197,84 @@ FUNC(print) {
     BOP_MISMATCH(_A, _B, _ops); \
 }
 
-
+/* define binary operator functions  */
 FUNC(add) {
-    #undef SIG
     #define SIG "add(A, B)"
     REQ_N_ARGS(2);
     BOP_RESOLVE(args[0], args[1], f_add, "+");
-}
-
-FUNC(sub) {
     #undef SIG
+}
+FUNC(sub) {
     #define SIG "sub(A, B)"
     REQ_N_ARGS(2);
     BOP_RESOLVE(args[0], args[1], f_sub, "-");
-}
-
-FUNC(mul) {
     #undef SIG
+}
+FUNC(mul) {
     #define SIG "mul(A, B)"
     REQ_N_ARGS(2);
     BOP_RESOLVE(args[0], args[1], f_mul, "*");
-}
-
-FUNC(div) {
     #undef SIG
+}
+FUNC(div) {
     #define SIG "div(A, B)"
     REQ_N_ARGS(2);
     BOP_RESOLVE(args[0], args[1], f_div, "/");
-}
-
-
-FUNC(lt) {
     #undef SIG
+}
+FUNC(mod) {
+    #define SIG "mod(A, B)"
+    REQ_N_ARGS(2);
+    BOP_RESOLVE(args[0], args[1], f_mod, "%%");
+    #undef SIG
+}
+FUNC(pow) {
+    #define SIG "pow(A, B)"
+    REQ_N_ARGS(2);
+    BOP_RESOLVE(args[0], args[1], f_pow, "**");
+    #undef SIG
+}
+FUNC(lt) {
     #define SIG "lt(A, B)"
     REQ_N_ARGS(2);
     BOP_RESOLVE(args[0], args[1], f_lt, "<");
+    #undef SIG
+}
+FUNC(le) {
+    #define SIG "le(A, B)"
+    REQ_N_ARGS(2);
+    BOP_RESOLVE(args[0], args[1], f_le, "<=");
+    #undef SIG
 }
 FUNC(gt) {
-    #undef SIG
     #define SIG "gt(A, B)"
     REQ_N_ARGS(2);
     BOP_RESOLVE(args[0], args[1], f_gt, ">");
+    #undef SIG
+}
+FUNC(ge) {
+    #define SIG "ge(A, B)"
+    REQ_N_ARGS(2);
+    BOP_RESOLVE(args[0], args[1], f_ge, ">=");
+    #undef SIG
 }
 FUNC(eq) {
-    #undef SIG
     #define SIG "eq(A, B)"
     REQ_N_ARGS(2);
-    // shortcut, objects of the same type should always be true
+    // shortcut, the same object is always equal to itself
     if (args[0] == args[1]) return KSO_TRUE;
     BOP_RESOLVE(args[0], args[1], f_eq, "==");
+    #undef SIG
 }
+FUNC(ne) {
+    #define SIG "ne(A, B)"
+    REQ_N_ARGS(2);
+    // shortcut, the same object is never not equal to itself
+    if (args[0] == args[1]) return KSO_FALSE;
+    BOP_RESOLVE(args[0], args[1], f_ne, "!=");
+    #undef SIG
+}
+
 
 
 
@@ -169,121 +283,6 @@ FUNC(eq) {
 
 /* integer functions */
 
-TFUNC(int, str) {
-    #undef SIG
-    #define SIG "int.str(A)"
-    REQ_N_ARGS(1);
-
-    ks_int A = (ks_int)args[0];
-
-    return (kso)ks_str_new_cfmt("%l", A->v_int);
-}
-
-TFUNC(int, repr) {
-    #undef SIG
-    #define SIG "int.repr(A)"
-    REQ_N_ARGS(1);
-
-    ks_int A = (ks_int)args[0];
-
-    return (kso)ks_str_new_cfmt("%l", A->v_int);
-}
-
-TFUNC(int, add) {
-    #undef SIG
-    #define SIG "int.add(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return (kso)ks_int_new(((ks_int)A)->v_int + ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
-TFUNC(int, sub) {
-    #undef SIG
-    #define SIG "int.sub(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return (kso)ks_int_new(((ks_int)A)->v_int - ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
-TFUNC(int, mul) {
-    #undef SIG
-    #define SIG "int.mul(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return (kso)ks_int_new(((ks_int)A)->v_int * ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
-TFUNC(int, div) {
-    #undef SIG
-    #define SIG "int.div(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return (kso)ks_int_new(((ks_int)A)->v_int / ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
-
-TFUNC(int, lt) {
-    #undef SIG
-    #define SIG "int.lt(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int < ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
-
-TFUNC(int, gt) {
-    #undef SIG
-    #define SIG "int.gt(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int > ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
-
-TFUNC(int, eq) {
-    #undef SIG
-    #define SIG "int.eq(A, B)"
-    REQ_N_ARGS(2);
-    // extract arguments
-    kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int == ((ks_int)B)->v_int);
-    }
-
-    return NULL;
-}
 
 /* string functions */
 
@@ -294,7 +293,7 @@ TFUNC(str, add) {
     REQ_N_ARGS(2);
 
     // just use the formatter
-    return ks_str_new_cfmt("%V%V", args[0], args[1]);
+    return (kso)ks_str_new_cfmt("%V%V", args[0], args[1]);
 }
 
 
@@ -305,30 +304,49 @@ void ksf_init() {
     /* builtins */
 
     ks_F_print = ks_cfunc_newref(print_);
+    ks_F_dict = ks_cfunc_newref(dict_);
+
+    ks_F_type = ks_cfunc_newref(type_);
+    ks_F_call = ks_cfunc_newref(call_);
+
+    ks_F_getattr = ks_cfunc_newref(getattr_);
+    ks_F_setattr = ks_cfunc_newref(setattr_);
+
+    ks_F_getitem = ks_cfunc_newref(getitem_);
+    ks_F_setitem = ks_cfunc_newref(setitem_);
 
     ks_F_add = ks_cfunc_newref(add_);
     ks_F_sub = ks_cfunc_newref(sub_);
     ks_F_mul = ks_cfunc_newref(mul_);
     ks_F_div = ks_cfunc_newref(div_);
-    ks_F_lt = ks_cfunc_newref(lt_);
-    ks_F_gt = ks_cfunc_newref(gt_);
-    ks_F_eq = ks_cfunc_newref(eq_);
-
+    ks_F_mod = ks_cfunc_newref(mod_);
+    ks_F_pow = ks_cfunc_newref(pow_);
+    ks_F_lt  = ks_cfunc_newref(lt_);
+    ks_F_le  = ks_cfunc_newref(le_);
+    ks_F_gt  = ks_cfunc_newref(gt_);
+    ks_F_ge  = ks_cfunc_newref(ge_);
+    ks_F_eq  = ks_cfunc_newref(eq_);
+    ks_F_ne  = ks_cfunc_newref(ne_);
 
     /* set type functions */
 
     /* integer functions */
+    /*
     ks_T_int->f_str = (kso)ks_cfunc_newref(int_str_);
     ks_T_int->f_repr = (kso)ks_cfunc_newref(int_repr_);
     ks_T_int->f_add = (kso)ks_cfunc_newref(int_add_);
     ks_T_int->f_sub = (kso)ks_cfunc_newref(int_sub_);
     ks_T_int->f_mul = (kso)ks_cfunc_newref(int_mul_);
     ks_T_int->f_div = (kso)ks_cfunc_newref(int_div_);
+    ks_T_int->f_mod = (kso)ks_cfunc_newref(int_mod_);
+    ks_T_int->f_pow = (kso)ks_cfunc_newref(int_pow_);
     ks_T_int->f_lt  = (kso)ks_cfunc_newref(int_lt_);
+    ks_T_int->f_le  = (kso)ks_cfunc_newref(int_le_);
     ks_T_int->f_gt  = (kso)ks_cfunc_newref(int_gt_);
+    ks_T_int->f_ge  = (kso)ks_cfunc_newref(int_ge_);
     ks_T_int->f_eq  = (kso)ks_cfunc_newref(int_eq_);
-
-
+    ks_T_int->f_ne  = (kso)ks_cfunc_newref(int_ne_);
+*/
     /* str funcs */
     ks_T_str->f_add  = (kso)ks_cfunc_newref(str_add_);
 

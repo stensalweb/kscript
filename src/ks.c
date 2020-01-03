@@ -11,24 +11,30 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
-    //ks_info("TEST: %p", ks_T_int);
+    // get the global virtual machine
 
-    size_t MU = ks_memuse();
-    if (kse_dumpall()) return -1;
-
-
-    // create a new virtual machine
-    ks_vm vm = ks_vm_new_empty();
-    KSO_INCREF(vm);
+    ks_dict globals = ks_get_globals();
 
     #define SET_GLOBAL(_key, _val) { \
-        ks_str skey = ks_str_new_r(_key); \
-        ks_dict_set(vm->globals, (kso)skey, skey->v_hash, (kso)(_val)); \
+        ks_str skey = ks_str_new(_key); \
+        ks_dict_set(globals, (kso)skey, skey->v_hash, (kso)(_val)); \
         KSO_CHKREF(skey); \
     }
 
-
     SET_GLOBAL("print", ks_F_print);
+    SET_GLOBAL("dict", ks_F_dict);
+    SET_GLOBAL("type", ks_F_type);
+    SET_GLOBAL("call", ks_F_call);
+
+    SET_GLOBAL("getattr", ks_F_getattr);
+    SET_GLOBAL("setattr", ks_F_setattr);
+
+    /* builtin types */
+    SET_GLOBAL("list", ks_T_list);
+    SET_GLOBAL("str", ks_T_str);
+    SET_GLOBAL("int", ks_T_int);
+    SET_GLOBAL("tuple", ks_T_tuple);
+
 
     if (kse_dumpall()) return -1;
 
@@ -54,6 +60,8 @@ int main(int argc, char** argv) {
     int c;
 
     // error check
+    int64_t MU = ks_memuse();
+
     if (kse_dumpall()) return -1;
 
     while ((c = getopt_long (argc, argv, "e:f:vih", long_options, NULL)) != -1)
@@ -67,7 +75,7 @@ int main(int argc, char** argv) {
             KSO_INCREF(par);
 
             // parse out the whole expression            
-            prog_ast = ks_parse_all(par);
+            prog_ast = ks_parse_general(par);
             if (kse_dumpall()) return -1;
             KSO_INCREF(prog_ast);
 
@@ -80,7 +88,7 @@ int main(int argc, char** argv) {
             // TODO: maybe output the assembly here
 
             // now, execute on the VM
-            ks_vm_exec(vm, prog_bc);
+            ks_vm_exec(prog_bc);
             if (kse_dumpall()) return -1;
 
             // check refcnt
@@ -98,7 +106,7 @@ int main(int argc, char** argv) {
             KSO_INCREF(par);
 
             // parse out the whole expression            
-            prog_ast = ks_parse_all(par);
+            prog_ast = ks_parse_general(par);
             if (kse_dumpall()) return -1;
             KSO_INCREF(prog_ast);
 
@@ -111,7 +119,7 @@ int main(int argc, char** argv) {
             // TODO: maybe output the assembly here
 
             // now, execute on the VM
-            ks_vm_exec(vm, prog_bc);
+            ks_vm_exec(prog_bc);
             if (kse_dumpall()) return -1;
 
             // check refcnt
@@ -153,11 +161,11 @@ int main(int argc, char** argv) {
             break;
     }
 
-    
-    KSO_DECREF(vm);
+    // clean up memory, etc
+    if (kse_dumpall()) return -1;
 
-    int total_diff = ks_memuse() - MU;
-    if (total_diff != 0) ks_warn("possible leak of %i bytes detected", total_diff);
+    int64_t total_diff = (int64_t)ks_memuse() - MU;
+    if (total_diff != 0) ks_warn("possible leak of %l bytes detected", total_diff);
 
     ks_debug("memused: %l", ks_memuse_max());
 

@@ -35,6 +35,12 @@
 #include <math.h>
 
 
+/* include bytecode definitions */
+#include "ks_bytecode.h"
+
+/* include the builtin type definitions */
+#include "ks_types.h"
+
 /* object interface */
 #include "kso.h"
 
@@ -59,15 +65,31 @@ extern ks_type
 /* builtin functions */
 extern ks_cfunc
     ks_F_print,
+    ks_F_dict,
+    ks_F_type,
+    ks_F_call,
+
+    /* attribute getting/setting */
+    ks_F_getattr,
+    ks_F_setattr,
+
+    /* item getting/setting */
+    ks_F_getitem,
+    ks_F_setitem,
 
     /* operators */
     ks_F_add,
     ks_F_sub,
     ks_F_mul,
     ks_F_div,
+    ks_F_mod,
+    ks_F_pow,
     ks_F_lt,
+    ks_F_le,
     ks_F_gt,
-    ks_F_eq
+    ks_F_ge,
+    ks_F_eq,
+    ks_F_ne
 ;
 
 
@@ -194,22 +216,67 @@ kso kse_pop();
 bool kse_dumpall();
 
 
+
+
+/* execution/global state */
+
+// return the global dictionary
+ks_dict ks_get_globals();
+
+
+
+// executes a chunk of code, discarding the results
+void ks_vm_exec(ks_code code);
+
+
 /* hash/utils */
 
-// returns a good hash function for some data
-uint64_t ks_hash_bytes(uint8_t* chr, int len);
+// returns a hash from some bytes
+static inline uint64_t ks_hash_bytes(uint8_t* chr, int len) {
+    uint64_t ret = 7;
+    int i;
+    for (i = 0; i < len; ++i) {
+        ret = ret * 31 + chr[i];
+    }
+    return ret;
+}
 
 
 /* internal methods */
 
 // INTERNAL METHOD, DO NOT CALL
 void kso_init();
-
 // INTERNAL METHOD, DO NOT CALl
 void ksf_init();
-
 // INTERNAL METHOD; DO NOT CALL
 void kse_init();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__EXEC();
+
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__type();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__none();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__bool();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__int();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__str();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__tuple();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__list();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__dict();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__cfunc();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__code();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__kfunc();
+void ks_init__parser();
+void ks_init__ast();
 
 
 #endif

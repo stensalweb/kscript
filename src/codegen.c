@@ -58,11 +58,11 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
     if (self->atype == KS_AST_INT) {
         ks_code_add_meta(to, self);
-        ksc_int(to, self->v_int->v_int);
+        ksc_int(to, ((ks_int)self->v_val)->v_int);
         STK_GROW(1);
     } else if (self->atype == KS_AST_STR) {
         ks_code_add_meta(to, self);
-        ksc_cstr(to, self->v_str->chr);
+        ksc_cstr(to, ((ks_str)self->v_val)->chr);
         STK_GROW(1);
     } else if (self->atype == KS_AST_TRUE) {
         ks_code_add_meta(to, self);
@@ -78,8 +78,19 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         STK_GROW(1);
     } else if (self->atype == KS_AST_VAR) {
         ks_code_add_meta(to, self);
-        ksc_load(to, self->v_var->chr);
+        ksc_loado(to, (kso)self->v_name);
         STK_GROW(1);
+    } else if (self->atype == KS_AST_ATTR) {
+        // generate the object
+        codegen(self->v_attr.obj, to, geni);
+
+        // now, get its attribute
+        ks_code_add_meta(to, self);
+        ksc_load_ao(to, (kso)self->v_attr.attr);
+        
+        // the object is replaced by its attribute, so no growth
+        STK_GROW(0);
+
     } else if (self->atype >= KS_AST_BOP_ADD && self->atype < KS_AST_BOP_ASSIGN) {
         // all binary operators
         // generate both children
@@ -93,49 +104,88 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         else if (self->atype == KS_AST_BOP_SUB) ksc_sub(to);
         else if (self->atype == KS_AST_BOP_MUL) ksc_mul(to);
         else if (self->atype == KS_AST_BOP_DIV) ksc_div(to);
+        else if (self->atype == KS_AST_BOP_MOD) ksc_mod(to);
+        else if (self->atype == KS_AST_BOP_POW) ksc_pow(to);
         else if (self->atype == KS_AST_BOP_LT)  ksc_lt(to);
+        else if (self->atype == KS_AST_BOP_LE)  ksc_le(to);
         else if (self->atype == KS_AST_BOP_GT)  ksc_gt(to);
+        else if (self->atype == KS_AST_BOP_GE)  ksc_ge(to);
         else if (self->atype == KS_AST_BOP_EQ)  ksc_eq(to);
+        else if (self->atype == KS_AST_BOP_NE)  ksc_ne(to);
 
         // pop 2, but push result back on
         STK_GROW(1 - 2);
     } else if (self->atype == KS_AST_BOP_ASSIGN) {
         // assignment is special, because only certain kinds of ASTs are assignable
 
-        // first generate the value
-        codegen(self->v_bop.R, to, geni);
-
-        // add meta
-        ks_code_add_meta(to, self);
 
         if (self->v_bop.L->atype == KS_AST_VAR) {
             // assign to a name, i.e. NAME = val
+            // first generate the value
+            codegen(self->v_bop.R, to, geni);
+
+            // add meta
+            ks_code_add_meta(to, self);
 
             // now, just store
-            ksc_storeo(to, (kso)self->v_bop.L->v_var);
+            ksc_storeo(to, (kso)self->v_bop.L->v_name);
 
             // nothing changes
             STK_GROW(0);
+        } else if (self->v_bop.L->atype == KS_AST_ATTR) {
+            // generate the object we are setting its attribute of
+            codegen(self->v_bop.L->v_attr.obj, to, geni);
+
+            // generate the value as well
+            codegen(self->v_bop.R, to, geni);
+            
+            // add meta
+            ks_code_add_meta(to, self);
+
+            ks_str myattr = self->v_bop.L->v_attr.attr;
+            // now, just store the attribute
+            ksc_store_ao(to, (kso)myattr);
+
+            // 1 less items on the stack now
+            STK_GROW(-1);
 
         } else {
-            ks_tok_err(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable!");
+            ks_tok_err(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable or an attribute!");
         }
 
     } else if (self->atype == KS_AST_CALL) {
 
         // calculate all the children
-        for (i = 0; i < self->v_call->len; ++i) {
-            codegen((ks_ast)self->v_call->items[i], to, geni);
+        for (i = 0; i < self->v_list->len; ++i) {
+            codegen((ks_ast)self->v_list->items[i], to, geni);
         }
 
         // add meta
         ks_code_add_meta(to, self);
 
         // call those items on the stack
-        ksc_call(to, self->v_call->len);
+        ksc_call(to, self->v_list->len);
 
         // 1 is for the result of the function, minus all the things used to call it
-        STK_GROW(1 - self->v_call->len);
+        STK_GROW(1 - self->v_list->len);
+
+
+    } else if (self->atype == KS_AST_SUBSCRIPT) {
+
+        // calculate all the children
+        for (i = 0; i < self->v_list->len; ++i) {
+            codegen((ks_ast)self->v_list->items[i], to, geni);
+        }
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        // call those items on the stack
+        ksc_getitem(to, self->v_list->len);
+
+        // 1 is for the result of the function, minus all the things used to call it
+        STK_GROW(1 - self->v_list->len);
+
     } else if (self->atype == KS_AST_FUNC) {
         // generate the function code
         ks_code new_code = ks_ast_codegen(self->v_func.body, NULL);
@@ -203,8 +253,8 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
     } else if (self->atype == KS_AST_BLOCK) {
     
         // output all the sub block items
-        for (i = 0; i < self->v_block->len; ++i) {
-            codegen((ks_ast)self->v_block->items[i], to, geni);
+        for (i = 0; i < self->v_list->len; ++i) {
+            codegen((ks_ast)self->v_list->items[i], to, geni);
 
             // discard any modifications made to the stack by these items
             STK_TO(0);
@@ -294,7 +344,6 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
 }
 
-
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const) {
 
     if (v_const == NULL) v_const = ks_list_new_empty();
@@ -310,7 +359,6 @@ ks_code ks_ast_codegen(ks_ast self, ks_list v_const) {
     // end with a return none, if it hasn't been filled out yet
     if (geni.last_main == NULL || (geni.last_main->atype != KS_AST_RET)) ksc_ret_none(code);
     
-
     return code;
 }
 

@@ -2,12 +2,24 @@
 
 #include "ks.h"
 
+#include<signal.h>
+#include<stdio.h>
+
 
 // time value recording when the library was initialized
 static struct timeval ks_stime = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
 
+// handle segfaults
+static void ks_segfault_handle(int sg) {
+    ks_error("SEGFAULT");
 
+    kse_dumpall();
+
+    exit(1);
+}
 void ks_init() {
+
+    //signal(SIGSEGV, ks_segfault_handle);
 
     // record the start time
     gettimeofday(&ks_stime, NULL);
@@ -15,11 +27,29 @@ void ks_init() {
     // initialize objects
     kso_init();
 
+    /* initialize types */
+    ks_init__type();
+    ks_init__none();
+    ks_init__bool();
+    ks_init__int();
+    ks_init__str();
+    ks_init__tuple();
+    ks_init__list();
+    ks_init__dict();
+    ks_init__code();
+    ks_init__kfunc();
+    ks_init__cfunc();
+    ks_init__parser();
+    ks_init__ast();
+
     // initialize builtin functions
     ksf_init();
 
     // initialize the error system
     kse_init();
+
+    // initialize execution engine
+    ks_init__EXEC();
 
 }
 
@@ -30,13 +60,3 @@ double ks_time() {
     return (curtime.tv_sec - ks_stime.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_stime.tv_usec);
 }
 
-
-// returns a hash from some bytes
-uint64_t ks_hash_bytes(uint8_t* chr, int len) {
-    uint64_t ret = 7;
-    int i;
-    for (i = 0; i < len; ++i) {
-        ret = ret * 31 + chr[i];
-    }
-    return ret;
-}

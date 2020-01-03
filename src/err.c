@@ -16,7 +16,7 @@ void* kse_addo(ks_str errmsg) {
 void* kse_add(const char* errmsg) {
 
     // add it to the error stack
-    ks_list_push(err_stk, (kso)ks_str_new_r(errmsg));
+    ks_list_push(err_stk, (kso)ks_str_new(errmsg));
 
     return NULL;
 }

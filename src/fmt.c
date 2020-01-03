@@ -170,6 +170,9 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
             // skip the `%`
             i++;
 
+            // add a literal '%', don't format
+            if (fmt[i] == '%') { VCFMT_APPEND("%", 1); i++; continue; }
+
             // reset the formatting flags
             F_args = FMTA_NONE;
 
