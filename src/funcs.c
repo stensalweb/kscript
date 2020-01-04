@@ -12,6 +12,9 @@ ks_cfunc
     ks_F_type = NULL,
     ks_F_call = NULL,
     ks_F_hash = NULL,
+    ks_F_rand = NULL,
+    
+    ks_F_repr = NULL,
     
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -96,8 +99,6 @@ FUNC(hash) {
     #undef SIG
 }
 
-
-
 FUNC(call) {
     #define SIG "call(func, args=(,))"
     REQ_N_ARGS_RANGE(1, 2);
@@ -117,6 +118,24 @@ FUNC(call) {
     return NULL;
     #undef SIG
 }
+
+
+FUNC(rand) {
+    #define SIG "rand()"
+    REQ_N_ARGS(0);
+    return (kso)ks_int_new(ks_random_i64());
+    #undef SIG
+}
+
+FUNC(repr) {
+    #define SIG "repr(obj)"
+    REQ_N_ARGS(1);
+    return (kso)ks_str_new_cfmt("%R", args[0]);
+    #undef SIG
+}
+
+
+
 
 /* attribute resolving */
 
@@ -319,6 +338,9 @@ void ksf_init() {
     ks_F_type = ks_cfunc_newref(type_);
     ks_F_call = ks_cfunc_newref(call_);
     ks_F_hash = ks_cfunc_newref(hash_);
+    ks_F_rand = ks_cfunc_newref(rand_);
+
+    ks_F_repr = ks_cfunc_newref(repr_);
 
     ks_F_getattr = ks_cfunc_newref(getattr_);
     ks_F_setattr = ks_cfunc_newref(setattr_);

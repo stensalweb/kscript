@@ -4,12 +4,14 @@
 
 
 // comment this out to disable execution tracing
-#define DO_EXEC_TRACE
+//#define DO_EXEC_TRACE
 
-
+#ifdef DO_EXEC_TRACE
 // if execution tracing is enabled, debug out the arguments
-#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
-
+//#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
+#else
+#define _exec_trace(...)
+#endif
 
 // the virtual machine
 static struct {
@@ -191,7 +193,7 @@ static void VM_exec() {
         int i, bc_n = RELADDR; \
         for (i = 0; i < CUR_SCOPE().code->meta_ast_n; ++i) { \
             if (CUR_SCOPE().code->meta_ast[i].bc_n >= bc_n) { \
-                ks_tok_err(CUR_SCOPE().code->meta_ast[i].ast->tok_expr, __VA_ARGS__); \
+                kse_tok(CUR_SCOPE().code->meta_ast[i].ast->tok_expr, __VA_ARGS__); \
                 goto EXC; \
             } \
         } \
@@ -536,9 +538,19 @@ static void VM_exec() {
             if (new_obj == NULL) EXEC_EXC_RECLAIM("Error in op " _opstr); \
             VM_stk_push(new_obj); \
             DECREF_N(imm_args, 2); \
-            NEXT_INST(); 
+            NEXT_INST();
 
-        T_BOP_LABEL(KSBC_ADD, "+", ks_F_add)
+        INST_LABEL(KSBC_ADD)
+            DECODE(ksbc_);
+            _exec_trace("bop +");
+            imm_args[1] = VM_stk_pop(); imm_args[0] = VM_stk_pop();
+            new_obj = ks_F_add->v_cfunc(2, imm_args);
+            //new_obj = (kso)ks_int_new(((ks_int)imm_args[0])->v_int + ((ks_int)imm_args[1])->v_int);
+            VM_stk_push(new_obj);
+            DECREF_N(imm_args, 2);
+            NEXT_INST();
+
+        //T_BOP_LABEL(KSBC_ADD, "+", ks_F_add)
         T_BOP_LABEL(KSBC_SUB, "-", ks_F_sub)
         T_BOP_LABEL(KSBC_MUL, "*", ks_F_mul)
         T_BOP_LABEL(KSBC_DIV, "/", ks_F_div)

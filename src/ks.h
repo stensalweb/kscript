@@ -52,6 +52,10 @@ extern ks_cfunc
     ks_F_type,
     ks_F_hash,
     ks_F_call,
+    ks_F_rand,
+
+    /* conversion to representation string */
+    ks_F_repr,
 
     /* attribute getting/setting */
     ks_F_getattr,
@@ -190,6 +194,10 @@ void* kse_addo(ks_str errmsg);
 // NOTE: Not all common formats are supported
 void* kse_fmt(const char* fmt, ...);
 
+// add a C-style format string to generate an error message, with a token
+// the token will be used to generate additional helpful information in the error message
+void* kse_tok(ks_tok tok, const char* fmt, ...);
+
 // number of errors currently being held, 0 if none
 int kse_N();
 
@@ -225,6 +233,11 @@ static inline uint64_t ks_hash_bytes(uint8_t* chr, int len) {
     return ret;
 }
 
+
+/* random data generation */
+
+// returns a random 64 bit signed integer
+int64_t ks_random_i64();
 
 /* internal methods */
 

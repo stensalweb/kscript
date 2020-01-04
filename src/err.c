@@ -35,6 +35,73 @@ void* kse_fmt(const char* fmt, ...) {
     return NULL;
 }
 
+
+// raise an error given a token, and a format, which will add additional information 
+// including a source helper for the token
+void* kse_tok(ks_tok tok, const char* fmt, ...) {
+
+    // first, just compute the error string
+    va_list ap;
+    va_start(ap, fmt);
+    ks_str errstr = ks_str_new_vcfmt(fmt, ap);
+    va_end(ap);
+
+    if (tok.v_parser != NULL && tok.len > 0) {
+        // we have a valid token
+        int i = tok.offset;
+        int lineno = tok.line;
+        char c;
+
+        char* src = tok.v_parser->src->chr;
+
+        // rewind to the start of the line
+        while (i >= 0) {
+            c = src[i];
+
+            if (c == '\n') {
+                i++;
+                break;
+            }
+            i--;
+        }
+
+
+        if (i < 0) i++;
+        if (src[i] == '\n') i++;
+
+        // line start i
+        int lsi = i;
+
+        while (c = src[i]) {
+            if (c == '\n' || c == '\0') break;
+            i++;
+        }
+
+        // line length
+        int ll = i - lsi;
+        ks_str new_err_str = ks_str_new_cfmt("%*s\n%*s\n%*c^%*c\n@ Line %i, Col %i, in '%*s'", 
+            (int)errstr->len, errstr->chr, 
+            ll, src + lsi,
+            tok.col, ' ',
+            tok.len - 1, '~',
+            tok.line + 1, tok.col + 1, 
+            tok.v_parser->src_name->len, tok.v_parser->src_name->chr
+        );
+
+        KSO_CHKREF(errstr);
+        errstr = new_err_str;
+
+    }
+
+
+    kse_addo(errstr);
+    KSO_CHKREF(errstr);
+
+    return NULL;
+}
+
+
+
 // number of errors
 int kse_N() {
     return err_stk->len;

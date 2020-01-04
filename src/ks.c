@@ -26,6 +26,8 @@ int main(int argc, char** argv) {
     SET_GLOBAL("type", ks_F_type);
     SET_GLOBAL("hash", ks_F_hash);
     SET_GLOBAL("call", ks_F_call);
+    SET_GLOBAL("rand", ks_F_rand);
+    SET_GLOBAL("repr", ks_F_repr);
 
     SET_GLOBAL("getattr", ks_F_getattr);
     SET_GLOBAL("setattr", ks_F_setattr);
@@ -76,7 +78,7 @@ int main(int argc, char** argv) {
             KSO_INCREF(par);
 
             // parse out the whole expression            
-            prog_ast = ks_parse_general(par);
+            prog_ast = ks_parse_program(par);
             if (kse_dumpall()) return -1;
             KSO_INCREF(prog_ast);
 
@@ -98,7 +100,7 @@ int main(int argc, char** argv) {
             KSO_DECREF(prog_bc);
 
             break;
-        case 'f':
+        case 'f': ;
             // do a file  given via commandline
 
             // construct a parser
@@ -107,7 +109,7 @@ int main(int argc, char** argv) {
             KSO_INCREF(par);
 
             // parse out the whole expression            
-            prog_ast = ks_parse_general(par);
+            prog_ast = ks_parse_program(par);
             if (kse_dumpall()) return -1;
             KSO_INCREF(prog_ast);
 

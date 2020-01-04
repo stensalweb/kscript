@@ -42,7 +42,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
     }
 
     // just testing the errors
-    //ks_tok_err(self->tok_expr, "test...%i", self->atype);
+    //kse_tok(self->tok_expr, "test...%i", self->atype);
 
     // loop variable
     int i;
@@ -177,7 +177,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
             STK_GROW(1 - n_items);
 
         } else {
-            ks_tok_err(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable or an attribute!");
+            kse_tok(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable or an attribute!");
         }
 
     } else if (self->atype == KS_AST_CALL) {

@@ -609,10 +609,6 @@ ks_tok ks_tok_new(int ttype, ks_parser kp, int offset, int len, int line, int co
 // combine A and B to form a larger meta token
 ks_tok ks_tok_combo(ks_tok A, ks_tok B);
 
-// output an error from a given token and some formatting, returns NULL
-void* ks_tok_err(ks_tok tok, const char* fmt, ...);
-
-
 /* parser -> an object which can be used to parse the grammar/language into ASTs, and bytecode objects */
 struct ks_parser {
     KSO_BASE
@@ -644,11 +640,14 @@ ks_parser ks_parser_new_expr(const char* expr);
 // parse out an AST representing assembly
 ks_ast ks_parse_asm(ks_parser self);
 
-// parse out an AST from the most general parser, which handles a lot of sub-cases, sub-blocks, etc
-ks_ast ks_parse_all(ks_parser self);
+// parse an expression out of a parser
+ks_ast ks_parse_expr(ks_parser self);
 
-// general purpose parser
-ks_ast ks_parse_general(ks_parser self);
+// parse a statement out of a parser
+ks_ast ks_parse_stmt(ks_parser self);
+
+// parse a whole program out of a parser
+ks_ast ks_parse_program(ks_parser self);
 
 
 
