@@ -85,6 +85,13 @@ enum {
     */
     KSBC_GETITEM,
     
+    /* SETITEM - pops off `n_items` items, and performs a functor-like subscript=, with the first such object
+        as the functor. So, `A B C D getitem(4)` yields `A[B, C] = D`. To call with no arguments, `n_items` should
+        still be at least 1. 
+    1[KSBC_SETITEM] 4[int n_items, number of items (including the functor) that the call should have]
+    */
+    KSBC_SETITEM,
+    
     /* TUPLE - pops off `n_items` items, and turns them into a tuple, pushing on the result
     1[KSBC_TUPLE] 4[int n_items, number of items in the tuple]
     */

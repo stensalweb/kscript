@@ -85,6 +85,113 @@ TFUNC(list, free) {
     #undef SIG
 }
 
+TFUNC(list, repr) {
+    #define SIG "list.__repr__(self)"
+    REQ_N_ARGS(1);
+    ks_list self = (ks_list)args[0];
+    REQ_TYPE("self", self, ks_T_list);
+
+    if (self->len == 0) {
+        return (kso)ks_str_new("[]");
+    } else if (self->len == 1) {
+        return (kso)ks_str_new_cfmt("[%R]", self->items[0]);
+    }
+
+    ks_str built = ks_str_new("[");
+    KSO_INCREF(built);
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        // valid entry
+        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
+        KSO_INCREF(next_built);
+        KSO_DECREF(built);
+        built = next_built;
+    }
+
+    ks_str result = ks_str_new_cfmt("%V]", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
+}
+
+TFUNC(list, str) {
+    #define SIG "list.__str__(self)"
+    REQ_N_ARGS(1);
+    ks_list self = (ks_list)args[0];
+    REQ_TYPE("self", self, ks_T_list);
+
+    if (self->len == 0) {
+        return (kso)ks_str_new("[]");
+    } else if (self->len == 1) {
+        return (kso)ks_str_new_cfmt("[%R]", self->items[0]);
+    }
+
+    ks_str built = ks_str_new("[");
+    KSO_INCREF(built);
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        // valid entry
+        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
+        KSO_INCREF(next_built);
+        KSO_DECREF(built);
+        built = next_built;
+    }
+
+    ks_str result = ks_str_new_cfmt("%V]", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
+}
+
+TFUNC(list, hash) {
+    #define SIG "list.__hash__(self)"
+    REQ_N_ARGS(1);
+    ks_list self = (ks_list)args[0];
+    REQ_TYPE("self", self, ks_T_list);
+
+    return kse_fmt("'list' objects are not hashable!");
+    #undef SIG
+}
+
+TFUNC(list, getitem) {
+    #define SIG "list.__getitem__(self, key)"
+    REQ_N_ARGS(2);
+    ks_list self = (ks_list)args[0];
+    REQ_TYPE("self", self, ks_T_list);
+    ks_int key = (ks_int)args[1];
+    REQ_TYPE("key", key, ks_T_int);
+
+    int64_t idx = key->v_int;
+    if (idx < 0 || idx >= self->len) return kse_fmt("KeyError: %l (out of range)", idx);
+
+    return self->items[idx];
+    #undef SIG
+}
+
+TFUNC(list, setitem) {
+    #define SIG "list.__setitem__(self, key, val)"
+    REQ_N_ARGS(3);
+    ks_list self = (ks_list)args[0];
+    REQ_TYPE("self", self, ks_T_list);
+    ks_int key = (ks_int)args[1];
+    REQ_TYPE("key", key, ks_T_int);
+    kso val = args[2];
+
+    int64_t idx = key->v_int;
+    if (idx < 0 || idx >= self->len) return kse_fmt("KeyError: %l (out of range)", idx);
+
+    kso old_val = self->items[idx];
+    KSO_INCREF(val);
+    KSO_DECREF(old_val);
+
+    return self->items[idx] = val;
+    #undef SIG
+}
+
 
 /* exporting functionality */
 
@@ -96,7 +203,13 @@ void ks_init__list() {
     T_list = (struct ks_type) {
         KS_TYPE_INIT("list")
 
-        .f_free = (kso)ks_cfunc_newref(list_free_)
+        .f_free = (kso)ks_cfunc_newref(list_free_),
+
+        .f_repr = (kso)ks_cfunc_newref(list_repr_),
+        .f_str  = (kso)ks_cfunc_newref(list_str_),
+
+        .f_getitem = (kso)ks_cfunc_newref(list_getitem_),
+        .f_setitem = (kso)ks_cfunc_newref(list_setitem_),
 
     };
 

@@ -3,17 +3,53 @@
 #include "ks.h"
 
 
-
-
-
 /* generic object interface functionality */
 
-uint64_t kso_hash(kso obj) {
-    if (obj->type == ks_T_str) {
-        return ((ks_str)obj)->v_hash;
-    } else {
-        return (uint64_t)obj;
+uint64_t kso_hash(kso A) {
+
+    // get the type
+    ks_type T_A = A->type;
+
+    // type-punning union to convert signed to unsigned
+    union {
+        int64_t v_s;
+        uint64_t v_u;
+    } val;
+
+    // check for integers
+    if (T_A == ks_T_int) {
+        val.v_s = ((ks_int)A)->v_int;
+        return val.v_u;
+    } else if (T_A == ks_T_str) {
+        // check for strings, which store their hash
+        return ((ks_str)A)->v_hash;
+    } else if (T_A->f_hash != NULL) {
+        //then, just call the hash function
+        kso hash_res = kso_call(T_A->f_hash, 1, &A);
+
+        if (hash_res != NULL) {
+            // if not NULL, it succeeded 
+            if (hash_res->type == ks_T_int) {
+                // people should always use integers
+                val.v_s = ((ks_int)hash_res)->v_int;
+                KSO_CHKREF(hash_res);
+                return val.v_u;
+            } else {
+                kse_fmt("hash returned was not an 'int'!, got hash(%R)==%R", A, hash_res);
+                KSO_CHKREF(hash_res);
+                return 0;
+            }
+
+        } else {
+            // there was an error calling it, just return
+            return 0;
+        }
+
+
+        return val.v_u;
     }
+
+    return (kse_fmt("Unhashable object: %R", A), -1);
 }
 
 // try to convert A to a boolean, return 0 if it would be false, 1 if it would be true,
@@ -93,6 +129,15 @@ bool kso_eq(kso A, kso B) {
 
             // now, just strcmp
             return memcmp(As->chr, Bs->chr, As->len) == 0;
+        } else if (A->type == ks_T_tuple) {
+            ks_tuple At = (ks_tuple)A, Bt = (ks_tuple)B;
+            if (At->len != Bt->len) return false;
+            int i;
+            for (i = 0; i < At->len; ++i) {
+                if (!kso_eq(At->items[i], Bt->items[i])) return false;
+            }
+
+            return true;
         }
     }
 

@@ -24,6 +24,7 @@ int main(int argc, char** argv) {
     SET_GLOBAL("print", ks_F_print);
     SET_GLOBAL("dict", ks_F_dict);
     SET_GLOBAL("type", ks_F_type);
+    SET_GLOBAL("hash", ks_F_hash);
     SET_GLOBAL("call", ks_F_call);
 
     SET_GLOBAL("getattr", ks_F_getattr);

@@ -170,7 +170,6 @@ int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
     return b_idx;
 }
 
-
 kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
     if (self->n_buckets == 0) return NULL;
 
@@ -193,6 +192,78 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
     // not found, return NULL
     return NULL;
 
+}
+
+
+
+/* TYPE FUNCS */
+
+
+TFUNC(dict, str) {
+    #define SIG "dict.__str__(self)"
+    REQ_N_ARGS(1);
+    ks_dict self = (ks_dict)args[0];
+    REQ_TYPE("self", self, ks_T_dict);
+
+    if (self->n_items == 0) {
+        return (kso)ks_str_new("{}");
+    }
+
+    ks_str built = ks_str_new("{");
+    KSO_INCREF(built);
+
+    int i, num = 0;
+    for (i = 0; i < self->n_buckets; ++i) {
+        struct ks_dict_entry* ent = &self->buckets[i];
+        if (ent->val != NULL) {
+            // valid entry
+            ks_str next_built = ks_str_new_cfmt(num == 0 ? "%V%R: %V" : "%V, %R: %V", built, ent->key, ent->val);
+            KSO_INCREF(next_built);
+            KSO_DECREF(built);
+            built = next_built;
+            num++;
+        }
+    }
+
+    ks_str result = ks_str_new_cfmt("%V}", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
+}
+
+
+TFUNC(dict, repr) {
+    #define SIG "dict.__repr__(self)"
+    REQ_N_ARGS(1);
+    ks_dict self = (ks_dict)args[0];
+    REQ_TYPE("self", self, ks_T_dict);
+
+    if (self->n_items == 0) {
+        return (kso)ks_str_new("{}");
+    }
+
+    ks_str built = ks_str_new("{");
+    KSO_INCREF(built);
+
+    int i, num = 0;
+    for (i = 0; i < self->n_buckets; ++i) {
+        struct ks_dict_entry* ent = &self->buckets[i];
+        if (ent->val != NULL) {
+            // valid entry
+            ks_str next_built = ks_str_new_cfmt(num == 0 ? "%V%R: %V" : "%V, %R: %V", built, ent->key, ent->val);
+            KSO_INCREF(next_built);
+            KSO_DECREF(built);
+            built = next_built;
+            num++;
+        }
+    }
+
+    ks_str result = ks_str_new_cfmt("%V}", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
 }
 
 
@@ -223,6 +294,44 @@ TFUNC(dict, free) {
 }
 
 
+TFUNC(dict, getitem) {
+    #define SIG "dict.__getitem__(self, key[, default])"
+    REQ_N_ARGS_RANGE(2, 3);
+    ks_dict self = (ks_dict)args[0];
+    REQ_TYPE("self", self, ks_T_dict);
+    kso key = args[1];
+
+    kso res = ks_dict_get(self, key, kso_hash(key));
+
+    if (res == NULL) {
+        if (n_args == 3) {
+            // default here
+            res = args[2];
+        } else {
+            return kse_fmt("KeyError: %R", key);
+        }
+    }
+
+    return res;
+    #undef SIG
+}
+
+TFUNC(dict, setitem) {
+    #define SIG "dict.__setitem__(self, key, val)"
+    REQ_N_ARGS(3);
+    ks_dict self = (ks_dict)args[0];
+    REQ_TYPE("self", self, ks_T_dict);
+    kso key = args[1], val = args[2];
+
+    ks_dict_set(self, key, kso_hash(key), val);
+
+    return val;
+    #undef SIG
+}
+
+
+
+
 
 /* exporting functionality */
 
@@ -234,7 +343,13 @@ void ks_init__dict() {
     T_dict= (struct ks_type) {
         KS_TYPE_INIT("dict")
 
-        .f_free = (kso)ks_cfunc_newref(dict_free_)
+        .f_free = (kso)ks_cfunc_newref(dict_free_),
+
+        .f_str  = (kso)ks_cfunc_newref(dict_str_),
+        .f_repr = (kso)ks_cfunc_newref(dict_repr_),
+
+        .f_getitem = (kso)ks_cfunc_newref(dict_getitem_),
+        .f_setitem = (kso)ks_cfunc_newref(dict_setitem_)
 
     };
 

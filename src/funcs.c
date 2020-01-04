@@ -11,6 +11,7 @@ ks_cfunc
 
     ks_F_type = NULL,
     ks_F_call = NULL,
+    ks_F_hash = NULL,
     
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -87,6 +88,14 @@ FUNC(type) {
     return (kso)args[0]->type;
     #undef SIG
 }
+
+FUNC(hash) {
+    #define SIG "hash(obj)"
+    REQ_N_ARGS(1);
+    return (kso)ks_int_new(kso_hash(args[0]));
+    #undef SIG
+}
+
 
 
 FUNC(call) {
@@ -168,8 +177,9 @@ FUNC(setitem) {
     kso obj = args[0];
 
     // try resolving this
-    if (obj->type->f_setitem != NULL) return kso_call(obj->type->f_setitem, 2, args);
-
+    if (obj->type->f_setitem != NULL) {
+        return kso_call(obj->type->f_setitem, n_args, args);
+    }
 
     return NULL;
     #undef SIG
@@ -308,6 +318,7 @@ void ksf_init() {
 
     ks_F_type = ks_cfunc_newref(type_);
     ks_F_call = ks_cfunc_newref(call_);
+    ks_F_hash = ks_cfunc_newref(hash_);
 
     ks_F_getattr = ks_cfunc_newref(getattr_);
     ks_F_setattr = ks_cfunc_newref(setattr_);

@@ -46,6 +46,70 @@ TFUNC(tuple, free) {
 
 
 
+TFUNC(tuple, repr) {
+    #define SIG "tuple.__repr__(self)"
+    REQ_N_ARGS(1);
+    ks_tuple self = (ks_tuple)args[0];
+    REQ_TYPE("self", self, ks_T_tuple);
+
+    if (self->len == 0) {
+        return (kso)ks_str_new("(,)");
+    } else if (self->len == 1) {
+        return (kso)ks_str_new_cfmt("(%R,)", self->items[0]);
+    }
+
+    ks_str built = ks_str_new("(");
+    KSO_INCREF(built);
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        // valid entry
+        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
+        KSO_INCREF(next_built);
+        KSO_DECREF(built);
+        built = next_built;
+    }
+
+    ks_str result = ks_str_new_cfmt("%V)", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
+}
+
+
+TFUNC(tuple, str) {
+    #define SIG "tuple.__str__(self)"
+    REQ_N_ARGS(1);
+    ks_tuple self = (ks_tuple)args[0];
+    REQ_TYPE("self", self, ks_T_tuple);
+
+    if (self->len == 0) {
+        return (kso)ks_str_new("(,)");
+    } else if (self->len == 1) {
+        return (kso)ks_str_new_cfmt("(%R,)", self->items[0]);
+    }
+
+    ks_str built = ks_str_new("(");
+    KSO_INCREF(built);
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        // valid entry
+        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
+        KSO_INCREF(next_built);
+        KSO_DECREF(built);
+        built = next_built;
+    }
+
+    ks_str result = ks_str_new_cfmt("%V)", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
+}
+
+
 /* exporting functionality */
 
 struct ks_type T_tuple, *ks_T_tuple = &T_tuple;
@@ -56,7 +120,10 @@ void ks_init__tuple() {
     T_tuple = (struct ks_type) {
         KS_TYPE_INIT("tuple")
 
-        .f_free = (kso)ks_cfunc_newref(tuple_free_)
+        .f_free = (kso)ks_cfunc_newref(tuple_free_),
+
+        .f_repr = (kso)ks_cfunc_newref(tuple_repr_),
+        .f_str  = (kso)ks_cfunc_newref(tuple_str_)
 
     };
 

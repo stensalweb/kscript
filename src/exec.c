@@ -152,6 +152,7 @@ static void VM_exec() {
         INIT_INST_LABEL(KSBC_STORE_A)
         INIT_INST_LABEL(KSBC_CALL)
         INIT_INST_LABEL(KSBC_GETITEM)
+        INIT_INST_LABEL(KSBC_SETITEM)
         INIT_INST_LABEL(KSBC_TUPLE)
         INIT_INST_LABEL(KSBC_LIST)
 
@@ -233,6 +234,9 @@ static void VM_exec() {
 
     // immediate argument holders, for things like operators and/or small function calls
     kso imm_args[8];
+
+    // tells how many args there are
+    int n_args = 0;
 
     /* frame/scope pushing */
 
@@ -326,7 +330,7 @@ static void VM_exec() {
             imm_args[1] = (kso)v_str;
 
             found = ks_F_getattr->v_cfunc(2, imm_args);
-            if (found == NULL) EXEC_EXC("KeyError: %V", v_str);
+            if (found == NULL) EXEC_EXC_RECLAIM("KeyError: %R", v_str);
 
             VM_stk_push(found);
             KSO_DECREF(imm_args[0]);
@@ -354,7 +358,7 @@ static void VM_exec() {
             imm_args[0] = VM_stk_pop();
 
             found = ks_F_setattr->v_cfunc(3, imm_args);
-            if (found == NULL) EXEC_EXC("KeyError: %V", v_str);
+            if (found == NULL) EXEC_EXC_RECLAIM("KeyError: %R", v_str);
 
             VM_stk_push(found);
             KSO_DECREF(imm_args[0]);
@@ -430,7 +434,10 @@ static void VM_exec() {
         INST_LABEL(KSBC_GETITEM)
             DECODE(ksbc_i32);
             _exec_trace("getitem %i", inst.i32.i32);
-            int n_args = inst.i32.i32;
+            n_args = inst.i32.i32;
+
+            // get arguments
+            args_p = VM_stk_popn(n_args);
 
             if (n_args <= 8) {
                 // use immediate args
@@ -442,13 +449,36 @@ static void VM_exec() {
 
                 // done with arguments
                 DECREF_N(imm_args, n_args);
-                // done with the function
-                KSO_DECREF(func);
 
                 NEXT_INST();
             } else {
                 EXEC_EXC("cant do this many args, sorry :(");
             }
+
+        INST_LABEL(KSBC_SETITEM)
+            DECODE(ksbc_i32);
+            _exec_trace("setitem %i", inst.i32.i32);
+            n_args = inst.i32.i32;
+
+            // get arguments
+            args_p = VM_stk_popn(n_args);
+
+            if (n_args <= 8) {
+                // use immediate args
+                memcpy(imm_args, args_p, n_args * sizeof(kso));
+                new_obj = ks_F_setitem->v_cfunc(n_args, imm_args);
+                if (new_obj == NULL) EXEC_EXC_RECLAIM("During setitem call, there was an exception", func)
+
+                VM_stk_push(new_obj);
+
+                // done with arguments
+                DECREF_N(imm_args, n_args);
+
+                NEXT_INST();
+            } else {
+                EXEC_EXC("cant do this many args, sorry :(");
+            }
+
 
         INST_LABEL(KSBC_TUPLE)
             DECODE(ksbc_i32);

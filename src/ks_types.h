@@ -57,6 +57,32 @@ enum {
 
 /* TYPE DEFINITIONS */
 
+// forward declaration of the objects representing the types
+
+/* the builtin types */
+extern ks_type
+    ks_T_none,
+    
+    ks_T_bool,
+    ks_T_int,
+    ks_T_str,
+
+    ks_T_tuple,
+    ks_T_list,
+    ks_T_dict,
+    
+    ks_T_code,
+    ks_T_kfunc,
+
+    ks_T_type,
+
+    ks_T_ast,
+    ks_T_parser,
+
+    ks_T_cfunc
+;
+
+
 
 /* the generic kso is empty asides from the base information every object must have */
 struct kso {
@@ -297,7 +323,6 @@ typedef struct ks_code {
 
 }* ks_code;
 
-
 // create a new (empty) collection of bytecode, given a refrence to a constant list
 ks_code ks_code_new_empty(ks_list v_const);
 
@@ -306,7 +331,6 @@ void ks_code_add_meta(ks_code self, ks_ast ast);
 
 // link in another code object, appending it to the end, and merging its referenced constants
 void ks_code_linkin(ks_code self, ks_code other);
-
 
 
 /* bytecode generation helpers */
@@ -359,8 +383,10 @@ void ksc_cstrl     (ks_code code, const char* v_cstr, int len);
 
 // call n_items; pops on a function call on the last n_items (includes the function)
 void ksc_call      (ks_code code, int n_items);
-// getitem n_items; pops on a object getitem on the last n_items (includes the object itself)
+// getitem n_items; pops on a object.getitem on the last n_items (includes the object itself)
 void ksc_getitem   (ks_code code, int n_items);
+// setitem n_items; pops on a object.setitem on the last n_items (includes the object itself)
+void ksc_setitem   (ks_code code, int n_items);
 // tuple n_items; creates a tuple from the last n_items
 void ksc_tuple     (ks_code code, int n_items);
 // list n_items; creates a list from the last n_items
@@ -414,15 +440,22 @@ struct ks_type {
     // the type's common name (i.e. "int", "str", etc)
     ks_str name;
 
+
+
+    // type.free(self) -> should free all the resources associated with the object, including references
+    // except the object itself
+    kso f_free;
+
+
     // type.str(self) -> should return a string of the object, like a toString method
     kso f_str;
 
     // type.repr(self) -> should return a string representation of the object, like a repr method
     kso f_repr;
 
-    // type.free(self) -> should free all the resources associated with the object, including references
-    // except the object itself
-    kso f_free;
+    // type.hash(self) -> should return an integer representing a hash value
+    kso f_hash;
+
 
     /** attribute functions **/
 
@@ -459,8 +492,8 @@ struct ks_type {
 };
 
 // initializes a given type, with a C-string style name
-#define KS_TYPE_INIT(_name) KSO_BASE_INIT(ks_T_type, KSOF_NONE) .name = ks_str_newref(_name), \
-    .f_str = NULL, .f_repr = NULL, \
+#define KS_TYPE_INIT(_name) KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = ks_str_newref(_name), \
+    .f_str = NULL, .f_repr = NULL, .f_hash = NULL, \
     .f_getattr = NULL, .f_setattr = NULL, .f_getitem = NULL, .f_setitem = NULL, \
     .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_mod = NULL, .f_pow = NULL, \
     .f_lt = NULL, .f_le = NULL, .f_gt = NULL, .f_ge = NULL, .f_eq = NULL, .f_ne = NULL, 

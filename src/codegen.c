@@ -148,6 +148,33 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
             // 1 less items on the stack now
             STK_GROW(-1);
+        } else if (self->v_bop.L->atype == KS_AST_SUBSCRIPT) {
+
+            // do a `x[v] = y` call,
+            // or: `x[a0, a1, 2] = y` will be in `v_list` as `x, a0, a1, 2`
+            // so, generate all those, then Y, then call a setitem
+            // calculate all the children
+            for (i = 0; i < self->v_bop.L->v_list->len; ++i) {
+                codegen((ks_ast)self->v_bop.L->v_list->items[i], to, geni);
+            }
+
+            // calculate the value too
+
+            // generate the value as well
+            codegen(self->v_bop.R, to, geni);
+
+            // add meta
+            ks_code_add_meta(to, self);
+
+            // +1 for the value on the RHS
+            int n_items = self->v_bop.L->v_list->len + 1;
+
+
+            ksc_setitem(to, n_items);
+
+
+            // push one on, but take off n_items
+            STK_GROW(1 - n_items);
 
         } else {
             ks_tok_err(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable or an attribute!");

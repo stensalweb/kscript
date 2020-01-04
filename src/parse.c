@@ -48,6 +48,7 @@ static int64_t tok_getint(ks_tok tok) {
 
 static ks_str tok_getstr(ks_tok tok) {
     ks_str start = ks_str_new("");
+    KSO_INCREF(start);
 
     char* src = tok.v_parser->src->chr + tok.offset;
 
@@ -63,7 +64,8 @@ static ks_str tok_getstr(ks_tok tok) {
         if (j > 0) {
             // handle literals
             ks_str new_str = ks_str_new_cfmt("%*s%*s", start->len, start->chr, j, src+i);
-            KSO_CHKREF(start);
+            KSO_INCREF(new_str);
+            KSO_DECREF(start);
             start = new_str;
             i += j;
         } else if (src[i] == '\\') {
@@ -79,7 +81,8 @@ static ks_str tok_getstr(ks_tok tok) {
 
             if (hasOne) {
                 ks_str new_str = ks_str_new_cfmt("%*s%c", start->len, start->chr, lit);
-                KSO_CHKREF(start);
+                KSO_INCREF(new_str);
+                KSO_DECREF(start);
                 start = new_str;
             }
 
@@ -91,6 +94,9 @@ static ks_str tok_getstr(ks_tok tok) {
         }
 
     }
+
+    // just take off our temporary reference
+    start->refcnt--;
 
     return start;
 }
@@ -750,18 +756,19 @@ ks_ast ks_parse_expr(ks_parser self) {
         // get current token
         ctok = self->toks[self->tok_i];
 
-        // check if we should skip
+        // check if we should skip a comment
         if (ctok.ttype == KS_TOK_COMMENT) {
             self->tok_i++;
             continue;
         };
 
-        // check if we should stop parsing
+        // check if we should stop parsing due to being at the end
         if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_NEWLINE || 
             ctok.ttype == KS_TOK_SEMI || 
             ctok.ttype == KS_TOK_LBRACE || ctok.ttype == KS_TOK_RBRACE) goto parseexpr_end;
 
         if (ctok.ttype == KS_TOK_INT) {
+            // can't have 2 value types in a row
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
     
             // just push this onto the value stack
@@ -770,6 +777,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             Spush(Out, new_int);
 
         } else if (ctok.ttype == KS_TOK_STR) {
+            // can't have 2 value types in a row
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
 
             // just push this onto the value stack
@@ -779,12 +787,13 @@ ks_ast ks_parse_expr(ks_parser self) {
             Spush(Out, new_str);
 
         } else if (ctok.ttype == KS_TOK_IDENT) {
-            // keyword
+            // we need to skip a keyword, because it is not part of the expression
             if (TOK_EQ(self, ctok, "then")) goto parseexpr_end;
 
+            // can't have 2 value types in a row
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
 
-            // first, check for key words
+            // first, check for keywords
             if (TOK_EQ(self, ctok, "true")) {
                 // treat it as a constant value
                 ks_ast new_true = ks_ast_new_true();
@@ -809,36 +818,40 @@ ks_ast ks_parse_expr(ks_parser self) {
                 Spush(Out, new_var);
             }
         } else if (ctok.ttype == KS_TOK_DOT) {
+            // the last token must be a value type, because you need one to take an attribute of
             if (!TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax")
 
+            // save the dot token reference
             ks_tok dot_tok = ctok;
             ctok = self->toks[++self->tok_i];
 
+            // the only valid attribute is an identifier, i.e. `x.1` does not make sense
             if (ctok.ttype != KS_TOK_IDENT) PEXPR_ERR(ctok, "Attribute after a '.' must be a valid identifier")
 
+            // take off the last
             ks_ast last = Spop(Out);
-            // create an attribute
+            // replace it with its attribute
             ks_str attr_name_s = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
             ks_ast new_attr = ks_ast_new_attr(last, attr_name_s);
             KSO_CHKREF(attr_name_s);
 
+            // set up the new tokens
             new_attr->tok = dot_tok;
             new_attr->tok_expr = ks_tok_combo(last->tok_expr, ctok);
 
             Spush(Out, new_attr);
 
         } else if (ctok.ttype == KS_TOK_COMMA) {
-
+            // this is to prevent commas outside of operators outside of brackets
             if (n_pars < 1 && n_bracks < 1) PEXPR_ERR(ctok, "Unexpected `,`, must have a comma within a group")
 
+            // just reduce the top of the stack until we get to a '(' or '['
             while (Ops.len > 0 && Stop(Ops).type != SYT_FUNC && Stop(Ops).type != SYT_LPAR && Stop(Ops).type != SYT_SUBSCRIPT && Stop(Ops).type != SYT_LBRACK) {
                 POP_OP();
             }
 
-            // set it
-            if (Ops.len > 0) {
-                Stop(Ops).had_comma = true;
-            }
+            // set the flag for the operator on top, so it knew it had a comma in it
+            if (Ops.len > 0) Stop(Ops).had_comma = true;
 
         } else if (ctok.ttype == KS_TOK_LBRACK) {
             n_bracks++;
@@ -1063,6 +1076,26 @@ ks_ast ks_parse_expr(ks_parser self) {
                 PEXPR_ERR(ctok, "Invalid Syntax; have an extra '(', remove it");
             }
         }
+        if (n_bracks > 0) {
+            int i, encountered = 0;
+            ks_tok last_lbrack;
+            // try and find the parenthesis that caused the error
+            for (i = start_tok_i; i < self->tok_i && encountered < n_bracks; ++i) {
+                if (self->toks[i].ttype == KS_TOK_LBRACK) {
+                    encountered++;
+                    last_lbrack= self->toks[i];
+                }
+            }
+
+            if (encountered > 0) {
+                // we found one to use for the error message
+                PEXPR_ERR(last_lbrack, "Invalid Syntax; have an extra '['");
+            } else {
+                // just use the last one
+                PEXPR_ERR(ctok, "Invalid Syntax; have an extra '[', remove it");
+            }
+        }
+
 
         if (Out.len > 1) {
             // this means there are just multiple statements, seperated by commas:

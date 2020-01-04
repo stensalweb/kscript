@@ -41,32 +41,16 @@
 /* include the builtin type definitions */
 #include "ks_types.h"
 
-/* object interface */
+/* object interface, generic object manipulation */
 #include "kso.h"
 
-/* the builtin types */
-extern ks_type
-    ks_T_none,
-    ks_T_bool,
-    ks_T_int,
-    ks_T_str,
-    ks_T_tuple,
-    ks_T_list,
-    ks_T_dict,
-    ks_T_cfunc,
-    ks_T_kfunc,
-    ks_T_code,
-    ks_T_ast,
-    ks_T_parser,
-    ks_T_vm,
-    ks_T_type
-;
 
 /* builtin functions */
 extern ks_cfunc
     ks_F_print,
     ks_F_dict,
     ks_F_type,
+    ks_F_hash,
     ks_F_call,
 
     /* attribute getting/setting */

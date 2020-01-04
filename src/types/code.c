@@ -215,6 +215,7 @@ void ksc_cstrl     (ks_code code, const char* v_cstr, int len) KSC_I32(KSBC_CONS
 // call n_items; pops on a function call on the last n_items (includes the function)
 void ksc_call      (ks_code code, int n_items) KSC_I32(KSBC_CALL, n_items)
 void ksc_getitem   (ks_code code, int n_items) KSC_I32(KSBC_GETITEM, n_items)
+void ksc_setitem   (ks_code code, int n_items) KSC_I32(KSBC_SETITEM, n_items)
 // tuple n_items; creates a tuple from the last n_items
 void ksc_tuple     (ks_code code, int n_items) KSC_I32(KSBC_TUPLE, n_items)
 // list n_items; creates a list from the last n_items
