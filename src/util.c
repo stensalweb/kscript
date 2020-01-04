@@ -58,8 +58,11 @@ static inline void random_4fwd() {
 
 // seeds the random number generator with a given value
 static void random_seed(uint64_t value) {
-    random_state[0] = value;
-    // 4 forward passes
+    random_state[0] = random_state[2] = value;
+    // 4 complete forward passes
+    random_4fwd();
+    random_4fwd();
+    random_4fwd();
     random_4fwd();
 
 }
