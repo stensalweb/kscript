@@ -65,7 +65,6 @@ static const char base_str_digs[] = "0123456789abcdefghijk";
 
 // reverse the string from [start, stop)
 static void buffmt_rev(char* buf, int start, int stop) {
-    return;
     int i;
     for (i = start; 2 * (i - start) < stop - start; ++i) {
         char tc = buf[i];
@@ -84,7 +83,7 @@ static void buffmt_int(char* buf, int* bufp, int64_t val, struct fmta args) {
     if (val < 0) { buf[(*bufp)++] = '-'; val = -val; }
     else if (args.flags & FE_SIGN) buf[(*bufp)++] = '+';
 
-    int start_buf = *bufp, try = args.width < 0 ? -10000 : 0;
+    int start_buf = *bufp;//, try = args.width < 0 ? -10000 : 0;
 
     do {
         buf[(*bufp)++] = base_str_digs[val % args.base];

@@ -324,7 +324,7 @@ TFUNC(ast, free) {
         break;
 
     default:
-        kse_fmt(SIG ": AST obj @ %p was of unknown type %i", self, self->atype);
+        return kse_fmt(SIG ": AST obj @ %p was of unknown type %i", self, self->atype);
         break;
     }
 

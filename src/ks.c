@@ -11,6 +11,7 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
+
     // get the global virtual machine
     ks_dict globals = ks_get_globals();
 
@@ -96,7 +97,6 @@ int main(int argc, char** argv) {
             // check refcnt
             KSO_DECREF(par);
             KSO_DECREF(prog_ast);
-
             KSO_DECREF(prog_bc);
 
             break;
@@ -166,6 +166,8 @@ int main(int argc, char** argv) {
 
     int64_t total_diff = (int64_t)ks_memuse() - MU;
     if (total_diff != 0) ks_warn("possible leak of %i bytes detected", (int)total_diff);
+
+
 
     ks_debug("memused: %l", ks_memuse_max());
 

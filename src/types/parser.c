@@ -1300,8 +1300,10 @@ ks_ast ks_parse_stmt(ks_parser self) {
             while ((ctok = CTOK()).ttype != KS_TOK_RPAR) {
                 if (ctok.ttype != KS_TOK_IDENT) PSTMT_ERR(ctok, "Expected a parameter name identifier here");
 
+                ks_str new_param = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
                 // add it as a parameter
-                ks_list_push(param_names, (kso)ks_str_new_l(self->src->chr + ctok.offset, ctok.len));
+                ks_list_push(param_names, (kso)new_param);
+                KSO_DECREF(new_param);
 
                 // skip it
                 ADV1();
@@ -1330,7 +1332,6 @@ ks_ast ks_parse_stmt(ks_parser self) {
             // construct a new function value
             ks_ast func_val = ks_ast_new_func(param_names, body);
 
-
             // create an assignment
             ks_ast r_s_fv = ks_ast_new_bop(KS_AST_BOP_ASSIGN, func_name, func_val);
 
@@ -1338,6 +1339,7 @@ ks_ast ks_parse_stmt(ks_parser self) {
             KSO_DECREF(func_val);
             KSO_DECREF(body);
             KSO_DECREF(param_names);
+
             return r_s_fv;
 
         } else {

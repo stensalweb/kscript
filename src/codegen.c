@@ -122,7 +122,6 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
     } else if (self->atype == KS_AST_BOP_ASSIGN) {
         // assignment is special, because only certain kinds of ASTs are assignable
 
-
         if (self->v_bop.L->atype == KS_AST_VAR) {
             // assign to a name, i.e. NAME = val
             // first generate the value
@@ -223,12 +222,15 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
         // create a function
         ks_kfunc new_kfunc = ks_kfunc_new(self->v_func.params, new_code);
+        KSO_DECREF(new_code);
 
         // add meta
         ks_code_add_meta(to, self);
 
         // load the object
         ksc_const(to, (kso)new_kfunc);
+        KSO_DECREF(new_kfunc);
+
         // we add on one object
         STK_GROW(1);
     } else if (self->atype == KS_AST_RET) {
@@ -377,12 +379,16 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const) {
 
+    ks_code code = NULL;
+
     if (v_const == NULL) {
         v_const = ks_list_new_empty();
-        v_const->refcnt--;
+        code = ks_code_new_empty(v_const);
+        KSO_DECREF(v_const);
+    } else {
+        code = ks_code_new_empty(v_const);
     }
     
-    ks_code code = ks_code_new_empty(v_const);
 
     struct cgi geni;
     geni.last_main = NULL;
