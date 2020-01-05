@@ -9,7 +9,7 @@ func is_prime(x) {
     i = 3
     while i * i <= x {
         if x % i == 0 then ret false
-        i = i + 1
+        i = i + 2
     }
 
     ret true
@@ -30,3 +30,5 @@ test(3)
 test(4)
 test(16)
 test(17)
+
+test(10000000000037)
