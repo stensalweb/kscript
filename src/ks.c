@@ -11,6 +11,14 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
+    ks_module mod = ks_module_load("examples/cext/libksm_cexec.so");
+
+    if (kse_dumpall()) return -1;
+
+    ks_info("loaded module %V", mod->name);
+
+    return;
+
 
     // get the global virtual machine
     ks_dict globals = ks_get_globals();

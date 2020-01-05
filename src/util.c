@@ -88,6 +88,7 @@ void ks_init() {
 
     /* initialize types */
     ks_init__type();
+    ks_init__module();
     ks_init__none();
     ks_init__bool();
     ks_init__int();

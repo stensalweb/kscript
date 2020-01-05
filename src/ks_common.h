@@ -44,4 +44,10 @@ NOTE: This file is not included by default in `ks.h`, because it defines non-sta
 // ex: TFUNC(int, free) -> defines a C-function called `int_free_`
 #define TFUNC(_type, _name) static kso _type##_##_name##_(int n_args, kso* args)
 
+// define a C-function with a given module and name
+// (the actual name has an _ appended)
+// ex: MFUNC(mymod, free) -> defines a C-function called `mymod_free_`
+#define MFUNC(_mod, _name) static kso _mod##_##_name##_(int n_args, kso* args)
+
+
 #endif

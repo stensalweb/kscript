@@ -24,6 +24,9 @@ typedef struct ks_type* ks_type;
 /* AST -> an abstract syntax tree, representing a tree of computations */
 typedef struct ks_ast* ks_ast;
 
+// the signature for a C-function as defined by an extension
+typedef kso (*ks_cfunc_sig)(int n_args, kso* args);
+
 /* OBJECT MANIPULATION */
 
 // the base that should begin every object definition
@@ -82,6 +85,7 @@ extern ks_type
     ks_T_kfunc,
 
     ks_T_type,
+    ks_T_module,
 
     ks_T_ast,
     ks_T_parser,
@@ -549,6 +553,33 @@ struct ks_type {
     .f_lt = NULL, .f_le = NULL, .f_gt = NULL, .f_ge = NULL, .f_eq = NULL, .f_ne = NULL, 
 
 
+
+/* module -> a kscript module */
+typedef struct ks_module {
+    KSO_BASE
+
+    // the module's common name (i.e. "std", etc)
+    ks_str name;
+
+}* ks_module;
+
+
+// construct a new module with a given name
+ks_module ks_module_new(ks_str name);
+
+// load a module from an SO file
+ks_module ks_module_load(const char* src_name);
+
+
+
+// type describing the initialization function
+typedef struct {
+
+    ks_cfunc_sig f_init;
+
+} ks_module_init_t;
+
+
 /* token enum, tells the kinds of tokens */
 enum {
 
@@ -924,10 +955,6 @@ ks_ast ks_ast_new_block_empty();
 ks_ast ks_ast_new_block(ks_ast* items, int n_items);
 
 
-
-
-// the signature for a C-function as defined by an extension
-typedef kso (*ks_cfunc_sig)(int n_args, kso* args);
 
 /* cfunc -> a type wrapping a C-function which can be called within kscript
 */

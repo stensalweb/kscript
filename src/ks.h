@@ -252,6 +252,7 @@ void ks_init__EXEC();
 
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__type();
+void ks_init__module();
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__none();
 // INTERNAL METHOD; DO NOT CALL
