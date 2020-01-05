@@ -68,7 +68,7 @@ FUNC(print) {
         } else {
             ks_str str_arg_i = kso_tostr(arg_i);
             fwrite(str_arg_i->chr, 1, str_arg_i->len, stdout);
-            KSO_CHKREF(str_arg_i);
+            KSO_DECREF(str_arg_i);
         }
 
     }
@@ -88,7 +88,7 @@ FUNC(type) {
     #define SIG "type(obj)"
     REQ_N_ARGS(1);
 
-    return (kso)args[0]->type;
+    return kso_newref((kso)args[0]->type);
     #undef SIG
 }
 
@@ -161,14 +161,8 @@ FUNC(setattr) {
 
     kso obj = args[0], attr = args[1], val = args[2];
 
-    if (obj->type == ks_T_dict) {
-        ks_dict_set((ks_dict)obj, attr, kso_hash(attr), val);
-        return val;
-    }
-
     // try resolving this
     if (obj->type->f_setattr != NULL) return kso_call(obj->type->f_setattr, 2, args);
-
 
     return NULL;
     #undef SIG
@@ -306,82 +300,59 @@ FUNC(ne) {
 
 
 
-
-/* type specific functions */
-
-
-/* integer functions */
-
-
-/* string functions */
-
-
-TFUNC(str, add) {
-    #undef SIG
-    #define SIG "str.add(A, B)"
-    REQ_N_ARGS(2);
-
-    // just use the formatter
-    return (kso)ks_str_new_cfmt("%V%V", args[0], args[1]);
-}
-
-
-
 // initializes the default C functions
 void ksf_init() {
 
     /* builtins */
 
-    ks_F_print = ks_cfunc_newref(print_);
-    ks_F_dict = ks_cfunc_newref(dict_);
+    ks_F_print = ks_cfunc_new(print_);
+    ks_F_dict = ks_cfunc_new(dict_);
 
-    ks_F_type = ks_cfunc_newref(type_);
-    ks_F_call = ks_cfunc_newref(call_);
-    ks_F_hash = ks_cfunc_newref(hash_);
-    ks_F_rand = ks_cfunc_newref(rand_);
+    ks_F_type = ks_cfunc_new(type_);
+    ks_F_call = ks_cfunc_new(call_);
+    ks_F_hash = ks_cfunc_new(hash_);
+    ks_F_rand = ks_cfunc_new(rand_);
 
-    ks_F_repr = ks_cfunc_newref(repr_);
+    ks_F_repr = ks_cfunc_new(repr_);
 
-    ks_F_getattr = ks_cfunc_newref(getattr_);
-    ks_F_setattr = ks_cfunc_newref(setattr_);
+    ks_F_getattr = ks_cfunc_new(getattr_);
+    ks_F_setattr = ks_cfunc_new(setattr_);
 
-    ks_F_getitem = ks_cfunc_newref(getitem_);
-    ks_F_setitem = ks_cfunc_newref(setitem_);
+    ks_F_getitem = ks_cfunc_new(getitem_);
+    ks_F_setitem = ks_cfunc_new(setitem_);
 
-    ks_F_add = ks_cfunc_newref(add_);
-    ks_F_sub = ks_cfunc_newref(sub_);
-    ks_F_mul = ks_cfunc_newref(mul_);
-    ks_F_div = ks_cfunc_newref(div_);
-    ks_F_mod = ks_cfunc_newref(mod_);
-    ks_F_pow = ks_cfunc_newref(pow_);
-    ks_F_lt  = ks_cfunc_newref(lt_);
-    ks_F_le  = ks_cfunc_newref(le_);
-    ks_F_gt  = ks_cfunc_newref(gt_);
-    ks_F_ge  = ks_cfunc_newref(ge_);
-    ks_F_eq  = ks_cfunc_newref(eq_);
-    ks_F_ne  = ks_cfunc_newref(ne_);
+    ks_F_add = ks_cfunc_new(add_);
+    ks_F_sub = ks_cfunc_new(sub_);
+    ks_F_mul = ks_cfunc_new(mul_);
+    ks_F_div = ks_cfunc_new(div_);
+    ks_F_mod = ks_cfunc_new(mod_);
+    ks_F_pow = ks_cfunc_new(pow_);
+    ks_F_lt  = ks_cfunc_new(lt_);
+    ks_F_le  = ks_cfunc_new(le_);
+    ks_F_gt  = ks_cfunc_new(gt_);
+    ks_F_ge  = ks_cfunc_new(ge_);
+    ks_F_eq  = ks_cfunc_new(eq_);
+    ks_F_ne  = ks_cfunc_new(ne_);
 
     /* set type functions */
 
     /* integer functions */
     /*
-    ks_T_int->f_str = (kso)ks_cfunc_newref(int_str_);
-    ks_T_int->f_repr = (kso)ks_cfunc_newref(int_repr_);
-    ks_T_int->f_add = (kso)ks_cfunc_newref(int_add_);
-    ks_T_int->f_sub = (kso)ks_cfunc_newref(int_sub_);
-    ks_T_int->f_mul = (kso)ks_cfunc_newref(int_mul_);
-    ks_T_int->f_div = (kso)ks_cfunc_newref(int_div_);
-    ks_T_int->f_mod = (kso)ks_cfunc_newref(int_mod_);
-    ks_T_int->f_pow = (kso)ks_cfunc_newref(int_pow_);
-    ks_T_int->f_lt  = (kso)ks_cfunc_newref(int_lt_);
-    ks_T_int->f_le  = (kso)ks_cfunc_newref(int_le_);
-    ks_T_int->f_gt  = (kso)ks_cfunc_newref(int_gt_);
-    ks_T_int->f_ge  = (kso)ks_cfunc_newref(int_ge_);
-    ks_T_int->f_eq  = (kso)ks_cfunc_newref(int_eq_);
-    ks_T_int->f_ne  = (kso)ks_cfunc_newref(int_ne_);
+    ks_T_int->f_str = (kso)ks_cfunc_new(int_str_);
+    ks_T_int->f_repr = (kso)ks_cfunc_new(int_repr_);
+    ks_T_int->f_add = (kso)ks_cfunc_new(int_add_);
+    ks_T_int->f_sub = (kso)ks_cfunc_new(int_sub_);
+    ks_T_int->f_mul = (kso)ks_cfunc_new(int_mul_);
+    ks_T_int->f_div = (kso)ks_cfunc_new(int_div_);
+    ks_T_int->f_mod = (kso)ks_cfunc_new(int_mod_);
+    ks_T_int->f_pow = (kso)ks_cfunc_new(int_pow_);
+    ks_T_int->f_lt  = (kso)ks_cfunc_new(int_lt_);
+    ks_T_int->f_le  = (kso)ks_cfunc_new(int_le_);
+    ks_T_int->f_gt  = (kso)ks_cfunc_new(int_gt_);
+    ks_T_int->f_ge  = (kso)ks_cfunc_new(int_ge_);
+    ks_T_int->f_eq  = (kso)ks_cfunc_new(int_eq_);
+    ks_T_int->f_ne  = (kso)ks_cfunc_new(int_ne_);
 */
-    /* str funcs */
-    ks_T_str->f_add  = (kso)ks_cfunc_newref(str_add_);
 
 }
 

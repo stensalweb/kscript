@@ -34,7 +34,6 @@
 // -lm
 #include <math.h>
 
-
 /* include bytecode definitions */
 #include "ks_bytecode.h"
 
@@ -114,6 +113,7 @@ size_t ks_memuse();
 
 // returns the maximum amount of memory that was allocated at a single time
 size_t ks_memuse_max();
+
 
 
 // enumeration for levels of logging, from least important to most important

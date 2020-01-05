@@ -13,10 +13,10 @@ TFUNC(type, getattr) {
 
     kso ret = NULL;
 
-    /**/ if (KS_STR_EQ_CONST(attr, "__name__")) ret = (kso)self->name;
-    else if (KS_STR_EQ_CONST(attr, "__type__")) ret = (kso)self->type;
-    else if (KS_STR_EQ_CONST(attr, "__repr__")) ret = self->f_repr;
-    else if (KS_STR_EQ_CONST(attr, "__str__") ) ret = self->f_str;
+    /**/ if (KS_STR_EQ_CONST(attr, "__name__"))     ret = (kso)self->name;
+    else if (KS_STR_EQ_CONST(attr, "__type__"))     ret = (kso)self->type;
+    else if (KS_STR_EQ_CONST(attr, "__repr__"))     ret = self->f_repr;
+    else if (KS_STR_EQ_CONST(attr, "__str__") )     ret = self->f_str;
     else if (KS_STR_EQ_CONST(attr, "__getitem__") ) ret = self->f_getitem;
     else if (KS_STR_EQ_CONST(attr, "__setitem__") ) ret = self->f_setitem;
 
@@ -24,6 +24,7 @@ TFUNC(type, getattr) {
         // keyerror
         return kse_fmt("KeyError: %R", attr);
     } else {
+        KSO_INCREF(ret);
         return ret;
     }
     #undef SIG
@@ -40,7 +41,7 @@ void ks_init__type() {
     T_type = (struct ks_type) {
         KS_TYPE_INIT("type")
 
-        .f_getattr = (kso)ks_cfunc_newref(type_getattr_)
+        .f_getattr = (kso)ks_cfunc_new(type_getattr_)
 
     };
 }

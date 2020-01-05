@@ -27,7 +27,7 @@ typedef struct ks_ast* ks_ast;
 /* OBJECT MANIPULATION */
 
 // the base that should begin every object definition
-// `refcnt` is the number of alive references
+// `refcnt` is the number of alive references (should start at 1)
 // `flags` are object flags (see KSOF_* macro/enums)
 // `type` is a pointer to the type
 #define KSO_BASE int32_t refcnt; uint32_t flags; ks_type type;
@@ -36,7 +36,7 @@ typedef struct ks_ast* ks_ast;
 #define KSO_BASE_INIT_R(_type, _flags, _refcnt) .refcnt = (int32_t)(_refcnt), .flags = (uint32_t)(_flags), .type = (ks_type)(_type), 
 
 // macro to initialize object, given its type and flags, and sets the reference count to 0 (i.e. does not come with a reference)
-#define KSO_BASE_INIT(_type, _flags) KSO_BASE_INIT_R(_type, _flags, 0)
+#define KSO_BASE_INIT(_type, _flags) KSO_BASE_INIT_R(_type, _flags, 1)
 
 // increments (i.e. records) a reference to an object
 #define KSO_INCREF(_obj) (++(_obj)->refcnt)
@@ -48,10 +48,17 @@ typedef struct ks_ast* ks_ast;
 // checks the reference count, and frees the object if it is unreachable
 #define KSO_CHKREF(_obj) { if ((_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
 
+
 // flags for objects
 enum {
     // none, empty flags, the default
-    KSOF_NONE = 0
+    KSOF_NONE = 0,
+
+    // means the value is immortal and should never be freed. This is useful for singletons, global constants, etc
+    KSOF_IMMORTAL = (1U << 31),
+
+    KSOF__END
+
 };
 
 
@@ -59,7 +66,7 @@ enum {
 
 // forward declaration of the objects representing the types
 
-/* the builtin types */
+/* the builtin types, see `types/` directory*/
 extern ks_type
     ks_T_none,
     
@@ -82,12 +89,11 @@ extern ks_type
     ks_T_cfunc
 ;
 
-
-
 /* the generic kso is empty asides from the base information every object must have */
 struct kso {
     KSO_BASE
 };
+
 
 /* none -> a NULL/empty value
 NOTE: There is always a global singleton, `ks_V_none`. No other 'nones' should be allocated or deallocated
@@ -104,7 +110,6 @@ extern ks_none ks_V_none;
 
 // `none` as an object, downcasted
 #define KSO_NONE ((kso)ks_V_none)
-
 
 /* bool -> the boolean type, representing true or false
 NOTE: There are always just 2 global singltons, `ks_V_true`, and `ks_V_false`. No other booleans should be allocated
@@ -138,7 +143,6 @@ extern ks_bool ks_V_true, ks_V_false;
 // return a boolean (as a generic object), given an expression
 #define KSO_BOOL(_val) ((_val) ? KSO_TRUE : KSO_FALSE)
 
-
 /* int -> represents a whole number, 64 bits large, with a sign.
 */
 typedef struct ks_int {
@@ -149,10 +153,8 @@ typedef struct ks_int {
 
 }* ks_int;
 
-// constructs a new integer from a given value
-// NOTE: Does not create a reference to the resultant object
+// constructs a new integer from a given value, with a new reference
 ks_int ks_int_new(int64_t v_int);
-
 
 
 /* str -> the string type, a collection of ASCII characters
@@ -161,6 +163,8 @@ This type is immutable, and internally is both length encoded & NUL-terminated
 mem of object: sizeof(struct ks_str) + len
 There is no NULL string, only the empty one. So, any calls to construct a string 
   from NULL are valid; they yield the empty string
+Repeated concatenation and generation is expensive, because they are immutable.
+So, it is recommended you use the string builder class `ks_strB` to create strings that contain variable numbers of other strings
 */
 typedef struct ks_str {
     KSO_BASE
@@ -191,7 +195,48 @@ ks_str ks_str_new_l(const char* cstr, int len);
 ks_str ks_str_new(const char* cstr);
 
 // create a new string from a C-string, returning a new reference
-ks_str ks_str_newref(const char* cstr);
+ks_str ks_str_new(const char* cstr);
+
+
+
+/* string building utilities (strB)
+basic workflow:
+
+ks_strB builder = ks_strB_create();
+ks_strB_add_c(&builder, "asdf");
+...
+ks_str result = ks_strB_finish(&builder);
+
+And that is all! Now, result will have created a reference for you
+
+See `fmt.c` for the implementation
+
+*/
+
+typedef struct {
+    // the current string that is being built.
+    // NOTE: This is not meant to pass to other functions yet; call `ks_strB_finish()` to get a normal ks_str object
+    ks_str cur;
+
+} ks_strB;
+
+
+// create a new empty string builder
+ks_strB ks_strB_create();
+
+// append a string to the string builder
+void ks_strB_add(ks_strB* strb, char* val, int len);
+
+// append `repr(obj)` to the string builder
+void ks_strB_add_repr(ks_strB* strb, kso obj);
+
+// append `str(obj)` to the string builder
+void ks_strB_add_tostr(ks_strB* strb, kso obj);
+
+// finish building the string, and return the new string
+// after this, the builder should not be used again, without first assigning a new `ks_strB_create()` to it
+ks_str ks_strB_finish(ks_strB* strb);
+
 
 /* tuple -> an ordered collection of objects, which essentially groups them together as a single value
 This type is immutable
@@ -239,6 +284,11 @@ ks_list ks_list_new(kso* items, int n_items);
 // push an object onto the list, returning the index
 // NOTE: This adds a reference to the object
 int ks_list_push(ks_list self, kso obj);
+
+// push a list of object onto the list, returning the index of the first one added
+// NOTE: This adds a reference to each object
+int ks_list_pushN(ks_list self, kso* objs, int len);
+
 
 // pops an object off of the list, transfering the reference to the caller
 // NOTE: Call KSO_DECREF when the object reference is dead
@@ -492,7 +542,7 @@ struct ks_type {
 };
 
 // initializes a given type, with a C-string style name
-#define KS_TYPE_INIT(_name) KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = ks_str_newref(_name), \
+#define KS_TYPE_INIT(_name) KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = ks_str_new(_name), \
     .f_str = NULL, .f_repr = NULL, .f_hash = NULL, \
     .f_getattr = NULL, .f_setattr = NULL, .f_getitem = NULL, .f_setitem = NULL, \
     .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_mod = NULL, .f_pow = NULL, \
@@ -893,7 +943,7 @@ typedef struct ks_cfunc {
 ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc);
 
 // create a new C-function wrapper with a new reference
-ks_cfunc ks_cfunc_newref(ks_cfunc_sig v_cfunc);
+ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc);
 
 
 

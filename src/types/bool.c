@@ -23,11 +23,11 @@ void ks_init__bool() {
 
     //create constant with 1 reference
     V_true = (struct ks_bool) {
-        KSO_BASE_INIT_R(ks_T_bool, KSOF_NONE, 1)
+        KSO_BASE_INIT_R(ks_T_bool, KSOF_IMMORTAL, 1)
         .v_bool = true
     };
     V_false = (struct ks_bool) {
-        KSO_BASE_INIT_R(ks_T_bool, KSOF_NONE, 1)
+        KSO_BASE_INIT_R(ks_T_bool, KSOF_IMMORTAL, 1)
         .v_bool = false
     };
 

@@ -51,15 +51,14 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
 
     is_logging = true;
 
-
     // TODO: perhaps roll my own printf? similar to what I did for ks_str_new_cfmt()
     // by my tests, it performed about 9x-10x faster than using snprintf, even with small, simple arguments
     // although, this doesn't seem like the best place. Perhaps I will implement it as `ks_printf`, and then
     // call `ks_printf` here
+    // for now, just generate the string, print it, then free it
 
     // print a header
     fprintf(stdout, BOLD "%s" RESET ": ", _level_strs[level]);
-
 
     // call the vfprintf
     va_list args;
@@ -68,8 +67,7 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     // use advanced formatting
     ks_str rstr = ks_str_new_vcfmt(fmt, args);
     fwrite(rstr->chr, 1, rstr->len, stdout);
-    KSO_CHKREF(rstr);
-    //vfprintf(stdout, fmt, args);
+    KSO_DECREF(rstr);
     va_end(args);
 
     // always end with a newline for this function

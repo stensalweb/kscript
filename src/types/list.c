@@ -22,7 +22,7 @@ ks_list ks_list_new(kso* items, int n_items) {
     return self;
 }
 
-// create a new empty tuple
+// create a new empty list
 ks_list ks_list_new_empty() {
     return ks_list_new(NULL, 0);
 }
@@ -34,6 +34,23 @@ int ks_list_push(ks_list self, kso obj) {
     self->items = ks_realloc(self->items, sizeof(kso) * self->len);
     self->items[idx] = obj;
     KSO_INCREF(obj);
+    return idx;
+}
+
+
+// push objects onto the list, returning the index of the first one added
+// NOTE: This adds a reference to each object
+int ks_list_pushN(ks_list self, kso* objs, int len) {
+    int idx = self->len;
+    self->len += len;
+    self->items = ks_realloc(self->items, sizeof(kso) * self->len);
+
+    int i;
+    for (i = idx; i < self->len; ++i) {
+        self->items[idx] = objs[i - idx];
+        KSO_INCREF(self->items[idx]);
+    }
+
     return idx;
 }
 
@@ -97,22 +114,19 @@ TFUNC(list, repr) {
         return (kso)ks_str_new_cfmt("[%R]", self->items[0]);
     }
 
-    ks_str built = ks_str_new("[");
-    KSO_INCREF(built);
+    ks_strB ksb = ks_strB_create();
+
+    ks_strB_add(&ksb, "[", 1);
 
     int i;
     for (i = 0; i < self->len; ++i) {
-        // valid entry
-        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
-        KSO_INCREF(next_built);
-        KSO_DECREF(built);
-        built = next_built;
+        if (i != 0) ks_strB_add(&ksb, ", ", 2);
+        ks_strB_add_repr(&ksb, self->items[i]);
     }
 
-    ks_str result = ks_str_new_cfmt("%V]", built);
-    KSO_DECREF(built);
+    ks_strB_add(&ksb, "]", 1);
 
-    return (kso)result;
+    return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
 
@@ -128,22 +142,19 @@ TFUNC(list, str) {
         return (kso)ks_str_new_cfmt("[%R]", self->items[0]);
     }
 
-    ks_str built = ks_str_new("[");
-    KSO_INCREF(built);
+    ks_strB ksb = ks_strB_create();
+
+    ks_strB_add(&ksb, "[", 1);
 
     int i;
     for (i = 0; i < self->len; ++i) {
-        // valid entry
-        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
-        KSO_INCREF(next_built);
-        KSO_DECREF(built);
-        built = next_built;
+        if (i != 0) ks_strB_add(&ksb, ", ", 2);
+        ks_strB_add_repr(&ksb, self->items[i]);
     }
 
-    ks_str result = ks_str_new_cfmt("%V]", built);
-    KSO_DECREF(built);
+    ks_strB_add(&ksb, "]", 1);
 
-    return (kso)result;
+    return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
 
@@ -167,8 +178,7 @@ TFUNC(list, getitem) {
 
     int64_t idx = key->v_int;
     if (idx < 0 || idx >= self->len) return kse_fmt("KeyError: %l (out of range)", idx);
-
-    return self->items[idx];
+    return kso_newref(self->items[idx]);
     #undef SIG
 }
 
@@ -186,11 +196,58 @@ TFUNC(list, setitem) {
 
     kso old_val = self->items[idx];
     KSO_INCREF(val);
+    KSO_INCREF(val);
     KSO_DECREF(old_val);
 
     return self->items[idx] = val;
     #undef SIG
 }
+
+
+
+TFUNC(list, add) {
+    #define SIG "list.__add__(self, other)"
+    REQ_N_ARGS(2);
+    ks_list self = (ks_list)args[0];
+    REQ_TYPE("self", self, ks_T_list);
+    kso other = args[1];
+
+
+    if (other->type == ks_T_list) {
+        // append all the values
+        ks_list ret = ks_list_new(self->items, self->len);
+
+        ks_list_pushN(ret, ((ks_list)other)->items, ((ks_list)other)->len);
+
+        return (kso)ret;
+
+    }
+
+    return NULL;
+
+    if (self->len == 0) {
+        return (kso)ks_str_new("[]");
+    } else if (self->len == 1) {
+        return (kso)ks_str_new_cfmt("[%R]", self->items[0]);
+    }
+
+    ks_str built = ks_str_new("[");
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        // valid entry
+        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
+        KSO_DECREF(built);
+        built = next_built;
+    }
+
+    ks_str result = ks_str_new_cfmt("%V]", built);
+    KSO_DECREF(built);
+
+    return (kso)result;
+    #undef SIG
+}
+
 
 
 /* exporting functionality */
@@ -203,13 +260,15 @@ void ks_init__list() {
     T_list = (struct ks_type) {
         KS_TYPE_INIT("list")
 
-        .f_free = (kso)ks_cfunc_newref(list_free_),
+        .f_free = (kso)ks_cfunc_new(list_free_),
 
-        .f_repr = (kso)ks_cfunc_newref(list_repr_),
-        .f_str  = (kso)ks_cfunc_newref(list_str_),
+        .f_repr = (kso)ks_cfunc_new(list_repr_),
+        .f_str  = (kso)ks_cfunc_new(list_str_),
 
-        .f_getitem = (kso)ks_cfunc_newref(list_getitem_),
-        .f_setitem = (kso)ks_cfunc_newref(list_setitem_),
+        .f_getitem = (kso)ks_cfunc_new(list_getitem_),
+        .f_setitem = (kso)ks_cfunc_new(list_setitem_),
+
+        .f_add  = (kso)ks_cfunc_new(list_add_),
 
     };
 

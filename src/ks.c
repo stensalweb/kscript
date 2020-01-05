@@ -12,13 +12,12 @@ int main(int argc, char** argv) {
     ks_log_level_set(KS_LOG_INFO);
 
     // get the global virtual machine
-
     ks_dict globals = ks_get_globals();
 
     #define SET_GLOBAL(_key, _val) { \
         ks_str skey = ks_str_new(_key); \
         ks_dict_set(globals, (kso)skey, skey->v_hash, (kso)(_val)); \
-        KSO_CHKREF(skey); \
+        KSO_DECREF(skey); \
     }
 
     SET_GLOBAL("print", ks_F_print);
@@ -37,6 +36,8 @@ int main(int argc, char** argv) {
     SET_GLOBAL("str", ks_T_str);
     SET_GLOBAL("int", ks_T_int);
     SET_GLOBAL("tuple", ks_T_tuple);
+
+    SET_GLOBAL("__add__", ks_F_add);
 
 
     if (kse_dumpall()) return -1;
@@ -67,6 +68,7 @@ int main(int argc, char** argv) {
 
     if (kse_dumpall()) return -1;
 
+
     while ((c = getopt_long (argc, argv, "e:f:vih", long_options, NULL)) != -1)
     switch (c){
         case 'e':
@@ -75,17 +77,14 @@ int main(int argc, char** argv) {
             // construct a parser
             par = ks_parser_new_expr(optarg);
             if (kse_dumpall()) return -1;
-            KSO_INCREF(par);
 
             // parse out the whole expression            
             prog_ast = ks_parse_program(par);
             if (kse_dumpall()) return -1;
-            KSO_INCREF(prog_ast);
 
             // generate the bytecode
             prog_bc = ks_ast_codegen(prog_ast, NULL);
             if (kse_dumpall()) return -1;
-            KSO_INCREF(prog_bc);
 
             ks_debug("Running `-e`: '%s' (compiled to %ib)", par->src->chr, prog_bc->bc_n);
             // TODO: maybe output the assembly here
@@ -97,6 +96,7 @@ int main(int argc, char** argv) {
             // check refcnt
             KSO_DECREF(par);
             KSO_DECREF(prog_ast);
+
             KSO_DECREF(prog_bc);
 
             break;
@@ -106,17 +106,14 @@ int main(int argc, char** argv) {
             // construct a parser
             par = ks_parser_new_file(optarg);
             if (kse_dumpall()) return -1;
-            KSO_INCREF(par);
 
             // parse out the whole expression            
             prog_ast = ks_parse_program(par);
             if (kse_dumpall()) return -1;
-            KSO_INCREF(prog_ast);
 
             // generate the bytecode
             prog_bc = ks_ast_codegen(prog_ast, NULL);
             if (kse_dumpall()) return -1;
-            KSO_INCREF(prog_bc);
 
             ks_debug("Running `-f`: '%s' (compiled to %ib)", par->src_name->chr, prog_bc->bc_n);
             // TODO: maybe output the assembly here
@@ -168,7 +165,7 @@ int main(int argc, char** argv) {
     if (kse_dumpall()) return -1;
 
     int64_t total_diff = (int64_t)ks_memuse() - MU;
-    if (total_diff != 0) ks_warn("possible leak of %l bytes detected", total_diff);
+    if (total_diff != 0) ks_warn("possible leak of %i bytes detected", (int)total_diff);
 
     ks_debug("memused: %l", ks_memuse_max());
 

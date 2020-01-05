@@ -11,7 +11,6 @@
 
 /* constructing primitives */
 
-
 // creates a new string from C-style format arguments, in va_list passing style
 // NOTE: This is a custom implementation, there may be bugs.
 // NOTE: This is implemented in `fmt.c`, rather than `kso.c`
@@ -24,7 +23,6 @@ ks_str ks_str_new_cfmt(const char* fmt, ...);
 // generates the bytecode for a given AST, returns the code object
 // NOTE: this is implemented in codegen.c, rather than kso.c
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const);
-
 
 
 /* GENERIC OBJECT FUNCTIONALITY */
@@ -77,6 +75,29 @@ ks_str kso_torepr(kso A);
 
 // frees an object, returns true if successful, false otherwise
 bool kso_free(kso obj);
+
+
+
+static inline void KSO_INCREF_N(kso* objs, int n) {
+    int i;
+    for (i = 0; i < n; ++i) {
+        KSO_INCREF(objs[i]);
+    }
+}
+
+static inline void KSO_DECREF_N(kso* objs, int n) {
+    int i;
+    for (i = 0; i < n; ++i) {
+        KSO_DECREF(objs[i]);
+    }
+}
+
+// returns a new reference to the object (just a helpful method)
+static inline kso kso_newref(kso obj) {
+    KSO_INCREF(obj);
+    return obj;
+}
+
 
 #endif
 

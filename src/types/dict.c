@@ -180,6 +180,7 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
     while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
         if (dict_entry_matches(*entry, key, hash)) {
             // we've found a match, just return it
+            KSO_INCREF(entry->val);
             return entry->val;
         }
 
@@ -209,26 +210,24 @@ TFUNC(dict, str) {
         return (kso)ks_str_new("{}");
     }
 
-    ks_str built = ks_str_new("{");
-    KSO_INCREF(built);
+    ks_strB ksb = ks_strB_create();
+
+    ks_strB_add(&ksb, "{", 1);
 
     int i, num = 0;
     for (i = 0; i < self->n_buckets; ++i) {
         struct ks_dict_entry* ent = &self->buckets[i];
         if (ent->val != NULL) {
-            // valid entry
-            ks_str next_built = ks_str_new_cfmt(num == 0 ? "%V%R: %V" : "%V, %R: %V", built, ent->key, ent->val);
-            KSO_INCREF(next_built);
-            KSO_DECREF(built);
-            built = next_built;
+            if (num != 0) ks_strB_add(&ksb, ", ", 2);
+            ks_strB_add_repr(&ksb, ent->key);
+            ks_strB_add(&ksb, ": ", 2);
+            ks_strB_add_tostr(&ksb, ent->val);
             num++;
         }
     }
+    ks_strB_add(&ksb, "}", 1);
 
-    ks_str result = ks_str_new_cfmt("%V}", built);
-    KSO_DECREF(built);
-
-    return (kso)result;
+    return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
 
@@ -243,26 +242,24 @@ TFUNC(dict, repr) {
         return (kso)ks_str_new("{}");
     }
 
-    ks_str built = ks_str_new("{");
-    KSO_INCREF(built);
+    ks_strB ksb = ks_strB_create();
+
+    ks_strB_add(&ksb, "{", 1);
 
     int i, num = 0;
     for (i = 0; i < self->n_buckets; ++i) {
         struct ks_dict_entry* ent = &self->buckets[i];
         if (ent->val != NULL) {
-            // valid entry
-            ks_str next_built = ks_str_new_cfmt(num == 0 ? "%V%R: %V" : "%V, %R: %V", built, ent->key, ent->val);
-            KSO_INCREF(next_built);
-            KSO_DECREF(built);
-            built = next_built;
+            if (num != 0) ks_strB_add(&ksb, ", ", 2);
+            ks_strB_add_repr(&ksb, ent->key);
+            ks_strB_add(&ksb, ": ", 2);
+            ks_strB_add_tostr(&ksb, ent->val);
             num++;
         }
     }
+    ks_strB_add(&ksb, "}", 1);
 
-    ks_str result = ks_str_new_cfmt("%V}", built);
-    KSO_DECREF(built);
-
-    return (kso)result;
+    return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
 
@@ -312,7 +309,8 @@ TFUNC(dict, getitem) {
         }
     }
 
-    return res;
+
+    return kso_newref(res);
     #undef SIG
 }
 
@@ -325,7 +323,7 @@ TFUNC(dict, setitem) {
 
     ks_dict_set(self, key, kso_hash(key), val);
 
-    return val;
+    return kso_newref(val);
     #undef SIG
 }
 
@@ -343,13 +341,13 @@ void ks_init__dict() {
     T_dict= (struct ks_type) {
         KS_TYPE_INIT("dict")
 
-        .f_free = (kso)ks_cfunc_newref(dict_free_),
+        .f_free = (kso)ks_cfunc_new(dict_free_),
 
-        .f_str  = (kso)ks_cfunc_newref(dict_str_),
-        .f_repr = (kso)ks_cfunc_newref(dict_repr_),
+        .f_str  = (kso)ks_cfunc_new(dict_str_),
+        .f_repr = (kso)ks_cfunc_new(dict_repr_),
 
-        .f_getitem = (kso)ks_cfunc_newref(dict_getitem_),
-        .f_setitem = (kso)ks_cfunc_newref(dict_setitem_)
+        .f_getitem = (kso)ks_cfunc_new(dict_getitem_),
+        .f_setitem = (kso)ks_cfunc_new(dict_setitem_)
 
     };
 

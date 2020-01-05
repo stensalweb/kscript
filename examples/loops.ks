@@ -1,11 +1,19 @@
 #!ks
 
-
+res = "sf"
 i = 0
 
-while i < 10000000 {
-    a = 5
-    b = 6
-    c = 7
+y = []
+
+while i < 10000 {
+    y = y + [i]
+    #y += [i]
+    #y.append(i)
     i = i + 1
 }
+
+#print (y)
+
+z = repr(y)
+
+#print (z)

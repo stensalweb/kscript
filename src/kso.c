@@ -32,11 +32,11 @@ uint64_t kso_hash(kso A) {
             if (hash_res->type == ks_T_int) {
                 // people should always use integers
                 val.v_s = ((ks_int)hash_res)->v_int;
-                KSO_CHKREF(hash_res);
+                KSO_DECREF(hash_res);
                 return val.v_u;
             } else {
                 kse_fmt("hash returned was not an 'int'!, got hash(%R)==%R", A, hash_res);
-                KSO_CHKREF(hash_res);
+                KSO_DECREF(hash_res);
                 return 0;
             }
 
@@ -147,8 +147,8 @@ bool kso_eq(kso A, kso B) {
 
 bool kso_free(kso obj) {
     // if it can still be reached, don't free it
-    if (obj->refcnt > 0) return false;
-    else if (obj->refcnt < 0) ks_warn("refcnt of %R was %i", obj, obj->refcnt);
+    if (obj->refcnt > 0 || obj->flags & KSOF_IMMORTAL) return false;
+    //else if (obj->refcnt < 0) ks_warn("refcnt of %R was %i", obj, obj->refcnt);
 
     // otherwise, free it
     ks_trace("kso_free(%o) (repr was: %R)", obj, obj);

@@ -19,9 +19,17 @@ static struct ks_str str_const_chr_tbl[_STR_CHR_MAX];
 /* constructs a new string from a character array and length, need not be NUL-terminated */
 ks_str ks_str_new_l(const char* cstr, int len) {
     // do empty-check
-    if (len <= 0 || *cstr == '\0') return &str_const_chr_tbl[0];
+    if (len <= 0 || *cstr == '\0') {
+        ks_str self = &str_const_chr_tbl[0];
+        KSO_INCREF(self);
+        return self;
+    }
     // single length check
-    if (len == 1) return &str_const_chr_tbl[*cstr];
+    if (len == 1) {
+        ks_str self = &str_const_chr_tbl[*cstr];
+        KSO_INCREF(self);
+        return self;
+    }
 
     // actually construct it
     ks_str self = (ks_str)ks_malloc(sizeof(*self) + len);
@@ -44,11 +52,6 @@ ks_str ks_str_new(const char* cstr) {
     return ks_str_new_l(cstr, cstr == NULL ? 0 : (int)strlen(cstr));
 }
 
-ks_str ks_str_newref(const char* cstr) {
-    ks_str self = ks_str_new(cstr);
-    KSO_INCREF(self);
-    return self;    
-}
 
 // creation via C-style formatting
 ks_str ks_str_new_cfmt(const char* fmt, ...) {
@@ -62,6 +65,16 @@ ks_str ks_str_new_cfmt(const char* fmt, ...) {
 /* exporting functionality */
 
 
+TFUNC(str, add) {
+    #define SIG "str.add(A, B)"
+    REQ_N_ARGS(2);
+
+    return (kso)ks_str_new_cfmt("%V%V", args[0], args[1]);
+    #undef SIG
+}
+
+
+
 struct ks_type T_str, *ks_T_str = &T_str;
 
 void ks_init__str() {
@@ -69,6 +82,8 @@ void ks_init__str() {
     /* first create the type */
     T_str = (struct ks_type) {
         KS_TYPE_INIT("str")
+
+        .f_add = (kso)ks_cfunc_new(str_add_)
 
     };
 

@@ -11,7 +11,7 @@ static struct timeval ks_stime = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
 
 // handle segfaults
 static void ks_segfault_handle(int sg) {
-    ks_error("SEGFAULT OCCURED");
+    fprintf(stderr, "SEGFAULT!");
 
     kse_dumpall();
 
@@ -59,6 +59,7 @@ static inline void random_4fwd() {
 // seeds the random number generator with a given value
 static void random_seed(uint64_t value) {
     random_state[0] = random_state[2] = value;
+
     // 4 complete forward passes
     random_4fwd();
     random_4fwd();
@@ -109,7 +110,6 @@ void ks_init() {
     // initialize execution engine
     ks_init__EXEC();
 
-
 }
 
 // returns time in seconds
@@ -119,16 +119,12 @@ double ks_time() {
     return (curtime.tv_sec - ks_stime.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_stime.tv_usec);
 }
 
-
 // generate a random 64 bit integer
 int64_t ks_random_i64() {
     // update values
     random_fwd();
+    // pick a new value out of the state
     return (int64_t)random_state[0];
 }
-
-
-
-
 
 

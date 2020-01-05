@@ -61,7 +61,6 @@ static int64_t tok_getint(ks_tok tok) {
 // a literal newline, and removes the quotes around it
 static ks_str tok_getstr(ks_tok tok) {
     ks_str start = ks_str_new("");
-    KSO_INCREF(start);
 
     char* src = tok.v_parser->src->chr + tok.offset;
 
@@ -77,7 +76,6 @@ static ks_str tok_getstr(ks_tok tok) {
         if (j > 0) {
             // handle literal characters
             ks_str new_str = ks_str_new_cfmt("%*s%*s", start->len, start->chr, j, src+i);
-            KSO_INCREF(new_str);
             KSO_DECREF(start);
             start = new_str;
             i += j;
@@ -99,7 +97,6 @@ static ks_str tok_getstr(ks_tok tok) {
 
             if (hasOne) {
                 ks_str new_str = ks_str_new_cfmt("%*s%c", start->len, start->chr, lit);
-                KSO_INCREF(new_str);
                 KSO_DECREF(start);
                 start = new_str;
             } else {
@@ -312,10 +309,6 @@ ks_parser ks_parser_new_expr(const char* expr) {
         .toks = NULL,
     };
 
-    // record reference
-    KSO_INCREF(self->src);
-    KSO_INCREF(self->src_name);
-
     /* now, tokenize the source the input */
     parser_tokenize(self);
 
@@ -352,10 +345,6 @@ ks_parser ks_parser_new_file(const char* fname) {
         .toks = NULL,
     };
 
-    // record reference
-    KSO_INCREF(self->src);
-    KSO_INCREF(self->src_name);
-
     // since we made a new string from it
     ks_free(contents);
 
@@ -372,126 +361,6 @@ ks_parser ks_parser_new_file(const char* fname) {
 
 // yield whether a token equals another value
 #define TOK_EQ(_p, _tok, _str) (_tok.len == (sizeof(_str) - 1) && (0 == strncmp(self->src->chr + _tok.offset, _str, (sizeof(_str) - 1))))
-
-// parse out an AST from assembly source file
-ks_ast ks_parse_asm(ks_parser self) {
-
-    ks_list v_const = ks_list_new_empty();
-    ks_code code = ks_code_new_empty(v_const);
-    ks_ast code_ast = ks_ast_new_code(code);
-
-    bool wasErr = false;
-
-    // for keeping tokens to strings
-    ks_str tostr;
-
-    // arguments for the instructions
-    ks_tok a0, a1;
-
-    #define PASM_ERR(...) { kse_tok(__VA_ARGS__); wasErr = true; goto parseasm_end; }
-
-    // keep track of first token
-    ks_tok tok_first = {.ttype = KS_TOK_NONE };
-
-    while (true) {
-        // keep parsing in a loop
-
-        // check if we're out
-        if (self->tok_i >= self->n_toks) goto parseasm_end;
-
-        // get current token
-        ks_tok ctok = (ks_tok)self->toks[self->tok_i];
-
-        // check if we should skip
-        if (ctok.ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_COMMENT) {
-            self->tok_i++;
-            continue;
-        }
-        
-        // check if we should stop parsing
-        if (ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_RBRACE) goto parseasm_end;
-
-        if (tok_first.ttype == KS_TOK_NONE) tok_first = ctok;
-
-        if (ctok.ttype == KS_TOK_IDENT) {
-            // we will have an assembly command
-
-            // skip that token, but keep ctok as the name of the command
-            self->tok_i++;
-
-            if (TOK_EQ(self, ctok, "load")) {
-                a0 = self->toks[self->tok_i++];
-                if (a0.ttype == KS_TOK_STR) {
-                    // load a string literal name
-                    tostr = tok_getstr(a0);
-                    ksc_loado(code, (kso)tostr);
-                    KSO_CHKREF(tostr);
-                } else {
-                    PASM_ERR(a0, "Arg #0 to 'load' instruction must be a string literal");
-                }
-            } else if (TOK_EQ(self, ctok, "const")) {
-                a0 = self->toks[self->tok_i++];
-                if (a0.ttype == KS_TOK_STR) {
-                    // load a string literal
-                    tostr = tok_getstr(a0);
-                    ksc_const(code, (kso)tostr);
-                } else if (a0.ttype == KS_TOK_INT) {
-                    // load an int literal
-                    ksc_int(code, tok_getint(a0));
-                } else {
-                    PASM_ERR(a0, "Arg #0 to 'const' instruction must be a int literal or string literal");
-                }
-            } else if (TOK_EQ(self, ctok, "call")) {
-                a0 = self->toks[self->tok_i++];
-                if (a0.ttype == KS_TOK_INT) {
-                    // call with an integer number of arguments
-                    ksc_call(code, (int)tok_getint(a0));
-                } else {
-                    PASM_ERR(a0, "Arg #0 to 'call' instruction must be an integer");
-                }
-            } else if (TOK_EQ(self, ctok, "popu")) {
-                ksc_popu(code);
-
-            } else if (TOK_EQ(self, ctok, "ret_none")) {
-                ksc_ret_none(code);
-            } else if (TOK_EQ(self, ctok, "ret")) {
-                ksc_ret(code);
-
-            } else if (TOK_EQ(self, ctok, "bop")) {
-                a0 = self->toks[self->tok_i++];
-
-                // check for binary operators
-                /**/ if (a0.ttype == KS_TOK_O_ADD) ksc_add(code);
-                else {
-                    PASM_ERR(a0, "Arg #0 must be a valid binary operator!");
-                }
-
-            } else {
-                PASM_ERR(ctok, "Unknown assembly instruction '%*s'", ctok.len, self->src->chr + ctok.offset);
-            }
-
-            ks_tok ntok = self->toks[self->tok_i];
-            // make sure it ended correctly
-            if (!(ntok.ttype == KS_TOK_NEWLINE || ntok.ttype == KS_TOK_COMMENT || ntok.ttype == KS_TOK_RBRACK)) {
-                PASM_ERR(ntok, "Extra argument for assembly instruction '%*s'", ctok.len, self->src->chr + ctok.offset);
-            }
-
-        } else {
-            PASM_ERR(ctok, "Unexpected token for asm");
-        }
-    }
-
-    parseasm_end: ;
-
-    if (wasErr) {
-        KSO_DECREF(code_ast);
-        return NULL;
-    } else {
-        code_ast->tok = tok_first;
-        code_ast->tok_expr = ks_tok_combo(tok_first, self->toks[self->tok_i]);
-        return code_ast;
-    }
-}
 
 
 /* expression parsing:
@@ -774,6 +643,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             Sget(Out, osp) = Sget(Out, osp - 1); /* effectively swaps the NULL and the actual function call */ \
             /* now, they are contiguous in memory */ \
             ks_ast new_call = ks_ast_new_call(&Sget(Out, osp), n_args+1); \
+            KSO_DECREF_N((kso*)&Sget(Out, osp), n_args+1); \
             new_call->tok = top.tok; \
             new_call->tok_expr = ks_tok_combo(((ks_ast)new_call->v_list->items[0])->tok_expr, ctok); \
             Out.len -= n_args + 2; \
@@ -787,6 +657,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             Sget(Out, osp) = Sget(Out, osp - 1); /* effectively swaps the NULL and the actual function call */ \
             /* now, they are contiguous in memory */ \
             ks_ast new_subs = ks_ast_new_subscript(&Sget(Out, osp), n_args+1); \
+            KSO_DECREF_N((kso*)&Sget(Out, osp), n_args+1); \
             new_subs->tok = top.tok; \
             new_subs->tok_expr = ks_tok_combo(((ks_ast)new_subs->v_list->items[0])->tok_expr, ctok); \
             Out.len -= n_args + 2; \
@@ -795,6 +666,8 @@ ks_ast ks_parse_expr(ks_parser self) {
             /* construct a binary operator from the last two values on the stack */ \
             ks_ast new_bop = ks_ast_new_bop(top.bop_type, Sget(Out, Out.len-2), Sget(Out, Out.len-1)); \
             new_bop->tok = top.tok; \
+            KSO_DECREF(new_bop->v_bop.L); \
+            KSO_DECREF(new_bop->v_bop.R); \
             new_bop->tok_expr = ks_tok_combo(new_bop->v_bop.L->tok_expr, new_bop->v_bop.R->tok_expr); \
             Out.len -= 2; \
             Spush(Out, new_bop); \
@@ -807,6 +680,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             int n_args = Out.len - osp - 1; \
             /* now, they are contiguous in memory */ \
             ks_ast new_list = ks_ast_new_list(&Sget(Out, osp+1), n_args); \
+            KSO_DECREF_N((kso*)&Sget(Out, osp+1), n_args); \
             new_list->tok = top.tok; \
             new_list->tok_expr = ks_tok_combo(top.tok, ctok); \
             Out.len -= n_args + 1; \
@@ -920,7 +794,7 @@ ks_ast ks_parse_expr(ks_parser self) {
                 // do a variable reference
                 ks_str var_s = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
                 ks_ast new_var = ks_ast_new_var(var_s);
-                KSO_CHKREF(var_s);
+                KSO_DECREF(var_s);
                 new_var->tok_expr = new_var->tok = ctok;
                 Spush(Out, new_var);
             }
@@ -943,7 +817,8 @@ ks_ast ks_parse_expr(ks_parser self) {
             // replace it with its attribute
             ks_str attr_name_s = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
             ks_ast new_attr = ks_ast_new_attr(last, attr_name_s);
-            KSO_CHKREF(attr_name_s);
+            KSO_DECREF(last);
+            KSO_DECREF(attr_name_s);
 
             // set up the new tokens
             new_attr->tok = dot_tok;
@@ -1078,6 +953,7 @@ ks_ast ks_parse_expr(ks_parser self) {
                     if (n_items != 1 || used.had_comma) {
                         // there's definitely a tuple here, so create it
                         new_val = ks_ast_new_tuple(&Sget(Out, osp+1), n_items);
+                        KSO_DECREF_N((kso*)&Sget(Out, osp+1), n_items);
                         new_val->tok = used.tok;
                         // join the first and last
                         new_val->tok_expr = ks_tok_combo(new_val->tok, ctok);
@@ -1306,26 +1182,6 @@ ks_ast ks_parse_stmt(ks_parser self) {
     if (ctok.ttype == KS_TOK_IDENT) {
 
         // check for keywords/directives
-        /*if (TOK_EQ(self, ctok, "asm")) {
-            // parse a bytecode/assembly block:
-            // asm { BODY }
-            self->tok_i++;
-
-            PSTMT_SKIPIRR();
-
-            // now, expect an opening brace '{'
-            ctok = self->toks[self->tok_i++];
-            if (ctok.ttype != KS_TOK_LBRACE) PSTMT_ERR(ctok, "Expected '{' to start the assembly block");
-
-            ks_ast res = ks_parse_asm(self);
-            if (res == NULL) PSTMT_ERREXT();
-
-            ctok = self->toks[self->tok_i++];
-            if (ctok.ttype != KS_TOK_RBRACE) PSTMT_ERR(ctok, "Expected '}' to end the assembly block");
-
-            return res;
-
-        } else */
         if (TOK_EQ(self, ctok, "ret")) {
             // parse a return statement:
             // ret EXPR 
@@ -1343,13 +1199,18 @@ ks_ast ks_parse_stmt(ks_parser self) {
 
             if (ctok.ttype == KS_TOK_NEWLINE || ctok.ttype == KS_TOK_EOF || ctok.ttype == KS_TOK_SEMI || ctok.ttype == KS_TOK_RBRACE) {
                 // if it has hit an end of file or block, then it should be a ret none
-                return ks_ast_new_ret(ks_ast_new_none());
+                ks_ast nonval = ks_ast_new_none();
+                ks_ast ret = ks_ast_new_ret(nonval);
+                KSO_DECREF(ret);
+                return ret;
             } else {
                 // otherwise, parse an expression
                 ks_ast expr = ks_parse_expr(self);
                 if (expr == NULL) PSTMT_ERREXT();
 
-                return ks_ast_new_ret(expr);
+                ks_ast ret = ks_ast_new_ret(expr);
+                KSO_DECREF(expr);
+                return ret;
             }
 
         } else if (TOK_EQ(self, ctok, "if")) {
@@ -1379,7 +1240,9 @@ ks_ast ks_parse_stmt(ks_parser self) {
             ks_ast body = ks_parse_stmt(self);
             if (body == NULL) PSTMT_ERREXT();
 
-            return ks_ast_new_if(cond, body);
+            ks_ast r_if = ks_ast_new_if(cond, body);
+            KSO_DECREF(cond); KSO_DECREF(body);
+            return r_if;
 
         } else if (TOK_EQ(self, ctok, "while")) {
             // parse an while block:
@@ -1402,7 +1265,10 @@ ks_ast ks_parse_stmt(ks_parser self) {
             ks_ast body = ks_parse_stmt(self);
             if (body == NULL) PSTMT_ERREXT();
 
-            return ks_ast_new_while(cond, body);
+            ks_ast ret_while = ks_ast_new_while(cond, body);
+            KSO_DECREF(cond); 
+            KSO_DECREF(body);
+            return ret_while;
 
         } else if (TOK_EQ(self, ctok, "func")) {
 
@@ -1418,7 +1284,7 @@ ks_ast ks_parse_stmt(ks_parser self) {
 
             ks_str func_name_s = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
             ks_ast func_name = ks_ast_new_var(func_name_s);
-            KSO_CHKREF(func_name_s);
+            KSO_DECREF(func_name_s);
 
             // skip the name
             ADV1();
@@ -1464,8 +1330,15 @@ ks_ast ks_parse_stmt(ks_parser self) {
             // construct a new function value
             ks_ast func_val = ks_ast_new_func(param_names, body);
 
-            // add it to the current block
-            return ks_ast_new_bop(KS_AST_BOP_ASSIGN, func_name, func_val);
+
+            // create an assignment
+            ks_ast r_s_fv = ks_ast_new_bop(KS_AST_BOP_ASSIGN, func_name, func_val);
+
+            KSO_DECREF(func_name);
+            KSO_DECREF(func_val);
+            KSO_DECREF(body);
+            KSO_DECREF(param_names);
+            return r_s_fv;
 
         } else {
             // it is just a default expression
@@ -1492,6 +1365,7 @@ ks_ast ks_parse_stmt(ks_parser self) {
 
             // add the sub statement to the list
             ks_list_push(res->v_list, (kso)sub);
+            KSO_DECREF(sub);
 
             // skip irrelevant tokens
             SKIP_IRR_S();
@@ -1548,6 +1422,7 @@ ks_ast ks_parse_program(ks_parser self) {
 
         // add the statement
         ks_list_push(blk->v_list, (kso)sub);
+        KSO_DECREF(sub);
 
         // skip more irrelevant details
         SKIP_IRR_S();
@@ -1555,8 +1430,6 @@ ks_ast ks_parse_program(ks_parser self) {
 
     return blk;
 }
-
-
 
 
 
@@ -1572,9 +1445,11 @@ TFUNC(parser, free) {
     ks_parser self = (ks_parser)args[0];
     REQ_TYPE("self", self, ks_T_parser);
 
+
     ks_free(self->toks);
 
     KSO_DECREF(self->src_name);
+
     KSO_DECREF(self->src);
 
     ks_free(self);
@@ -1594,7 +1469,7 @@ void ks_init__parser() {
     T_parser = (struct ks_type) {
         KS_TYPE_INIT("parser")
 
-        .f_free = (kso)ks_cfunc_newref(parser_free_)
+        .f_free = (kso)ks_cfunc_new(parser_free_)
 
     };
 

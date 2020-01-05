@@ -144,7 +144,7 @@ int ksc_refconst(ks_code code, kso val) {
 int ksc_refconst_int(ks_code code, int64_t v_int) {
     ks_int myint = ks_int_new(v_int);
     int ret = ksc_refconst(code, (kso)myint);
-    KSO_CHKREF(myint);
+    KSO_DECREF(myint);
     return ret;
 }
 
@@ -152,7 +152,7 @@ int ksc_refconst_int(ks_code code, int64_t v_int) {
 int ksc_refconst_str(ks_code code, const char* cstr, int len) {
     ks_str mystr = ks_str_new_l(cstr, len);
     int ret = ksc_refconst(code, (kso)mystr);
-    KSO_CHKREF(mystr);
+    KSO_DECREF(mystr);
     return ret;
 }
 
@@ -276,7 +276,7 @@ void ks_init__code() {
     T_code = (struct ks_type) {
         KS_TYPE_INIT("code")
 
-        .f_free = (kso)ks_cfunc_newref(code_free_)
+        .f_free = (kso)ks_cfunc_new(code_free_)
 
     };
 

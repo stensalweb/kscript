@@ -1,4 +1,8 @@
-/* codegen.c - implementation of generation of a `ks_code` object from an AST */
+/* codegen.c - implementation of generation of a `ks_code` object from an AST
+
+See `types/code.c` for the actual byte-code production, that is where the actual generation routines lie
+
+*/
 
 #include "ks.h"
 
@@ -373,7 +377,11 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const) {
 
-    if (v_const == NULL) v_const = ks_list_new_empty();
+    if (v_const == NULL) {
+        v_const = ks_list_new_empty();
+        v_const->refcnt--;
+    }
+    
     ks_code code = ks_code_new_empty(v_const);
 
     struct cgi geni;

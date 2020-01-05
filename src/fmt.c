@@ -1,6 +1,11 @@
-/* fmt.c - implementation of string formatting rules and functions */
+/* fmt.c - implementation of string formatting rules and functions, as well as the string building utilities
+
+*/
 
 #include "ks.h"
+
+#include <ctype.h>
+
 
 /* internal format enums */
 
@@ -20,9 +25,6 @@ enum {
     // do zero padding, i.e. %0i
     FE_ZERO = 1<<2,
 
-    // print out the value in hex
-    FE_HEX  = 1<<3,
-
     // end of the flags
     FE__END
 
@@ -35,12 +37,12 @@ struct fmta {
     // width, if applicable. Usually 0
     int width;
 
+    // the integer-base, if applicable, usually 10
+    int base;
+
 };
 
-#define FMTA_NONE ((struct fmta){.flags = FE_NONE, .width = -1})
-
-// returns the base to print in
-#define FMTA_BASE(_fmta) (((_fmta).flags & FE_HEX)?16:10)
+#define FMTA_NONE ((struct fmta){.flags = FE_NONE, .width = -1, .base = 10})
 
 // first 100 base 10-strings
 static const char b10_f100[100][2] = {
@@ -56,82 +58,132 @@ static const char b10_f100[100][2] = {
     "90", "91", "92", "93", "94", "95", "96", "97", "98", "99"
 };
 
-
 // base strings, for bases >= 10
 static const char base_str_digs[] = "0123456789abcdefghijk";
 
+/* helper macros/functions to format basic data types into buffers */
 
-/* helper macros to format basic data types */
-
-
-// appends '_val' as an integer to `_buf` (with buffer pointer _bp)
-#define FMT_INT(_buf, _bp, _args, _val) { \
-    struct fmta args = (struct fmta)(_args); \
-    int64_t v = (int64_t)(_val); \
-    if (v < 0) { _buf[(_bp)++] = '-'; v = -v; } \
-    else if (args.flags & FE_SIGN) _buf[(_bp)++] = '+'; \
-    int sbp = _bp; \
-    if (args.flags & FE_STAR) { \
-        int try = 0; \
-        do { \
-            if (try > 0 && v == 0) { \
-                if (args.flags & FE_ZERO) _buf[(_bp)++] = '0'; \
-                else _buf[(_bp)++] = ' '; \
-            } else { \
-                _buf[(_bp)++] = base_str_digs[v % FMTA_BASE(args)]; \
-                v /= FMTA_BASE(args); \
-            } \
-        } while (++try < args.width || v > 0); \
-    } else { \
-        do { \
-            _buf[(_bp)++] = base_str_digs[v % FMTA_BASE(args)]; \
-            v /= FMTA_BASE(args); \
-        } while (v > 0); \
-    } \
-    FMT_REV(_buf, sbp, _bp); \
+// reverse the string from [start, stop)
+static void buffmt_rev(char* buf, int start, int stop) {
+    return;
+    int i;
+    for (i = start; 2 * (i - start) < stop - start; ++i) {
+        char tc = buf[i];
+        buf[i] = buf[stop - i - 1 + start];
+        buf[stop - i - 1 + start] = tc;
+    }
 }
 
-// appends `_val` as a base 10 floating point value to `_buf` (with buffer pointer _bp)
-#define FMT_FLOAT(_buf, _bp, _args, _val) { \
-    struct fmta args = (struct fmta)(_args); \
-    double v = (double)(_val); \
-    if (v < 0) { _buf[(_bp)++] = '-'; v = -v; } \
-    else if (args.flags & FE_SIGN) _buf[(_bp)++] = '+'; \
-    int sbp = _bp; \
-    uint64_t v_int = (uint64_t)(v); \
-    FMT_INT(_buf, _bp, FMTA_NONE, v_int); \
-    FMT_CHAR(_buf, _bp, '.'); \
-    uint64_t v_frac = (uint64_t)(10000 * (v - v_int)); \
-    struct fmta frac_args = { .flags = FE_ZERO | FE_STAR, .width = 4 }; \
-    FMT_INT(_buf, _bp, frac_args, v_frac); \
+static void buffmt_charp(char* buf, int* bufp, char* str, int len) {
+    memcpy(buf+*bufp, str, len);
+    (*bufp) += len;
+}
+
+// formats an integer given some arguments, updating `buf` and `bufp`
+static void buffmt_int(char* buf, int* bufp, int64_t val, struct fmta args) {
+    if (val < 0) { buf[(*bufp)++] = '-'; val = -val; }
+    else if (args.flags & FE_SIGN) buf[(*bufp)++] = '+';
+
+    int start_buf = *bufp, try = args.width < 0 ? -10000 : 0;
+
+    do {
+        buf[(*bufp)++] = base_str_digs[val % args.base];
+        val /= args.base;
+    } while (val > 0);
+
+
+    buffmt_rev(buf, start_buf, *bufp);
+}
+
+// formats a double-precision floating point to a buffer
+static void buffmt_double(char* buf, int* bufp, double val, struct fmta args) {
+    if (val < 0) { buf[(*bufp)++] = '-'; val = -val; }
+    else if (args.flags & FE_SIGN) buf[(*bufp)++] = '+';
+
+    // output whole number
+    buffmt_int(buf, bufp, (int64_t)val, FMTA_NONE);
+    
+    buffmt_charp(buf, bufp, ".", 1);
+
+    // output fractional part
+    uint64_t v_frac = (uint64_t)(10000 * (val - (int64_t)val));
+    struct fmta frac_args = { .flags = FE_ZERO | FE_STAR, .width = 4 };
+    buffmt_int(buf, bufp, v_frac, frac_args);
+
 }
 
 
-// reverse a buffer, between start and stop points
-#define FMT_REV(_buf, _bp_start, _bp_stop) { \
-    int j; \
-    for (j = _bp_start; 2 * (j - _bp_start) < _bp_stop - _bp_start; ++j) { \
-        char tc = _buf[j]; \
-        _buf[j] = _buf[_bp_stop - j - 1 + _bp_start]; \
-        _buf[_bp_stop - j - 1 + _bp_start] = tc; \
-    } \
+/* string building */
+
+// create a new empty string builder
+ks_strB ks_strB_create() {
+    ks_strB ret;
+    ret.cur = (ks_str)ks_malloc(sizeof(*ret.cur));
+    *ret.cur = (struct ks_str) {
+        KSO_BASE_INIT(ks_T_str, KSOF_NONE)
+        .len = 0,
+    };
+    return ret;
 }
 
-// formats and appends a single character to the buffer
-#define FMT_CHAR(_buf, _bp, _c) { \
-    _buf[(_bp)++] = (char)(_c); \
+// append a string to the string builder
+void ks_strB_add(ks_strB* strb, char* val, int len) {
+    strb->cur = ks_realloc(strb->cur, sizeof(*strb->cur) + strb->cur->len + len);
+    memcpy(&strb->cur->chr[strb->cur->len], val, len);
+    strb->cur->len += len;
 }
 
+// appends repr(obj) to the builder
+void ks_strB_add_repr(ks_strB* strb, kso obj) {
+    if (obj->type == ks_T_str) {
+        ks_strB_add(strb, "\"", 1);
+        ks_strB_add(strb, ((ks_str)obj)->chr, ((ks_str)obj)->len);
+        ks_strB_add(strb, "\"", 1);
+    } else if (obj->type == ks_T_int) {
+        char tmp[100];
+        int tmp_p = 0;
+        buffmt_int(tmp, &tmp_p, ((ks_int)obj)->v_int, FMTA_NONE);
+        ks_strB_add(strb, tmp, tmp_p);
+    } else {
+        ks_str reprS = kso_torepr(obj);
+        ks_strB_add(strb, reprS->chr, reprS->len);
+        KSO_DECREF(reprS);
+    }
+}
+// appends str(obj) to the builder
+void ks_strB_add_tostr(ks_strB* strb, kso obj) {
+    if (obj->type == ks_T_str) {
+        ks_strB_add(strb, ((ks_str)obj)->chr, ((ks_str)obj)->len);
+    } else if (obj->type == ks_T_int) {
+        char tmp[100];
+        int tmp_p = 0;
+
+        buffmt_int(tmp, &tmp_p, ((ks_int)obj)->v_int, FMTA_NONE);
+        ks_strB_add(strb, tmp, tmp_p);
+    } else {
+        ks_str reprS = kso_tostr(obj);
+        ks_strB_add(strb, reprS->chr, reprS->len);
+        KSO_DECREF(reprS);
+    }
+}
+
+// finish building the string, and return the new string
+ks_str ks_strB_finish(ks_strB* strb) {
+    strb->cur->chr[strb->cur->len] = '\0';
+    return strb->cur;
+}
+
+
+/* printf-style formatting */
 
 // create a new string from C-style printf arguments
 ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
 
-    // the current result
-    ks_str self = (ks_str)ks_malloc(sizeof(*self) + 0);
-    *self = (struct ks_str) {
-        KSO_BASE_INIT(ks_T_str, KSOF_NONE)
-        .len = 0,
-    };
+    // empty string
+    if (fmt == NULL || *fmt == '\0') return ks_str_new("");
+
+    // string builder, for building up the value
+    ks_strB ksb = ks_strB_create();
 
     // current formatting flags
     struct fmta F_args = FMTA_NONE;
@@ -147,20 +199,6 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
     // the current position in the temporary buffer
     int tmp_p;
 
-    // digits for bases > 10
-    static const char base_digs[] = "0123456789abcdefghijklmnopqrstuv";
-
-    // macro to determine if a character is alpha (part of the alphabet)
-    #define ISALPHA(_c) (((_c) >= 'a' && (_c) <= 'z') || ((_c) >= 'A' && (_c) <= 'Z'))
-
-    // append `_num` characters from `_buf` to the result
-    #define VCFMT_APPEND(_buf, _num) { \
-        int __len = (int)(_num); \
-        self = ks_realloc(self, sizeof(*self) + self->len + _num); \
-        memcpy(&(self->chr[self->len]), (_buf), __len); \
-        self->len += __len;  \
-    }
-
     // current pointer to the format
     int i, j;
     for (i = 0; fmt[i] != '\0'; ) {
@@ -171,7 +209,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
             i++;
 
             // add a literal '%', don't format
-            if (fmt[i] == '%') { VCFMT_APPEND("%", 1); i++; continue; }
+            if (fmt[i] == '%') { ks_strB_add(&ksb, "%", 1); i++; continue; }
 
             // reset the formatting flags
             F_args = FMTA_NONE;
@@ -179,14 +217,14 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
             // start parsing out the formatting arguments
             F_fld_len = 0;
             // parse until we get to an alpha character, which means we have parsed the formatting field
-            while (fmt[i] && !ISALPHA(fmt[i]) && F_fld_len < 100) {
+            while (fmt[i] && !isalpha(fmt[i]) && F_fld_len < 100) {
                 char ca = fmt[i++];
                 F_fld[F_fld_len++] = ca;
                 /**/ if (ca == '*') F_args.flags |= FE_STAR;
                 else if (ca == '+') F_args.flags |= FE_SIGN;
                 else if (ca == '0') F_args.flags |= FE_ZERO;
                 else {
-                    // maybe emit a warning?
+                    // maybe emit a warning? unrecocognized field flag
                 }
             }
 
@@ -195,6 +233,10 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
 
             // get the specifier, then skip it
             char spec = fmt[i++];
+
+            // reset the temporary buffer pointer
+            tmp_p = 0;
+
 
             /* valid specifiers: 
                 i: int
@@ -205,6 +247,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 s: char* 
                 o: kso, vague (never allocates another string, just uses `<type obj @ addr>` format)
                 V: kso, value (will turn into string)
+                R: kso, repr (turns into its representation)
             */
 
             if (spec == 'i') {
@@ -215,10 +258,9 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 // now, read in the argument
                 int d_val = va_arg(ap, int);
 
-                // we are outputting the base-10 representation into tmp, reversed
-                tmp_p = 0;
-                FMT_INT(tmp, tmp_p, F_args, d_val);
-                VCFMT_APPEND(tmp, tmp_p);
+                // fill a buffer with the contents, then output buffer
+                buffmt_int(tmp, &tmp_p, (int64_t)d_val, F_args);
+                ks_strB_add(&ksb, tmp, tmp_p);
 
             } else if (spec == 'l') {
                 // l: long, 64 bit signed integer output
@@ -228,22 +270,21 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 // now, read in the argument
                 int64_t d_val = va_arg(ap, int64_t);
 
-                // we are outputting the base-10 representation into tmp, reversed
-                tmp_p = 0;
-                FMT_INT(tmp, tmp_p, F_args, d_val);
-                VCFMT_APPEND(tmp, tmp_p);
+                // fill a buffer with the contents, then output buffer
+                buffmt_int(tmp, &tmp_p, d_val, F_args);
+                ks_strB_add(&ksb, tmp, tmp_p);
 
             } else if (spec == 'p') {
                 // `p` for pointer, void*, print as a hex address
-                F_args.flags |= FE_HEX;
+                F_args.base = 16;
 
                 uintptr_t addr = va_arg(ap, uintptr_t);
 
-                tmp_p = 0;
-                FMT_INT(tmp,tmp_p, F_args, addr);
+                ks_strB_add(&ksb, "0x", 2);
 
-                VCFMT_APPEND("0x", 2);
-                VCFMT_APPEND(tmp, tmp_p);
+                // print out the address as a hex number
+                buffmt_int(tmp, &tmp_p, addr, F_args);
+                ks_strB_add(&ksb, tmp, tmp_p);
                 
             } else if (spec == 'f') {
                 // f: float, print out floating point value to some digits
@@ -254,9 +295,9 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 //   https://stackoverflow.com/questions/11270588/variadic-function-va-arg-doesnt-work-with-float
                 double f_val = va_arg(ap, double);
 
-                tmp_p = 0;
-                FMT_FLOAT(tmp, tmp_p, F_args, f_val);
-                VCFMT_APPEND(tmp, tmp_p);
+                // output the basic value
+                buffmt_double(tmp, &tmp_p, f_val, F_args);
+                ks_strB_add(&ksb, tmp, tmp_p);
 
             } else if (spec == 'c') {
                 // c for character, print a single character
@@ -272,7 +313,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
 
                 int i;
                 for (i = 0; i < n_chars; ++i) {
-                    VCFMT_APPEND(&c_val, 1);
+                    ks_strB_add(&ksb, &c_val, 1);
                 }
 
             } else if (spec == 's') {
@@ -281,7 +322,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 // argument length
                 int n_chars = -1;
 
-                // read in length
+                // read in length, %*s -> len, str
                 if (F_args.flags & FE_STAR) n_chars = va_arg(ap, int);
 
                 const char* s_val = va_arg(ap, const char*);
@@ -289,56 +330,43 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 // we calculate how many characters we need
                 if (n_chars < 0) n_chars = strlen(s_val);
 
-                VCFMT_APPEND(s_val, n_chars);
+                ks_strB_add(&ksb, (char*)s_val, n_chars);
 
             } else if (spec == 'o') {
                 // 'o' for object, print out just the generic object format,
                 // and will never recurse or call another function
                 kso o_val = va_arg(ap, kso);
 
-                VCFMT_APPEND("<'", 2);
-                VCFMT_APPEND(o_val->type->name->chr, o_val->type->name->len);
+                ks_strB_add(&ksb, "<'", 2);
+                ks_strB_add(&ksb, o_val->type->name->chr, o_val->type->name->len);
 
-                VCFMT_APPEND("' obj @ 0x", 10);
+                ks_strB_add(&ksb, "' obj @ 0x", 10);
 
-                tmp_p = 0;
                 struct fmta addr_fmt = FMTA_NONE;
-                addr_fmt.flags |= FE_HEX;
-                FMT_INT(tmp, tmp_p, addr_fmt, o_val);
-                VCFMT_APPEND(tmp, tmp_p);
+                addr_fmt.base = 16;
+                buffmt_int(tmp, &tmp_p, (intptr_t)o_val, addr_fmt);
+                ks_strB_add(&ksb, tmp, tmp_p);
 
-                VCFMT_APPEND(">", 1);
+                ks_strB_add(&ksb, ">", 1);
 
             } else if (spec == 'V') {
                 // 'V' for value, print the kscript object as its tostring
                 kso o_val = va_arg(ap, kso);
 
-                ks_str to_str = kso_tostr(o_val);
-
-                // now, print out the string
-                VCFMT_APPEND(to_str->chr, to_str->len);
-
-                KSO_CHKREF(to_str);
+                ks_strB_add_tostr(&ksb, o_val);
 
             } else if (spec == 'R') {
                 // 'R' for representation, print the kscript object as its representation
                 kso o_val = va_arg(ap, kso);
 
-                ks_str to_str = kso_torepr(o_val);
-
-                // now, print out the string
-                VCFMT_APPEND(to_str->chr, to_str->len);
-
-                KSO_CHKREF(to_str);
+                ks_strB_add_repr(&ksb, o_val);
 
             } else {
                 // take an argument off just in case, this may prevent an error
                 va_arg(ap, void*);
 
                 // add a literal ! to signify an error
-                tmp_p = 0;
-                FMT_CHAR(tmp, tmp_p, '!');
-                VCFMT_APPEND(tmp, tmp_p);
+                ks_strB_add(&ksb, "!", 1);
 
                 fprintf(stderr, "Unsupported format code %c used\n", spec);
             }
@@ -349,19 +377,14 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
             for (; fmt[i] != '\0' && fmt[i] != '%'; ++i) ;
 
             // append them here
-            VCFMT_APPEND(&fmt[s_i], (i - s_i));
+
+            ks_strB_add(&ksb, (char*)(fmt+s_i), i - s_i);
 
         }
     }
 
-    // NUL-terminate it
-    self->chr[self->len] = '\0';
-
-    // calculate hash
-    self->v_hash = ks_hash_bytes(self->chr, self->len);
-
     // TODO: try and intern the string
-    return self;
+    return ks_strB_finish(&ksb);
 }
 
 

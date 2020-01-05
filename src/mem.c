@@ -15,12 +15,16 @@ instead of reallocing `size`, it reallocs `A*size+B`
 #define MEM_NEXT_SIZE(_num) ((uint64_t)((_num) * MEM_CONST_A + MEM_CONST_B))
 
 // trace the memory allocations
-#ifdef KS_C_NO_TRACE
+/*#ifdef KS_C_NO_TRACE
 #define memtrace(...) 
 #else
 #define memtrace(...) ks_trace(__VA_ARGS__)
 //#define memtrace(fmt, ...) if (ks_log_level() <= KS_LOG_TRACE) { fprintf(stdout, fmt "\n", __VA_ARGS__); }
 #endif
+*/
+
+// for now, don't trace all mem operations
+#define memtrace(...) {}
 
 // prefixes for sizes
 static const char* size_pfx[] = {
@@ -60,7 +64,6 @@ static size_t mem_cur = 0;
 // keep track of the maximum memory allocated at one time
 static size_t mem_max = 0;
 
-
 // record a change in the memory, by a given amount
 static inline void rec_mem(int64_t amt) {
     mem_cur += amt;
@@ -78,6 +81,7 @@ static inline void rec_mem(int64_t amt) {
 struct ksi_buf {
 
     uint64_t size;
+
     void* data[0];
 
 };
@@ -88,7 +92,7 @@ void* ks_malloc(size_t bytes) {
 
     // give information about allocations > 500 MB
     if (bytes > 500 * 1024 * 1024) {
-        ks_debug("[MEM_LARGE] allocating %i%s...", ks_mem_uv(bytes), ks_mem_us(bytes));
+        ks_debug("[MEM_LARGE] ks_malloc(%i%s) ...", ks_mem_uv(bytes), ks_mem_us(bytes));
     }
     
     // use the C standard library malloc to get a large enough buffer to hold the meta and data size requestd
@@ -96,7 +100,7 @@ void* ks_malloc(size_t bytes) {
 
     // check for a problem
     if (buf == NULL) {
-        ks_error("ks_malloc(%i%s) failed!", ks_mem_uv(bytes), ks_mem_us(bytes));
+        ks_error("ks_malloc(%l) failed!", bytes);
     }
     // set the size
     buf->size = bytes;
@@ -119,7 +123,7 @@ void* ks_realloc(void* ptr, size_t bytes) {
 
     // give information when reallocing 500MB or larger
     if (bytes > 500 * 1024 * 1024) {
-        ks_info("[LARGE] re-allocating %i%s", ks_mem_uv(bytes), ks_mem_us(bytes));
+        ks_info("[MEM_LARGE] ks_realloc(%p, %i%s)", ptr, ks_mem_uv(bytes), ks_mem_us(bytes));
     }
 
     // first, rewind behind the buffer and read the metadata
@@ -140,7 +144,7 @@ void* ks_realloc(void* ptr, size_t bytes) {
         buf = realloc(buf, sizeof(struct ksi_buf) + buf->size);
 
         if (buf == NULL) {
-            ks_error("ks_realloc(%p, %i) failed!", ptr, buf->size);
+            ks_error("ks_realloc(%p, %l) failed!", ptr, buf->size);
             return NULL;
         }
     }
@@ -148,7 +152,7 @@ void* ks_realloc(void* ptr, size_t bytes) {
     // get the user pointer
     void* usr_ptr = (void*)&buf->data;
 
-    memtrace("ks_realloc(%p, %i) -> %p", ptr, bytes, usr_ptr);
+    memtrace("ks_realloc(%p, %l) -> %p # size: %i%s", ptr, bytes, usr_ptr, ks_mem_uv(bytes), ks_mem_us(bytes));
 
     // record memory changes
     rec_mem(buf->size - start_size);
@@ -174,8 +178,6 @@ void ks_free(void* ptr) {
     free(buf);
 
 }
-
-
 
 size_t ks_memuse() {
     return mem_cur;

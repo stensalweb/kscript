@@ -43,7 +43,7 @@ void ks_init__kfunc() {
     T_kfunc = (struct ks_type) {
         KS_TYPE_INIT("kfunc")
 
-        .f_free = (kso)ks_cfunc_newref(kfunc_free_)
+        .f_free = (kso)ks_cfunc_new(kfunc_free_)
     };
 
 }

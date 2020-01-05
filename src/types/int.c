@@ -24,7 +24,9 @@ static struct ks_int int_const_tbl[2 * _INT_CONST_MAX];
 ks_int ks_int_new(int64_t v_int) {
     if (v_int >= -_INT_CONST_MAX && v_int < _INT_CONST_MAX) {
         // it is held in the constant's table, so just return that
-        return &int_const_tbl[v_int + _INT_CONST_MAX];
+        ks_int self = &int_const_tbl[v_int + _INT_CONST_MAX];
+        KSO_INCREF(self);
+        return self;
     } else {
         // else, we need to allocate a new integer size
         // NOTE: while we could attempt to intern integers, many tests (like Python's)
@@ -356,22 +358,22 @@ void ks_init__int() {
     T_int = (struct ks_type) {
         KS_TYPE_INIT("int")
 
-        .f_str   = (kso)ks_cfunc_newref(int_str_),
-        .f_repr  = (kso)ks_cfunc_newref(int_repr_),
+        .f_str   = (kso)ks_cfunc_new(int_str_),
+        .f_repr  = (kso)ks_cfunc_new(int_repr_),
 
-        .f_add   = (kso)ks_cfunc_newref(int_add_),
-        .f_sub   = (kso)ks_cfunc_newref(int_sub_),
-        .f_mul   = (kso)ks_cfunc_newref(int_mul_),
-        .f_div   = (kso)ks_cfunc_newref(int_div_),
-        .f_mod   = (kso)ks_cfunc_newref(int_mod_),
-        .f_pow   = (kso)ks_cfunc_newref(int_pow_),
+        .f_add   = (kso)ks_cfunc_new(int_add_),
+        .f_sub   = (kso)ks_cfunc_new(int_sub_),
+        .f_mul   = (kso)ks_cfunc_new(int_mul_),
+        .f_div   = (kso)ks_cfunc_new(int_div_),
+        .f_mod   = (kso)ks_cfunc_new(int_mod_),
+        .f_pow   = (kso)ks_cfunc_new(int_pow_),
 
-        .f_lt    = (kso)ks_cfunc_newref(int_lt_),
-        .f_le    = (kso)ks_cfunc_newref(int_le_),
-        .f_gt    = (kso)ks_cfunc_newref(int_gt_),
-        .f_ge    = (kso)ks_cfunc_newref(int_ge_),
-        .f_eq    = (kso)ks_cfunc_newref(int_eq_),
-        .f_ne    = (kso)ks_cfunc_newref(int_ne_),
+        .f_lt    = (kso)ks_cfunc_new(int_lt_),
+        .f_le    = (kso)ks_cfunc_new(int_le_),
+        .f_gt    = (kso)ks_cfunc_new(int_gt_),
+        .f_ge    = (kso)ks_cfunc_new(int_ge_),
+        .f_eq    = (kso)ks_cfunc_new(int_eq_),
+        .f_ne    = (kso)ks_cfunc_new(int_ne_),
 
     };
 

@@ -1,4 +1,13 @@
-/* exec.c - the main file implementing the bytecode interpreter's execution loop */
+/* exec.c - the main file implementing the bytecode interpreter's execution loop 
+
+kscript uses a bytecode interpreter with computed goto to have a fairly efficient execution cycle.
+
+Much is still in the air about this though; I may switch to smaller instructions, more instructions, and
+internals are still very much not-pinned-down.
+
+The biggest things to handle from here are type/module/function creation & closures
+
+*/
 
 #include "ks.h"
 
@@ -8,7 +17,7 @@
 
 #ifdef DO_EXEC_TRACE
 // if execution tracing is enabled, debug out the arguments
-//#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
+#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
 #else
 #define _exec_trace(...)
 #endif
@@ -29,7 +38,6 @@ static struct {
         int __max_len;
 
     } stk;
-
 
     // the virtual machine's frame stack
     struct vm_frame_stk {
@@ -76,7 +84,6 @@ static int VM_push_frame(ks_code code) {
     VM.frame_stk[idx].v_const = code->v_const;
     VM.frame_stk[idx].start_stk_len = VM.stk.len;
     VM.frame_stk[idx].local_vars = ks_dict_new_empty();
-    KSO_INCREF(VM.frame_stk[idx].local_vars);
     return idx;
 }
 
@@ -95,6 +102,18 @@ static inline int VM_stk_push(kso obj) {
         VM.stk.__max_len = VM.stk.len;
     }
     KSO_INCREF(obj);
+    VM.stk.base[idx] = obj;
+}
+
+// pushes an object on the stack, returning the index
+// NOTE: Does not record a reference
+static inline int VM_stk_pushu(kso obj) {
+    int idx = VM.stk.len++;
+    if (VM.stk.len > VM.stk.__max_len) {
+        VM.stk.base = realloc(VM.stk.base, sizeof(kso) * VM.stk.len);
+        VM.stk.__max_len = VM.stk.len;
+    }
+    //KSO_INCREF(obj);
     VM.stk.base[idx] = obj;
 }
 
@@ -313,13 +332,12 @@ static void VM_exec() {
             }
             
             found = ks_dict_get(VM.globals, (kso)v_str, v_str->v_hash);
-
             if (found == NULL) EXEC_EXC("Unknown variable '%s'", v_str->chr);
 
             load_resolve: ;
-            
+
             // otherwise, it was found, so pop it on the stack
-            VM_stk_push(found);
+            VM_stk_pushu(found);
 
             NEXT_INST();
 
@@ -334,11 +352,10 @@ static void VM_exec() {
             found = ks_F_getattr->v_cfunc(2, imm_args);
             if (found == NULL) EXEC_EXC_RECLAIM("KeyError: %R", v_str);
 
-            VM_stk_push(found);
+            VM_stk_pushu(found);
             KSO_DECREF(imm_args[0]);
 
             NEXT_INST();
-
 
         INST_LABEL(KSBC_STORE)
             DECODE(ksbc_i32);
@@ -362,7 +379,7 @@ static void VM_exec() {
             found = ks_F_setattr->v_cfunc(3, imm_args);
             if (found == NULL) EXEC_EXC_RECLAIM("KeyError: %R", v_str);
 
-            VM_stk_push(found);
+            VM_stk_pushu(found);
             KSO_DECREF(imm_args[0]);
             KSO_DECREF(imm_args[2]);
 
@@ -392,7 +409,6 @@ static void VM_exec() {
                 VM_push_frame(kf->code);
                 pc = CUR_SCOPE().pc;
 
-
                 // set up the rest of the scope
                 int i;
                 for (i = 0; i < kf->params->len; ++i) {
@@ -411,14 +427,15 @@ static void VM_exec() {
             } else if (func->type == ks_T_cfunc) {
                 int n_args = inst.i32.i32-1;
                 if (n_args <= 8) {
-
                     // use immediate args
                     memcpy(imm_args, args_p, n_args * sizeof(kso));
-                    new_obj = kso_call(func, inst.i32.i32 - 1, imm_args);
+
+                    //new_obj = kso_call(func, inst.i32.i32 - 1, imm_args);
+                    new_obj = ((ks_cfunc)func)->v_cfunc(n_args, imm_args);
                     if (new_obj == NULL) EXEC_EXC_RECLAIM("During function call, calling on obj: `%V`, had an exception", func)
                     //if (new_obj == NULL) EXEC_EXC("During function call, calling on obj: `%V`, had an exception", func);
 
-                    VM_stk_push(new_obj);
+                    VM_stk_pushu(new_obj);
 
                     // done with arguments
                     DECREF_N(imm_args, n_args);
@@ -447,7 +464,7 @@ static void VM_exec() {
                 new_obj = ks_F_getitem->v_cfunc(n_args, imm_args);
                 if (new_obj == NULL) EXEC_EXC_RECLAIM("During getitem call, there was an exception", func)
 
-                VM_stk_push(new_obj);
+                VM_stk_pushu(new_obj);
 
                 // done with arguments
                 DECREF_N(imm_args, n_args);
@@ -471,10 +488,11 @@ static void VM_exec() {
                 new_obj = ks_F_setitem->v_cfunc(n_args, imm_args);
                 if (new_obj == NULL) EXEC_EXC_RECLAIM("During setitem call, there was an exception", func)
 
-                VM_stk_push(new_obj);
 
                 // done with arguments
                 DECREF_N(imm_args, n_args);
+
+                VM_stk_pushu(new_obj);
 
                 NEXT_INST();
             } else {
@@ -492,17 +510,13 @@ static void VM_exec() {
             new_obj = (kso)ks_tuple_new(args_p, inst.i32.i32);
             if (new_obj == NULL) EXEC_EXC("Internal error during tuple creation");
 
-            // now, add the tuple
-            KSO_INCREF(new_obj);
-
             // since the objects will now be referenced by the tuple, remove the stack's reference
             // TODO: Maybe have a more efficient way of constructing a tuple from freshly moved references?
             DECREF_N(args_p, inst.i32.i32);
-            
+   
             // add list
-            VM_stk_push(new_obj);
-            KSO_DECREF(new_obj);
-            
+            VM_stk_pushu(new_obj);
+
             NEXT_INST();
 
         INST_LABEL(KSBC_LIST)
@@ -517,15 +531,11 @@ static void VM_exec() {
                 EXEC_EXC("Internal error during list creation");
             }
 
-            // now, add the list
-            KSO_INCREF(new_obj);
-
             DECREF_N(args_p, inst.i32.i32);
 
             // add list
-            VM_stk_push(new_obj);
-            KSO_DECREF(new_obj);
-            
+            VM_stk_pushu(new_obj);
+
             NEXT_INST();
 
 
@@ -536,21 +546,11 @@ static void VM_exec() {
             imm_args[1] = VM_stk_pop(); imm_args[0] = VM_stk_pop(); \
             new_obj = _opcfunc->v_cfunc(2, imm_args); \
             if (new_obj == NULL) EXEC_EXC_RECLAIM("Error in op " _opstr); \
-            VM_stk_push(new_obj); \
+            VM_stk_pushu(new_obj); \
             DECREF_N(imm_args, 2); \
             NEXT_INST();
 
-        INST_LABEL(KSBC_ADD)
-            DECODE(ksbc_);
-            _exec_trace("bop +");
-            imm_args[1] = VM_stk_pop(); imm_args[0] = VM_stk_pop();
-            new_obj = ks_F_add->v_cfunc(2, imm_args);
-            //new_obj = (kso)ks_int_new(((ks_int)imm_args[0])->v_int + ((ks_int)imm_args[1])->v_int);
-            VM_stk_push(new_obj);
-            DECREF_N(imm_args, 2);
-            NEXT_INST();
-
-        //T_BOP_LABEL(KSBC_ADD, "+", ks_F_add)
+        T_BOP_LABEL(KSBC_ADD, "+", ks_F_add)
         T_BOP_LABEL(KSBC_SUB, "-", ks_F_sub)
         T_BOP_LABEL(KSBC_MUL, "*", ks_F_mul)
         T_BOP_LABEL(KSBC_DIV, "/", ks_F_div)
@@ -562,7 +562,6 @@ static void VM_exec() {
         T_BOP_LABEL(KSBC_GE, ">=", ks_F_ge)
         T_BOP_LABEL(KSBC_EQ, "==", ks_F_eq)
         T_BOP_LABEL(KSBC_NE, "!=", ks_F_ne)
-
 
         INST_LABEL(KSBC_JMP)
             DECODE(ksbc_i32);
@@ -683,8 +682,6 @@ static kso kso_vm_call_kfunc(ks_kfunc func, int n_args, kso* args) {
     VM_exec();
 
     kso val = VM_stk_pop();
-
-    val->refcnt--;
 
     return val;
 

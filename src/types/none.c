@@ -19,7 +19,7 @@ void ks_init__none() {
 
     //create constant with 1 reference
     V_none = (struct ks_none) {
-        KSO_BASE_INIT_R(ks_T_none, KSOF_NONE, 1)
+        KSO_BASE_INIT_R(ks_T_none, KSOF_IMMORTAL, 1)
     };
 }
 

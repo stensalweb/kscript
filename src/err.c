@@ -9,6 +9,7 @@ static ks_list err_stk = NULL;
 
 void* kse_addo(ks_str errmsg) {
     ks_list_push(err_stk, (kso)errmsg);
+    KSO_DECREF(errmsg);
     return NULL;
 }
 
@@ -16,7 +17,9 @@ void* kse_addo(ks_str errmsg) {
 void* kse_add(const char* errmsg) {
 
     // add it to the error stack
-    ks_list_push(err_stk, (kso)ks_str_new(errmsg));
+    kso new_str = (kso)ks_str_new(errmsg);
+    ks_list_push(err_stk, new_str);
+    KSO_DECREF(new_str);
 
     return NULL;
 }
@@ -31,6 +34,8 @@ void* kse_fmt(const char* fmt, ...) {
 
     // push it onto the error stack
     ks_list_push(err_stk, (kso)filled);
+
+    KSO_DECREF(filled);
 
     return NULL;
 }
@@ -79,8 +84,8 @@ void* kse_tok(ks_tok tok, const char* fmt, ...) {
 
         // line length
         int ll = i - lsi;
-        ks_str new_err_str = ks_str_new_cfmt("%*s\n%*s\n%*c^%*c\n@ Line %i, Col %i, in '%*s'", 
-            (int)errstr->len, errstr->chr, 
+        ks_str new_err_str = ks_str_new_cfmt("%V\n%*s\n%*c^%*c\n@ Line %i, Col %i, in '%*s'", 
+            errstr, 
             ll, src + lsi,
             tok.col, ' ',
             tok.len - 1, '~',
@@ -88,14 +93,14 @@ void* kse_tok(ks_tok tok, const char* fmt, ...) {
             tok.v_parser->src_name->len, tok.v_parser->src_name->chr
         );
 
-        KSO_CHKREF(errstr);
+        KSO_DECREF(errstr);
         errstr = new_err_str;
 
     }
 
 
     kse_addo(errstr);
-    KSO_CHKREF(errstr);
+    KSO_DECREF(errstr);
 
     return NULL;
 }

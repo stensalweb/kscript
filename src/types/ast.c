@@ -48,7 +48,6 @@ ks_ast ks_ast_new_int(int64_t v_int) {
         _AST_TOK_INIT
         .v_val = (kso)ks_int_new(v_int)
     };
-    KSO_INCREF(self->v_val);
     return self;
 }
 
@@ -102,7 +101,6 @@ ks_ast ks_ast_new_tuple(ks_ast* items, int n_items) {
         .atype = KS_AST_TUPLE,
         .v_list = ks_list_new((kso*)items, n_items),
     };
-    KSO_INCREF(self->v_list);
     return self;
 }
 
@@ -115,7 +113,6 @@ ks_ast ks_ast_new_list(ks_ast* items, int n_items) {
         .atype = KS_AST_LIST,
         .v_list = ks_list_new((kso*)items, n_items),
     };
-    KSO_INCREF(self->v_list);
     return self;
 }
 
@@ -129,7 +126,6 @@ ks_ast ks_ast_new_call(ks_ast* items, int n_items) {
         .atype = KS_AST_CALL,
         .v_list = ks_list_new((kso*)items, n_items),
     };
-    KSO_INCREF(self->v_list);
     return self;
 }
 
@@ -143,7 +139,6 @@ ks_ast ks_ast_new_subscript(ks_ast* items, int n_items) {
         .atype = KS_AST_SUBSCRIPT,
         .v_list = ks_list_new((kso*)items, n_items),
     };
-    KSO_INCREF(self->v_list);
     return self;
 }
 
@@ -237,7 +232,6 @@ ks_ast ks_ast_new_block_empty() {
         .atype = KS_AST_BLOCK,
         .v_list = ks_list_new_empty()
     };
-    KSO_INCREF(self->v_list);
     return self;
 }
 
@@ -249,7 +243,6 @@ ks_ast ks_ast_new_block(ks_ast* items, int n_items) {
         .atype = KS_AST_BLOCK,
         .v_list = ks_list_new((kso*)items, n_items)
     };
-    KSO_INCREF(self->v_list);
     return self;
 }
 
@@ -352,7 +345,7 @@ void ks_init__ast() {
     T_ast = (struct ks_type) {
         KS_TYPE_INIT("ast")
 
-        .f_free = (kso)ks_cfunc_newref(ast_free_)
+        .f_free = (kso)ks_cfunc_new(ast_free_)
 
     };
 

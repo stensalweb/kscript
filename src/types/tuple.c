@@ -44,8 +44,6 @@ TFUNC(tuple, free) {
     #undef SIG
 }
 
-
-
 TFUNC(tuple, repr) {
     #define SIG "tuple.__repr__(self)"
     REQ_N_ARGS(1);
@@ -58,25 +56,21 @@ TFUNC(tuple, repr) {
         return (kso)ks_str_new_cfmt("(%R,)", self->items[0]);
     }
 
-    ks_str built = ks_str_new("(");
-    KSO_INCREF(built);
+    ks_strB ksb = ks_strB_create();
+
+    ks_strB_add(&ksb, "(", 1);
 
     int i;
     for (i = 0; i < self->len; ++i) {
-        // valid entry
-        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
-        KSO_INCREF(next_built);
-        KSO_DECREF(built);
-        built = next_built;
+        if (i != 0) ks_strB_add(&ksb, ", ", 2);
+        ks_strB_add_repr(&ksb, self->items[i]);
     }
 
-    ks_str result = ks_str_new_cfmt("%V)", built);
-    KSO_DECREF(built);
+    ks_strB_add(&ksb, ")", 1);
 
-    return (kso)result;
+    return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
-
 
 TFUNC(tuple, str) {
     #define SIG "tuple.__str__(self)"
@@ -90,22 +84,19 @@ TFUNC(tuple, str) {
         return (kso)ks_str_new_cfmt("(%R,)", self->items[0]);
     }
 
-    ks_str built = ks_str_new("(");
-    KSO_INCREF(built);
+    ks_strB ksb = ks_strB_create();
+
+    ks_strB_add(&ksb, "(", 1);
 
     int i;
     for (i = 0; i < self->len; ++i) {
-        // valid entry
-        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
-        KSO_INCREF(next_built);
-        KSO_DECREF(built);
-        built = next_built;
+        if (i != 0) ks_strB_add(&ksb, ", ", 2);
+        ks_strB_add_repr(&ksb, self->items[i]);
     }
 
-    ks_str result = ks_str_new_cfmt("%V)", built);
-    KSO_DECREF(built);
+    ks_strB_add(&ksb, ")", 1);
 
-    return (kso)result;
+    return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
 
@@ -120,10 +111,10 @@ void ks_init__tuple() {
     T_tuple = (struct ks_type) {
         KS_TYPE_INIT("tuple")
 
-        .f_free = (kso)ks_cfunc_newref(tuple_free_),
+        .f_free = (kso)ks_cfunc_new(tuple_free_),
 
-        .f_repr = (kso)ks_cfunc_newref(tuple_repr_),
-        .f_str  = (kso)ks_cfunc_newref(tuple_str_)
+        .f_repr = (kso)ks_cfunc_new(tuple_repr_),
+        .f_str  = (kso)ks_cfunc_new(tuple_str_)
 
     };
 
