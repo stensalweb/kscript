@@ -1,4 +1,13 @@
-# Makefile - describes building the kscript project
+# Makefile - describes building the kscript library & executable
+#
+# Full makefile build:
+# 1. run `make init`. Just run this 
+# 2. edit `include/ks_config.h`, reading the comments to understand what each option does
+# 3. run `make` to build the library, executable, etc into `lib/`, `bin/`
+# 4. Run them
+# 5. If desired, run `sudo make install` to install into `/usr/local/`.
+#      To install into another directory, run `PREFIX=directory/to/install sudo make install`
+#
 #
 # @author   : Cade Brown <brown.cade@gmail.com>
 # @license  : WTFPL (http://www.wtfpl.net/)
@@ -9,6 +18,8 @@
 CC         ?= cc
 # set the compiler flags
 CFLAGS     ?= -O3 -std=c99
+# set the installation prefix
+PREFIX     ?= /usr/local
 
 
 # -*- INPUT FILES
@@ -16,7 +27,8 @@ CFLAGS     ?= -O3 -std=c99
 # the sources for our kscript library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
 libkscript_types_src := $(addprefix src/types/, none.c bool.c int.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c)
-libkscript_src := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c ) $(libkscript_types_src)
+libkscript_src   := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c ) $(libkscript_types_src)
+libkscript_src_h := $(addprefix include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
 
 # the sources for the kscript executable (so things can be ran from 
 #   commandline)
@@ -30,21 +42,25 @@ kscript_o      := $(patsubst %.c,%.o, $(kscript_src))
 # -*- OUTPUT FILES
 
 # where to build the shared library to
-libkscript_so  := libkscript.so
+libkscript_so  := ./lib/libkscript.so
 # and static
-libkscript_a   := libkscript.a
+libkscript_a   := ./lib/libkscript.a
 
 # where to build the executable to
-kscript_exe    := kscript
+kscript_exe    := ./bin/kscript
 
 
 # -*- RULES
 
 # these are rules that are `not real files`, but can be ran like `make clean`
-.PHONY: clean default
+.PHONY: default init clean install uninstall
 
 # by default, build the `ec` binary
 default: $(kscript_exe)
+
+# initializes the build process, cleaning, and then creating the configuration header
+init: clean
+	cp ks_config.T.h ./include/ks_config.h
 
 # using wildcard means it only removes what exists, which makes for more useful
 #   messages
@@ -55,8 +71,8 @@ clean:
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`
 # `$<`: means the input file (%.c in this case)
 # `$@`: means the output file (%.o in thie case)
-%.o: %.c
-	$(CC) $(CFLAGS) -Isrc -fPIC $< -c -o $@
+%.o: %.c | $(libkscript_src_h)
+	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
 # Since `libkscript_o` contains many files, we use `$^` to mean `all input files together`
@@ -71,5 +87,11 @@ $(libkscript_a): $(libkscript_o)
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
 $(kscript_exe): $(kscript_o) $(libkscript_so) $(MOD_std_so)
-	$(CC) $(CFLAGS) -Wl,-rpath=./ -L./ $(kscript_o) -lkscript -lm -ldl -o $@
+	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(kscript_o) -lkscript -lm -ldl -o $@
 
+# rule to install the whole package to PREFIX
+install: $(libkscript_so) $(kscript_exe) $(libkscript_src_h)
+	mkdir -p $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/include
+	cp -rf $(kscript_exe) $(DESTDIR)$(PREFIX)/bin
+	cp -rf $(libkscript_so) $(DESTDIR)$(PREFIX)/lib
+	cp -rf  $(libkscript_src_h) $(DESTDIR)$(PREFIX)/include

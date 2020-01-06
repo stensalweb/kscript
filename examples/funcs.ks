@@ -18,7 +18,7 @@ func is_prime(x) {
 func test(x) {
     if is_prime(x) {
         ret print(x, "is prime")
-    } {
+    } else {
         ret print(x, "is not prime")
     }
 }

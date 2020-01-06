@@ -10,11 +10,8 @@
 
 /* kscript configuration options */
 
-// if defined, `ks_trace` calls become nothing, so tracing is not available, but makes more efficient code
-//#define KS_C_NO_TRACE
-
-// if defined, `ks_debug` calls become nothing, so debugging is not available, but makes more efficient code
-//#define KS_C_NO_DEBUG
+// generated from `./ks_config.T.h`
+#include <ks_config.h>
 
 /* standard system headers */
 
@@ -34,20 +31,22 @@
 // -lm
 #include <math.h>
 
+
+/* kscript sub-headers */
+
 /* include bytecode definitions */
-#include "ks_bytecode.h"
+#include <ks_bytecode.h>
 
 
 /* include the builtin type definitions */
-#include "ks_types.h"
+#include <ks_types.h>
 
 /* include the builtin functions  */
-#include "ks_funcs.h"
+#include <ks_funcs.h>
 
 
 /* object interface, generic object manipulation */
-#include "kso.h"
-
+#include <kso.h>
 
 
 /* general library functions */
