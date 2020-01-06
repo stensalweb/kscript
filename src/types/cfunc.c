@@ -7,7 +7,7 @@
 ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc) {
     ks_cfunc self = (ks_cfunc)ks_malloc(sizeof(*self));
     *self = (struct ks_cfunc) {
-        KSO_BASE_INIT(ks_T_cfunc, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_cfunc)
         .v_cfunc = v_cfunc
     };
     return self;
@@ -21,7 +21,9 @@ void ks_init__cfunc() {
 
     /* first create the type */
     T_cfunc = (struct ks_type) {
-        KS_TYPE_INIT("cfunc")
+        KSO_BASE_INIT(ks_T_type)
+
+        .name = ks_str_new("cfunc"),
 
     };
 

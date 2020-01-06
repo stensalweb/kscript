@@ -13,6 +13,7 @@ ks_cfunc
     ks_F_call = NULL,
     ks_F_hash = NULL,
     ks_F_rand = NULL,
+    ks_F_import = NULL,
     
     ks_F_repr = NULL,
     
@@ -88,7 +89,7 @@ FUNC(type) {
     #define SIG "type(obj)"
     REQ_N_ARGS(1);
 
-    return kso_newref((kso)args[0]->type);
+    return KSO_NEWREF(args[0]->type);
     #undef SIG
 }
 
@@ -131,6 +132,15 @@ FUNC(repr) {
     #define SIG "repr(obj)"
     REQ_N_ARGS(1);
     return (kso)ks_str_new_cfmt("%R", args[0]);
+    #undef SIG
+}
+
+FUNC(import) {
+    #define SIG "import(name)"
+    REQ_N_ARGS(1);
+    ks_str name = (ks_str)args[0];
+    REQ_TYPE("name", name, ks_T_str);
+    return (kso)ks_load_module(name);
     #undef SIG
 }
 
@@ -312,6 +322,8 @@ void ksf_init() {
     ks_F_call = ks_cfunc_new(call_);
     ks_F_hash = ks_cfunc_new(hash_);
     ks_F_rand = ks_cfunc_new(rand_);
+    
+    ks_F_import = ks_cfunc_new(import_);
 
     ks_F_repr = ks_cfunc_new(repr_);
 

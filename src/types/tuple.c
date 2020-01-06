@@ -8,7 +8,7 @@
 ks_tuple ks_tuple_new(kso* items, int n_items) {
     ks_tuple self = (ks_tuple)ks_malloc(sizeof(*self) + n_items * sizeof(kso));
     *self = (struct ks_tuple) {
-        KSO_BASE_INIT(ks_T_tuple, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_tuple)
         .len = n_items
     };
 
@@ -109,13 +109,13 @@ void ks_init__tuple() {
 
     /* first create the type */
     T_tuple = (struct ks_type) {
-        KS_TYPE_INIT("tuple")
+        KSO_BASE_INIT(ks_T_type)
+        .name   = ks_str_new("tuple"),
 
         .f_free = (kso)ks_cfunc_new(tuple_free_),
 
         .f_repr = (kso)ks_cfunc_new(tuple_repr_),
         .f_str  = (kso)ks_cfunc_new(tuple_str_)
-
     };
 
 }

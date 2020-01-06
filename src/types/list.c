@@ -8,7 +8,7 @@
 ks_list ks_list_new(kso* items, int n_items) {
     ks_list self = (ks_list)ks_malloc(sizeof(*self));
     *self = (struct ks_list) {
-        KSO_BASE_INIT(ks_T_list, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_list)
         .len = n_items,
         .items = (kso*)ks_malloc(n_items * sizeof(kso))
     };
@@ -178,7 +178,7 @@ TFUNC(list, getitem) {
 
     int64_t idx = key->v_int;
     if (idx < 0 || idx >= self->len) return kse_fmt("KeyError: %l (out of range)", idx);
-    return kso_newref(self->items[idx]);
+    return KSO_NEWREF(self->items[idx]);
     #undef SIG
 }
 
@@ -212,7 +212,6 @@ TFUNC(list, add) {
     REQ_TYPE("self", self, ks_T_list);
     kso other = args[1];
 
-
     if (other->type == ks_T_list) {
         // append all the values
         ks_list ret = ks_list_new(self->items, self->len);
@@ -224,27 +223,6 @@ TFUNC(list, add) {
     }
 
     return NULL;
-
-    if (self->len == 0) {
-        return (kso)ks_str_new("[]");
-    } else if (self->len == 1) {
-        return (kso)ks_str_new_cfmt("[%R]", self->items[0]);
-    }
-
-    ks_str built = ks_str_new("[");
-
-    int i;
-    for (i = 0; i < self->len; ++i) {
-        // valid entry
-        ks_str next_built = ks_str_new_cfmt(i == 0 ? "%V%R" : "%V, %R", built, self->items[i]);
-        KSO_DECREF(built);
-        built = next_built;
-    }
-
-    ks_str result = ks_str_new_cfmt("%V]", built);
-    KSO_DECREF(built);
-
-    return (kso)result;
     #undef SIG
 }
 
@@ -258,7 +236,9 @@ void ks_init__list() {
 
     /* first create the type */
     T_list = (struct ks_type) {
-        KS_TYPE_INIT("list")
+        KSO_BASE_INIT(ks_T_type)
+
+        .name   = ks_str_new("list"),
 
         .f_free = (kso)ks_cfunc_new(list_free_),
 

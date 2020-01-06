@@ -7,7 +7,7 @@
 ks_code ks_code_new_empty(ks_list v_const) {
     ks_code self = (ks_code)ks_malloc(sizeof(*self));
     *self = (struct ks_code) {
-        KSO_BASE_INIT(ks_T_code, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_code)
         .v_const = v_const,
         .bc_n = 0, .bc = NULL,
         .meta_ast_n = 0, .meta_ast = NULL
@@ -275,9 +275,11 @@ void ks_init__code() {
 
     /* first create the type */
     T_code = (struct ks_type) {
-        KS_TYPE_INIT("code")
+        KSO_BASE_INIT(ks_T_type)
 
-        .f_free = (kso)ks_cfunc_new(code_free_)
+        .name = ks_str_new("code"),
+
+        .f_free = (kso)ks_cfunc_new(code_free_),
 
     };
 

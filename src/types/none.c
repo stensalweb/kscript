@@ -12,14 +12,18 @@ struct ks_none V_none, *ks_V_none = &V_none;
 void ks_init__none() {
 
     /* first create the type */
+
+    // create the type
     T_none = (struct ks_type) {
-        KS_TYPE_INIT("none")
+        KSO_BASE_INIT(ks_T_type)
+
+        .name = ks_str_new("none")
 
     };
 
-    //create constant with 1 reference
+    // create the global none
     V_none = (struct ks_none) {
-        KSO_BASE_INIT_R(ks_T_none, KSOF_IMMORTAL, 1)
+        KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_none)
     };
 }
 

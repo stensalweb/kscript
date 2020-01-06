@@ -6,7 +6,7 @@
 ks_kfunc ks_kfunc_new(ks_list params, ks_code code) {
     ks_kfunc self = (ks_kfunc)ks_malloc(sizeof(*self));
     *self = (struct ks_kfunc) {
-        KSO_BASE_INIT(ks_T_kfunc, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_kfunc)
         .code = code,
         .params = params
     };
@@ -15,7 +15,6 @@ ks_kfunc ks_kfunc_new(ks_list params, ks_code code) {
     KSO_INCREF(code);
     return self;
 }
-
 
 
 TFUNC(kfunc, free) {
@@ -41,9 +40,11 @@ void ks_init__kfunc() {
 
     /* first create the type */
     T_kfunc = (struct ks_type) {
-        KS_TYPE_INIT("kfunc")
+        KSO_BASE_INIT(ks_T_type)
 
-        .f_free = (kso)ks_cfunc_new(kfunc_free_)
+        .name = ks_str_new("kfunc"),
+
+        .f_free = (kso)ks_cfunc_new(kfunc_free_),
     };
 
 }

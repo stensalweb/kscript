@@ -32,7 +32,6 @@ print (x, x["asdf"])
 # if you uncomment the following line, you will see a KeyError pop up
 #print (x["non-existant"])
 
-
 # you can get the type of an object by using the `type` function, and then output the name with its attr `__name__`
 print (type(x))
 print (type(x).__name__)

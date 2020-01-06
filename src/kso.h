@@ -92,11 +92,14 @@ static inline void KSO_DECREF_N(kso* objs, int n) {
     }
 }
 
-// returns a new reference to the object (just a helpful method)
-static inline kso kso_newref(kso obj) {
+// returns a new reference to the object, for convenience
+static inline kso _kso_newref(kso obj) {
     KSO_INCREF(obj);
     return obj;
 }
+
+// create a new reference to an object, and returns the object
+#define KSO_NEWREF(_obj) (_kso_newref((kso)(_obj)))
 
 
 #endif

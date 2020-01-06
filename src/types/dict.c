@@ -21,7 +21,7 @@ Dictionary implementation:
 ks_dict ks_dict_new_empty() {
     ks_dict self = (ks_dict)ks_malloc(sizeof(*self));
     *self = (struct ks_dict) {
-        KSO_BASE_INIT(ks_T_dict, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_dict)
         .n_items = 0,
         .n_buckets = _DICT_MIN_LEN,
         .buckets = ks_malloc(sizeof(*self->buckets) * _DICT_MIN_LEN)
@@ -130,6 +130,8 @@ void ks_dict_resize(ks_dict self, int new_size) {
 
 int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
 
+    KSO_INCREF(val);
+
     // make sure it is large enough
     if (self->n_buckets * _DICT_LOAD_MAX <= self->n_items * 100) {
         ks_dict_resize(self, _DICT_NEW_SIZE(self));
@@ -143,7 +145,6 @@ int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
 
         if (dict_entry_matches(*entry, key, hash)) {
             // we've found it, just replace the value
-            KSO_INCREF(val);
             KSO_DECREF(entry->val);
             entry->val = val;
             return b_idx;
@@ -157,7 +158,6 @@ int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
 
     // if we've gotten to here, it means we found an empty bucket, so just replace it, and add the new item
     KSO_INCREF(key);
-    KSO_INCREF(val);
     
     self->n_items++;
 
@@ -180,7 +180,6 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
     while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
         if (dict_entry_matches(*entry, key, hash)) {
             // we've found a match, just return it
-            KSO_INCREF(entry->val);
             return entry->val;
         }
 
@@ -195,6 +194,20 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
 
 }
 
+// gets an item in the dictionary, given a C-string key
+kso ks_dict_get_cstr(ks_dict self, char* cstr) {
+    ks_str stro = ks_str_new(cstr);
+    kso ret = ks_dict_get(self, (kso)stro, stro->v_hash);
+    KSO_DECREF(stro);
+    return ret;
+}
+
+// sets an item in the dictionary, given a C-string key
+void ks_dict_set_cstr(ks_dict self, char* cstr, kso val) {
+    ks_str stro = ks_str_new(cstr);
+    ks_dict_set(self, (kso)stro, stro->v_hash, val);
+    KSO_DECREF(stro);
+}
 
 
 /* TYPE FUNCS */
@@ -309,8 +322,7 @@ TFUNC(dict, getitem) {
         }
     }
 
-
-    return kso_newref(res);
+    return KSO_NEWREF(res);
     #undef SIG
 }
 
@@ -323,7 +335,7 @@ TFUNC(dict, setitem) {
 
     ks_dict_set(self, key, kso_hash(key), val);
 
-    return kso_newref(val);
+    return KSO_NEWREF(val);
     #undef SIG
 }
 
@@ -339,7 +351,9 @@ void ks_init__dict() {
 
     /* first create the type */
     T_dict= (struct ks_type) {
-        KS_TYPE_INIT("dict")
+        KSO_BASE_INIT(ks_T_type)
+
+        .name = ks_str_new("dict"),
 
         .f_free = (kso)ks_cfunc_new(dict_free_),
 
@@ -347,7 +361,7 @@ void ks_init__dict() {
         .f_repr = (kso)ks_cfunc_new(dict_repr_),
 
         .f_getitem = (kso)ks_cfunc_new(dict_getitem_),
-        .f_setitem = (kso)ks_cfunc_new(dict_setitem_)
+        .f_setitem = (kso)ks_cfunc_new(dict_setitem_),
 
     };
 

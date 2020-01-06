@@ -11,6 +11,7 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
+/*
     ks_module mod = ks_module_load("examples/cext/libksm_cexec.so");
 
     if (kse_dumpall()) return -1;
@@ -18,7 +19,7 @@ int main(int argc, char** argv) {
     ks_info("loaded module %V", mod->name);
 
     return;
-
+*/
 
     // get the global virtual machine
     ks_dict globals = ks_get_globals();
@@ -36,6 +37,7 @@ int main(int argc, char** argv) {
     SET_GLOBAL("call", ks_F_call);
     SET_GLOBAL("rand", ks_F_rand);
     SET_GLOBAL("repr", ks_F_repr);
+    SET_GLOBAL("import", ks_F_import);
 
     SET_GLOBAL("getattr", ks_F_getattr);
     SET_GLOBAL("setattr", ks_F_setattr);

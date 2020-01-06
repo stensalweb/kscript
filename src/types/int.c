@@ -2,7 +2,6 @@
 
 The default integer type is a 64 bit signed value
 
-
 */
 
 #include "ks_common.h"
@@ -33,7 +32,7 @@ ks_int ks_int_new(int64_t v_int) {
         //   have shown that this is actually not worth it, so for now we just always create a new one
         ks_int self = (ks_int)ks_malloc(sizeof(*self));
         *self = (struct ks_int) {
-            KSO_BASE_INIT(ks_T_int, KSOF_NONE)
+            KSO_BASE_INIT(ks_T_int)
             .v_int = v_int
         };
 
@@ -356,7 +355,9 @@ void ks_init__int() {
 
     /* first create the type */
     T_int = (struct ks_type) {
-        KS_TYPE_INIT("int")
+        KSO_BASE_INIT(ks_T_type)
+
+        .name = ks_str_new("int"),
 
         .f_str   = (kso)ks_cfunc_new(int_str_),
         .f_repr  = (kso)ks_cfunc_new(int_repr_),
@@ -381,7 +382,7 @@ void ks_init__int() {
     int i;
     for (i = -_INT_CONST_MAX; i < _INT_CONST_MAX; ++i) {
         int_const_tbl[i + _INT_CONST_MAX] = (struct ks_int) {
-            KSO_BASE_INIT_R(ks_T_int, KSOF_NONE, 1)
+            KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_int)
             .v_int = i
         };
     }

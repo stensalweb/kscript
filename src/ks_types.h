@@ -1,7 +1,23 @@
 /* ks_types.h - definition of the builtin/primitive types
 
-Source code for (most) of the implementations are in the `types/` folder, named
-  respectively
+This defines the internal structure of the builtin types, as well as descibing their
+functionality, including constructing, managing, etc
+
+the builtin types:
+
+  * none: the none-type, only a global singleton exists
+  * bool: the boolean type, either true or false, and 2 singletons exist for the values
+  * int: an integer type, typically a wrapper around the largest machine size integer
+  * long (not included yet): an arbitrarily long integer
+  * str: a string of characters, with a length. these are immutable
+  * tuple: an immutable collection indexable like a list
+  * list: a mutable, indexable collection of objects
+  * dict: a key->value mapping that can take any type in or out
+  * code: executable collection of bytecode
+  * kfunc: wrapper around the code that descibes a function
+  * cfunc: a wrapper around a callable C function
+
+See the C files in `types/` for the actual implementations of the types
 
 */
 
@@ -11,10 +27,10 @@ Source code for (most) of the implementations are in the `types/` folder, named
 
 #include "ks.h"
 
-/* FORWARD DECLARATIONS */
 
 /* kso - K-Script-Object, representing the most general of objects;
 Every kscript object can be down-casted to this, and have the KSO_BASE parameters referenced generically.
+Thus, most functions will take `kso`'s as arguments
 */
 typedef struct kso* kso;
 
@@ -24,32 +40,32 @@ typedef struct ks_type* ks_type;
 /* AST -> an abstract syntax tree, representing a tree of computations */
 typedef struct ks_ast* ks_ast;
 
-// the signature for a C-function as defined by an extension
+// the signature for a C-function which is callable from kscript
 typedef kso (*ks_cfunc_sig)(int n_args, kso* args);
 
 /* OBJECT MANIPULATION */
 
 // the base that should begin every object definition
-// `refcnt` is the number of alive references (should start at 1)
-// `flags` are object flags (see KSOF_* macro/enums)
+// `refcnt` is the number of alive references (should start at 1, when the object is created)
+// `flags` are object flags (see KSOF_* macro/enums), default is KSOF_NONE
 // `type` is a pointer to the type
 #define KSO_BASE int32_t refcnt; uint32_t flags; ks_type type;
 
-// macro to initialize a kscript object, with a reference count
-#define KSO_BASE_INIT_R(_type, _flags, _refcnt) .refcnt = (int32_t)(_refcnt), .flags = (uint32_t)(_flags), .type = (ks_type)(_type), 
+// macro to initialize a kscript object, with a reference count and flags
+#define KSO_BASE_INIT_RF(_refcnt, _flags, _type) .refcnt = (int32_t)(_refcnt), .flags = (uint32_t)(_flags), .type = (ks_type)(_type), 
 
-// macro to initialize object, given its type and flags, and sets the reference count to 0 (i.e. does not come with a reference)
-#define KSO_BASE_INIT(_type, _flags) KSO_BASE_INIT_R(_type, _flags, 1)
+// default initialization macro, intiializes with no special flags, and a single reference
+#define KSO_BASE_INIT(_type) KSO_BASE_INIT_RF(1, KSOF_NONE, _type)
 
 // increments (i.e. records) a reference to an object
 #define KSO_INCREF(_obj) (++(_obj)->refcnt)
 
 // decrements (i.e. unrecords) a reference to an object, freeing the object if its reference count goes
 //   to 0
-#define KSO_DECREF(_obj) { if (--(_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
+#define KSO_DECREF(_obj) { kso __obj = (kso)(_obj); if (--(__obj)->refcnt <= 0) { kso_free(__obj); } }
 
 // checks the reference count, and frees the object if it is unreachable
-#define KSO_CHKREF(_obj) { if ((_obj)->refcnt <= 0) { kso_free((kso)(_obj)); } }
+#define KSO_CHKREF(_obj) { kso __obj = (kso)(_obj); if ((__obj)->refcnt <= 0) { kso_free(__obj); } }
 
 
 // flags for objects
@@ -72,11 +88,9 @@ enum {
 /* the builtin types, see `types/` directory*/
 extern ks_type
     ks_T_none,
-    
     ks_T_bool,
     ks_T_int,
     ks_T_str,
-
     ks_T_tuple,
     ks_T_list,
     ks_T_dict,
@@ -84,13 +98,14 @@ extern ks_type
     ks_T_code,
     ks_T_kfunc,
 
-    ks_T_type,
-    ks_T_module,
+    ks_T_cfunc,
 
     ks_T_ast,
     ks_T_parser,
 
-    ks_T_cfunc
+    ks_T_type,
+    ks_T_module
+
 ;
 
 /* the generic kso is empty asides from the base information every object must have */
@@ -341,6 +356,11 @@ int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val);
 // NOTE: returns NULL if the key did not exist
 kso ks_dict_get(ks_dict self, kso key, uint64_t hash);
 
+// gets an item in the dictionary, given a C-string key
+kso ks_dict_get_cstr(ks_dict self, char* cstr);
+
+// sets an item in the dictionary, given a C-string key
+void ks_dict_set_cstr(ks_dict self, char* cstr, kso val);
 
 
 // create a new, empty dictionary at the minimum size
@@ -494,8 +514,6 @@ struct ks_type {
     // the type's common name (i.e. "int", "str", etc)
     ks_str name;
 
-
-
     // type.free(self) -> should free all the resources associated with the object, including references
     // except the object itself
     kso f_free;
@@ -543,6 +561,10 @@ struct ks_type {
     //  ==     !=
     kso f_eq,  f_ne;
 
+
+    // the rest of the members of the type
+    ks_dict __dict__;
+
 };
 
 // initializes a given type, with a C-string style name
@@ -561,14 +583,20 @@ typedef struct ks_module {
     // the module's common name (i.e. "std", etc)
     ks_str name;
 
+    // the elements of the module
+    ks_dict __dict__;
+
 }* ks_module;
 
 
 // construct a new module with a given name
 ks_module ks_module_new(ks_str name);
 
-// load a module from an SO file
-ks_module ks_module_load(const char* src_name);
+// create a new C-extension module with a given name
+ks_module ks_module_new_c(char* name);
+
+// load a named module
+ks_module ks_load_module(ks_str mod_name);
 
 
 

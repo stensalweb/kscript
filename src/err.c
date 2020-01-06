@@ -1,5 +1,9 @@
 /* err.c - error handling/global error stack
 
+Essentially, errosr can be aded via `kse_addo, kse_add, kse_fmt`, etc
+
+Then, other code can poll it via `kse_N()` to check how many errors, and 
+
 */
 
 #include "ks.h"
@@ -117,7 +121,8 @@ kso kse_pop() {
     return ks_list_pop(err_stk);
 }
 
-// dump out all errors
+
+// dump out all errors, return if there were any
 bool kse_dumpall() {
     int i;
     for (i = 0; i < err_stk->len; ++i) {
@@ -130,7 +135,6 @@ bool kse_dumpall() {
 
     return i != 0;
 }
-
 
 // INTERNAL METHOD; DO NOT CALL
 void kse_init() {

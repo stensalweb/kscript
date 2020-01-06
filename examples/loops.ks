@@ -17,3 +17,9 @@ while i < 10000 {
 z = repr(y)
 
 #print (z)
+
+i = 1
+while i * i < 3 {
+    print (i = i + 2)
+}
+

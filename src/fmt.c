@@ -119,7 +119,7 @@ ks_strB ks_strB_create() {
     ks_strB ret;
     ret.cur = (ks_str)ks_malloc(sizeof(*ret.cur));
     *ret.cur = (struct ks_str) {
-        KSO_BASE_INIT(ks_T_str, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_str)
         .len = 0,
     };
     return ret;
@@ -246,6 +246,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 s: char* 
                 o: kso, vague (never allocates another string, just uses `<type obj @ addr>` format)
                 V: kso, value (will turn into string)
+                S: kso, tostring (will turn into string)
                 R: kso, repr (turns into its representation)
             */
 
@@ -350,6 +351,12 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
 
             } else if (spec == 'V') {
                 // 'V' for value, print the kscript object as its tostring
+                kso o_val = va_arg(ap, kso);
+
+                ks_strB_add_tostr(&ksb, o_val);
+
+            } else if (spec == 'S') {
+                // 'S' for string, print the kscript object as its tostring
                 kso o_val = va_arg(ap, kso);
 
                 ks_strB_add_tostr(&ksb, o_val);

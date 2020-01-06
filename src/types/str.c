@@ -13,7 +13,6 @@
 // list of the single character constants (empty==NULL)
 static struct ks_str str_const_chr_tbl[_STR_CHR_MAX];
 
-
 /* C creation routines */
 
 /* constructs a new string from a character array and length, need not be NUL-terminated */
@@ -34,7 +33,7 @@ ks_str ks_str_new_l(const char* cstr, int len) {
     // actually construct it
     ks_str self = (ks_str)ks_malloc(sizeof(*self) + len);
     *self = (struct ks_str) {
-        KSO_BASE_INIT(ks_T_str, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_str)
         .v_hash = ks_hash_bytes((uint8_t*)cstr, len),
         .len = len,
     };
@@ -81,7 +80,9 @@ void ks_init__str() {
 
     /* first create the type */
     T_str = (struct ks_type) {
-        KS_TYPE_INIT("str")
+        KSO_BASE_INIT(ks_T_str)
+
+        .name = ks_str_new("str"),
 
         .f_add = (kso)ks_cfunc_new(str_add_)
 
@@ -91,9 +92,9 @@ void ks_init__str() {
     int i;
     for (i = 0; i < _STR_CHR_MAX; ++i) {
         str_const_chr_tbl[i] = (struct ks_str) {
-            KSO_BASE_INIT_R(ks_T_str, KSOF_NONE, 1)
+            KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_str)
             .len = i == 0 ? 0 : 1,
-            .v_hash = ks_hash_bytes((uint8_t*)&i, 1)
+            .v_hash = ks_hash_bytes((uint8_t*)&i, i == 0 ? 0 : 1)
         };
         str_const_chr_tbl[i].chr[0] = (char)i;
         str_const_chr_tbl[i].chr[1] = (char)0;

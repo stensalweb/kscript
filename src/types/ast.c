@@ -3,16 +3,14 @@
 #include "ks_common.h"
 
 
-// initializes to an empty token
-#define _AST_TOK_INIT .tok = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0), .tok_expr = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0),
+// initializes to an empty token, with a given type
+#define _AST_INIT(_type) KSO_BASE_INIT(ks_T_ast) .atype = _type, .tok = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0), .tok_expr = ks_tok_new(KS_TOK_NONE, NULL, 0, 0, 0, 0),
 
 // create a new AST representing 'true'
 ks_ast ks_ast_new_true() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_TRUE
+        _AST_INIT(KS_AST_TRUE)
     };
     return self;
 }
@@ -21,9 +19,8 @@ ks_ast ks_ast_new_true() {
 ks_ast ks_ast_new_false() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_FALSE
+        _AST_INIT(KS_AST_FALSE)
+
     };
     return self;
 }
@@ -32,9 +29,7 @@ ks_ast ks_ast_new_false() {
 ks_ast ks_ast_new_none() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_NONE
+        _AST_INIT(KS_AST_NONE)
     };
     return self;
 }
@@ -43,9 +38,7 @@ ks_ast ks_ast_new_none() {
 ks_ast ks_ast_new_int(int64_t v_int) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        .atype = KS_AST_INT,
-        _AST_TOK_INIT
+        _AST_INIT(KS_AST_INT)
         .v_val = (kso)ks_int_new(v_int)
     };
     return self;
@@ -55,9 +48,7 @@ ks_ast ks_ast_new_int(int64_t v_int) {
 ks_ast ks_ast_new_str(ks_str v_str) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        .atype = KS_AST_STR,
-        _AST_TOK_INIT
+        _AST_INIT(KS_AST_STR)
         .v_val = (kso)v_str
     };
     KSO_INCREF(self->v_val);
@@ -69,9 +60,7 @@ ks_ast ks_ast_new_str(ks_str v_str) {
 ks_ast ks_ast_new_var(ks_str var_name) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_VAR,
+        _AST_INIT(KS_AST_VAR)
         .v_name = var_name,
     };
     KSO_INCREF(self->v_name);
@@ -82,9 +71,7 @@ ks_ast ks_ast_new_var(ks_str var_name) {
 ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_ATTR,
+        _AST_INIT(KS_AST_ATTR)
         .v_attr = {obj, attr},
     };
     KSO_INCREF(self->v_attr.obj);
@@ -96,9 +83,7 @@ ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr) {
 ks_ast ks_ast_new_tuple(ks_ast* items, int n_items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_TUPLE,
+        _AST_INIT(KS_AST_TUPLE)
         .v_list = ks_list_new((kso*)items, n_items),
     };
     return self;
@@ -108,9 +93,7 @@ ks_ast ks_ast_new_tuple(ks_ast* items, int n_items) {
 ks_ast ks_ast_new_list(ks_ast* items, int n_items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_LIST,
+        _AST_INIT(KS_AST_LIST)
         .v_list = ks_list_new((kso*)items, n_items),
     };
     return self;
@@ -121,9 +104,7 @@ ks_ast ks_ast_new_list(ks_ast* items, int n_items) {
 ks_ast ks_ast_new_call(ks_ast* items, int n_items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_CALL,
+        _AST_INIT(KS_AST_CALL)
         .v_list = ks_list_new((kso*)items, n_items),
     };
     return self;
@@ -134,9 +115,7 @@ ks_ast ks_ast_new_call(ks_ast* items, int n_items) {
 ks_ast ks_ast_new_subscript(ks_ast* items, int n_items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_SUBSCRIPT,
+        _AST_INIT(KS_AST_SUBSCRIPT)
         .v_list = ks_list_new((kso*)items, n_items),
     };
     return self;
@@ -145,9 +124,7 @@ ks_ast ks_ast_new_subscript(ks_ast* items, int n_items) {
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = bop_type,
+        _AST_INIT(bop_type)
         .v_bop = { L, R }
     };
     KSO_INCREF(L);
@@ -159,9 +136,7 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
 ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_IF,
+        _AST_INIT(KS_AST_IF)
         .v_if = {cond, body}
     };
     KSO_INCREF(cond);
@@ -174,9 +149,7 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_WHILE,
+        _AST_INIT(KS_AST_WHILE)
         .v_while = {cond, body}
     };
     KSO_INCREF(cond);
@@ -188,9 +161,7 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
 ks_ast ks_ast_new_ret(ks_ast val) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_RET,
+        _AST_INIT(KS_AST_RET)
         .v_ret = val
     };
     KSO_INCREF(val);
@@ -200,9 +171,7 @@ ks_ast ks_ast_new_ret(ks_ast val) {
 ks_ast ks_ast_new_func(ks_list params, ks_ast body) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_FUNC,
+        _AST_INIT(KS_AST_FUNC)
         .v_func = {params, body}
     };
     KSO_INCREF(params);
@@ -214,9 +183,7 @@ ks_ast ks_ast_new_func(ks_list params, ks_ast body) {
 ks_ast ks_ast_new_code(ks_code code) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_CODE,
+        _AST_INIT(KS_AST_CODE)
         .v_code = code
     };
     KSO_INCREF(code);
@@ -227,9 +194,7 @@ ks_ast ks_ast_new_code(ks_code code) {
 ks_ast ks_ast_new_block_empty() {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_BLOCK,
+        _AST_INIT(KS_AST_BLOCK)
         .v_list = ks_list_new_empty()
     };
     return self;
@@ -238,9 +203,7 @@ ks_ast ks_ast_new_block_empty() {
 ks_ast ks_ast_new_block(ks_ast* items, int n_items) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
-        KSO_BASE_INIT(ks_T_ast, KSOF_NONE)
-        _AST_TOK_INIT
-        .atype = KS_AST_BLOCK,
+        _AST_INIT(KS_AST_BLOCK)
         .v_list = ks_list_new((kso*)items, n_items)
     };
     return self;
@@ -343,9 +306,11 @@ void ks_init__ast() {
 
     /* first create the type */
     T_ast = (struct ks_type) {
-        KS_TYPE_INIT("ast")
+        KSO_BASE_INIT(ks_T_type)
 
-        .f_free = (kso)ks_cfunc_new(ast_free_)
+        .name = ks_str_new("ast"),
+
+        .f_free = (kso)ks_cfunc_new(ast_free_),
 
     };
 

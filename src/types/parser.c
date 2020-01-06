@@ -301,7 +301,7 @@ ks_parser ks_parser_new_expr(const char* expr) {
 
     ks_parser self = (ks_parser)ks_malloc(sizeof(*self));
     *self = (struct ks_parser) {
-        KSO_BASE_INIT(ks_T_parser, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_parser)
         .src_name = ks_str_new("-e"),
         .src = ks_str_new(expr),
         .tok_i = 0,
@@ -337,7 +337,7 @@ ks_parser ks_parser_new_file(const char* fname) {
 
     ks_parser self = (ks_parser)ks_malloc(sizeof(*self));
     *self = (struct ks_parser) {
-        KSO_BASE_INIT(ks_T_parser, KSOF_NONE)
+        KSO_BASE_INIT(ks_T_parser)
         .src_name = ks_str_new(fname),
         .src = ks_str_new_l(contents, bytes),
         .tok_i = 0,
@@ -1469,9 +1469,11 @@ void ks_init__parser() {
 
     /* first create the type */
     T_parser = (struct ks_type) {
-        KS_TYPE_INIT("parser")
+        KSO_BASE_INIT(ks_T_type)
+        
+        .name = ks_str_new("parser"),
 
-        .f_free = (kso)ks_cfunc_new(parser_free_)
+        .f_free = (kso)ks_cfunc_new(parser_free_),
 
     };
 

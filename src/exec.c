@@ -11,7 +11,6 @@ The biggest things to handle from here are type/module/function creation & closu
 
 #include "ks.h"
 
-
 // comment this out to disable execution tracing
 //#define DO_EXEC_TRACE
 
@@ -41,6 +40,7 @@ static struct {
 
     // the virtual machine's frame stack
     struct vm_frame_stk {
+
         // current program counter
         uint8_t* pc;
 
@@ -79,6 +79,7 @@ static int VM_push_frame(ks_code code) {
         VM.frame_stk_len_max = VM.frame_stk_len;
     }
 
+    // just initialize every thing here
     VM.frame_stk[idx].code = code;
     VM.frame_stk[idx].start_bc = VM.frame_stk[idx].pc = code->bc;
     VM.frame_stk[idx].v_const = code->v_const;
@@ -93,6 +94,8 @@ static void VM_pop_frame() {
     KSO_DECREF(VM.frame_stk[idx].local_vars)
 }
 
+
+/* value stack operations */
 
 // pushes an object on the stack, returning the index
 static inline int VM_stk_push(kso obj) {
@@ -122,8 +125,14 @@ static inline kso VM_stk_pop() {
     return VM.stk.base[--VM.stk.len];
 }
 
+// pops an unused item off the stack
+static inline void VM_stk_popu() {
+    kso obj = VM.stk.base[--VM.stk.len];
+    KSO_DECREF(obj);
+}
+
 // pops `n` items off the stack, but does not remove their reference
-static inline kso* VM_stk_popn(int n) {
+static inline kso* VM_stk_popun(int n) {
     return &VM.stk.base[VM.stk.len -= n];
 }
 
@@ -132,12 +141,6 @@ static inline kso VM_stk_top() {
     return VM.stk.base[VM.stk.len - 1];
 }
 
-
-// pops an unused item off the stack
-static inline void VM_stk_popu() {
-    kso obj = VM.stk.base[--VM.stk.len];
-    KSO_DECREF(obj);
-}
 
 // internal execution routine, this should only really be used by internal functions
 static void VM_exec() {
@@ -337,7 +340,7 @@ static void VM_exec() {
             load_resolve: ;
 
             // otherwise, it was found, so pop it on the stack
-            VM_stk_pushu(found);
+            VM_stk_push(found);
 
             NEXT_INST();
 
@@ -390,7 +393,7 @@ static void VM_exec() {
             _exec_trace("call %i", inst.i32.i32);
 
             // get a pointer to the arguments
-            args_p = VM_stk_popn(inst.i32.i32);
+            args_p = VM_stk_popun(inst.i32.i32);
 
             // grab a function from the bottom
             func = *args_p++;
@@ -456,7 +459,7 @@ static void VM_exec() {
             n_args = inst.i32.i32;
 
             // get arguments
-            args_p = VM_stk_popn(n_args);
+            args_p = VM_stk_popun(n_args);
 
             if (n_args <= 8) {
                 // use immediate args
@@ -480,7 +483,7 @@ static void VM_exec() {
             n_args = inst.i32.i32;
 
             // get arguments
-            args_p = VM_stk_popn(n_args);
+            args_p = VM_stk_popun(n_args);
 
             if (n_args <= 8) {
                 // use immediate args
@@ -505,7 +508,7 @@ static void VM_exec() {
             _exec_trace("tuple %i", inst.i32.i32);
 
             // get a pointer to the arguments
-            args_p = VM_stk_popn(inst.i32.i32);
+            args_p = VM_stk_popun(inst.i32.i32);
 
             new_obj = (kso)ks_tuple_new(args_p, inst.i32.i32);
             if (new_obj == NULL) EXEC_EXC("Internal error during tuple creation");
@@ -524,7 +527,7 @@ static void VM_exec() {
             _exec_trace("list %i", inst.i32.i32);
 
             // get a pointer to the arguments
-            args_p = VM_stk_popn(inst.i32.i32);
+            args_p = VM_stk_popun(inst.i32.i32);
 
             new_obj = (kso)ks_list_new(args_p, inst.i32.i32);
             if (new_obj == NULL) {
@@ -711,10 +714,12 @@ kso kso_call(kso func, int n_args, kso* args) {
     }
 }
 
+// return the globals
 ks_dict ks_get_globals() {
     return VM.globals;
 }
 
+// internal method to initialize it
 void ks_init__EXEC() {
 
     VM.globals = ks_dict_new_empty();

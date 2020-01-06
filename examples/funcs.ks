@@ -6,22 +6,21 @@ func is_prime(x) {
     if x == 2 then ret true
     if x % 2 == 0 then ret false
 
-    i = 3
+    i = 1
     while i * i <= x {
-        if x % i == 0 then ret false
-        i = i + 2
+        if x % (i = i + 2) == 0 then ret false
     }
 
     ret true
 }
 
 
-
 func test(x) {
     if is_prime(x) {
         ret print(x, "is prime")
+    } {
+        ret print(x, "is not prime")
     }
-    ret print(x, "is not prime")
 }
 
 
@@ -31,4 +30,4 @@ test(4)
 test(16)
 test(17)
 
-test(10000000000037)
+test(9001)

@@ -20,7 +20,6 @@ typedef struct cgi {
     //   the end of the bytecode
     ks_ast last_main;
 
-
 }* cgi;
 
 
@@ -362,7 +361,6 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         jmpf_i->i32 = jmp_a_p - cond_jmpf_a_p;
         jmp_i->i32 = start_p - jmp_a_p;
 
-
     } else {
         kse_fmt("Given invalid AST (@%p) with type %i", self, self->atype);
         return;
@@ -388,13 +386,13 @@ ks_code ks_ast_codegen(ks_ast self, ks_list v_const) {
     } else {
         code = ks_code_new_empty(v_const);
     }
-    
 
     struct cgi geni;
     geni.last_main = NULL;
     geni.stk_depth = 0;
     geni.call_depth = 0;
-
+    
+    // call it on the AST
     codegen(self, code, &geni);
 
     // end with a return none, if it hasn't been filled out yet
