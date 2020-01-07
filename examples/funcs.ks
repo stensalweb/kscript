@@ -34,17 +34,18 @@ func test(x) {
 }
 
 # make sure some are rejected
-test(0)    # not prime
-test(1)    # not prime
-test(4)    # not prime
-test(16)   # not prime
-test(9201) # not prime
+test(0)     # not prime
+test(1)     # not prime
+test(4)     # not prime
+test(16)    # not prime
+test(9201)  # not prime
+test(37**2) # not prime
 
 # test various numbers that are prime
-test(2)    # prime
-test(3)    # prime
-test(17)   # prime
-test(9001) # prime
-test(9007) # prime
+test(2)     # prime
+test(3)     # prime
+test(17)    # prime
+test(9001)  # prime
+test(9007)  # prime
 
 
