@@ -12,7 +12,8 @@ build/
 # editors I use
 .vscode/
 
-
+# for a target
+install
 
 
 # bin,lib,... are handled within each folder

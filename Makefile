@@ -53,7 +53,7 @@ kscript_exe    := ./bin/ks
 # -*- RULES
 
 # these are rules that are `not real files`, but can be ran like `make clean`
-.PHONY: default init clean install uninstall
+.PHONY: default init clean uninstall
 
 # by default, build the `ec` binary
 default: $(kscript_exe)
@@ -96,3 +96,8 @@ install: $(libkscript_so) $(kscript_exe) $(libkscript_src_h)
 	cp -rf $(kscript_exe) $(DESTDIR)$(PREFIX)/bin
 	cp -rf $(libkscript_so) $(DESTDIR)$(PREFIX)/lib
 	cp -rf  $(libkscript_src_h) $(DESTDIR)$(PREFIX)/include
+	@touch install
+
+# rule to uninstall the whole package from PREFIX
+uninstall:
+	rm -f $(wildcard $(DESTDIR)$(PREFIX)/bin/$(notdir $(kscript_exe)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libkscript_so)) $(addprefix $(DESTDIR)$(PREFIX)/include/,$(notdir $(libkscript_src_h))))
