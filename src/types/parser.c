@@ -731,7 +731,6 @@ ks_ast ks_parse_expr(ks_parser self) {
     // advance a single token
     #define ADV1() { self->tok_i++; }
 
-
     while (true) {
 
         // skip over comments
@@ -769,7 +768,7 @@ ks_ast ks_parse_expr(ks_parser self) {
 
         } else if (ctok.ttype == KS_TOK_IDENT) {
             // we need to skip a keyword, because it is not part of the expression
-            if (TOK_EQ(self, ctok, "then")) goto parseexpr_end;
+            if (TOK_EQ(self, ctok, "then") || TOK_EQ(self, ctok, "elif") || TOK_EQ(self, ctok, "else")) goto parseexpr_end;
 
             // can't have 2 value types in a row
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
@@ -828,7 +827,10 @@ ks_ast ks_parse_expr(ks_parser self) {
 
         } else if (ctok.ttype == KS_TOK_COMMA) {
             // this is to prevent commas outside of operators outside of brackets
-            if (n_pars < 1 && n_bracks < 1) PEXPR_ERR(ctok, "Unexpected `,`, must have a comma within a group")
+            //if (n_pars < 1 && n_bracks < 1) PEXPR_ERR(ctok, "Unexpected `,`, must have a comma within a group")
+
+            // let someone above us handle the comma
+            if (n_pars < 1 && n_bracks < 1) goto parseexpr_end;
             
             // check and make sure no double commas
             if (ltok.ttype == KS_TOK_COMMA) PEXPR_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax; expected a value between these commas");
@@ -1201,7 +1203,7 @@ ks_ast ks_parse_stmt(ks_parser self) {
                 // if it has hit an end of file or block, then it should be a ret none
                 ks_ast nonval = ks_ast_new_none();
                 ks_ast ret = ks_ast_new_ret(nonval);
-                KSO_DECREF(ret);
+                KSO_DECREF(nonval);
                 return ret;
             } else {
                 // otherwise, parse an expression
@@ -1234,15 +1236,100 @@ ks_ast ks_parse_stmt(ks_parser self) {
             ctok = CTOK();
 
             // if it is `then`, skip it. This is just useful for 1 liners
-            if (TOK_EQ(self, ctok, "then")) ADV1();
+            // treat a comma as an equivalent shorthand for then
+            if (ctok.ttype == KS_TOK_COMMA || TOK_EQ(self, ctok, "then")) ADV1();
 
             // recurse here, parse another statement (which may be a block)
             ks_ast body = ks_parse_stmt(self);
             if (body == NULL) PSTMT_ERREXT();
 
-            ks_ast r_if = ks_ast_new_if(cond, body);
+
+            // the entire chain of ifs, elifs, and the else
+            ks_ast if_chain = ks_ast_new_if(cond, body, NULL);
             KSO_DECREF(cond); KSO_DECREF(body);
-            return r_if;
+
+            // the last place in the linked list of elif chains,
+            // where to insert the next 'else' section to
+            ks_ast cur_link = if_chain;
+
+            SKIP_IRR_S();
+
+            // check of elif's and elses
+            ctok = CTOK();
+
+            // parse elif blocks
+            while (TOK_EQ(self, ctok, "elif")) {
+
+                // skip 'elif'
+                ADV1();
+                // get the conditional
+                ks_ast elif_cond = ks_parse_expr(self);
+                if (elif_cond == NULL) PSTMT_ERREXT();
+
+                ctok = CTOK();
+
+                // skip irrelevant parts
+                SKIP_IRR_S();
+                
+                // check for a single line shorthand
+                ctok = CTOK();
+
+                if (ctok.ttype == KS_TOK_COMMA || TOK_EQ(self, ctok, "then")) ADV1();
+
+                ctok = CTOK();
+
+                // parse the body of the else if, and connect it
+                ks_ast elif_body = ks_parse_stmt(self);
+                if (elif_body == NULL) PSTMT_ERREXT();
+
+
+                // the element of the chain that this elif describes
+                ks_ast elif_link = ks_ast_new_if(elif_cond, elif_body, NULL);
+                KSO_DECREF(elif_cond); KSO_DECREF(elif_body);
+
+                // attach to the end of the linked list
+                ks_ast_attach_else(cur_link, elif_link);
+                KSO_DECREF(elif_link);
+                cur_link = elif_link;
+
+                // skip any irrelevant tokens
+                SKIP_IRR_S();
+
+                // try and keep looping
+                ctok = CTOK();
+
+            }
+
+
+            // parse the optional else
+            if (TOK_EQ(self, ctok, "else")) {
+                // skip else
+                ADV1();
+
+                SKIP_IRR_S();
+                
+                // try and skip these
+                ctok = CTOK();
+                if (ctok.ttype == KS_TOK_COMMA || TOK_EQ(self, ctok, "then")) ADV1();
+
+                SKIP_IRR_S();
+
+                // parse a statement or body for the else block
+                ks_ast v_else = ks_parse_stmt(self);
+                if (v_else == NULL) PSTMT_ERREXT();
+
+                ks_ast_attach_else(cur_link, v_else);
+                KSO_DECREF(v_else);
+
+            }
+            
+            // return the linked list of conditionals
+            return if_chain;
+
+        } else if (TOK_EQ(self, ctok, "elif")) {
+            PSTMT_ERR(ctok, "SyntaxError; 'elif' without previous 'if'");
+        } else if (TOK_EQ(self, ctok, "else")) {
+            PSTMT_ERR(ctok, "SyntaxError; 'else' without previous 'if'");
 
         } else if (TOK_EQ(self, ctok, "while")) {
             // parse an while block:

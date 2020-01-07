@@ -80,7 +80,6 @@ enum {
 
 };
 
-
 /* TYPE DEFINITIONS */
 
 // forward declaration of the objects representing the types
@@ -278,6 +277,10 @@ ks_tuple ks_tuple_new_empty();
 
 // create a new tuple containing items passed in
 ks_tuple ks_tuple_new(kso* items, int n_items);
+
+// create a tuple, with no references created
+ks_tuple ks_tuple_new_norefs(kso* items, int n_items);
+
 
 
 /* list -> the list type, a collection of other objects
@@ -887,11 +890,18 @@ struct ks_ast {
 
         /* the condition and code to be ran if true iff atype==KS_AST_IF */
         struct {
+
             // the conditional in the parentheticals
             ks_ast cond;
 
             // the body inside the braces
             ks_ast body;
+
+            // whether or not the if block has an `else` section
+            bool has_else;
+
+            // the else section, if it exists, NULL otherwise
+            ks_ast v_else;
 
         } v_if;
 
@@ -964,8 +974,11 @@ ks_ast ks_ast_new_subscript(ks_ast* items, int n_items);
 // create a new AST representing a binary operator, assumes `bop_type` is a valid binary operator
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
 
-// return a new AST representing an `if`
-ks_ast ks_ast_new_if(ks_ast cond, ks_ast body);
+// return a new AST representing an `if`. Use `v_else==NULL` for no else block
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast body, ks_ast v_else);
+// attach an `else` section to an if block.
+// NOTE: `self` must have atype==KS_AST_IF
+void ks_ast_attach_else(ks_ast self, ks_ast v_else);
 // return a new AST representing a `while`
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
 

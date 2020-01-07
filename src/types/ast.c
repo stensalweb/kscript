@@ -133,16 +133,26 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
 }
 
 // create a new if block AST
-ks_ast ks_ast_new_if(ks_ast cond, ks_ast body) {
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast body, ks_ast v_else) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
         _AST_INIT(KS_AST_IF)
-        .v_if = {cond, body}
+        .v_if = {cond, body, .has_else = v_else != NULL, .v_else = v_else}
     };
     KSO_INCREF(cond);
     KSO_INCREF(body);
 
+    if (v_else != NULL) KSO_INCREF(v_else);
+
     return self;
+}
+
+void ks_ast_attach_else(ks_ast self, ks_ast v_else) {
+    if (self->v_if.has_else) KSO_DECREF(self->v_if.v_else);
+
+    self->v_if.has_else = v_else != NULL;
+    self->v_if.v_else = v_else;
+    if (v_else != NULL) KSO_INCREF(v_else);
 }
 
 // create a new while block AST
@@ -257,6 +267,7 @@ TFUNC(ast, free) {
     case KS_AST_IF:
         KSO_DECREF(self->v_if.cond);
         KSO_DECREF(self->v_if.body);
+        if (self->v_if.has_else) KSO_DECREF(self->v_if.v_else);
         break;
 
     case KS_AST_WHILE:
@@ -315,7 +326,4 @@ void ks_init__ast() {
     };
 
 }
-
-
-
 

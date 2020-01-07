@@ -248,6 +248,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 V: kso, value (will turn into string)
                 S: kso, tostring (will turn into string)
                 R: kso, repr (turns into its representation)
+                T: kso, type (prints out the type name as a string)
             */
 
             if (spec == 'i') {
@@ -366,6 +367,11 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 kso o_val = va_arg(ap, kso);
 
                 ks_strB_add_repr(&ksb, o_val);
+            } else if (spec == 'T') {
+                // 'T' for type, print the name of the type
+                kso o_val = va_arg(ap, kso);
+
+                ks_strB_add(&ksb, o_val->type->name->chr, o_val->type->name->len);
 
             } else {
                 // take an argument off just in case, this may prevent an error

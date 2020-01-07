@@ -1,25 +1,30 @@
 #!ks
 
-
+# function to determine if a given integer is a prime
 func is_prime(x) {
-    if x < 2 then ret false
-    if x == 2 then ret true
-    if x % 2 == 0 then ret false
+    # only integers can be prime
+    if type(x) != int, ret false
+
+    # negatives, 0, 1, are not prime
+    if x < 2, ret false
+    elif x == 2, ret true
+    elif x == 3, ret true
+    elif x % 2 == 0, ret false
 
     i = 1
     while i * i <= x {
-        if x % (i = i + 2) == 0 then ret false
+        if x % (i = i + 2) == 0, ret false
     }
 
     ret true
 }
 
-
+# tests a given numbers primality, and prints the results
 func test(x) {
     if is_prime(x) {
-        ret print(x, "is prime")
+        print(x, "is prime")
     } else {
-        ret print(x, "is not prime")
+        print(x, "is not prime")
     }
 }
 
@@ -31,3 +36,4 @@ test(16)
 test(17)
 
 test(9001)
+

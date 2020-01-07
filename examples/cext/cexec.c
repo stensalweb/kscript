@@ -3,7 +3,9 @@
 This extension is named `cexec`, and runs the a command as a bash/cmd script, returning the full output
 
 FUNCTIONS:
-  cexec.run(cmd): runs `cmd`, returns the string result
+
+  cexec.run(cmd): runs `cmd` as a shell command with `popen`, returns a tuple with: (exit_code, result_str),
+                    capturing the exit code integer, as well as the string of the stdout
 
 */
 
@@ -24,7 +26,7 @@ FUNCTIONS:
 
 MFUNC(cexec, run) {
     #define SIG "cexec.run(cmd)"
-    REQ_N_ARGS_MIN(1);
+    REQ_N_ARGS(1);
     ks_str cmd = (ks_str)args[0];
     REQ_TYPE("cmd", cmd, ks_T_str);
 
@@ -33,7 +35,7 @@ MFUNC(cexec, run) {
 
     // open a new process
     fp = popen(cmd->chr, "r");
-    if (fp == NULL) return kse_fmt(SIG ":Error running comand '%S'", cmd);
+    if (fp == NULL) return kse_fmt(SIG ": Error running comand '%S'", cmd);
 
     // create a string builder to add the buffers to
     ks_strB result = ks_strB_create();
@@ -47,26 +49,23 @@ MFUNC(cexec, run) {
     // finish the string builder
     ks_str ret = ks_strB_finish(&result);
 
-    // check for errors
-    int status = pclose(fp);
-    if (status == -1) {
-        KSO_DECREF(ret);
-        return kse_fmt(SIG ":Error running command '%S'", cmd);
-    }
+    // check for error code
+    ks_int status = ks_int_new(pclose(fp));
 
-    // otherwise, return our built string
-    return (kso)ret;
+    // return our tuple. Since we created the string and int, we don't want to record another reference to them
+    return (kso)ks_tuple_new_norefs((kso[]){ (kso)status, (kso)ret }, 2);
     #undef SIG
 }
 
-MODULE_INIT() {
 
+MODULE_INIT() {
     // create our new module
     ks_module mod = ks_module_new_c("cexec");
 
     // our our function
     MODULE_ADD_CFUNC(mod, "run", cexec_run_);
     
+    // return our module
     return (kso)mod;
 }
 

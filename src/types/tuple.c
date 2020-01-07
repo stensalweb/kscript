@@ -21,6 +21,23 @@ ks_tuple ks_tuple_new(kso* items, int n_items) {
     return self;
 }
 
+// creates a tuple, without creating new references to the objects
+ks_tuple ks_tuple_new_norefs(kso* items, int n_items) {
+    ks_tuple self = (ks_tuple)ks_malloc(sizeof(*self) + n_items * sizeof(kso));
+    *self = (struct ks_tuple) {
+        KSO_BASE_INIT(ks_T_tuple)
+        .len = n_items
+    };
+
+    int i;
+    for (i = 0; i < n_items; ++i) {
+        self->items[i] = items[i];
+        // don't record references
+    }
+    return self;
+
+}
+
 // create a new empty tuple
 ks_tuple ks_tuple_new_empty() {
     return ks_tuple_new(NULL, 0);
@@ -101,6 +118,22 @@ TFUNC(tuple, str) {
 }
 
 
+TFUNC(tuple, getitem) {
+    #define SIG "tuple.__str__(self)"
+    REQ_N_ARGS(2);
+    ks_tuple self = (ks_tuple)args[0];
+    REQ_TYPE("self", self, ks_T_tuple);
+    ks_int idx = (ks_int)args[1];
+    REQ_TYPE("idx", idx, ks_T_int);
+
+    if (idx->v_int < 0 || idx->v_int >= self->len) return kse_fmt("KeyError: %R (out of range)", idx);
+
+    // return the value
+    return KSO_NEWREF(self->items[idx->v_int]);
+    #undef SIG
+}
+
+
 /* exporting functionality */
 
 struct ks_type T_tuple, *ks_T_tuple = &T_tuple;
@@ -115,7 +148,9 @@ void ks_init__tuple() {
         .f_free = (kso)ks_cfunc_new(tuple_free_),
 
         .f_repr = (kso)ks_cfunc_new(tuple_repr_),
-        .f_str  = (kso)ks_cfunc_new(tuple_str_)
+        .f_str  = (kso)ks_cfunc_new(tuple_str_),
+
+        .f_getitem = (kso)ks_cfunc_new(tuple_getitem_),
     };
 
 }

@@ -1,6 +1,6 @@
 # cext/Makefile - example makefile for create a C extension
 
-# -*- configuration
+# -*- configuration -*-
 
 # the kscript installation directory. Use `../../` to use the local one,
 #   or `/usr/local` (or another path that it was installed to) for the system-wide one
@@ -14,7 +14,7 @@ cexec_CFLAGS   ?= -I$(KS_DIR)/include
 cexec_LDFLAGS  ?= -L$(KS_DIR)/lib
 
 
-# -*- targets/source setup
+# -*- targets/source setup -*-
 
 # the C files that make up the module
 cexec_src_c    := ./cexec.c
@@ -23,12 +23,11 @@ cexec_src_c    := ./cexec.c
 cexec_LIB      := ./libksm_cexec.so
 
 
-# -*- generated output
+# -*- generated output -*-
 cexec_o     := $(patsubst %.c,%.o, $(cexec_src_c))
 
 
-
-# -*- compilation rules
+# -*- compilation rules -*-
 
 # rule to compile the module file
 $(cexec_LIB): $(cexec_o)

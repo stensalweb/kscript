@@ -7,12 +7,12 @@
 /* logging/printing */
 
 // uncomment this line to disable `ks_trace` calls
-// this makes the build faster in many important areas, but 
+// this makes the build faster in many important areas, but disallows trace debugging
 //#define KS_C_NO_TRACE
 
-// if defined, `ks_debug` calls become nothing, so debugging is not available, but makes more efficient code
+// uncomment this line to disable `ks_debug` calls
+// this makes the build faster in some areas, but disallows most debugging.
 //#define KS_C_NO_DEBUG
-
 
 
 #endif /* KS_CONFIG_H__ */

@@ -47,7 +47,7 @@ libkscript_so  := ./lib/libkscript.so
 libkscript_a   := ./lib/libkscript.a
 
 # where to build the executable to
-kscript_exe    := ./bin/kscript
+kscript_exe    := ./bin/ks
 
 
 # -*- RULES

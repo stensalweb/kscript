@@ -300,26 +300,69 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // TODO: generate short-circuit jumping code
         codegen(self->v_if.cond, to, geni);
 
-        // capture the position where the jump instruction begins
-        int cond_jmpf_p = to->bc_n;
-        // this will be filled in later
-        ksc_jmpf(to, -1);
-        // jmpf consumes one argument
-        STK_GROW(-1);
-        // capture the position where the jump shall be made from
-        int cond_jmpf_a_p = to->bc_n;
 
-        // next, generate the body
+        // position of the jump at the conditional
+        int p_condjump = to->bc_n;
+        // jump to the end (or else) if the condition was not met.
+        // the -1 will be filled in later
+        ksc_jmpf(to, -1);
+        // since the jmpf will consume an item
+        STK_GROW(-1);
+
+        // get the position where the if block starts
+        int p_ifblk = to->bc_n;
+        // next, generate the if body
         codegen(self->v_if.body, to, geni);
         STK_TO(0);
-        // capture the position after the body
-        int body_a_p = to->bc_n;
 
-        // now, get the actual instruction
-        ksbc_i32* jmpf_i = (ksbc_i32*)(to->bc + cond_jmpf_p);
 
-        // fill in the bytecode
-        jmpf_i->i32 = body_a_p - cond_jmpf_a_p;
+        if (!self->v_if.has_else) {
+            // this is just an if block
+
+            // get the position after the if has ended
+            int p_a_all = to->bc_n;
+
+            // now, get the actual instruction for the conditional jump at the start,
+            // so we can replace the -1
+            ksbc_i32* i_condjump = (ksbc_i32*)(to->bc + p_condjump);
+
+            // fill in the bytecode
+            i_condjump->i32 = p_a_all - p_ifblk;
+
+        } else {
+            // this has an else section
+            // position of the end of the if block jump, which will skip the `else {...}`
+            int p_ifblkjump = to->bc_n;
+            // jump to after the else, fill this in
+            ksc_jmp(to, -1);
+
+            // capture the position of the start of the else block
+            int p_elseblk = to->bc_n;
+
+            // generate the 'else' block
+            codegen(self->v_if.v_else, to, geni);
+
+            // position after the if & else blocks
+            int p_a_all = to->bc_n;
+
+            // now, get the actual instruction for the conditional jump at the start,
+            // so we can replace the -1
+            ksbc_i32* i_condjump = (ksbc_i32*)(to->bc + p_condjump);
+
+            // fill in the bytecode, so that if the condition is false, we jump to the `else` block
+            i_condjump->i32 = p_elseblk - p_ifblk;
+
+
+            // now, get the actual instruction for the conditional jump at the end of the `if` block
+            // to jump directly to the end
+            ksbc_i32* i_jump = (ksbc_i32*)(to->bc + p_ifblkjump);
+
+            // fill in the bytecode, so that if the condition is false, we jump to the `else` block
+            i_jump->i32 = p_a_all - p_elseblk;
+
+        }
+
+
 
     } else if (self->atype == KS_AST_WHILE) {
 
