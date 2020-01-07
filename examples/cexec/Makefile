@@ -14,7 +14,6 @@ cexec_CFLAGS   ?= $(CFLAGS) -I$(KS_DIR)/include
 cexec_LDFLAGS  ?= $(LDFLAGS) -L$(KS_DIR)/lib -lkscript
 
 
-
 # -*- targets/source setup -*-
 
 # the C files that make up the module

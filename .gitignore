@@ -6,8 +6,13 @@
 # kscript config file
 include/ks_config.h
 
+
 # build/generated folders
 build/
+
+# build output
+*.tar.*
+
 
 # editors I use
 .vscode/

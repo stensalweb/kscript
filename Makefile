@@ -28,7 +28,7 @@ PREFIX     ?= /usr/local
 #   to each of the files, since we are in `./` and they're in `./src`)
 libkscript_types_src := $(addprefix src/types/, none.c bool.c int.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c)
 libkscript_src   := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c ) $(libkscript_types_src)
-libkscript_src_h := $(addprefix include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
+libkscript_src_h := $(addprefix ./include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
 
 # the sources for the kscript executable (so things can be ran from 
 #   commandline)
@@ -101,3 +101,8 @@ install: $(libkscript_so) $(kscript_exe) $(libkscript_src_h)
 # rule to uninstall the whole package from PREFIX
 uninstall:
 	rm -f $(wildcard $(DESTDIR)$(PREFIX)/bin/$(notdir $(kscript_exe)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libkscript_so)) $(addprefix $(DESTDIR)$(PREFIX)/include/,$(notdir $(libkscript_src_h))))
+
+# rule to build a tarfile
+kscript.tar.gz: $(kscript_exe) $(libkscript_so)
+	tar -cvf $@ $(kscript_exe) $(libkscript_so) $(libkscript_src_h)
+
