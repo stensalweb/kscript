@@ -1,4 +1,6 @@
-/* ks_funcs.h - the standard/builtin functions, their functionality defined
+/* ks_funcs.h - the standard/builtin functions, as kscript objects
+
+
 
 */
 
@@ -7,10 +9,10 @@
 #ifndef KS_FUNCS_H__
 #define KS_FUNCS_H__
 
+// only include if not already included
+#ifndef KS_H__
 #include "ks.h"
-
-
-
+#endif
 
 /* global singletons representing the builtin functions as objects */
 extern ks_cfunc

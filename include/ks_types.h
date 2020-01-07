@@ -25,8 +25,10 @@ See the C files in `types/` for the actual implementations of the types
 #ifndef KS_TYPES_H__
 #define KS_TYPES_H__
 
+// only include if not already included
+#ifndef KS_H__
 #include "ks.h"
-
+#endif
 
 /* kso - K-Script-Object, representing the most general of objects;
 Every kscript object can be down-casted to this, and have the KSO_BASE parameters referenced generically.

@@ -141,34 +141,40 @@ bool kso_eq(kso A, kso B) {
         }
     }
 
-    // TODO: use their types
+    // TODO: use their type functions
     return false;
 }
 
 bool kso_free(kso obj) {
     // if it can still be reached, don't free it
     if (obj->refcnt > 0 || obj->flags & KSOF_IMMORTAL) return false;
-    //else if (obj->refcnt < 0) ks_warn("refcnt of %R was %i", obj, obj->refcnt);
+    else if (obj->refcnt < 0) ks_warn("refcnt of %o was %i", obj, obj->refcnt);
 
-    // otherwise, free it
-    ks_trace("kso_free(%o) (repr was: %R)", obj, obj);
 
+    // now, free it
+
+    // uncomment to trace frees
+    //ks_trace("kso_free(%o) (repr was: %R)", obj, obj);
+
+    // capture the type name before freeing it so we have it for an error message, even if something happens
+    // to the object
     ks_str type_name = obj->type->name;
 
     // check for a type function to free
     if (obj->type->f_free != NULL) {
         if (kso_call(obj->type->f_free, 1, &obj) == NULL) {
-            ks_warn("Problem encountered while freeing < '%s' obj @ %p > ", type_name->chr, obj);
+            ks_warn("Problem encountered while freeing <'%S' obj @ %p> ", type_name, obj);
         }
     } else {
-        // do the default, which is to just free the object
+        // do the default, which is to just free the object pointer,
+        // assuming no other objects
         ks_free(obj);
     }
 
 }
 
 void kso_init() {
-
+    // any initialization code will go here
 }
 
 

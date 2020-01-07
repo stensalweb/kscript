@@ -5,18 +5,21 @@ kscript uses a bytecode interpreter with computed goto to have a fairly efficien
 Much is still in the air about this though; I may switch to smaller instructions, more instructions, and
 internals are still very much not-pinned-down.
 
-The biggest things to handle from here are type/module/function creation & closures
+The biggest things to handle from here are type/module/function creation & closures. This includes
+possibly making a frame and actual kscript object so it is reference counted, and closures would
+keep a reference to it. I think that is how it will end up, but I'm not rushing right now.
 
 */
 
 #include "ks.h"
 
 // comment this out to disable execution tracing
+// by default, this should be off
 //#define DO_EXEC_TRACE
 
 #ifdef DO_EXEC_TRACE
 // if execution tracing is enabled, debug out the arguments
-#define _exec_trace(...) { ks_trace("E!: " __VA_ARGS__); }
+#define _exec_trace(...) { ks_trace("[EXE] " __VA_ARGS__); }
 #else
 #define _exec_trace(...)
 #endif
@@ -227,7 +230,7 @@ static void VM_exec() {
     #define EXEC_EXC_RECLAIM(...) { \
         if (kse_N() > 0) {\
             kso last_err = kse_pop(); \
-            EXEC_EXC("%V", last_err); \
+            EXEC_EXC("%S", last_err); \
         } else { \
             EXEC_EXC(__VA_ARGS__); \
         } \
@@ -435,8 +438,8 @@ static void VM_exec() {
 
                     //new_obj = kso_call(func, inst.i32.i32 - 1, imm_args);
                     new_obj = ((ks_cfunc)func)->v_cfunc(n_args, imm_args);
-                    if (new_obj == NULL) EXEC_EXC_RECLAIM("During function call, calling on obj: `%V`, had an exception", func)
-                    //if (new_obj == NULL) EXEC_EXC("During function call, calling on obj: `%V`, had an exception", func);
+                    if (new_obj == NULL) EXEC_EXC_RECLAIM("During function call, calling on obj: `%S`, had an exception", func)
+                    //if (new_obj == NULL) EXEC_EXC("During function call, calling on obj: `%S`, had an exception", func);
 
                     VM_stk_pushu(new_obj);
 
@@ -450,7 +453,7 @@ static void VM_exec() {
                     EXEC_EXC("cant do this many args, sorry :(");
                 }
             } else {
-                EXEC_EXC("During function call, tried calling on obj: `%V`, which did not work", func);
+                EXEC_EXC("During function call, tried calling on obj: `%S`, which did not work", func);
             }
 
         INST_LABEL(KSBC_GETITEM)

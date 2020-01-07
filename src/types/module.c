@@ -41,19 +41,19 @@ ks_module ks_load_module(ks_str name) {
     for (i = 0; i < 1; ++i) {
         // generate new paths
 
-        ks_str libfile = ks_str_new_cfmt("%V", name);
+        ks_str libfile = ks_str_new_cfmt("%S", name);
 
-        ks_debug("[LOAD_MODULE] trying file '%V'...", libfile);
+        ks_debug("[LOAD_MODULE] trying file '%S'...", libfile);
 
         // first ensure the extension is correct
         char* ext = strrchr(libfile->chr, '.');
         if (ext == NULL) {
-            ks_debug("[LOAD_MODULE] file '%V' didn't work; not a valid extension", libfile);
+            ks_debug("[LOAD_MODULE] file '%S' didn't work; not a valid extension", libfile);
             KSO_DECREF(libfile);
             continue;
         }
         if (strcmp(ext, ".so") != 0) {
-            ks_debug("[LOAD_MODULE] '%V' is not a `.so` file", libfile);
+            ks_debug("[LOAD_MODULE] '%S' is not a `.so` file", libfile);
             KSO_DECREF(libfile);
             continue;
         }
@@ -61,7 +61,7 @@ ks_module ks_load_module(ks_str name) {
         // now, load it via dlopen
         void* handle = dlopen(libfile->chr, RTLD_LAZY);    
         if (handle == NULL) {
-            ks_debug("[LOAD_MODULE] problems opening '%V': %s", libfile, dlerror());
+            ks_debug("[LOAD_MODULE] problems opening '%S': %s", libfile, dlerror());
             KSO_DECREF(libfile);
             continue;
         }
@@ -69,20 +69,20 @@ ks_module ks_load_module(ks_str name) {
         // and get the module source from it
         ks_module_init_t* mod_init = (ks_module_init_t*)dlsym(handle, "_module_init");
         if (mod_init == NULL) {
-            ks_debug("[LOAD_MODULE] problems loading '%V'._module_init: %s", libfile, dlerror());
+            ks_debug("[LOAD_MODULE] problems loading '%S'._module_init: %s", libfile, dlerror());
             KSO_DECREF(libfile);
             continue;
         }
 
         // it was successful
-        ks_debug("[LOAD_MODULE] sucess using '%V', now returning its result...", libfile);
+        ks_debug("[LOAD_MODULE] sucess using '%S', now returning its result...", libfile);
 
         KSO_DECREF(libfile);
 
         return (ks_module)mod_init->f_init(0, NULL);
     }
 
-    return kse_fmt("ImportError: Could not find module '%V'", name);
+    return kse_fmt("ImportError: Could not find module '%S'", name);
 }
 
 
@@ -104,7 +104,7 @@ TFUNC(module, getattr) {
     }
 
     if (ret == NULL) {
-        return kse_fmt("KeyError: %V", attr);
+        return kse_fmt("KeyError: %S", attr);
     } else {
         return KSO_NEWREF(ret);
     }

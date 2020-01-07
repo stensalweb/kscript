@@ -34,10 +34,10 @@ libkscript_src_h := $(addprefix include/, ks_config.h ks_bytecode.h ks_common.h 
 #   commandline)
 kscript_src    := $(addprefix src/, ks.c)
 
-
 # now, generate a list of `.o` files needed
 libkscript_o   := $(patsubst %.c,%.o, $(libkscript_src))
 kscript_o      := $(patsubst %.c,%.o, $(kscript_src))
+
 
 # -*- OUTPUT FILES
 
@@ -67,11 +67,12 @@ init: clean
 clean:
 	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a))
 
+
 # rule to build the object files (.o's) from a C file
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`
 # `$<`: means the input file (%.c in this case)
 # `$@`: means the output file (%.o in thie case)
-%.o: %.c | $(libkscript_src_h)
+%.o: %.c
 	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations

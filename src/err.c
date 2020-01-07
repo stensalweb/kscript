@@ -13,7 +13,6 @@ static ks_list err_stk = NULL;
 
 void* kse_addo(ks_str errmsg) {
     ks_list_push(err_stk, (kso)errmsg);
-    KSO_DECREF(errmsg);
     return NULL;
 }
 
@@ -88,7 +87,7 @@ void* kse_tok(ks_tok tok, const char* fmt, ...) {
 
         // line length
         int ll = i - lsi;
-        ks_str new_err_str = ks_str_new_cfmt("%V\n%*s\n%*c^%*c\n@ Line %i, Col %i, in '%*s'", 
+        ks_str new_err_str = ks_str_new_cfmt("%S\n%*s\n%*c^%*c\n@ Line %i, Col %i, in '%*s'", 
             errstr, 
             ll, src + lsi,
             tok.col, ' ',
@@ -101,7 +100,6 @@ void* kse_tok(ks_tok tok, const char* fmt, ...) {
         errstr = new_err_str;
 
     }
-
 
     kse_addo(errstr);
     KSO_DECREF(errstr);
@@ -128,7 +126,7 @@ bool kse_dumpall() {
     for (i = 0; i < err_stk->len; ++i) {
         kso erri = err_stk->items[i];
 
-        ks_error("%V", erri);
+        ks_error("%S", erri);
     }
     
     ks_list_clear(err_stk);

@@ -68,7 +68,8 @@ TFUNC(str, add) {
     #define SIG "str.add(A, B)"
     REQ_N_ARGS(2);
 
-    return (kso)ks_str_new_cfmt("%V%V", args[0], args[1]);
+    // just append their string representation
+    return (kso)ks_str_new_cfmt("%S%S", args[0], args[1]);
     #undef SIG
 }
 

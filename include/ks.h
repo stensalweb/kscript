@@ -1,5 +1,10 @@
-/* ks.h - main header for the kscript library
+/* ks.h - main header for the kscript library.
 
+Meant to be a flexible, dynamic programming language with fast startup time, easy
+C extension API, with a rich standard library.
+
+
+@author: Cade Brown <brown.cade@gmail.com>
 
 */
 
@@ -7,14 +12,25 @@
 #ifndef KS_H__
 #define KS_H__
 
+/* constants about kscript */
+
+// the major version of the release
+#define KS_VER_MAJOR 0
+
+// the minor version of the release
+#define KS_VER_MINOR 0
+
+// the patch version of the release
+#define KS_VER_PATCH 1
+
 
 /* kscript configuration options */
 
 // generated from `./ks_config.T.h`
 #include <ks_config.h>
 
-/* standard system headers */
 
+/* standard system headers */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,57 +48,8 @@
 #include <math.h>
 
 
-/* kscript sub-headers */
 
-/* include bytecode definitions */
-#include <ks_bytecode.h>
-
-
-/* include the builtin type definitions */
-#include <ks_types.h>
-
-/* include the builtin functions  */
-#include <ks_funcs.h>
-
-
-/* object interface, generic object manipulation */
-#include <kso.h>
-
-
-/* general library functions */
-
-// initializes the kscript library. This should be the first function you call, and it should
-//   only be called once
-void ks_init();
-
-// returns the time, in seconds, since the library started. It uses a fairly precise timer,
-//   but is just provided as a convenience
-double ks_time();
-
-// allocates an area of at least `bytes` bytes, returning a pointer
-// NOTE: with bytes==0, ks_malloc returns NULL
-void* ks_malloc(size_t bytes);
-
-// attempts to reallocate an area of memory, ensuring the new pointer can hold `bytes` of memory
-// use this like the standard realloc() function, like: x = ks_realloc(x, new_size);
-// NOTE: with bytes==0, ks_realloc returns NULL
-//       with ptr==NULL, ks_realloc returns ks_malloc(bytes)
-// Only call this function with pointers returned by `ks_malloc`
-void* ks_realloc(void* ptr, size_t bytes);
-
-// frees a pointer allocated by `ks_malloc`, or which has been reallocated using `ks_realloc`
-// NOTE: ks_free(NULL) is safe; it does nothing
-void  ks_free(void* ptr);
-
-// returns the current amount of memory allocated. This is always a lower estimate than what is
-// actually being used, because internally the system may request blocks which are larger than neccessary.
-// These are just the bytes that ks_malloc/& know about
-size_t ks_memuse();
-
-// returns the maximum amount of memory that was allocated at a single time
-size_t ks_memuse_max();
-
-
+/* macros/definitions */
 
 // enumeration for levels of logging, from least important to most important
 enum {
@@ -117,6 +84,63 @@ enum {
     KS_LOG__END
 };
 
+
+/* kscript sub-headers */
+
+/* include bytecode definitions */
+#include <ks_bytecode.h>
+
+/* include the builtin type definitions */
+#include <ks_types.h>
+
+/* include the builtin functions  */
+#include <ks_funcs.h>
+
+/* object interface, generic object manipulation */
+#include <kso.h>
+
+
+/* general library functions */
+
+// initializes the kscript library. This should be the first function you call, and it should
+//   only be called once
+void ks_init();
+
+/* memory allocation */
+
+// allocates an area of at least `bytes` bytes, returning a pointer
+// NOTE: with bytes==0, ks_malloc returns NULL
+void* ks_malloc(size_t bytes);
+
+// attempts to reallocate an area of memory, ensuring the new pointer can hold `bytes` of memory
+// use this like the standard realloc() function, like: x = ks_realloc(x, new_size);
+// NOTE: with bytes==0, ks_realloc attempts to free `ptr`, and returns NULL
+//       with ptr==NULL, ks_realloc returns ks_malloc(bytes)
+// Only call this function with pointers returned by `ks_malloc`
+void* ks_realloc(void* ptr, size_t bytes);
+
+// frees a pointer allocated by `ks_malloc`, or which has been reallocated using `ks_realloc`
+// NOTE: ks_free(NULL) is safe; it does nothing
+void  ks_free(void* ptr);
+
+
+// returns the current amount of memory allocated. This is always a lower estimate than what is
+// actually being used, because internally the system may request blocks which are larger than neccessary.
+// These are just the bytes that ks_malloc and other functions know about
+size_t ks_memuse();
+
+// returns the maximum amount of memory that was allocated at a single time, i.e. the peak of `ks_memuse()`
+size_t ks_memuse_max();
+
+
+// returns the time, in seconds, since the library started. It uses a fairly precise timer,
+//   but is just provided as a convenience. Do not expect any particular accuracy out of the results
+//   of this function
+double ks_time();
+
+
+/* logging */
+
 // return the current logging level, one of KS_LOG_* enum values
 int ks_log_level();
 
@@ -133,9 +157,9 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 // prints a debug message, assuming the current log level allows for it
 #define ks_debug(...) ks_log(KS_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
 // prints a info message, assuming the current log level allows for it
-#define ks_info(...) ks_log(KS_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_info(...)  ks_log(KS_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 // prints a warn message, assuming the current log level allows for it
-#define ks_warn(...) ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_warn(...)  ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 // prints a error message, assuming the current log level allows for it
 #define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
@@ -150,7 +174,7 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #endif
 
 
-/* global error system */
+/* error generation functions */
 
 // add a C-string as an error message
 void* kse_add(const char* errmsg);
@@ -176,14 +200,13 @@ kso kse_pop();
 bool kse_dumpall();
 
 
-
-
-/* execution/global state */
+/* global state */
 
 // return the global dictionary
 ks_dict ks_get_globals();
 
 
+/* VM execution */
 
 // executes a chunk of code, discarding the results
 void ks_vm_exec(ks_code code);
@@ -192,6 +215,8 @@ void ks_vm_exec(ks_code code);
 /* hash/utils */
 
 // returns a hash from some bytes
+// provided as an inline function. I may move this so its not inline
+// and fix the magic constants 7 and 31
 static inline uint64_t ks_hash_bytes(uint8_t* chr, int len) {
     uint64_t ret = 7;
     int i;
@@ -202,47 +227,10 @@ static inline uint64_t ks_hash_bytes(uint8_t* chr, int len) {
 }
 
 
-/* random data generation */
+/* random generation */
 
 // returns a random 64 bit signed integer
 int64_t ks_random_i64();
-
-/* internal methods */
-
-// INTERNAL METHOD, DO NOT CALL
-void kso_init();
-// INTERNAL METHOD, DO NOT CALl
-void ksf_init();
-// INTERNAL METHOD; DO NOT CALL
-void kse_init();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__EXEC();
-
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__type();
-void ks_init__module();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__none();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__bool();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__int();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__str();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__tuple();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__list();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__dict();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__cfunc();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__code();
-// INTERNAL METHOD; DO NOT CALL
-void ks_init__kfunc();
-void ks_init__parser();
-void ks_init__ast();
 
 
 #endif

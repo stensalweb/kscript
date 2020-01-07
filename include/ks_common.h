@@ -1,5 +1,10 @@
 /* ks_common.h - common helper functions/macros and standardized error handling 
+
 NOTE: This file is not included by default in `ks.h`, because it defines non-standard names that may conflict.
+
+If you include this file, you don't need to include `ks.h`
+
+Mainly, this defines `REQ_*` macros, which help with readability for function errors
 
 */
 

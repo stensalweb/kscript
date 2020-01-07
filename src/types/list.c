@@ -46,9 +46,9 @@ int ks_list_pushN(ks_list self, kso* objs, int len) {
     self->items = ks_realloc(self->items, sizeof(kso) * self->len);
 
     int i;
-    for (i = idx; i < self->len; ++i) {
-        self->items[idx] = objs[i - idx];
-        KSO_INCREF(self->items[idx]);
+    for (i = 0; i < len; ++i) {
+        self->items[idx + i] = objs[i];
+        KSO_INCREF(objs[i]);
     }
 
     return idx;
@@ -213,9 +213,10 @@ TFUNC(list, add) {
     kso other = args[1];
 
     if (other->type == ks_T_list) {
-        // append all the values
+        // create a copy of the list
         ks_list ret = ks_list_new(self->items, self->len);
 
+        // push N values
         ks_list_pushN(ret, ((ks_list)other)->items, ((ks_list)other)->len);
 
         return (kso)ret;

@@ -11,15 +11,8 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
-/*
-    ks_module mod = ks_module_load("examples/cext/libksm_cexec.so");
-
-    if (kse_dumpall()) return -1;
-
-    ks_info("loaded module %V", mod->name);
-
-    return;
-*/
+    // TODO: parse the options before executing everything, so this point will be debugged/traced if
+    // given -v
 
     // get the global virtual machine
     ks_dict globals = ks_get_globals();
@@ -50,7 +43,7 @@ int main(int argc, char** argv) {
 
     SET_GLOBAL("__add__", ks_F_add);
 
-
+    // check for errors so far
     if (kse_dumpall()) return -1;
 
     // long options for commandline parsing
@@ -99,6 +92,7 @@ int main(int argc, char** argv) {
 
             ks_debug("Running `-e`: '%s' (compiled to %ib)", par->src->chr, prog_bc->bc_n);
             // TODO: maybe output the assembly here
+
 
             // now, execute on the VM
             ks_vm_exec(prog_bc);
@@ -177,9 +171,7 @@ int main(int argc, char** argv) {
     int64_t total_diff = (int64_t)ks_memuse() - MU;
     if (total_diff != 0) ks_warn("possible leak of %i bytes detected", (int)total_diff);
 
-
-
-    ks_debug("memused: %l", ks_memuse_max());
+    ks_debug("[MEM] maximum: %l", ks_memuse_max());
 
     return 0;
 }

@@ -1,5 +1,31 @@
 /* fmt.c - implementation of string formatting rules and functions, as well as the string building utilities
 
+Essentially, this includes `strB`, the string builder utility structure (to avoid the overhead of
+immutable string concatenation, which is O(n^2), whereas strB appending is roughly O(n)).
+
+It also includes arbitrary formatting, which is styled like printf. It uses a `%` as a formatting key,
+lowercase letters are C literals (i.e. expect a machine-type), and upper case letters expect a `kso` of some type.
+
+The one exception is `%o`, which does except a `kso`. But, this is intentional; it is completely non-recursive,
+non-function-calling, so it never has the risk of resulting in an exception. This is useful for lower level tracing machines.
+
+Here are the format strings:
+
+C-arg:
+  %i, int : prints out a signed integer value
+  %l, int64_t : formats an int64_t as a signed 64 bit integer value
+  %p, void* : formats a pointer of any type as a hex address, i.e. `0xabd9032`
+  %s, char* : formats a NUL-terminated C-string
+  %*s, int, char* : formats a C-string, given a length before the full value
+  %o, kso : formats an object in a generic way, with type name and address
+
+Kscript-arg:
+
+  %S, kso : formats the kscript object as if `str()` had been called on it (i.e. tostring)
+  %R, kso : formats the kscript object as if `repr()` had been called on it
+  %T, kso : formats the type name of the kscript object
+
+
 */
 
 #include "ks.h"
@@ -245,7 +271,7 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 c: char
                 s: char* 
                 o: kso, vague (never allocates another string, just uses `<type obj @ addr>` format)
-                V: kso, value (will turn into string)
+
                 S: kso, tostring (will turn into string)
                 R: kso, repr (turns into its representation)
                 T: kso, type (prints out the type name as a string)
@@ -350,11 +376,6 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
 
                 ks_strB_add(&ksb, ">", 1);
 
-            } else if (spec == 'V') {
-                // 'V' for value, print the kscript object as its tostring
-                kso o_val = va_arg(ap, kso);
-
-                ks_strB_add_tostr(&ksb, o_val);
 
             } else if (spec == 'S') {
                 // 'S' for string, print the kscript object as its tostring
@@ -372,6 +393,8 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
                 kso o_val = va_arg(ap, kso);
 
                 ks_strB_add(&ksb, o_val->type->name->chr, o_val->type->name->len);
+
+
 
             } else {
                 // take an argument off just in case, this may prevent an error

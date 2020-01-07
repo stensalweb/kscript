@@ -1,6 +1,28 @@
-/* cexec.c - an example module demonstrating how to write a C-extension
+/* cexec/cexec.c - an example module demonstrating how to write a C-extension
 
-This extension is named `cexec`, and runs the a command as a bash/cmd script, returning the full output
+This extension is named `cexec`, and runs the a command as a bash/cmd script, returning the full output.
+
+EXAMPLE:
+
+    > import cexec
+    > print (cexec.run("ls"))
+    (0, "bin
+    examples
+    include
+    ks_config.T.h
+    lib
+    Makefile
+    README.md
+    src
+    ")
+
+As you can see, you get the exit code of the process (0, since there was no error), and the string output
+  from `stdout`, in a tuple. So, you can take `result[0]` to get the int error code, or `result[1]` to get
+  the string output
+
+TYPES:
+
+  N/A
 
 FUNCTIONS:
 
@@ -9,20 +31,17 @@ FUNCTIONS:
 
 */
 
+// always begin by defining the module information
 #define MODULE_NAME "cexec"
 
-// since this is a module
+// include this since this is a module.
+// NOTE: this also includes the `REQ_*` macros which are useful for error generation
 #include "ks_module.h"
 
-// for helper macros
-#include "ks_common.h"
-
-// for our popen() usage
-#define _BSD_SOURCE
+// to ensure we have the `popen()` C function
 #include <stdio.h>
-#include <stdlib.h>
 
-/* now, define our function */
+/* now, define our function that runs a given command */
 
 MFUNC(cexec, run) {
     #define SIG "cexec.run(cmd)"
@@ -62,13 +81,13 @@ MODULE_INIT() {
     // create our new module
     ks_module mod = ks_module_new_c("cexec");
 
-    // our our function
+    // add our function
     MODULE_ADD_CFUNC(mod, "run", cexec_run_);
     
     // return our module
     return (kso)mod;
 }
 
-// finalize everything
+// finalize everything, making it a valid kscript module
 MODULE_END();
 

@@ -180,7 +180,7 @@ static void parser_tokenize(ks_parser self) {
             ADD_TOK(KS_TOK_COMMENT);
 
             // if the next character is a newline (it should always be), skip it
-            if (CUR() == '\n') ADV(1);
+            //if (CUR() == '\n') ADV(1);
 
         } else if (isdigit(c)) {
             // this is either an integer or a floating point.
@@ -771,7 +771,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             if (TOK_EQ(self, ctok, "then") || TOK_EQ(self, ctok, "elif") || TOK_EQ(self, ctok, "else")) goto parseexpr_end;
 
             // can't have 2 value types in a row
-            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
+            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax %i", ltok.ttype);
 
             // first, check for keywords
             if (TOK_EQ(self, ctok, "true")) {
@@ -1070,7 +1070,6 @@ ks_ast ks_parse_expr(ks_parser self) {
         
         return NULL;
     } else {
-        
         // reduce the rest of the operators stack
         while (Ops.len > 0) {
             POP_OP();
@@ -1273,7 +1272,6 @@ ks_ast ks_parse_stmt(ks_parser self) {
                 
                 // check for a single line shorthand
                 ctok = CTOK();
-
                 if (ctok.ttype == KS_TOK_COMMA || TOK_EQ(self, ctok, "then")) ADV1();
 
                 ctok = CTOK();
@@ -1347,6 +1345,11 @@ ks_ast ks_parse_stmt(ks_parser self) {
 
             // skip more irrelevant bits
             SKIP_IRR_S();
+
+            // check for a single line shorthand
+            ctok = CTOK();
+            if (ctok.ttype == KS_TOK_COMMA || TOK_EQ(self, ctok, "do")) ADV1();
+
 
             // recurse here, maybe parse a whole block
             ks_ast body = ks_parse_stmt(self);
@@ -1470,9 +1473,13 @@ ks_ast ks_parse_stmt(ks_parser self) {
 
         return res;
 
-    } else if (TOKE_ISVAL(ctok.ttype) || ctok.ttype == KS_TOK_LBRACK) {
+    } else if (TOKE_ISVAL(ctok.ttype) || ctok.ttype == KS_TOK_LBRACK || ctok.ttype == KS_TOK_LPAR) {
+
         // just parse a normal expression
-        return ks_parse_expr(self);
+        ks_ast res = ks_parse_expr(self);
+        if (res == NULL) PSTMT_ERREXT();
+        return res;
+
     } else {
         if (ctok.ttype == KS_TOK_EOF) {
             int i = self->tok_i;
@@ -1506,6 +1513,8 @@ ks_ast ks_parse_program(ks_parser self) {
 
     // keep parsing until we hit an end
     while (VALID() && (ctok = CTOK()).ttype != KS_TOK_RBRACK && ctok.ttype != KS_TOK_EOF) {
+        SKIP_IRR_S();
+
         ks_ast sub = ks_parse_stmt(self);
         if (sub == NULL) return NULL;
 
@@ -1519,8 +1528,6 @@ ks_ast ks_parse_program(ks_parser self) {
 
     return blk;
 }
-
-
 
 
 

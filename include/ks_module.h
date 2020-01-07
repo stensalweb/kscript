@@ -8,7 +8,6 @@
 #error Need to define MODULE_NAME for ks_module.h
 #endif
 
-#include "ks.h"
 
 // create a function for initializing the module:
 // example:
@@ -24,6 +23,10 @@
 // i.e. MODULE_ADD_CFUNC(module, "asdfa", my_func_)
 // my_func_ needs to be of `ks_cfunc_sig` to work
 #define MODULE_ADD_CFUNC(_mod, _cstr, _cfunc) { ks_cfunc made_cfunc = ks_cfunc_new(_cfunc); ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)made_cfunc); KSO_DECREF(made_cfunc); }
+
+
+// include helper macros for the module
+#include "ks_common.h"
 
 #endif
 

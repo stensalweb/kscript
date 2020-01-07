@@ -1,5 +1,53 @@
 /* ks_bytecode.h - definition of bytecode instructions/format
 
+## GENERAL BYTECODE FORMAT
+
+In general, the bytecodes should be as short as possible, so that loops and functions always fit on a
+single page. This is not hard to do, and I did a test of a 1000000 line long file with a pretty good 
+operations/line density. It came out to 18MB of bytecode (using the full 4-byte int extra data, which
+was unneccesary; all could have been condensed single byte values)
+
+That means it is approximately 18 bytes/line, thus about 227 lines/page (assuming 4kb page).
+
+Most functions are under this already, and so I'm not worrying about cache performance too much. However,
+with single byte extra opcode, that would drop down to, I estimate, around 6 bytes/line, and thus 670
+lines/page. That is very good indeed, so there is no need for cramming everything in ridiculously.
+
+The general generators `ksc_*` will just output bytecode and append to a `ks_code` object. They are 
+called with 4 byte integers, but internally will revert to single bytes if the opcode is small enough.
+
+
+So, bytecode operations that take no arguments just take up one byte:
+
+----------
+| 1: opc |
+----------
+size: 1 byte
+
+And most that take an argument <=255 will be reduced to an opcode and an amount:
+
+-------------------
+| 1: opc | 1: val |
+-------------------
+size: 2 bytes
+
+And any with larger arguments will take up 4:
+
+----------------------------------------------
+| 1: opc | 4: val                            |
+----------------------------------------------
+size: 5 bytes
+
+This is, of course, with the exception of the jmp commands, which always take 4 byte signed integers (for 
+now). Having variable sized jumps can make it very difficult for the code generator.
+
+### JUMPING BYTECODE
+
+For example, if a jump is added, but then later needs to be resized, it has to re-link all the messed up 
+jump targets between the jump and its destination. Eventually, I will probably do this (maybe add an 
+optimizing step which can do it after the code generator has ran), but right now its not a huge priority.
+
+In most cases, jumps will add an additional 3 bytes than are really neccessary, just so it is error-prone
 
 */
 
@@ -7,13 +55,17 @@
 #ifndef KS_BYTECODE_H__
 #define KS_BYTECODE_H__
 
+// don't need to include `ks.h` here, since it doesn't rely on that
+
 #include <stdint.h>
 
 /* bytecode enumerations, detailing different instructions
 This is also the main reference for the functionality of the bytecode, outside of the
   interprereter source code
 Scheme: SIZE[TYPE description], SIZE in bytes of the section, TYPE being what it can be casted to
-  and a short description of what that parameter does
+  and a short description of what that parameter does.
+
+Opcodes themselves are always a single byte
 */
 enum {
 
@@ -188,6 +240,17 @@ typedef struct {
 
 } ksbc_;
 
+// instruction + a 1 byte unsigned integer
+typedef struct {
+    // the first byte, opcode, one of the KSBC_* enum values
+    uint8_t op;
+
+    // the unsigned, 8 bit integer representing the value
+    uint8_t u8;
+
+} ksbc_u8;
+
+
 // instruction + a 4 byte signed integer
 typedef struct {
     // the first byte, opcode, one of the KSBC_* enum values
@@ -198,24 +261,25 @@ typedef struct {
 
 } ksbc_i32;
 
-
 // the generic bytecode object which can hold all of them
 typedef union {
 
     // opcode only
     ksbc_ _;
 
+    // 1[opcode] 1[uint8_t u8]
+    ksbc_u8 u8;
+
     // 1[opcode] 4[int i32]
     ksbc_i32 i32;
 
 } ksbc;
 
-
 /* inline function to skip over the current instruction, based on how long it is */
 static inline uint8_t* ks_bc_next(uint8_t* bc) {
     // get instruction
     uint8_t ii = *bc;
-    // handle operators
+    // check what argument it takes
     /**/ if (KSBC_JMP <= ii && ii <= KSBC_JMPF) return bc + sizeof(ksbc_i32);
     else if (KSBC_LOAD <= ii && ii <= KSBC_LIST) return bc + sizeof(ksbc_i32);
     else if (KSBC_CONST == ii) return bc + sizeof(ksbc_i32);

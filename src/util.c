@@ -1,9 +1,10 @@
 /* util.c - utility functions are defined here */
 
-#include "ks.h"
+// since this uses internal methods
+#include "ks_internal.h"
 
+// for segmentation fault handling
 #include<signal.h>
-#include<stdio.h>
 
 
 // time value recording when the library was initialized
@@ -11,7 +12,7 @@ static struct timeval ks_stime = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
 
 // handle segfaults
 static void ks_segfault_handle(int sg) {
-    fprintf(stderr, "SEGFAULT!");
+    ks_error("SEGFAULT!");
 
     kse_dumpall();
 
@@ -19,7 +20,7 @@ static void ks_segfault_handle(int sg) {
 }
 
 
-/* RANDOM NUMBER GENERATION */
+/* RANDOM NUMBER GENERATION. (this will change soon, just need something that works okay) */
 
 // random state
 static uint64_t random_state[4] = { 
@@ -108,7 +109,7 @@ void ks_init() {
     // initialize the error system
     kse_init();
 
-    // initialize execution engine
+    // initialize VM execution engine
     ks_init__EXEC();
 
 }
