@@ -11,6 +11,7 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
+
     // TODO: parse the options before executing everything, so this point will be debugged/traced if
     // given -v
 
@@ -164,6 +165,7 @@ int main(int argc, char** argv) {
             return 1;
             break;
     }
+
 
     // clean up memory, etc
     if (kse_dumpall()) return -1;

@@ -363,7 +363,6 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         }
 
 
-
     } else if (self->atype == KS_AST_WHILE) {
 
         // capture the start of the loop
@@ -403,6 +402,70 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // fill in the bytecode
         jmpf_i->i32 = jmp_a_p - cond_jmpf_a_p;
         jmp_i->i32 = start_p - jmp_a_p;
+
+
+    } else if (self->atype == KS_AST_TRY) {
+        // we need to generate the 'try' block, then add a new bytecode command to save its execution place
+        // at the end of the try, we need to jump to after the catch
+
+        // capture position of the exception add
+        int p_excadd = to->bc_n;
+
+        // fill this in later
+        ksc_exc_add(to, -1);
+
+        // first, generate the try part
+        codegen(self->v_try.v_try, to, geni);
+
+        // and afterwards, remove the try/catch (if there was no error)
+        ksc_exc_rem(to);
+
+        if (self->v_try.v_catch != NULL) {
+            // there is a catch block
+            int p_tryjmp = to->bc_n;
+            // fill this in later
+            ksc_jmp(to, -1);
+            // capture after the jmp command
+            int p_a_tryjmp = to->bc_n;
+
+            // so, fill in this as the current position to jump to in case of error
+            ksbc_i32* i_excadd = (ksbc_i32*)(to->bc + p_excadd);
+
+            // since we don't know what will generate after this, just set it here
+            i_excadd->i32 = to->bc_n;
+
+            if (self->v_try.v_catch_target != NULL) {
+                // we want to store it in a given name
+                ksc_storeo(to, (kso)self->v_try.v_catch_target);
+            }
+            
+            // pop off the last value
+            ksc_popu(to);
+
+            // now, generate the catch part
+            codegen(self->v_try.v_catch, to, geni);
+
+            int p_a_catch = to->bc_n;
+
+            // now, we're done. so correct the jump after the try block so if no error occurs, it does not run the catch block
+            ksbc_i32* i_tryjmp = (ksbc_i32*)(to->bc + p_tryjmp);
+
+            i_tryjmp->i32 = p_a_catch - p_a_tryjmp;
+
+
+        } else {
+            // there is no catch block, so the try simply flows through
+
+            // so, fill in this as the current position to jump to in case of error
+            ksbc_i32* i_excadd = (ksbc_i32*)(to->bc + p_excadd);
+
+            // since we don't know what will generate after this, just set it here
+            i_excadd->i32 = to->bc_n;
+
+            // no error catching target, so we pop it as an unused
+            ksc_popu(to);
+        }
+
 
     } else {
         kse_fmt("Given invalid AST (@%p) with type %i", self, self->atype);

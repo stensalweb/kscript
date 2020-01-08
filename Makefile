@@ -1,13 +1,12 @@
 # Makefile - describes building the kscript library & executable
 #
 # Full makefile build:
-# 1. run `make init`. Just run this 
+# 1. run `make init`. This creates `include/ks_config.h`
 # 2. edit `include/ks_config.h`, reading the comments to understand what each option does
 # 3. run `make` to build the library, executable, etc into `lib/`, `bin/`
 # 4. Run them
 # 5. If desired, run `sudo make install` to install into `/usr/local/`.
 #      To install into another directory, run `PREFIX=directory/to/install sudo make install`
-#
 #
 # @author   : Cade Brown <brown.cade@gmail.com>
 # @license  : WTFPL (http://www.wtfpl.net/)
@@ -66,7 +65,6 @@ init: clean
 #   messages
 clean:
 	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a))
-
 
 # rule to build the object files (.o's) from a C file
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`

@@ -19,7 +19,7 @@ keep a reference to it. I think that is how it will end up, but I'm not rushing 
 
 #ifdef DO_EXEC_TRACE
 // if execution tracing is enabled, debug out the arguments
-#define _exec_trace(...) { ks_trace("[EXE] " __VA_ARGS__); }
+#define _exec_trace(...) { ks_debug("[EXE] " __VA_ARGS__); }
 #else
 #define _exec_trace(...)
 #endif
@@ -64,14 +64,41 @@ static struct {
 
     }* frame_stk;
 
+
     // length of the frame stack, and its maximum
     int frame_stk_len, frame_stk_len_max;
+
+
+    // stack of exception handling frames
+    struct vm_eframe_stk {
+
+        // capture `VM.frame_stk_len` when the eframe is registered
+        int frame_stk_len;
+
+        // capture `VM.stk_len` when the eframe is registered
+        int stk_len;
+
+        // where to start executing in case of an error
+        uint8_t* exc_to;
+
+    }* eframe_stk;
+
+    // length of the exception frame stack
+    int eframe_stk_len;
 
     // the global variables
     ks_dict globals;
 
     
-} VM = {.stk = {NULL, 0, 0}, NULL, 0, 0, NULL};
+} VM = {
+    .stk = {NULL, 0, 0}, 
+    // frame_stk
+    NULL, 0, 0, 
+    // eframe_stk
+    NULL, 0,
+
+    NULL
+};
 
 
 // adds a frame to the VM, returns the index
@@ -95,6 +122,22 @@ static int VM_push_frame(ks_code code) {
 static void VM_pop_frame() {
     int idx = --VM.frame_stk_len;
     KSO_DECREF(VM.frame_stk[idx].local_vars)
+}
+
+
+/* exception frames */
+
+static inline int VM_push_eframe(uint8_t* exc_to) {
+    int idx = VM.eframe_stk_len++;
+    VM.eframe_stk = realloc(VM.eframe_stk, VM.eframe_stk_len * sizeof(*VM.eframe_stk));
+    VM.eframe_stk[idx].stk_len = VM.stk.len;
+    VM.eframe_stk[idx].frame_stk_len = VM.frame_stk_len;
+    VM.eframe_stk[idx].exc_to = exc_to;
+    return idx;
+}
+
+static inline int VM_pop_eframe() {
+    VM.eframe_stk_len--;
 }
 
 
@@ -203,6 +246,9 @@ static void VM_exec() {
         INIT_INST_LABEL(KSBC_RET)
         INIT_INST_LABEL(KSBC_RET_NONE)
 
+        INIT_INST_LABEL(KSBC_EXC_ADD)
+        INIT_INST_LABEL(KSBC_EXC_REM)
+
     };
 
     // call like DECODE(ksbc_), or DECODE(ksbc_i32) to read and pass an instruction of that
@@ -212,28 +258,36 @@ static void VM_exec() {
     // variable to hold the currently executing instruction's data
     ksbc inst;
 
-    // execution exception, such as value not found, etc
-    // give it printf-style strings
-    #define EXEC_EXC(...) { \
-        int i, bc_n = RELADDR; \
+    // internal macro
+    #define _EXEC_ERR(...) { \
+        int i, bc_n = RELADDR, haderr = 0; \
         for (i = 0; i < CUR_SCOPE().code->meta_ast_n; ++i) { \
             if (CUR_SCOPE().code->meta_ast[i].bc_n >= bc_n) { \
+                haderr = 1; \
                 kse_tok(CUR_SCOPE().code->meta_ast[i].ast->tok_expr, __VA_ARGS__); \
-                goto EXC; \
+                break; \
             } \
         } \
-        kse_fmt(__VA_ARGS__); \
+        if (haderr = 0) kse_fmt(__VA_ARGS__); \
+    }
+
+    // execution error, such as value not found, etc
+    // give it printf-style strings
+    #define EXEC_ERR(...) { \
+        _EXEC_ERR(__VA_ARGS__); \
         goto EXC; \
     }
 
-    // execution exception, reclaim from the global error stack, if possible
-    #define EXEC_EXC_RECLAIM(...) { \
-        if (kse_N() > 0) {\
+    // execution error, reclaim from the global error stack, if possible
+    #define EXEC_ERR_RECLAIM(...) { \
+        if (kse_N() > 0) { \
             kso last_err = kse_pop(); \
-            EXEC_EXC("%S", last_err); \
+            _EXEC_ERR("%S", last_err); \
+            KSO_DECREF(last_err); \
         } else { \
-            EXEC_EXC(__VA_ARGS__); \
+            _EXEC_ERR(__VA_ARGS__); \
         } \
+        goto EXC; \
     }
 
 
@@ -338,7 +392,7 @@ static void VM_exec() {
             }
             
             found = ks_dict_get(VM.globals, (kso)v_str, v_str->v_hash);
-            if (found == NULL) EXEC_EXC("Unknown variable '%s'", v_str->chr);
+            if (found == NULL) EXEC_ERR("Unknown variable '%S'", v_str);
 
             load_resolve: ;
 
@@ -356,7 +410,11 @@ static void VM_exec() {
             imm_args[1] = (kso)v_str;
 
             found = ks_F_getattr->v_cfunc(2, imm_args);
-            if (found == NULL) EXEC_EXC_RECLAIM("KeyError: %R", v_str);
+            if (found == NULL) {
+                KSO_DECREF(imm_args[0]);
+
+                EXEC_ERR_RECLAIM("KeyError: %R", v_str);
+            }
 
             VM_stk_pushu(found);
             KSO_DECREF(imm_args[0]);
@@ -383,7 +441,11 @@ static void VM_exec() {
             imm_args[0] = VM_stk_pop();
 
             found = ks_F_setattr->v_cfunc(3, imm_args);
-            if (found == NULL) EXEC_EXC_RECLAIM("KeyError: %R", v_str);
+            if (found == NULL) {
+                KSO_DECREF(imm_args[0]);
+                KSO_DECREF(imm_args[2]);
+                EXEC_ERR_RECLAIM("KeyError: %R", v_str);
+            }
 
             VM_stk_pushu(found);
             KSO_DECREF(imm_args[0]);
@@ -407,7 +469,7 @@ static void VM_exec() {
                 int n_args = inst.i32.i32 - 1;
                 ks_kfunc kf = (ks_kfunc)func;
                 if (n_args != kf->params->len) {
-                    EXEC_EXC("Tried calling a function that takes %i args with %i args instead", kf->params->len, n_args);
+                    EXEC_ERR("Tried calling a function that takes %i args with %i args instead", kf->params->len, n_args);
                 }
 
                 // otherwise, push on a new scope
@@ -438,8 +500,15 @@ static void VM_exec() {
 
                     //new_obj = kso_call(func, inst.i32.i32 - 1, imm_args);
                     new_obj = ((ks_cfunc)func)->v_cfunc(n_args, imm_args);
-                    if (new_obj == NULL) EXEC_EXC_RECLAIM("During function call, calling on obj: `%S`, had an exception", func)
-                    //if (new_obj == NULL) EXEC_EXC("During function call, calling on obj: `%S`, had an exception", func);
+
+                    if (new_obj == NULL) {
+                        // done with arguments
+                        DECREF_N(imm_args, n_args);
+                        // done with the function
+                        KSO_DECREF(func);
+
+                        EXEC_ERR_RECLAIM("During function call, calling on obj: `%S`, had an exception", func)
+                    }
 
                     VM_stk_pushu(new_obj);
 
@@ -450,10 +519,10 @@ static void VM_exec() {
 
                     NEXT_INST();
                 } else {
-                    EXEC_EXC("cant do this many args, sorry :(");
+                    EXEC_ERR("cant do this many args, sorry :(");
                 }
             } else {
-                EXEC_EXC("During function call, tried calling on obj: `%S`, which did not work", func);
+                EXEC_ERR("During function call, tried calling on obj: `%S`, which did not work", func);
             }
 
         INST_LABEL(KSBC_GETITEM)
@@ -468,7 +537,12 @@ static void VM_exec() {
                 // use immediate args
                 memcpy(imm_args, args_p, n_args * sizeof(kso));
                 new_obj = ks_F_getitem->v_cfunc(n_args, imm_args);
-                if (new_obj == NULL) EXEC_EXC_RECLAIM("During getitem call, there was an exception", func)
+                if (new_obj == NULL) {
+                    // done with arguments
+                    DECREF_N(imm_args, n_args);
+
+                    EXEC_ERR_RECLAIM("During getitem call, there was an exception", func)
+                }
 
                 VM_stk_pushu(new_obj);
 
@@ -477,7 +551,7 @@ static void VM_exec() {
 
                 NEXT_INST();
             } else {
-                EXEC_EXC("cant do this many args, sorry :(");
+                EXEC_ERR("cant do this many args, sorry :(");
             }
 
         INST_LABEL(KSBC_SETITEM)
@@ -492,17 +566,21 @@ static void VM_exec() {
                 // use immediate args
                 memcpy(imm_args, args_p, n_args * sizeof(kso));
                 new_obj = ks_F_setitem->v_cfunc(n_args, imm_args);
-                if (new_obj == NULL) EXEC_EXC_RECLAIM("During setitem call, there was an exception", func)
+                if (new_obj == NULL) {
+                    // done with arguments
+                    DECREF_N(imm_args, n_args);
 
+                    EXEC_ERR_RECLAIM("During setitem call, there was an exception", func)
+                }
+
+                VM_stk_pushu(new_obj);
 
                 // done with arguments
                 DECREF_N(imm_args, n_args);
 
-                VM_stk_pushu(new_obj);
-
                 NEXT_INST();
             } else {
-                EXEC_EXC("cant do this many args, sorry :(");
+                EXEC_ERR("cant do this many args, sorry :(");
             }
 
 
@@ -514,7 +592,10 @@ static void VM_exec() {
             args_p = VM_stk_popun(inst.i32.i32);
 
             new_obj = (kso)ks_tuple_new(args_p, inst.i32.i32);
-            if (new_obj == NULL) EXEC_EXC("Internal error during tuple creation");
+            if (new_obj == NULL) {
+                DECREF_N(args_p, inst.i32.i32);
+                EXEC_ERR("Internal error during tuple creation");
+            }
 
             // since the objects will now be referenced by the tuple, remove the stack's reference
             // TODO: Maybe have a more efficient way of constructing a tuple from freshly moved references?
@@ -534,7 +615,8 @@ static void VM_exec() {
 
             new_obj = (kso)ks_list_new(args_p, inst.i32.i32);
             if (new_obj == NULL) {
-                EXEC_EXC("Internal error during list creation");
+                DECREF_N(args_p, inst.i32.i32);
+                EXEC_ERR("Internal error during list creation");
             }
 
             DECREF_N(args_p, inst.i32.i32);
@@ -551,7 +633,10 @@ static void VM_exec() {
             _exec_trace("bop " _opstr); \
             imm_args[1] = VM_stk_pop(); imm_args[0] = VM_stk_pop(); \
             new_obj = _opcfunc->v_cfunc(2, imm_args); \
-            if (new_obj == NULL) EXEC_EXC_RECLAIM("Error in op " _opstr); \
+            if (new_obj == NULL) { \
+                DECREF_N(imm_args, 2); \
+                EXEC_ERR_RECLAIM("Error in op " _opstr); \
+            } \
             VM_stk_pushu(new_obj); \
             DECREF_N(imm_args, 2); \
             NEXT_INST();
@@ -609,8 +694,6 @@ static void VM_exec() {
             DECODE(ksbc_);
             _exec_trace("ret");
 
-
-
             // we are expecting only one value to have been added during exec
             while (VM.stk.len > 1 + CUR_SCOPE().start_stk_len) {
                 VM_stk_popu();
@@ -649,21 +732,76 @@ static void VM_exec() {
             // otherwise, continue
             NEXT_INST();
 
+        INST_LABEL(KSBC_EXC_ADD)
+            DECODE(ksbc_i32);
+            _exec_trace("exc_add %i", inst.i32.i32);
+
+            // push on an exception frame
+            VM_push_eframe(CUR_SCOPE().code->bc + inst.i32.i32);
+
+            // continue on
+            NEXT_INST();
+
+        INST_LABEL(KSBC_EXC_REM)
+            DECODE(ksbc_);
+            _exec_trace("exc_rem");
+
+            // push on an exception frame
+            VM_pop_eframe();
+
+            // continue on
+            NEXT_INST();
+
         /* exception handling  */
         EXC:
+            _exec_trace("exc");
 
-            //ks_error("EXCEPTION");
-            // rewind, then exit
-            while (VM.frame_stk_len > start_fsl) {
-                VM_pop_frame();
+            if (VM.eframe_stk_len > 0) {
+                // if we have an exception handler
+                // pop off the top exc handler
+                struct vm_eframe_stk top = VM.eframe_stk[--VM.eframe_stk_len];
+
+                // rewind so the stack trace is correct
+                while (VM.frame_stk_len > top.frame_stk_len) {
+                    VM_pop_frame();
+                }
+
+                // rewind so the main stack is correct
+                while (VM.stk.len > top.stk_len) {
+                    VM_stk_popu();
+                }
+
+                // get the last error
+                kso last_err = kse_pop();
+
+                // add on the error to the stack
+                VM_stk_pushu(last_err);
+
+                // clear the rest
+                kse_clear();
+
+                // now, we change the program counter to 
+                pc = VM.frame_stk[VM.frame_stk_len-1].pc = top.exc_to;
+
+                // and keep executing
+                NEXT_INST();
+
+            } else {
+                // we don't, so clear everything and exit
+
+                //ks_error("EXCEPTION");
+                // rewind, then exit
+                while (VM.frame_stk_len > start_fsl) {
+                    VM_pop_frame();
+                }
+
+                // dump all errors
+                kse_dumpall();
+                
+                exit(1);
+
+                return;
             }
-
-            if (kse_dumpall())  ;
-            
-            exit(1);
-
-            return;
-
     }
 
 

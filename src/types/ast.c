@@ -167,6 +167,22 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body) {
 
     return self;
 }
+
+// create a new try/catch block
+ks_ast ks_ast_new_try(ks_ast v_try, ks_ast v_catch, ks_str v_catch_target) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        _AST_INIT(KS_AST_TRY)
+        .v_try = {v_try, v_catch, v_catch_target}
+    };
+    KSO_INCREF(v_try);
+    if (v_catch != NULL) KSO_INCREF(v_catch);
+    if (v_catch_target != NULL) KSO_INCREF(v_catch_target);
+
+    return self;
+}
+
+
 // create a new AST representing a return statement
 ks_ast ks_ast_new_ret(ks_ast val) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -273,6 +289,11 @@ TFUNC(ast, free) {
     case KS_AST_WHILE:
         KSO_DECREF(self->v_while.cond);
         KSO_DECREF(self->v_while.body);
+        break;
+    case KS_AST_TRY:
+        KSO_DECREF(self->v_try.v_try);
+        if (self->v_try.v_catch != NULL) KSO_DECREF(self->v_try.v_catch);
+        if (self->v_try.v_catch_target != NULL) KSO_DECREF(self->v_try.v_catch_target);
         break;
 
     case KS_AST_RET:

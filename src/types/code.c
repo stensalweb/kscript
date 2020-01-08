@@ -244,7 +244,9 @@ void ksc_jmpf      (ks_code code, int relamt) KSC_I32(KSBC_JMPF, relamt)
 void ksc_ret       (ks_code code) KSC_(KSBC_RET)
 void ksc_ret_none  (ks_code code) KSC_(KSBC_RET_NONE)
 
-
+/* exception handling */
+void ksc_exc_add   (ks_code code, int abspos) KSC_I32(KSBC_EXC_ADD, abspos)
+void ksc_exc_rem   (ks_code code) KSC_(KSBC_EXC_REM)
 
 // called when the object should be freed
 

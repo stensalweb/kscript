@@ -89,7 +89,10 @@ FUNC(type) {
     #define SIG "type(obj)"
     REQ_N_ARGS(1);
 
-    return KSO_NEWREF(args[0]->type);
+    kso res = args[0]->type;
+    ks_info("res: %R", args[0]->type);
+
+    return KSO_NEWREF(res);
     #undef SIG
 }
 

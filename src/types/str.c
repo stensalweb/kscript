@@ -81,7 +81,7 @@ void ks_init__str() {
 
     /* first create the type */
     T_str = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_str)
+        KSO_BASE_INIT(ks_T_type)
 
         .name = ks_str_new("str"),
 

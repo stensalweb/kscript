@@ -223,6 +223,18 @@ enum {
     KSBC_RET_NONE,
 
 
+    /** exception handling **/
+
+    /* EXC_ADD - add an exception handler (useful for try/catch idiom), with an absolute position
+    of the place to resume executing on the current code object
+    1[KSBC_EXC_ADD] 4[int abs_pos of the exception handler in the local code object] */
+    KSBC_EXC_ADD,
+    
+    /* EXC_REM - remove an exception handler (useful for try/catch idiom), from the top
+    1[KSBC_EXC_REM] */
+    KSBC_EXC_REM,
+
+
     // phony enum value to denote the end
     KSBC__END
 };

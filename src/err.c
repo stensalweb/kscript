@@ -127,6 +127,7 @@ bool kse_dumpall() {
         kso erri = err_stk->items[i];
 
         ks_error("%S", erri);
+
     }
     
     ks_list_clear(err_stk);
@@ -134,8 +135,21 @@ bool kse_dumpall() {
     return i != 0;
 }
 
+
+// clears the error stack
+bool kse_clear() {
+    bool res = err_stk->len != 0;
+
+    ks_list_clear(err_stk);
+
+    return res;
+}
+
 // INTERNAL METHOD; DO NOT CALL
 void kse_init() {
     err_stk = ks_list_new_empty();
 }
+
+
+
 

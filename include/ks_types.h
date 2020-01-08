@@ -176,7 +176,6 @@ typedef struct ks_int {
 // constructs a new integer from a given value, with a new reference
 ks_int ks_int_new(int64_t v_int);
 
-
 /* str -> the string type, a collection of ASCII characters
 This type is immutable, and internally is both length encoded & NUL-terminated
 (so the pointer can be passed to C functions)
@@ -494,6 +493,12 @@ void ksc_jmpf      (ks_code code, int relamt);
 void ksc_ret       (ks_code code);
 void ksc_ret_none  (ks_code code);
 
+/* exception handling */
+void ksc_exc_add   (ks_code code, int abspos);
+void ksc_exc_rem   (ks_code code);
+
+
+
 
 /* kfunc -> a wrapper that parameterizes a bytecode object */
 typedef struct ks_kfunc {
@@ -804,6 +809,9 @@ enum {
     KS_AST_IF,
     /* means this AST represents a while-loop block */
     KS_AST_WHILE,
+    /* means this AST represents a try-catch block */
+    KS_AST_TRY,
+
     /* means this AST represents a return statement */
     KS_AST_RET,
 
@@ -917,6 +925,20 @@ struct ks_ast {
 
         } v_while;
 
+        /* the attempt block and catch block to be ran if true iff atype==KS_AST_TRY */
+        struct {
+            
+            // block in try {...}
+            ks_ast v_try;
+
+            // the catch block, if it exists
+            ks_ast v_catch;
+
+            // the catch target name, i..e "e"
+            ks_str v_catch_target;
+
+        } v_try;
+
         /* the structure describing a function literal */
         struct {
             
@@ -983,6 +1005,10 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast body, ks_ast v_else);
 void ks_ast_attach_else(ks_ast self, ks_ast v_else);
 // return a new AST representing a `while`
 ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
+// constructs a new try {...} catch e {...} block, with an optional 'target name' for a local variable to store the exception in 
+// if `v_catch==NULL`, then no catch block is created
+// if v_catch_target is NULL, then the error will be discarded, and not stored to a local variable
+ks_ast ks_ast_new_try(ks_ast v_try, ks_ast v_catch, ks_str v_catch_target);
 
 // return a new ast representing a return
 ks_ast ks_ast_new_ret(ks_ast val);

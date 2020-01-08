@@ -768,10 +768,12 @@ ks_ast ks_parse_expr(ks_parser self) {
 
         } else if (ctok.ttype == KS_TOK_IDENT) {
             // we need to skip a keyword, because it is not part of the expression
-            if (TOK_EQ(self, ctok, "then") || TOK_EQ(self, ctok, "elif") || TOK_EQ(self, ctok, "else")) goto parseexpr_end;
+            if (TOK_EQ(self, ctok, "if") || TOK_EQ(self, ctok, "then") 
+             || TOK_EQ(self, ctok, "elif") || TOK_EQ(self, ctok, "else") 
+             || TOK_EQ(self, ctok, "try") || TOK_EQ(self, ctok, "catch")) goto parseexpr_end;
 
             // can't have 2 value types in a row
-            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax %i", ltok.ttype);
+            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
 
             // first, check for keywords
             if (TOK_EQ(self, ctok, "true")) {
@@ -1359,6 +1361,81 @@ ks_ast ks_parse_stmt(ks_parser self) {
             KSO_DECREF(cond); 
             KSO_DECREF(body);
             return ret_while;
+
+        } else if (TOK_EQ(self, ctok, "try")) {
+            // parse try {...} (?catch {...})
+            // skip try
+            ADV1();
+
+            // skip comments/etc
+            SKIP_IRR_S();
+
+            // now, parse a block for the 'try' block
+            ks_ast v_try = ks_parse_stmt(self);
+            if (v_try == NULL) PSTMT_ERREXT();
+
+            SKIP_IRR_S();
+
+            // check for a single line shorthand
+            ctok = CTOK();
+            if (ctok.ttype == KS_TOK_COMMA) ADV1();
+
+            // check for a 'catch' block
+            ctok = CTOK();
+            if (TOK_EQ(self, ctok, "catch")) {
+                // skip 'catch'
+                ADV1();
+
+                SKIP_IRR_S();
+
+                ks_str catch_target = NULL;
+
+                ctok = CTOK();
+                if (ctok.ttype == KS_TOK_IDENT) {
+                    // we have a catch target
+                    catch_target = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
+                    ADV1();
+                }
+
+                SKIP_IRR_S();
+
+                // check for a single line shorthand
+                ctok = CTOK();
+                if (ctok.ttype == KS_TOK_COMMA) ADV1();
+     
+                SKIP_IRR_S();
+                // now, read the main block
+                ks_ast v_catch = ks_parse_stmt(self);
+                if (v_catch == NULL) PSTMT_ERREXT();
+
+
+                // set up the try/catch block
+                ks_ast ret_tryc = ks_ast_new_try(v_try, v_catch, catch_target);
+
+                KSO_DECREF(v_try);
+
+                KSO_DECREF(v_catch);
+
+                if (catch_target != NULL) KSO_DECREF(catch_target);
+
+                return ret_tryc;
+            
+
+            } else {
+                // no 'catch, so just return a try block
+
+                ks_ast ret_tryc = ks_ast_new_try(v_try, NULL, NULL);
+
+                KSO_DECREF(v_try);
+
+                return ret_tryc;
+            }
+
+
+
+
+        } else if (TOK_EQ(self, ctok, "catch")) {
+            PSTMT_ERR(ctok, "SyntaxError; 'catch' without previous 'try'");
 
         } else if (TOK_EQ(self, ctok, "func")) {
 

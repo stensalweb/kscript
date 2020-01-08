@@ -16,7 +16,7 @@ void ks_init__bool() {
 
     /* first create the type */
     T_bool = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_bool)
+        KSO_BASE_INIT(ks_T_type)
 
         .name = ks_str_new("bool")
 

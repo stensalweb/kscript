@@ -199,6 +199,9 @@ kso kse_pop();
 // dump out all errors to the console, returns true if there were any, false if none
 bool kse_dumpall();
 
+// clear the errors, returning true if there were any
+bool kse_clear();
+
 
 /* global state */
 

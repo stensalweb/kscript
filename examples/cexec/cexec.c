@@ -69,7 +69,7 @@ MFUNC(cexec, run) {
     ks_str ret = ks_strB_finish(&result);
 
     // check for error code
-    ks_int status = ks_int_new(pclose(fp));
+    ks_int status = ks_int_new(WEXITSTATUS(pclose(fp)));
 
     // return our tuple. Since we created the string and int, we don't want to record another reference to them
     return (kso)ks_tuple_new_norefs((kso[]){ (kso)status, (kso)ret }, 2);
