@@ -111,7 +111,7 @@ TFUNC(type, setattr) {
 void ks_type_set_namec(ks_type self, char* name) {
     ks_str mys = ks_str_new(name); 
     self->name = mys;
-    ks_dict_set_cstrl(self->__dict__, "__name__", 8, mys);
+    ks_dict_set_cstrl(self->__dict__, "__name__", 8, (kso)mys);
     KSO_DECREF(mys);
 }
 void ks_type_set_name(ks_type self, ks_str name) __TYPESET(self, name, "__name__", name)

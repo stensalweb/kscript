@@ -16,7 +16,7 @@
 # set the C compiler (?= means 'set if not already set')
 CC         ?= cc
 # set the compiler flags
-CFLAGS     ?= -O3 -std=c99 -g -rdynamic
+CFLAGS     ?= -O3 -std=c99
 # set the installation prefix
 PREFIX     ?= /usr/local
 
@@ -70,7 +70,7 @@ init: clean
 #   messages
 clean:
 	rm -rf $(wildcard $(ks_o) $(libks_o) $(ks_exe) $(libks_so) $(libks_a))
-	for subdir in $(patsubst %,std/%,$(ksm_std)); do \
+	-for subdir in $(patsubst %,std/%,$(ksm_std)); do \
 		$(MAKE) -C $$subdir clean ; \
 	done
 

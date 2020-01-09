@@ -11,7 +11,7 @@ KS_DIR         ?= ../..
 mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include
 
 # linker flags for compiling this module, just need to link to kscript
-mod_LDFLAGS    ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks
+mod_LDFLAGS    ?= $(LDFLAGS)
 
 
 # -*- targets/source setup -*-
