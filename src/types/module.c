@@ -75,7 +75,7 @@ ks_module ks_load_module(ks_str name) {
         }
 
         // it was successful
-        ks_debug("[LOAD_MODULE] sucess using '%S', now returning its result...", libfile);
+        ks_debug("[LOAD_MODULE] success using '%S', now returning its result...", libfile);
 
         KSO_DECREF(libfile);
 
@@ -110,6 +110,23 @@ TFUNC(module, getattr) {
     }
     #undef SIG
 }
+
+
+TFUNC(module, setattr) {
+    #define SIG "module.__setattr__(self, attr, val)"
+    REQ_N_ARGS(3);
+    ks_module self = (ks_module)args[0];
+    REQ_TYPE("self", self, ks_T_module);
+    ks_str attr = (ks_str)args[1];
+    REQ_TYPE("attr", attr, ks_T_str);
+    kso val = args[2];
+
+    ks_dict_set(self->__dict__, (kso)attr, attr->v_hash, val);
+
+    return KSO_NEWREF(val);
+    #undef SIG
+}
+
 TFUNC(module, free) {
     #define SIG "module.__free__(self)"
     REQ_N_ARGS(1);
@@ -131,15 +148,16 @@ struct ks_type T_module, *ks_T_module = &T_module;
 
 void ks_init__module() {
 
-    T_module = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
+    /* create the type */
+    T_module = KS_TYPE_INIT();
+    
+    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
 
-        .name = ks_str_new("module"),
+    ks_type_set_namec(ks_T_module, "module");
 
-        .f_getattr = (kso)ks_cfunc_new(module_getattr_),
+    ADDF(module, free);
 
-        .f_free = (kso)ks_cfunc_new(module_free_),
+    ADDF(module, getattr);
+    ADDF(module, setattr);
 
-    };
 }
-

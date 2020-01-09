@@ -140,18 +140,18 @@ struct ks_type T_tuple, *ks_T_tuple = &T_tuple;
 
 void ks_init__tuple() {
 
-    /* first create the type */
-    T_tuple = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
-        .name   = ks_str_new("tuple"),
+    /* create the type */
+    T_tuple = KS_TYPE_INIT();
+    
+    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
 
-        .f_free = (kso)ks_cfunc_new(tuple_free_),
+    ks_type_set_namec(ks_T_tuple, "tuple");
 
-        .f_repr = (kso)ks_cfunc_new(tuple_repr_),
-        .f_str  = (kso)ks_cfunc_new(tuple_str_),
+    ADDF(tuple, free);
+    ADDF(tuple, str);
+    ADDF(tuple, repr);
 
-        .f_getitem = (kso)ks_cfunc_new(tuple_getitem_),
-    };
+    ADDF(tuple, getitem);
 
 }
 

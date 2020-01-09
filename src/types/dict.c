@@ -176,8 +176,10 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
     int b_idx = dict_buck(self, hash), tries = 0;
     struct ks_dict_entry* entry = NULL;
 
+
     // search through non-empty buckets
     while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
+
         if (dict_entry_matches(*entry, key, hash)) {
             // we've found a match, just return it
             return entry->val;
@@ -189,10 +191,21 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
         while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
     }
 
+
     // not found, return NULL
     return NULL;
 
 }
+
+
+// gets an item in the dictionary, given a C-string key
+kso ks_dict_get_cstrl(ks_dict self, char* cstr, int len) {
+    ks_str stro = ks_str_new_l(cstr, len);
+    kso ret = ks_dict_get(self, (kso)stro, stro->v_hash);
+    KSO_DECREF(stro);
+    return ret;
+}
+
 
 // gets an item in the dictionary, given a C-string key
 kso ks_dict_get_cstr(ks_dict self, char* cstr) {
@@ -201,6 +214,15 @@ kso ks_dict_get_cstr(ks_dict self, char* cstr) {
     KSO_DECREF(stro);
     return ret;
 }
+
+
+// sets an item in the dictionary, given a C-string key
+void ks_dict_set_cstrl(ks_dict self, char* cstr, int len, kso val) {
+    ks_str stro = ks_str_new_l(cstr, len);
+    ks_dict_set(self, (kso)stro, stro->v_hash, val);
+    KSO_DECREF(stro);
+}
+
 
 // sets an item in the dictionary, given a C-string key
 void ks_dict_set_cstr(ks_dict self, char* cstr, kso val) {
@@ -341,32 +363,24 @@ TFUNC(dict, setitem) {
 
 
 
-
-
 /* exporting functionality */
 
 struct ks_type T_dict, *ks_T_dict = &T_dict;
 
 void ks_init__dict() {
 
-    /* first create the type */
-    T_dict= (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
+    /* create the type */
+    T_dict = KS_TYPE_INIT();
+    
+    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
 
-        .name = ks_str_new("dict"),
+    ks_type_set_namec(ks_T_dict, "dict");
 
-        .f_free = (kso)ks_cfunc_new(dict_free_),
-
-        .f_str  = (kso)ks_cfunc_new(dict_str_),
-        .f_repr = (kso)ks_cfunc_new(dict_repr_),
-
-        .f_getitem = (kso)ks_cfunc_new(dict_getitem_),
-        .f_setitem = (kso)ks_cfunc_new(dict_setitem_),
-
-    };
+    ADDF(dict, free);
+    ADDF(dict, str);
+    ADDF(dict, repr);
+    ADDF(dict, getitem);
+    ADDF(dict, setitem);
 
 }
-
-
-
 

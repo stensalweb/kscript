@@ -1,4 +1,4 @@
-# Makefile - describes building the kscript library & executable
+# Makefile - describes building the ks library & executable
 #
 # Full makefile build:
 # 1. run `make init`. This creates `include/ks_config.h`
@@ -16,37 +16,42 @@
 # set the C compiler (?= means 'set if not already set')
 CC         ?= cc
 # set the compiler flags
-CFLAGS     ?= -O3 -std=c99
+CFLAGS     ?= -O3 -std=c99 -g -rdynamic
 # set the installation prefix
 PREFIX     ?= /usr/local
 
 
 # -*- INPUT FILES
 
-# the sources for our kscript library (addprefix basically just adds `src`
+# the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libkscript_types_src := $(addprefix src/types/, none.c bool.c int.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c)
-libkscript_src   := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c ) $(libkscript_types_src)
-libkscript_src_h := $(addprefix ./include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
+libks_types_src := $(addprefix src/types/, none.c bool.c int.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c)
+libks_src       := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c ) $(libks_types_src)
+libks_src_h     := $(addprefix ./include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
 
-# the sources for the kscript executable (so things can be ran from 
+# the sources for the ks executable (so things can be ran from 
 #   commandline)
-kscript_src    := $(addprefix src/, ks.c)
+ks_src          := $(addprefix src/, ks.c )
+
+
+# standard modules
+ksm_std         := mm
 
 # now, generate a list of `.o` files needed
-libkscript_o   := $(patsubst %.c,%.o, $(libkscript_src))
-kscript_o      := $(patsubst %.c,%.o, $(kscript_src))
+libks_o         := $(patsubst %.c,%.o, $(libks_src))
+ks_o            := $(patsubst %.c,%.o, $(ks_src))
+ksm_std_so      := $(patsubst %,std/%/libksm_%.so, $(ksm_std))
 
 
 # -*- OUTPUT FILES
 
 # where to build the shared library to
-libkscript_so  := ./lib/libkscript.so
+libks_so  := ./lib/libks.so
 # and static
-libkscript_a   := ./lib/libkscript.a
+libks_a   := ./lib/libks.a
 
 # where to build the executable to
-kscript_exe    := ./bin/ks
+ks_exe    := ./bin/ks
 
 
 # -*- RULES
@@ -55,7 +60,7 @@ kscript_exe    := ./bin/ks
 .PHONY: default init clean uninstall
 
 # by default, build the `ec` binary
-default: $(kscript_exe)
+default: $(ks_exe) $(ksm_std_so)
 
 # initializes the build process, cleaning, and then creating the configuration header
 init: clean
@@ -64,7 +69,10 @@ init: clean
 # using wildcard means it only removes what exists, which makes for more useful
 #   messages
 clean:
-	rm -rf $(wildcard $(kscript_o) $(libkscript_o) $(kscript_exe) $(libkscript_so) $(libkscript_a))
+	rm -rf $(wildcard $(ks_o) $(libks_o) $(ks_exe) $(libks_so) $(libks_a))
+	for subdir in $(patsubst %,std/%,$(ksm_std)); do \
+		$(MAKE) -C $$subdir clean ; \
+	done
 
 # rule to build the object files (.o's) from a C file
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`
@@ -74,33 +82,37 @@ clean:
 	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
-# Since `libkscript_o` contains many files, we use `$^` to mean `all input files together`
-$(libkscript_so): $(libkscript_o)
+# Since `libks_o` contains many files, we use `$^` to mean `all input files together`
+$(libks_so): $(libks_o)
 	$(CC) $(CFLAGS) -shared $^ -o $@
 
 # rule to build the static object file (.a)
-$(libkscript_a): $(libkscript_o)
+$(libks_a): $(libks_o)
 	$(AR) cr $@ $^
 
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
-$(kscript_exe): $(kscript_o) $(libkscript_so) $(MOD_std_so)
-	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(kscript_o) -lkscript -lm -ldl -o $@
+$(ks_exe): $(ks_o) $(libks_so) $(MOD_std_so)
+	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(ks_o) -lks -lm -ldl -o $@
+
+# rule to build a standard module
+std/%/libksm_%.so:
+	$(MAKE) -C $(dir $@)
 
 # rule to install the whole package to PREFIX
-install: $(libkscript_so) $(kscript_exe) $(libkscript_src_h)
+install: $(libks_so) $(ks_exe) $(libks_src_h)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/include
-	cp -rf $(kscript_exe) $(DESTDIR)$(PREFIX)/bin
-	cp -rf $(libkscript_so) $(DESTDIR)$(PREFIX)/lib
-	cp -rf  $(libkscript_src_h) $(DESTDIR)$(PREFIX)/include
+	cp -rf $(ks_exe) $(DESTDIR)$(PREFIX)/bin
+	cp -rf $(libks_so) $(DESTDIR)$(PREFIX)/lib
+	cp -rf  $(libks_src_h) $(DESTDIR)$(PREFIX)/include
 	@touch install
 
 # rule to uninstall the whole package from PREFIX
 uninstall:
-	rm -f $(wildcard $(DESTDIR)$(PREFIX)/bin/$(notdir $(kscript_exe)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libkscript_so)) $(addprefix $(DESTDIR)$(PREFIX)/include/,$(notdir $(libkscript_src_h))))
+	rm -f $(wildcard $(DESTDIR)$(PREFIX)/bin/$(notdir $(ks_exe)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_so)) $(addprefix $(DESTDIR)$(PREFIX)/include/,$(notdir $(libks_src_h))))
 
 # rule to build a tarfile
-kscript.tar.gz: $(kscript_exe) $(libkscript_so)
-	tar -cvf $@ $(kscript_exe) $(libkscript_so) $(libkscript_src_h)
+ks.tar.gz: $(ks_exe) $(libks_so)
+	tar -cvf $@ $(ks_exe) $(libks_so) $(libks_src_h)
 

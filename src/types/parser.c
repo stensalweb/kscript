@@ -663,6 +663,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             Out.len -= n_args + 2; \
             Spush(Out, new_subs);\
         } else if (top.type == SYT_BOP) { \
+            if (Out.len < 2) PEXPR_ERR(top.tok, "Invalid Syntax"); \
             /* construct a binary operator from the last two values on the stack */ \
             ks_ast new_bop = ks_ast_new_bop(top.bop_type, Sget(Out, Out.len-2), Sget(Out, Out.len-1)); \
             new_bop->tok = top.tok; \
@@ -1647,6 +1648,16 @@ void ks_init__parser() {
         .f_free = (kso)ks_cfunc_new(parser_free_),
 
     };
+
+
+    /* create the type */
+    T_parser = KS_TYPE_INIT();
+    
+    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+
+    ks_type_set_namec(ks_T_parser, "parser");
+
+    ADDF(parser, free);
 
 }
 

@@ -519,10 +519,33 @@ static void VM_exec() {
 
                     NEXT_INST();
                 } else {
+
                     EXEC_ERR("cant do this many args, sorry :(");
                 }
             } else {
-                EXEC_ERR("During function call, tried calling on obj: `%S`, which did not work", func);
+                //EXEC_ERR("During function call, tried calling on obj: `%S`, which did not work", func);
+                int n_args = inst.i32.i32-1;
+
+                if (n_args <= 8) {
+                    memcpy(imm_args, args_p, n_args * sizeof(kso));
+
+                    new_obj = kso_call(func, n_args, imm_args);
+
+                    if (new_obj == NULL) {
+                        DECREF_N(imm_args, n_args);
+                        KSO_DECREF(func);
+                        EXEC_ERR_RECLAIM("While executing a func");
+                    }
+
+                    VM_stk_pushu(new_obj);
+                    DECREF_N(imm_args, n_args);
+                    KSO_DECREF(func);
+
+                    NEXT_INST();
+
+                } else {
+                    EXEC_ERR("cant do this many args, sorry :(");
+                }
             }
 
         INST_LABEL(KSBC_GETITEM)
@@ -823,10 +846,10 @@ static kso kso_vm_call_kfunc(ks_kfunc func, int n_args, kso* args) {
         ks_dict_set(CUR_SCOPE().local_vars, (kso)param, param->v_hash, args[i]);
     }
 
+
     VM_exec();
 
     kso val = VM_stk_pop();
-
     return val;
 
 }
@@ -846,13 +869,19 @@ void ks_vm_exec(ks_code code) {
 
 // call an object as a callable, with a list of arguments
 kso kso_call(kso func, int n_args, kso* args) {
+
+    // for looping
     if (func->type == ks_T_cfunc) {
         return ((ks_cfunc)func)->v_cfunc(n_args, args);
     } else if (func->type == ks_T_kfunc) {
         return kso_vm_call_kfunc((ks_kfunc)func, n_args, args);
-    } else {
-        return kse_fmt("Tried calling obj: %R, which was not callable!", func);
+    } else if (func->type == ks_T_type) {
+        if (((ks_type)func)->f_call != NULL) {
+            return kso_call(((ks_type)func)->f_call, n_args, args);
+        }
     }
+    // else, cause an error
+    return kse_fmt("Tried calling obj: %R, which was not callable!", func);
 }
 
 // return the globals

@@ -24,6 +24,12 @@
 // my_func_ needs to be of `ks_cfunc_sig` to work
 #define MODULE_ADD_CFUNC(_mod, _cstr, _cfunc) { ks_cfunc made_cfunc = ks_cfunc_new(_cfunc); ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)made_cfunc); KSO_DECREF(made_cfunc); }
 
+// add a type to a module:
+// i.e. MODULE_ADD_TYPE(module, "MyType", T_mytype)
+#define MODULE_ADD_TYPE(_mod, _cstr, _type) { ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)(_type)); KSO_DECREF(_type); }
+
+
+
 
 // include helper macros for the module
 #include "ks_common.h"

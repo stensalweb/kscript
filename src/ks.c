@@ -11,7 +11,6 @@ int main(int argc, char** argv) {
     ks_init();
     ks_log_level_set(KS_LOG_INFO);
 
-
     // TODO: parse the options before executing everything, so this point will be debugged/traced if
     // given -v
 
@@ -38,9 +37,10 @@ int main(int argc, char** argv) {
 
     /* builtin types */
     SET_GLOBAL("list", ks_T_list);
-    SET_GLOBAL("str", ks_T_str);
     SET_GLOBAL("int", ks_T_int);
+    SET_GLOBAL("str", ks_T_str);
     SET_GLOBAL("tuple", ks_T_tuple);
+
 
     SET_GLOBAL("__add__", ks_F_add);
 

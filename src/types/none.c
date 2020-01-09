@@ -11,15 +11,10 @@ struct ks_none V_none, *ks_V_none = &V_none;
 
 void ks_init__none() {
 
-    /* first create the type */
-
-    // create the type
-    T_none = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
-
-        .name = ks_str_new("none")
-
-    };
+    /* create the type */
+    T_none = KS_TYPE_INIT();
+    
+    ks_type_set_namec(ks_T_none, "none");
 
     // create the global none
     V_none = (struct ks_none) {

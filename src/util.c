@@ -4,8 +4,12 @@
 #include "ks_internal.h"
 
 // for segmentation fault handling
-#include<signal.h>
-
+#include <signal.h>
+#include <stdio.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 // time value recording when the library was initialized
 static struct timeval ks_stime = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
@@ -15,6 +19,17 @@ static void ks_segfault_handle(int sg) {
     ks_error("SEGFAULT!");
 
     kse_dumpall();
+
+    void *array[10];
+    size_t size;
+
+    // get void*'s for all entries on the stack
+    size = backtrace(array, 10);
+
+    // print out all the frames to stderr
+    fprintf(stderr, "Error: signal %d:\n", sg);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
+    exit(1);
 
     exit(1);
 }
@@ -89,19 +104,26 @@ void ks_init() {
 
     /* initialize types */
     ks_init__type();
-    ks_init__module();
+    ks_init__cfunc();
+
+    ks_init__dict();
+
     ks_init__none();
     ks_init__bool();
     ks_init__int();
     ks_init__str();
+
+    ks_init__module();
+
+
     ks_init__tuple();
     ks_init__list();
-    ks_init__dict();
     ks_init__code();
     ks_init__kfunc();
-    ks_init__cfunc();
     ks_init__parser();
     ks_init__ast();
+
+
 
     // initialize builtin functions
     ksf_init();

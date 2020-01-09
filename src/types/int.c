@@ -353,31 +353,31 @@ struct ks_type T_int, *ks_T_int = &T_int;
 
 void ks_init__int() {
 
-    /* first create the type */
-    T_int = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
+    /* create the type */
 
-        .name = ks_str_new("int"),
+    T_int = KS_TYPE_INIT();
+    
+    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
 
-        .f_str   = (kso)ks_cfunc_new(int_str_),
-        .f_repr  = (kso)ks_cfunc_new(int_repr_),
+    ks_type_set_namec(ks_T_int, "dict");
 
-        .f_add   = (kso)ks_cfunc_new(int_add_),
-        .f_sub   = (kso)ks_cfunc_new(int_sub_),
-        .f_mul   = (kso)ks_cfunc_new(int_mul_),
-        .f_div   = (kso)ks_cfunc_new(int_div_),
-        .f_mod   = (kso)ks_cfunc_new(int_mod_),
-        .f_pow   = (kso)ks_cfunc_new(int_pow_),
+    ADDF(int, str);
+    ADDF(int, repr);
 
-        .f_lt    = (kso)ks_cfunc_new(int_lt_),
-        .f_le    = (kso)ks_cfunc_new(int_le_),
-        .f_gt    = (kso)ks_cfunc_new(int_gt_),
-        .f_ge    = (kso)ks_cfunc_new(int_ge_),
-        .f_eq    = (kso)ks_cfunc_new(int_eq_),
-        .f_ne    = (kso)ks_cfunc_new(int_ne_),
+    ADDF(int, add);
+    ADDF(int, sub);
+    ADDF(int, mul);
+    ADDF(int, div);
+    ADDF(int, mod);
+    ADDF(int, pow);
 
-    };
-
+    ADDF(int, lt);
+    ADDF(int, le);
+    ADDF(int, gt);
+    ADDF(int, ge);
+    ADDF(int, eq);
+    ADDF(int, ne);
+ 
     /* now create the constant tables */
     int i;
     for (i = -_INT_CONST_MAX; i < _INT_CONST_MAX; ++i) {

@@ -89,8 +89,7 @@ FUNC(type) {
     #define SIG "type(obj)"
     REQ_N_ARGS(1);
 
-    kso res = args[0]->type;
-    ks_info("res: %R", args[0]->type);
+    kso res = (kso)args[0]->type;
 
     return KSO_NEWREF(res);
     #undef SIG
@@ -163,7 +162,7 @@ FUNC(getattr) {
     }
 
     // try resolving this
-    if (obj->type->f_getattr != NULL) return kso_call(obj->type->f_getattr, 2, args);
+    if (obj->type->f_getattr != NULL) return kso_call(obj->type->f_getattr, n_args, args);
 
     return NULL;
     #undef SIG
@@ -175,7 +174,7 @@ FUNC(setattr) {
     kso obj = args[0], attr = args[1], val = args[2];
 
     // try resolving this
-    if (obj->type->f_setattr != NULL) return kso_call(obj->type->f_setattr, 2, args);
+    if (obj->type->f_setattr != NULL) return kso_call(obj->type->f_setattr, n_args, args);
 
     return NULL;
     #undef SIG

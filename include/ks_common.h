@@ -42,17 +42,17 @@ Mainly, this defines `REQ_*` macros, which help with readability for function er
 // define a C-function with a given name
 // (the actual name has an _ appended)
 // ex: FUNC(myfunc) -> defines a C-function called `myfunc_`
-#define FUNC(_name) static kso _name##_(int n_args, kso* args)
+#define FUNC(_name) kso _name##_(int n_args, kso* args)
 
 // define a C-function with a given type and name
 // (the actual name has an _ appended)
 // ex: TFUNC(int, free) -> defines a C-function called `int_free_`
-#define TFUNC(_type, _name) static kso _type##_##_name##_(int n_args, kso* args)
+#define TFUNC(_type, _name) kso _type##_##_name##_(int n_args, kso* args)
 
 // define a C-function with a given module and name
 // (the actual name has an _ appended)
 // ex: MFUNC(mymod, free) -> defines a C-function called `mymod_free_`
-#define MFUNC(_mod, _name) static kso _mod##_##_name##_(int n_args, kso* args)
+#define MFUNC(_mod, _name) kso _mod##_##_name##_(int n_args, kso* args)
 
 
 #endif

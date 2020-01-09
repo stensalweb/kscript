@@ -19,16 +19,12 @@ struct ks_type T_cfunc, *ks_T_cfunc = &T_cfunc;
 
 void ks_init__cfunc() {
 
-    /* first create the type */
-    T_cfunc = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
-
-        .name = ks_str_new("cfunc"),
-
-    };
+    /* create the type */
+    T_cfunc = KS_TYPE_INIT();
+    
+    ks_type_set_namec(ks_T_cfunc, "cfunc");
 
 }
-
 
 
 

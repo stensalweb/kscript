@@ -1,4 +1,4 @@
-# cexec/Makefile - example makefile for a kscript C-extension
+# Makefile - for compiling the `mm` module
 
 # -*- configuration -*-
 
@@ -8,35 +8,35 @@ KS_DIR         ?= ../..
 #KS_DIR         ?= /usr/local
 
 # CFLAGS for compiling this module, just need to include kscript
-cexec_CFLAGS   ?= $(CFLAGS) -I$(KS_DIR)/include
+mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include
 
 # linker flags for compiling this module, just need to link to kscript
-cexec_LDFLAGS  ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks
+mod_LDFLAGS    ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks
 
 
 # -*- targets/source setup -*-
 
 # the C files that make up the module
-cexec_src_c    := ./cexec.c
+mod_src_c      := ./main.c ./audio.c
 
 # the output library file (this should begin with `libksm_` so KSM knows its a valid module file)
-cexec_LIB      := ./libksm_cexec.so
+mod_LIB        := ./libksm_mm.so
 
 
 # -*- generated output -*-
-cexec_o     := $(patsubst %.c,%.o, $(cexec_src_c))
+mod_o          := $(patsubst %.c,%.o, $(mod_src_c))
 
 
 # -*- compilation rules -*-
 
 # rule to compile the module file, linking it with kscript
-$(cexec_LIB): $(cexec_o)
-	$(CC) $(cexec_CFLAGS) -shared $^ $(cexec_LDFLAGS) -o $@
+$(mod_LIB): $(mod_o)
+	$(CC) $(mod_CFLAGS) -shared $^ $(mod_LDFLAGS) -o $@
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c
-	$(CC) $(cexec_CFLAGS) -fPIC -c $< -o $@
+	$(CC) $(mod_CFLAGS) -fPIC -c $< -o $@
 
 # rule to restart the compilation, removing anything done so far
 clean:
-	rm -rf $(wildcard $(cexec_LIB) $(cexec_o))
+	rm -rf $(wildcard $(mod_LIB) $(mod_o))

@@ -330,21 +330,20 @@ TFUNC(ast, free) {
 }
 
 
+
 /* exporting functionality */
 
 struct ks_type T_ast, *ks_T_ast = &T_ast;
 
 void ks_init__ast() {
 
-    /* first create the type */
-    T_ast = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
+    /* create the type */
+    T_ast = KS_TYPE_INIT();
+    
+    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
 
-        .name = ks_str_new("ast"),
+    ks_type_set_namec(ks_T_ast, "ast");
 
-        .f_free = (kso)ks_cfunc_new(ast_free_),
-
-    };
+    ADDF(ast, free);
 
 }
-

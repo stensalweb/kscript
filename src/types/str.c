@@ -74,7 +74,6 @@ TFUNC(str, add) {
 }
 
 
-
 struct ks_type T_str, *ks_T_str = &T_str;
 
 void ks_init__str() {
@@ -82,12 +81,15 @@ void ks_init__str() {
     /* first create the type */
     T_str = (struct ks_type) {
         KSO_BASE_INIT(ks_T_type)
+        .__dict__ = ks_dict_new_empty(),
 
-        .name = ks_str_new("str"),
+        .f_add = (kso)ks_cfunc_new(str_add_),
 
-        .f_add = (kso)ks_cfunc_new(str_add_)
 
     };
+
+    ks_type_set_namec(ks_T_str, "str");
+
 
     /* now create the constant single-length strings */
     int i;
@@ -100,6 +102,7 @@ void ks_init__str() {
         str_const_chr_tbl[i].chr[0] = (char)i;
         str_const_chr_tbl[i].chr[1] = (char)0;
     }
+
 }
 
 

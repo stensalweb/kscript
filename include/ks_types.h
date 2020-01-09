@@ -362,9 +362,13 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash);
 
 // gets an item in the dictionary, given a C-string key
 kso ks_dict_get_cstr(ks_dict self, char* cstr);
+kso ks_dict_get_cstrl(ks_dict self, char* cstr, int len);
 
 // sets an item in the dictionary, given a C-string key
 void ks_dict_set_cstr(ks_dict self, char* cstr, kso val);
+
+// sets an item in the dictionary, given a C-string key
+void ks_dict_set_cstrl(ks_dict self, char* cstr, int len, kso val);
 
 
 // create a new, empty dictionary at the minimum size
@@ -528,7 +532,6 @@ struct ks_type {
     // except the object itself
     kso f_free;
 
-
     // type.str(self) -> should return a string of the object, like a toString method
     kso f_str;
 
@@ -538,6 +541,8 @@ struct ks_type {
     // type.hash(self) -> should return an integer representing a hash value
     kso f_hash;
 
+    // type.call(self, *args) -> should act as if the object was being called as a function
+    kso f_call;
 
     /** attribute functions **/
 
@@ -578,11 +583,47 @@ struct ks_type {
 };
 
 // initializes a given type, with a C-string style name
-#define KS_TYPE_INIT(_name) KSO_BASE_INIT_R(ks_T_type, KSOF_NONE, 1) .name = ks_str_new(_name), \
-    .f_str = NULL, .f_repr = NULL, .f_hash = NULL, \
+#define KS_TYPE_INIT() ((struct ks_type){ KSO_BASE_INIT(ks_T_type) .name = NULL, \
+    .f_str = NULL, .f_repr = NULL, .f_hash = NULL, .f_call = NULL, \
     .f_getattr = NULL, .f_setattr = NULL, .f_getitem = NULL, .f_setitem = NULL, \
     .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_mod = NULL, .f_pow = NULL, \
-    .f_lt = NULL, .f_le = NULL, .f_gt = NULL, .f_ge = NULL, .f_eq = NULL, .f_ne = NULL, 
+    .f_lt = NULL, .f_le = NULL, .f_gt = NULL, .f_ge = NULL, .f_eq = NULL, .f_ne = NULL, \
+    .__dict__ = ks_dict_new_empty() })
+
+
+// create a new blank type, given a name
+ks_type ks_type_new(char* name);
+
+/* setters */
+
+void ks_type_set_name(ks_type self, ks_str name);
+void ks_type_set_namec(ks_type self, char* name);
+void ks_type_set_str(ks_type self, kso val);
+void ks_type_set_repr(ks_type self, kso val);
+void ks_type_set_call(ks_type self, kso val);
+
+void ks_type_set_free(ks_type self, kso val);
+
+void ks_type_set_getattr(ks_type self, kso val);
+void ks_type_set_setattr(ks_type self, kso val);
+
+void ks_type_set_getitem(ks_type self, kso val);
+void ks_type_set_setitem(ks_type self, kso val);
+
+void ks_type_set_add(ks_type self, kso val);
+void ks_type_set_sub(ks_type self, kso val);
+void ks_type_set_mul(ks_type self, kso val);
+void ks_type_set_div(ks_type self, kso val);
+void ks_type_set_mod(ks_type self, kso val);
+void ks_type_set_pow(ks_type self, kso val);
+
+void ks_type_set_lt(ks_type self, kso val);
+void ks_type_set_le(ks_type self, kso val);
+void ks_type_set_gt(ks_type self, kso val);
+void ks_type_set_ge(ks_type self, kso val);
+void ks_type_set_eq(ks_type self, kso val);
+void ks_type_set_ne(ks_type self, kso val);
+
 
 
 
@@ -1037,10 +1078,6 @@ typedef struct ks_cfunc {
 
 // create a new C-function wrapper
 ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc);
-
-// create a new C-function wrapper with a new reference
-ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc);
-
 
 
 
