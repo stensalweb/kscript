@@ -17,7 +17,7 @@ extern ks_type
 
 
 // mm.Audio class, i.e. an audio buffer
-typedef struct ks_mm_audio {
+typedef struct ks_mm_Audio {
     KSO_BASE
 
     // number of channels (1=mono, 2=stereo)
@@ -36,15 +36,17 @@ typedef struct ks_mm_audio {
     // thus, the size is channels*n_samples*sizeof(*buf)
     float* buf;
 
-}* ks_mm_audio;
+}* ks_mm_Audio;
 
 // audio methods
 
 // create a new audio object, with given parameters.
 // if data==NULL, then it is initialized to 0
-ks_mm_audio ks_mm_audio_new(int samples, int channels, int hz, float* data);
+ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, float* data);
 
 
+TFUNC(mm_Audio, repr);
+TFUNC(mm_Audio, call);
 TFUNC(mm_Audio, free);
 
 #endif

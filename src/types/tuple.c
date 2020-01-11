@@ -143,15 +143,21 @@ void ks_init__tuple() {
     /* create the type */
     T_tuple = KS_TYPE_INIT();
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+    ks_type_setname_c(ks_T_tuple, "tuple");
 
-    ks_type_set_namec(ks_T_tuple, "tuple");
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_tuple, "__str__", tuple_str_);
+    ADDCF(ks_T_tuple, "__repr__", tuple_repr_);
 
-    ADDF(tuple, free);
-    ADDF(tuple, str);
-    ADDF(tuple, repr);
+    ADDCF(ks_T_tuple, "__getitem__", tuple_getitem_);
 
-    ADDF(tuple, getitem);
+    ADDCF(ks_T_tuple, "__free__", tuple_free_);
 
 }
 

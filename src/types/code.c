@@ -170,6 +170,9 @@ int ksc_refconst_str(ks_code code, const char* cstr, int len) {
 void ksc_noop     (ks_code code) KSC_(KSBC_NOOP)
 // popu; pop unused value
 void ksc_popu     (ks_code code) KSC_(KSBC_POPU)
+// dup value 
+void ksc_dup      (ks_code code) KSC_(KSBC_DUP)
+
 
 // load "v_name"; loads a value
 void ksc_load     (ks_code code, const char* v_name) KSC_I32(KSBC_LOAD, ksc_refconst_str(code, v_name, strlen(v_name)))
@@ -279,12 +282,16 @@ void ks_init__code() {
     /* create the type */
     T_code = KS_TYPE_INIT();
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+    ks_type_setname_c(ks_T_code, "code");
 
-    ks_type_set_namec(ks_T_code, "code");
-
-    ADDF(code, free);
-
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_code, "__free__", code_free_);
 }
 
 

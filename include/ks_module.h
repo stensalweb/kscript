@@ -29,8 +29,6 @@
 #define MODULE_ADD_TYPE(_mod, _cstr, _type) { ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)(_type)); KSO_DECREF(_type); }
 
 
-
-
 // include helper macros for the module
 #include "ks_common.h"
 

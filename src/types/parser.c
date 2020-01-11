@@ -560,8 +560,9 @@ typedef struct syop {
         SYA__END
 
     } assoc;
-
-    int bop_type;
+    
+    // KS_AST_* enum values
+    int bop_type, uop_type;
 
     // the token the operator came from
     ks_tok tok;
@@ -580,6 +581,8 @@ typedef struct syop {
 // construct a fully-loaded sy-operator
 #define SYOP_FULL(_type, _prec, _assoc) ((syop){ .type = _type, .prec = _prec, .assoc = _assoc })
 
+// construct a unary operator
+#define SYUOP(_assoc, _uop_type) ((syop){ .type = SYT_UOP, .prec = SYP_UNARY, .assoc = _assoc, .uop_type = _uop_type })
 
 
 /* operator definitions */
@@ -594,6 +597,12 @@ static syop
 
     // special case
     syb_assign = SYBOP(SYP_ASSIGN, SYA_BOP_RIGHT, KS_AST_BOP_ASSIGN)
+;
+
+/* unary operators */
+
+static syop
+    syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG)
 
 ;
 
@@ -672,6 +681,13 @@ ks_ast ks_parse_expr(ks_parser self) {
             new_bop->tok_expr = ks_tok_combo(new_bop->v_bop.L->tok_expr, new_bop->v_bop.R->tok_expr); \
             Out.len -= 2; \
             Spush(Out, new_bop); \
+        } else if (top.type == SYT_UOP) { \
+            /* construct a unary operator */ \
+            if (Out.len < 1) PEXPR_ERR(top.tok, "Invalid Syntax"); \
+            ks_ast new_uop = ks_ast_new_uop(top.uop_type, Spop(Out)); \
+            new_uop->tok = top.tok; \
+            KSO_DECREF(new_uop->v_uop); \
+            Spush(Out, new_uop); \
         } else if (top.type == SYT_LPAR) { \
             /* just skip it */\
         } else if (top.type == SYT_LBRACK) { \
@@ -838,6 +854,8 @@ ks_ast ks_parse_expr(ks_parser self) {
             // check and make sure no double commas
             if (ltok.ttype == KS_TOK_COMMA) PEXPR_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax; expected a value between these commas");
 
+            if (!TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "SyntaxError; did not expect this here");
+
             // just reduce the top of the stack until we get to a '(' or '['
             while (Ops.len > 0) {
                 // look at the top of the operator stack
@@ -992,25 +1010,33 @@ ks_ast ks_parse_expr(ks_parser self) {
             #define KPE_OPCASE(_tok, _opstr, _opval) if (TOK_EQ(self, _tok, _opstr)) { used = _opval; goto kpe_op_resolve; }
 
             // TODO: implement unary operators
-            if (TOKE_ISOP(ltok.ttype) || ltok.ttype == KS_TOK_COMMA || ltok.ttype == KS_TOK_LPAR) PEXPR_ERR(ctok, "Invalid Syntax");
+            if (TOKE_ISOP(ltok.ttype) || ltok.ttype == KS_TOK_COMMA || ltok.ttype == KS_TOK_LPAR || ltok.ttype == KS_TOK_LBRACK || ltok.ttype == KS_TOK_LBRACE) {
+                // this is a unary prefix operator
 
-            if (TOKE_ISVAL(ltok.ttype)) {
-                // since the last token was a value, this must either be a unary postfix or a binary infix
-                KPE_OPCASE(ctok, "+",  syb_add)
-                KPE_OPCASE(ctok, "-",  syb_sub)
-                KPE_OPCASE(ctok, "*",  syb_mul)
-                KPE_OPCASE(ctok, "/",  syb_div)
-                KPE_OPCASE(ctok, "%",  syb_mod)
-                KPE_OPCASE(ctok, "**", syb_pow)
-                KPE_OPCASE(ctok, "<",  syb_lt)
-                KPE_OPCASE(ctok, "<=", syb_le)
-                KPE_OPCASE(ctok, ">",  syb_gt)
-                KPE_OPCASE(ctok, ">=", syb_ge)
-                KPE_OPCASE(ctok, "==", syb_eq)
-                KPE_OPCASE(ctok, "!=", syb_ne)
-                KPE_OPCASE(ctok, "=",  syb_assign)
+                KPE_OPCASE(ctok, "-", syu_neg)
+
+                PEXPR_ERR(ctok, "Invalid Syntax");
             } else {
-                PEXPR_ERR(ctok, "Invalid Syntax; Unexpected operator");
+                // either a binary operator, or a unary postfix operator
+
+                if (TOKE_ISVAL(ltok.ttype)) {
+                    // since the last token was a value, this must either be a unary postfix or a binary infix
+                    KPE_OPCASE(ctok, "+",  syb_add)
+                    KPE_OPCASE(ctok, "-",  syb_sub)
+                    KPE_OPCASE(ctok, "*",  syb_mul)
+                    KPE_OPCASE(ctok, "/",  syb_div)
+                    KPE_OPCASE(ctok, "%",  syb_mod)
+                    KPE_OPCASE(ctok, "**", syb_pow)
+                    KPE_OPCASE(ctok, "<",  syb_lt)
+                    KPE_OPCASE(ctok, "<=", syb_le)
+                    KPE_OPCASE(ctok, ">",  syb_gt)
+                    KPE_OPCASE(ctok, ">=", syb_ge)
+                    KPE_OPCASE(ctok, "==", syb_eq)
+                    KPE_OPCASE(ctok, "!=", syb_ne)
+                    KPE_OPCASE(ctok, "=",  syb_assign)
+                } else {
+                    PEXPR_ERR(ctok, "Invalid Syntax; Unexpected operator");
+                }
             }
 
             kpe_op_resolve: ;
@@ -1447,12 +1473,10 @@ ks_ast ks_parse_stmt(ks_parser self) {
             ADV1();
 
             // first, read the name
-            ctok = CTOK();
+            ks_tok fd_tok = ctok = CTOK();
             if (ctok.ttype != KS_TOK_IDENT) PSTMT_ERR(ctok, "Expected a function name identifier here");
 
-            ks_str func_name_s = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
-            ks_ast func_name = ks_ast_new_var(func_name_s);
-            KSO_DECREF(func_name_s);
+            ks_str myname = ks_str_new_l(self->src->chr+ctok.offset, ctok.len);
 
             // skip the name
             ADV1();
@@ -1485,9 +1509,10 @@ ks_ast ks_parse_stmt(ks_parser self) {
             if (ctok.ttype != KS_TOK_RPAR) PSTMT_ERR(ctok, "Expected a ')' to end the list of function parameters here");
             ADV1();
 
+            ks_tok fdl_tok = ks_tok_combo(fd_tok, ctok);
+
             // skip irrelevant details
             SKIP_IRR_S();
-
 
             // expect a '{'
             ctok = CTOK();
@@ -1498,17 +1523,53 @@ ks_ast ks_parse_stmt(ks_parser self) {
             if (body == NULL) PSTMT_ERREXT();
 
             // construct a new function value
-            ks_ast func_val = ks_ast_new_func(param_names, body);
+            ks_ast new_func = ks_ast_new_func(myname, param_names, body);
+            new_func->tok = fd_tok;
+            new_func->tok_expr = fdl_tok;
 
-            // create an assignment
-            ks_ast r_s_fv = ks_ast_new_bop(KS_AST_BOP_ASSIGN, func_name, func_val);
-
-            KSO_DECREF(func_name);
-            KSO_DECREF(func_val);
-            KSO_DECREF(body);
+            KSO_DECREF(myname);
             KSO_DECREF(param_names);
+            KSO_DECREF(body);
 
-            return r_s_fv;
+            return new_func;
+
+        } else if (TOK_EQ(self, ctok, "type")) {
+            // parse a typedefinition
+            // type NAME { ... }
+
+            ks_tok td_tok = ctok;
+
+            // skip 'type'
+            ADV1();
+
+            // first, read the name
+            ctok = CTOK();
+            if (ctok.ttype != KS_TOK_IDENT) PSTMT_ERR(ctok, "Expected a type name identifier here");
+            ADV1();
+
+            td_tok = ks_tok_combo(td_tok, ctok);
+            
+            ks_str myname = ks_str_new_l(self->src->chr + ctok.offset, ctok.len);
+
+            // skip irrelevant details
+            SKIP_IRR_S();
+
+            // expect a '{'
+            ctok = CTOK();
+            if (ctok.ttype != KS_TOK_LBRACE) PSTMT_ERR(ctok, "Expected a '{' to begin the type definition body here");
+
+            // now, parse the body
+            ks_ast type_body = ks_parse_stmt(self);
+            if (type_body == NULL) PSTMT_ERREXT();
+
+            // now, construct the type
+            ks_ast new_type = ks_ast_new_type(myname, type_body);
+            KSO_DECREF(myname);
+            KSO_DECREF(type_body);
+
+            new_type->tok_expr = new_type->tok = td_tok;
+
+            return new_type;
 
         } else {
             // it is just a default expression
@@ -1639,25 +1700,19 @@ struct ks_type T_parser, *ks_T_parser = &T_parser;
 
 void ks_init__parser() {
 
-    /* first create the type */
-    T_parser = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
-        
-        .name = ks_str_new("parser"),
-
-        .f_free = (kso)ks_cfunc_new(parser_free_),
-
-    };
-
-
     /* create the type */
     T_parser = KS_TYPE_INIT();
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+    ks_type_setname_c(ks_T_parser, "parser");
 
-    ks_type_set_namec(ks_T_parser, "parser");
-
-    ADDF(parser, free);
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_parser, "__free__", parser_free_);
 
 }
 

@@ -121,6 +121,18 @@ ks_ast ks_ast_new_subscript(ks_ast* items, int n_items) {
     return self;
 }
 
+
+// create a new AST representing a unary operator, assumes `uop_type` is a valid unary operator
+ks_ast ks_ast_new_uop(int uop_type, ks_ast V) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        _AST_INIT(uop_type)
+        .v_uop = V
+    };
+    KSO_INCREF(V);
+    return self;
+}
+
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
     *self = (struct ks_ast) {
@@ -193,17 +205,7 @@ ks_ast ks_ast_new_ret(ks_ast val) {
     KSO_INCREF(val);
     return self;
 }
-// createa a new AST representing a function literal
-ks_ast ks_ast_new_func(ks_list params, ks_ast body) {
-    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
-    *self = (struct ks_ast) {
-        _AST_INIT(KS_AST_FUNC)
-        .v_func = {params, body}
-    };
-    KSO_INCREF(params);
-    KSO_INCREF(body);
-    return self;
-}
+
 
 // createa a new AST representing a block of code
 ks_ast ks_ast_new_code(ks_code code) {
@@ -232,6 +234,31 @@ ks_ast ks_ast_new_block(ks_ast* items, int n_items) {
         _AST_INIT(KS_AST_BLOCK)
         .v_list = ks_list_new((kso*)items, n_items)
     };
+    return self;
+}
+
+// createa a new AST representing a function literal
+ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        _AST_INIT(KS_AST_FUNC)
+        .v_func = {name, params, body}
+    };
+    KSO_INCREF(name);
+    KSO_INCREF(params);
+    KSO_INCREF(body);
+    return self;
+}
+// create a new type AST
+ks_ast ks_ast_new_type(ks_str name, ks_ast body) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        _AST_INIT(KS_AST_TYPE)
+        .v_type.name = name,
+        .v_type.body = body
+    };
+    KSO_INCREF(name);
+    KSO_INCREF(body);
     return self;
 }
 
@@ -276,8 +303,14 @@ TFUNC(ast, free) {
         KSO_DECREF(self->v_code);
         break;
     case KS_AST_FUNC:
+        KSO_DECREF(self->v_func.name);
         KSO_DECREF(self->v_func.params);
         KSO_DECREF(self->v_func.body);
+        break;
+    case KS_AST_TYPE:
+        KSO_DECREF(self->v_type.name);
+        KSO_DECREF(self->v_type.body);
+
         break;
 
     case KS_AST_IF:
@@ -339,11 +372,16 @@ void ks_init__ast() {
 
     /* create the type */
     T_ast = KS_TYPE_INIT();
+
+    ks_type_setname_c(ks_T_ast, "ast");
+
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
-
-    ks_type_set_namec(ks_T_ast, "ast");
-
-    ADDF(ast, free);
+    ADDCF(ks_T_ast, "__free__", ast_free_);
 
 }

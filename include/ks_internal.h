@@ -1,6 +1,7 @@
 /* ks_internal.h - internal, non-exported functions & data
 
-This file is not included with `ks.h`
+This file is not included with `ks.h`, as it includes internal initialization methods that must
+be called at initialization time
 
 */
 
@@ -51,5 +52,9 @@ void ks_init__kfunc();
 void ks_init__parser();
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__ast();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__pfunc();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__kobj();
 
 #endif /* KS_INTERNAL_H__ */

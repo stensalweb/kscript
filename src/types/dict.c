@@ -266,7 +266,6 @@ TFUNC(dict, str) {
     #undef SIG
 }
 
-
 TFUNC(dict, repr) {
     #define SIG "dict.__repr__(self)"
     REQ_N_ARGS(1);
@@ -297,7 +296,6 @@ TFUNC(dict, repr) {
     return (kso)ks_strB_finish(&ksb);
     #undef SIG
 }
-
 
 TFUNC(dict, free) {
     #define SIG "dict.__free__(self)"
@@ -333,6 +331,9 @@ TFUNC(dict, getitem) {
     REQ_TYPE("self", self, ks_T_dict);
     kso key = args[1];
 
+    ks_info("%R", ks_T_dict->__dict__);
+
+
     kso res = ks_dict_get(self, key, kso_hash(key));
 
     if (res == NULL) {
@@ -362,6 +363,29 @@ TFUNC(dict, setitem) {
 }
 
 
+TFUNC(dict, get) {
+    #define SIG "dict.get(self, key, default=None)"
+    REQ_N_ARGS_RANGE(2, 3);
+    ks_dict self = (ks_dict)args[0];
+    REQ_TYPE("self", self, ks_T_dict);
+    kso key = args[1];
+
+    kso res = ks_dict_get(self, key, kso_hash(key));
+
+    if (res == NULL) {
+        if (n_args == 3) {
+            // default here
+            res = args[2];
+        } else {
+            return kse_fmt("KeyError: %R", key);
+        }
+    }
+
+    return KSO_NEWREF(res);
+    #undef SIG
+}
+
+
 
 /* exporting functionality */
 
@@ -371,16 +395,21 @@ void ks_init__dict() {
 
     /* create the type */
     T_dict = KS_TYPE_INIT();
+
+    ks_type_setname_c(ks_T_dict, "dict");
+
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
-
-    ks_type_set_namec(ks_T_dict, "dict");
-
-    ADDF(dict, free);
-    ADDF(dict, str);
-    ADDF(dict, repr);
-    ADDF(dict, getitem);
-    ADDF(dict, setitem);
+    ADDCF(ks_T_dict, "__str__", dict_str_);
+    ADDCF(ks_T_dict, "__repr__", dict_repr_);
+    ADDCF(ks_T_dict, "__getitem__", dict_free_);
+    ADDCF(ks_T_dict, "__setitem__", dict_free_);
+    ADDCF(ks_T_dict, "__free__", dict_free_);
 
 }
 

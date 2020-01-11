@@ -238,17 +238,22 @@ void ks_init__list() {
     /* create the type */
     T_list = KS_TYPE_INIT();
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+    ks_type_setname_c(ks_T_list, "list");
 
-    ks_type_set_namec(ks_T_list, "list");
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_list, "__str__", list_str_);
+    ADDCF(ks_T_list, "__repr__", list_repr_);
 
-    ADDF(list, free);
-    ADDF(list, str);
-    ADDF(list, repr);
+    ADDCF(ks_T_list, "__getitem__", list_getitem_);
+    ADDCF(ks_T_list, "__setitem__", list_setitem_);
 
-    ADDF(list, getitem);
-    ADDF(list, setitem);
-    ADDF(list, add);
+    ADDCF(ks_T_list, "__free__", list_free_);
 
 }
 

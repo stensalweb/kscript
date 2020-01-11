@@ -21,6 +21,17 @@ MODULE_INIT() {
     // create our type
     ks_T_mm_Audio = ks_type_new("mm.Audio");
 
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_mm_Audio, "__repr__", mm_Audio_repr_);
+    ADDCF(ks_T_mm_Audio, "__call__", mm_Audio_call_);
+    ADDCF(ks_T_mm_Audio, "__free__", mm_Audio_free_);
+
     // add our type
     MODULE_ADD_TYPE(mod, "Audio", ks_T_mm_Audio);
 

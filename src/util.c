@@ -105,7 +105,6 @@ void ks_init() {
     /* initialize types */
     ks_init__type();
     ks_init__cfunc();
-
     ks_init__dict();
 
     ks_init__none();
@@ -113,16 +112,15 @@ void ks_init() {
     ks_init__int();
     ks_init__str();
 
-    ks_init__module();
-
-
     ks_init__tuple();
     ks_init__list();
     ks_init__code();
     ks_init__kfunc();
     ks_init__parser();
     ks_init__ast();
-
+    ks_init__pfunc();
+    ks_init__kobj();
+    ks_init__module();
 
 
     // initialize builtin functions

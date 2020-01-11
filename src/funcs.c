@@ -9,13 +9,14 @@ ks_cfunc
     ks_F_print = NULL,
     ks_F_dict = NULL,
 
+    ks_F_repr = NULL,
     ks_F_type = NULL,
     ks_F_call = NULL,
     ks_F_hash = NULL,
     ks_F_rand = NULL,
     ks_F_import = NULL,
-    
-    ks_F_repr = NULL,
+
+    ks_F_new_type = NULL,
     
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -147,6 +148,23 @@ FUNC(import) {
 }
 
 
+FUNC(new_type) {
+    #define SIG "__new_type__(name)"
+    REQ_N_ARGS(1);
+    ks_str name = (ks_str)args[0];
+    REQ_TYPE("name", name, ks_T_str);
+    ks_type new_type = ks_type_new(name->chr);
+    
+    // always parent to the kobj
+    ks_type_add_parent(new_type, ks_T_kobj);
+
+    return (kso)new_type;
+    #undef SIG
+}
+
+
+
+
 
 
 /* attribute resolving */
@@ -157,12 +175,26 @@ FUNC(getattr) {
 
     kso obj = args[0], attr = args[1];
 
-    if (obj->type == ks_T_dict) {
+    /*if (obj->type == ks_T_dict) {
         return ks_dict_get((ks_dict)obj, attr, kso_hash(attr));
-    }
+    }*/
 
     // try resolving this
     if (obj->type->f_getattr != NULL) return kso_call(obj->type->f_getattr, n_args, args);
+    else {
+        // try and look up an attribute and turn it into a member method
+        kso Tattr = ks_type_getattr(obj->type, (ks_str)attr);
+        if (Tattr != NULL) {
+            // create a member function
+            ks_pfunc mem_func = ks_pfunc_new(Tattr);
+            KSO_DECREF(Tattr);
+            ks_pfunc_fill(mem_func, 0, obj);
+            return (kso)mem_func;
+            /*KSO_DECREF(Tattr);
+            ks_pfunc_fill(mem_func, 1, obj);
+            return mem_func;*/
+        }
+    }
 
     return NULL;
     #undef SIG
@@ -202,11 +234,9 @@ FUNC(setitem) {
     kso obj = args[0];
 
     // try resolving this
-    if (obj->type->f_setitem != NULL) {
-        return kso_call(obj->type->f_setitem, n_args, args);
-    }
+    if (obj->type->f_setitem != NULL) return kso_call(obj->type->f_setitem, n_args, args);
 
-    return NULL;
+    return kse_fmt("No '[]=' method for '%T' type", args[0]);
     #undef SIG
 }
 
@@ -219,13 +249,15 @@ FUNC(setitem) {
 }
 // tries and resolves a binary operator, given the name of the type member
 // ex: BOP_RESOLVE(A, B, f_add)
+// TODO: handle exceptions
 #define BOP_RESOLVE(_A, _B, _opf, _ops) { \
     kso oA = (_A), oB = (_B), oR = NULL; \
     ks_type tA = oA->type, tB = oB->type; \
     if (tA->_opf != NULL) { \
         oR = kso_call(tA->_opf, 2, ((kso[]){oA, oB})); \
         if (oR) return oR; \
-    } else if (tB->_opf != NULL) { \
+    } \
+    if (tB->_opf != NULL) { \
         oR = kso_call(tB->_opf, 2, ((kso[]){oA, oB})); \
         if (oR) return oR; \
     } \
@@ -326,6 +358,8 @@ void ksf_init() {
     ks_F_rand = ks_cfunc_new(rand_);
     
     ks_F_import = ks_cfunc_new(import_);
+
+    ks_F_new_type = ks_cfunc_new(new_type_);
 
     ks_F_repr = ks_cfunc_new(repr_);
 

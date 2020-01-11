@@ -5,6 +5,7 @@
 
 /* generic object interface functionality */
 
+// return a 64 bit hash of an object
 uint64_t kso_hash(kso A) {
 
     // get the type
@@ -49,12 +50,14 @@ uint64_t kso_hash(kso A) {
         return val.v_u;
     }
 
+    // there was an error, so return -1
     return (kse_fmt("Unhashable object: %R", A), -1);
 }
 
 // try to convert A to a boolean, return 0 if it would be false, 1 if it would be true,
 //   and -1 if we couldn't decide
 int kso_bool(kso A) {
+    // short circuit some common values
     if (A == KSO_TRUE) return 1;
     if (A == KSO_FALSE) return 0;
     if (A == KSO_NONE) return 0;
@@ -67,16 +70,18 @@ int kso_bool(kso A) {
     if (A->type == ks_T_list) return ((ks_list)A)->len == 0 ? 0 : 1;
     if (A->type == ks_T_dict) return ((ks_dict)A)->n_items == 0 ? 0 : 1;
 
+    // TODO: call __bool__ on the object
+
     // else, we couldn't decide
 
     return -1;
-
 }
 
 // convert A to a string
 ks_str kso_tostr(kso A) {
 
-    if (A->type == ks_T_str) return (ks_str)A;
+    // short circuit some common values
+    if (A->type == ks_T_str) return (ks_str)KSO_NEWREF(A);
     if (A->type == ks_T_none) return ks_str_new("none");
     if (A->type == ks_T_bool) return ks_str_new(A == KSO_TRUE ? "true" : "false");
 
@@ -111,7 +116,6 @@ ks_str kso_torepr(kso A) {
     // else, nothing has been returned so do the default
     return ks_str_new_cfmt("<'%*s' obj @ %p>", T_A->name->len, T_A->name->chr, A);
 }
-
 
 // return whether or not the 2 objects are equal
 bool kso_eq(kso A, kso B) {
@@ -172,6 +176,23 @@ bool kso_free(kso obj) {
     }
 
 }
+
+// gets an attribute from the object, given a key
+kso kso_getattr(kso obj, kso key) {
+    // call internal function
+    kso args[2] = {obj, key};
+    return ks_F_getattr->v_cfunc(2, args);
+}
+
+// set an attribute given a name and value
+kso kso_setattr(kso obj, kso key, kso val) {
+    // call internal function
+    kso args[3] = {obj, key, val};
+    return ks_F_setattr->v_cfunc(3, args);
+}
+
+
+
 
 void kso_init() {
     // any initialization code will go here

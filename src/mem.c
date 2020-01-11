@@ -10,7 +10,15 @@ and
 Obviously, this uses slighly more memory, but only `A`x more memory.
 
 Thus, with `A=1.25`, the system may use 125% of the actual amount required.
-This is not a bad trade.
+This is not a bad trade, for the speed increase, as well as the speedup from
+resizing an array.
+
+For example, take linearly resizing an array every so many bytes in a loop, gradually.
+
+It would take `n` steps, where `a(n)=a(n-1)*A+B>=size`, which (discounting B), is:
+`a(n)~a(0)*A^n+B*n`, and thus `n (~ or <) log(size)/log(A)`, if A > 1, else:
+`n ~ size/B`. This reduces complexity from O(size/B*iter) to O(iter*log(size)/log(A)),
+i.e. from O(N^2) to O(NlogN). This is well worth the extra memory usage
 
 TODO: perhaps have different allocation algorithms for different sizes?
 
@@ -106,6 +114,7 @@ void* ks_malloc(size_t bytes) {
     if (buf == NULL) {
         ks_error("ks_malloc(%l) failed!", bytes);
     }
+    
     // set the size
     buf->size = bytes;
 

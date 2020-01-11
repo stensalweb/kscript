@@ -14,7 +14,7 @@ void ks_init__none() {
     /* create the type */
     T_none = KS_TYPE_INIT();
     
-    ks_type_set_namec(ks_T_none, "none");
+    ks_type_setname_c(ks_T_none, "none");
 
     // create the global none
     V_none = (struct ks_none) {

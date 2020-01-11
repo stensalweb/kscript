@@ -41,12 +41,16 @@ void ks_init__kfunc() {
     /* create the type */
     T_kfunc = KS_TYPE_INIT();
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+    ks_type_setname_c(ks_T_kfunc, "kfunc");
 
-    ks_type_set_namec(ks_T_kfunc, "kfunc");
-
-    ADDF(kfunc, free);
-
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_kfunc, "__free__", kfunc_free_);
 
 }
 

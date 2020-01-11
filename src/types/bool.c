@@ -5,9 +5,7 @@
 
 /* exporting functionality */
 
-
 struct ks_type T_bool, *ks_T_bool = &T_bool;
-
 
 struct ks_bool 
     V_true , *ks_V_true  = &V_true,
@@ -16,23 +14,10 @@ struct ks_bool
 
 void ks_init__bool() {
 
-    /* first create the type */
-
     /* create the type */
     T_bool = KS_TYPE_INIT();
-    
-    ks_type_set_namec(ks_T_bool, "ast");
 
-    //create constant with 1 reference
-    V_true = (struct ks_bool) {
-        KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_bool)
-        .v_bool = true
-    };
-    
-    V_false = (struct ks_bool) {
-        KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_bool)
-        .v_bool = false
-    };
+    ks_type_setname_c(ks_T_bool, "bool");
 
 }
 

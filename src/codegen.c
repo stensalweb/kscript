@@ -230,8 +230,61 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         ksc_const(to, (kso)new_kfunc);
         KSO_DECREF(new_kfunc);
 
-        // we add on one object
+        ksc_storeo(to, (kso)self->v_func.name);
+
+        // we add on the function object
         STK_GROW(1);
+
+    } else if (self->atype == KS_AST_TYPE) {
+
+        if (self->v_type.body->atype != KS_AST_BLOCK) {
+            kse_tok(self->v_type.body->tok, "Invalid Syntax; expected the beginning of a block for the given type");
+            return;
+        }
+
+        // add meta
+        ks_code_add_meta(to, self);
+
+        // load a builtin function to create a type
+        ksc_load(to, "__new_type__");
+        ksc_const(to, (kso)self->v_type.name);
+        ksc_call(to, 2);
+        STK_GROW(1);
+
+        int i;
+        for (i = 0; i < self->v_type.body->v_list->len; ++i) {
+            ks_ast cur = (ks_ast)self->v_type.body->v_list->items[i];
+            if (cur->atype != KS_AST_FUNC) {
+                kse_tok(cur->tok, "Invalid Syntax; Expected functions only in a type definition");
+                return;
+            }
+
+            // duplicate the type
+            ksc_dup(to);
+            STK_GROW(1);
+
+            // otherwise, generate the function
+            codegen(cur, to, geni);
+
+            // now, the function should be named so assign it
+            ksc_store_ao(to, (kso)cur->v_func.name);
+            STK_GROW(1-2);
+
+            // pop off the result
+            ksc_popu(to);
+            STK_GROW(-1);
+
+            // reset the stack, leaving on just the type itself
+            STK_TO(1);
+
+        }
+
+        // now, the type is the top on the stack, so store it as a variable
+        ksc_store(to, self->v_type.name->chr);
+
+        // nothing changed, so reset
+        STK_TO(0);
+
     } else if (self->atype == KS_AST_RET) {
 
         // generate the value

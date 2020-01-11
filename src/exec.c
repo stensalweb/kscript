@@ -211,11 +211,13 @@ static void VM_exec() {
     static void* inst_labels[] = {
 
         INIT_INST_LABEL(KSBC_NOOP)
+        INIT_INST_LABEL(KSBC_DUP)
+        INIT_INST_LABEL(KSBC_POPU)
+
         INIT_INST_LABEL(KSBC_CONST)
         INIT_INST_LABEL(KSBC_CONST_TRUE)
         INIT_INST_LABEL(KSBC_CONST_FALSE)
         INIT_INST_LABEL(KSBC_CONST_NONE)
-        INIT_INST_LABEL(KSBC_POPU)
         INIT_INST_LABEL(KSBC_LOAD)
         INIT_INST_LABEL(KSBC_LOAD_A)
         INIT_INST_LABEL(KSBC_STORE)
@@ -290,7 +292,6 @@ static void VM_exec() {
         goto EXC; \
     }
 
-
     /* values/temporary variables */
 
     // gets a constant from the current scope's constant pool
@@ -346,6 +347,19 @@ static void VM_exec() {
 
             NEXT_INST();
 
+        INST_LABEL(KSBC_DUP)
+            DECODE(ksbc_);
+            _exec_trace("dup");
+            VM_stk_push(VM_stk_top());
+            NEXT_INST();
+
+        INST_LABEL(KSBC_POPU)
+            DECODE(ksbc_);
+            _exec_trace("popu");
+            VM_stk_popu();
+            NEXT_INST();
+
+
         INST_LABEL(KSBC_CONST)
             DECODE(ksbc_i32);
             v_c = GET_CONST(inst.i32.i32);
@@ -372,12 +386,6 @@ static void VM_exec() {
             _exec_trace("const none");
             VM_stk_push(KSO_NONE);
 
-            NEXT_INST();
-
-        INST_LABEL(KSBC_POPU)
-            DECODE(ksbc_);
-            _exec_trace("popu");
-            VM_stk_popu();
             NEXT_INST();
 
         INST_LABEL(KSBC_LOAD)
@@ -833,7 +841,6 @@ static void VM_exec() {
 
 // method for calling a kfunc
 static kso kso_vm_call_kfunc(ks_kfunc func, int n_args, kso* args) {
-
     // push on values
     if (n_args != func->params->len) {
         return kse_fmt("Tried calling %R with wrong number of args, given %i, but expected %i", func, n_args, func->params->len);
@@ -851,7 +858,6 @@ static kso kso_vm_call_kfunc(ks_kfunc func, int n_args, kso* args) {
 
     kso val = VM_stk_pop();
     return val;
-
 }
 
 
@@ -879,6 +885,37 @@ kso kso_call(kso func, int n_args, kso* args) {
         if (((ks_type)func)->f_call != NULL) {
             return kso_call(((ks_type)func)->f_call, n_args, args);
         }
+    } else if (func->type == ks_T_pfunc) {
+        // TODO: implement optimized versions for pfunc<kfunc>
+        ks_pfunc pfc = (ks_pfunc)func;
+        int new_n_args = n_args + pfc->n_fillin;
+        if (new_n_args <= 8) {
+            // we can fit in a small buffer
+            kso imm_args[8];
+            // current argument ptr, normal args ptr, and argument in pfunc ptr
+            int ia_p, ar_p = 0, pf_p = 0;
+            for (ia_p = 0; ia_p < 8 && pf_p < pfc->n_fillin; ia_p++) {
+                if (pfc->fillin_args[pf_p].idx == ia_p) {
+                    // fill it in
+                    imm_args[ia_p] = pfc->fillin_args[pf_p].val;
+                    pf_p++;
+                } else {
+                    // just copy from other arguments
+                    imm_args[ia_p] = args[ar_p];
+                    ar_p++;
+                }
+            }
+            // copy the rest
+            if (ia_p < new_n_args) memcpy(&imm_args[ia_p], &args[ar_p], sizeof(kso) * (new_n_args - ia_p));
+
+            //printf("CALL: %d\n", ar_p);
+            //ks_info("::%R", args[0]);
+            return kso_call(pfc->func, n_args + pfc->n_fillin, &imm_args[0]);
+
+        } else {
+            return kse_fmt("WRONG ARGS");
+        }
+
     }
     // else, cause an error
     return kse_fmt("Tried calling obj: %R, which was not callable!", func);

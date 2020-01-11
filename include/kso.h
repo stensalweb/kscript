@@ -8,7 +8,6 @@
 
 #include "ks.h"
 
-
 /* constructing primitives */
 
 // creates a new string from C-style format arguments, in va_list passing style
@@ -19,10 +18,10 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap);
 // creates a new string from C-style format arguments (i.e. only C-types are supported, not arbitrary kscript objects)
 ks_str ks_str_new_cfmt(const char* fmt, ...);
 
-
 // generates the bytecode for a given AST, returns the code object
 // NOTE: this is implemented in codegen.c, rather than kso.c
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const);
+
 
 
 /* GENERIC OBJECT FUNCTIONALITY */
@@ -72,11 +71,16 @@ ks_str kso_tostr(kso A);
 // and %ADDR% is the pointer formatted name (i.e. 0x238748237483)
 ks_str kso_torepr(kso A);
 
-
 // frees an object, returns true if successful, false otherwise
 bool kso_free(kso obj);
 
+// gets an attribute from the object, given a key
+// return NULL if none was found, otherwise a new reference to the attribute
+kso kso_getattr(kso obj, kso key);
 
+// sets an attribute from the object, given a key and value
+// return NULL if none was found, otherwise a new reference to the attribute
+kso kso_setattr(kso obj, kso key, kso val);
 
 static inline void KSO_INCREF_N(kso* objs, int n) {
     int i;

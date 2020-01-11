@@ -22,7 +22,7 @@ void ks_init__cfunc() {
     /* create the type */
     T_cfunc = KS_TYPE_INIT();
     
-    ks_type_set_namec(ks_T_cfunc, "cfunc");
+    ks_type_setname_c(ks_T_cfunc, "cfunc");
 
 }
 

@@ -9,49 +9,84 @@ ks_type ks_type_new(char* name) {
     *self = KS_TYPE_INIT();
 
     // set the name
-    ks_type_set_namec(self, name);
+    ks_type_setname_c(self, name);
 
     // construct a new dictionary
-    ks_dict_set_cstrl(self->__dict__, "__name__", 8, (kso)self->name);
-    ks_dict_set_cstrl(self->__dict__, "__type__", 8, (kso)self->type);
+//    ks_dict_set_cstrl(self->__dict__, "__type__", 8, (kso)self->type);
 
     //KSO_DECREF(self->name);
     //KSO_DECREF(self->type);
 
     return self;
 }
+// add a parent to a type
+void ks_type_add_parent(ks_type self, ks_type parent) {
+    int idx = self->n_parents++;
+    self->parents = ks_realloc(self->parents, sizeof(*self->parents) * self->n_parents);
 
-TFUNC(type, getattr) {
-    #define SIG "type.__getattr__(self, attr)"
-    REQ_N_ARGS(2);
-    ks_type self = (ks_type)args[0];
-    REQ_TYPE("self", self, ks_T_type);
-    ks_str attr = (ks_str)args[1];
-    REQ_TYPE("attr", attr, ks_T_str);
+    // record the parent here
+    self->parents[idx] = parent;
+    KSO_INCREF(parent);
+
+    // update any builtins
+    #define UBI(NAME) if (self->NAME == NULL) self->NAME = parent->NAME;
+
+    UBI(f_new);
+    UBI(f_init);
+    
+    UBI(f_getattr);
+    UBI(f_setattr);
+    UBI(f_getitem);
+    UBI(f_setitem);
+
+}
+
+// recursive implementation of getattribute
+static kso type_getattr_R(ks_type self, ks_str attr) {
+    // don't try itself; since this is a breadth first search, this makes it easier to recurse
+    kso ret = NULL;
+
+    // try scooping down a level
+    int i;
+    for (i = 0; i < self->n_parents; ++i) {
+        ret = ks_dict_get(self->parents[i]->__dict__, (kso)attr, attr->v_hash);
+        if (ret != NULL) return ret;
+    }
+
+    // else, try recursively
+    for (i = 0; i < self->n_parents; ++i) {
+        ret = type_getattr_R(self->parents[i], attr);
+        if (ret != NULL) return ret;
+    }
+
+    return NULL;
+}
+
+kso ks_type_getattr(ks_type self, ks_str attr) {
+
+    if (KS_STR_EQ_CONST(attr, "__dict__")) {
+        return KSO_NEWREF(self->__dict__);
+    }
 
     // search through to get an attribute
     kso ret = ks_dict_get(self->__dict__, (kso)attr, attr->v_hash);
 
     if (ret == NULL) {
+        // try finding in a base class
+        // TODO actually implement this
+        ret = type_getattr_R(self, attr);
+        if (ret != NULL) return KSO_NEWREF(ret);
+
         // keyerror
         return kse_fmt("KeyError: %R", attr);
     } else {
         // return a new reference to the attribute
         return KSO_NEWREF(ret);
     }
-    #undef SIG
 }
 
-TFUNC(type, setattr) {
-    #define SIG "type.__setattr__(self, attr, val)"
-    REQ_N_ARGS(3);
-    ks_type self = (ks_type)args[0];
-    REQ_TYPE("self", self, ks_T_type);
-    ks_str attr = (ks_str)args[1];
-    REQ_TYPE("attr", attr, ks_T_str);
-
-    // the value to set it to
-    kso val = args[2];
+// sets a given attribute on the type
+void ks_type_setattr(ks_type self, ks_str attr, kso val) {
 
     // check if this is an __* set
     if (attr->len > 2 && attr->chr[0] == '_' && attr->chr[1] == '_') {
@@ -60,13 +95,15 @@ TFUNC(type, setattr) {
         // the dictionary
 
         /**/ if (KS_STR_EQ_CONST(attr, "__name__"))     {
-            if (val->type != ks_T_str) {
-                return kse_fmt("KeyError: %R must be set to a str", attr);
-            }
-            // otherwise, record it
+            // record the new name
             self->name = (ks_str)val;
         }
-        else if (KS_STR_EQ_CONST(attr, "__type__")) return kse_fmt("KeyError: %R can not be set");
+
+
+        else if (KS_STR_EQ_CONST(attr, "__new__")) self->f_new = val;
+        else if (KS_STR_EQ_CONST(attr, "__init__")) self->f_init = val;
+
+        else if (KS_STR_EQ_CONST(attr, "__type__")) self->type = (ks_type)val;
         else if (KS_STR_EQ_CONST(attr, "__free__") ) self->f_free = val;
 
         else if (KS_STR_EQ_CONST(attr, "__repr__")) self->f_repr = val;
@@ -99,51 +136,67 @@ TFUNC(type, setattr) {
     // replace the dictionary entry itself
     ks_dict_set(self->__dict__, (kso)attr, attr->v_hash, val);
 
+}
+
+void ks_type_setattr_c(ks_type self, char* attr, kso val) {
+    ks_str attro = ks_str_new(attr);
+    ks_type_setattr(self, attro, val);
+    KSO_DECREF(attro);
+}
+
+void ks_type_setname_c(ks_type self, char* name) {
+    ks_str _sn = ks_str_new(name);
+    ks_type_setattr_c(self, "__name__", (kso)_sn);
+    KSO_DECREF(_sn);
+}
+
+kso ks_type_getattr_c(ks_type self, char* attr) {
+    ks_str attro = ks_str_new(attr);
+    kso ret = ks_type_getattr(self, attro);
+    KSO_DECREF(attro);
+    return ret;
+}
+
+
+TFUNC(type, getattr) {
+    #define SIG "type.__getattr__(self, attr)"
+    REQ_N_ARGS(2);
+    ks_type self = (ks_type)args[0];
+    REQ_TYPE("self", self, ks_T_type);
+    ks_str attr = (ks_str)args[1];
+    REQ_TYPE("attr", attr, ks_T_str);
+
+    return ks_type_getattr(self, attr);
+    #undef SIG
+}
+
+TFUNC(type, setattr) {
+    #define SIG "type.__setattr__(self, attr, val)"
+    REQ_N_ARGS(3);
+    ks_type self = (ks_type)args[0];
+    REQ_TYPE("self", self, ks_T_type);
+    ks_str attr = (ks_str)args[1];
+    REQ_TYPE("attr", attr, ks_T_str);
+
+    // the value to set it to
+    kso val = args[2];
+
+    ks_type_setattr(self, attr, val);
+
     // return a new reference to what was set
     return KSO_NEWREF(val);
     #undef SIG
 }
 
-
-
-// set a special string value
-#define __TYPESET(_typeself, _name, _charp, _val) { (_typeself)->_name = _val; ks_dict_set_cstrl((_typeself)->__dict__, (_charp), sizeof(_charp) - 1, (kso)_val); }
-void ks_type_set_namec(ks_type self, char* name) {
-    ks_str mys = ks_str_new(name); 
-    self->name = mys;
-    ks_dict_set_cstrl(self->__dict__, "__name__", 8, (kso)mys);
-    KSO_DECREF(mys);
-}
-void ks_type_set_name(ks_type self, ks_str name) __TYPESET(self, name, "__name__", name)
-
-void ks_type_set_str (ks_type self, kso val)  __TYPESET(self, f_str, "__str__", val)
-void ks_type_set_repr(ks_type self, kso val)  __TYPESET(self, f_repr, "__repr__", val)
-void ks_type_set_free(ks_type self, kso val)  __TYPESET(self, f_free, "__free__", val)
-void ks_type_set_call(ks_type self, kso val)  __TYPESET(self, f_call, "__call__", val)
-
-void ks_type_set_getattr(ks_type self, kso val)  __TYPESET(self, f_getattr, "__getattr__", val)
-void ks_type_set_setattr(ks_type self, kso val)  __TYPESET(self, f_setattr, "__setattr__", val)
-
-void ks_type_set_getitem(ks_type self, kso val)  __TYPESET(self, f_getitem, "__getitem__", val)
-void ks_type_set_setitem(ks_type self, kso val)  __TYPESET(self, f_setitem, "__setitem__", val)
-
-void ks_type_set_add(ks_type self, kso val)  __TYPESET(self, f_add, "__add__", val)
-void ks_type_set_sub(ks_type self, kso val)  __TYPESET(self, f_sub, "__sub__", val)
-void ks_type_set_mul(ks_type self, kso val)  __TYPESET(self, f_mul, "__mul__", val)
-void ks_type_set_div(ks_type self, kso val)  __TYPESET(self, f_div, "__div__", val)
-void ks_type_set_mod(ks_type self, kso val)  __TYPESET(self, f_mod, "__mod__", val)
-void ks_type_set_pow(ks_type self, kso val)  __TYPESET(self, f_pow, "__pow__", val)
-
-void ks_type_set_lt(ks_type self, kso val)  __TYPESET(self, f_lt, "__lt__", val)
-void ks_type_set_le(ks_type self, kso val)  __TYPESET(self, f_le, "__le__", val)
-void ks_type_set_gt(ks_type self, kso val)  __TYPESET(self, f_gt, "__gt__", val)
-void ks_type_set_ge(ks_type self, kso val)  __TYPESET(self, f_ge, "__ge__", val)
-void ks_type_set_eq(ks_type self, kso val)  __TYPESET(self, f_eq, "__eq__", val)
-void ks_type_set_ne(ks_type self, kso val)  __TYPESET(self, f_ne, "__ne__", val)
-
-
 TFUNC(type, free) {
     ks_type self = (ks_type)args[0];
+
+    int i;
+    for (i = 0; i < self->n_parents; ++i) {
+        KSO_DECREF(self->parents[i]);
+    }
+
+    ks_free(self->parents);
 
     KSO_DECREF(self->__dict__);
 
@@ -157,29 +210,24 @@ TFUNC(type, free) {
 struct ks_type T_type, *ks_T_type = &T_type;
 
 void ks_init__type() {
-    T_type = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
-        .__dict__ = ks_dict_new_empty(),
-    };
 
-    ks_type_set_namec(ks_T_type, "type");
+    /* create the type */
+    T_type = KS_TYPE_INIT();
+    
+    ks_type_setname_c(ks_T_type, "type");
 
-    ks_dict_set_cstrl(ks_T_type->__dict__, "__name__", 8, (kso)ks_T_type->name);
-    ks_dict_set_cstrl(ks_T_type->__dict__, "__type__", 8, (kso)ks_T_type->type);
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
 
-    kso _myf = (kso)ks_cfunc_new(type_getattr_);
-    ks_dict_set_cstrl(ks_T_type->__dict__, "__getattr__", 11, _myf);
-    ks_T_type->f_getattr = _myf;
-    KSO_DECREF(_myf);
-    _myf = (kso)ks_cfunc_new(type_setattr_);
-    ks_dict_set_cstrl(ks_T_type->__dict__, "__setattr__", 11, _myf);
-    ks_T_type->f_setattr = _myf;
-    KSO_DECREF(_myf);
 
-    _myf = (kso)ks_cfunc_new(type_free_);
-    ks_dict_set_cstrl(ks_T_type->__dict__, "__free__", 8, _myf);
-    ks_T_type->f_free = _myf;
-    KSO_DECREF(_myf);
+    ADDCF(ks_T_type, "__getattr__", type_getattr_);
+    ADDCF(ks_T_type, "__setattr__", type_setattr_);
+
+    ADDCF(ks_T_type, "__free__", type_free_);
 
 }
 

@@ -356,28 +356,33 @@ void ks_init__int() {
     /* create the type */
 
     T_int = KS_TYPE_INIT();
+
+    ks_type_setname_c(ks_T_int, "int");
+
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
     
-    #define ADDF(_type, _fn) { kso _cf = (kso)ks_cfunc_new(_type##_##_fn##_); ks_type_set_##_fn(ks_T_##_type, _cf); KSO_DECREF(_cf); }
+    ADDCF(ks_T_int, "__str__", int_str_);
+    ADDCF(ks_T_int, "__repr__", int_repr_);
 
-    ks_type_set_namec(ks_T_int, "dict");
+    ADDCF(ks_T_int, "__add__", int_add_);
+    ADDCF(ks_T_int, "__sub__", int_sub_);
+    ADDCF(ks_T_int, "__mul__", int_mul_);
+    ADDCF(ks_T_int, "__div__", int_div_);
+    ADDCF(ks_T_int, "__mod__", int_mod_);
+    ADDCF(ks_T_int, "__pow__", int_pow_);
 
-    ADDF(int, str);
-    ADDF(int, repr);
+    ADDCF(ks_T_int, "__lt__", int_lt_);
+    ADDCF(ks_T_int, "__le__", int_le_);
+    ADDCF(ks_T_int, "__gt__", int_gt_);
+    ADDCF(ks_T_int, "__ge__", int_ge_);
+    ADDCF(ks_T_int, "__eq__", int_eq_);
+    ADDCF(ks_T_int, "__ne__", int_ne_);
 
-    ADDF(int, add);
-    ADDF(int, sub);
-    ADDF(int, mul);
-    ADDF(int, div);
-    ADDF(int, mod);
-    ADDF(int, pow);
-
-    ADDF(int, lt);
-    ADDF(int, le);
-    ADDF(int, gt);
-    ADDF(int, ge);
-    ADDF(int, eq);
-    ADDF(int, ne);
- 
     /* now create the constant tables */
     int i;
     for (i = -_INT_CONST_MAX; i < _INT_CONST_MAX; ++i) {

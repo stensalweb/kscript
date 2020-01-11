@@ -4,7 +4,9 @@ NOTE: This file is not included by default in `ks.h`, because it defines non-sta
 
 If you include this file, you don't need to include `ks.h`
 
-Mainly, this defines `REQ_*` macros, which help with readability for function errors
+Mainly, this defines `REQ_*` macros, which help with readability for function errors.
+
+In the future, this will mostly be replaced, or even removed by more proper error handling
 
 */
 

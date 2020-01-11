@@ -31,7 +31,7 @@ And most that take an argument <=255 will be reduced to an opcode and an amount:
 -------------------
 size: 2 bytes
 
-And any with larger arguments will take up 4:
+And any with larger arguments will take up 4 additional bytes:
 
 ----------------------------------------------
 | 1: opc | 4: val                            |
@@ -39,7 +39,8 @@ And any with larger arguments will take up 4:
 size: 5 bytes
 
 This is, of course, with the exception of the jmp commands, which always take 4 byte signed integers (for 
-now). Having variable sized jumps can make it very difficult for the code generator.
+now). Having variable sized jumps can make it very difficult for the code generator. This may be changed in
+the future, with an updated bytecode generator.
 
 ### JUMPING BYTECODE
 
@@ -74,6 +75,17 @@ enum {
     */
     KSBC_NOOP = 0,
 
+    /* POPU - pops off a value from the stack, which is unused (i.e. will remove the stack's ref)
+        and possibly free the object, if the refcnt reaches 0
+    1[KSBC_POPU]
+    */
+    KSBC_POPU,
+
+    /* DUP - duplicates the item at the top of the stack
+    1[KSBC_DUP]
+    */
+    KSBC_DUP,
+
     /* CONST - used to push a constant/literal (which is stored in the `v_const` of the code)
         which comes from the 4 byte `int` value stored in the instruction itself
     1[KSBC_CONST] 4[int v_const_idx, index into the `v_const` list for which constant it is]
@@ -92,12 +104,6 @@ enum {
     1[KSBC_CONST_NONE]
     */
     KSBC_CONST_NONE,
-
-    /* POPU - pops off a value from the stack, which is unused (i.e. will remove the stack's ref)
-        and possibly free the object, if the refcnt reaches 0
-    1[KSBC_POP]
-    */
-    KSBC_POPU,
 
     /* LOAD - reads an index into the `v_const` list, and then treats that as a key to the current VM state,
         looking up a value by that key. This is the generic lookup function that will search locals/globals
@@ -154,7 +160,6 @@ enum {
     */
     KSBC_LIST,
 
-    
     /** binary operators **/
 
     /* ADD - pops off 2 objects, binary-adds them
@@ -194,6 +199,13 @@ enum {
     /* NE - pops off 2 objects, binary-not-equality checks them
     1[KSBC_EQ] */
     KSBC_NE,
+
+    /** UNARY OPERATORS **/
+    
+    // UNEG - replaces the top of the stack with the negated value
+    KSBC_UNEG,
+
+
 
     /** jumps/branches **/
     

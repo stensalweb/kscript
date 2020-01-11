@@ -1,8 +1,28 @@
 /* ks.h - main header for the kscript library.
 
 Meant to be a flexible, dynamic programming language with fast startup time, easy
-C extension API, with a rich standard library.
+C extension API, with a rich standard library. 
 
+Much is a work in progress, but most of the basic types are implemented. The next big goals are:
+
+  * user-defined types (kscript-defined types)
+  * function closures (scope hoisting and carrying)
+  * constructors/class programming interface (how will __new__ / __call__ work?)
+
+
+Further down the line, the first big public changes neccessary before any release or tutorial is
+really written are:
+
+  * Module/package system (this has not really been done at all. We want a very clear way to install
+        and manage packages)
+  * Versioning/compatability. Obviously, for the first bit, the language will be rapidly changing.
+        eventually, it should be mostly backwards compatible in a way people can count on and not have
+        to care about the specific version they have or are writing for. A lot needs to be standardized
+        that has not been determined yet
+  * Tests/example cases, including failures
+  * Proper error types, so catch blocks can discriminate correctly
+
+See more at: https://github.com/ChemicalDevelopment/kscript
 
 @author: Cade Brown <brown.cade@gmail.com>
 

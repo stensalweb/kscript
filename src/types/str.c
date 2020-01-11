@@ -79,17 +79,19 @@ struct ks_type T_str, *ks_T_str = &T_str;
 void ks_init__str() {
 
     /* first create the type */
-    T_str = (struct ks_type) {
-        KSO_BASE_INIT(ks_T_type)
-        .__dict__ = ks_dict_new_empty(),
 
-        .f_add = (kso)ks_cfunc_new(str_add_),
+    T_str = KS_TYPE_INIT();
+    
+    ks_type_setname_c(ks_T_str, "str");
 
-
-    };
-
-    ks_type_set_namec(ks_T_str, "str");
-
+    // add cfuncs
+    #define ADDCF(_type, _name, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_str, "__add__", str_add_);
 
     /* now create the constant single-length strings */
     int i;
