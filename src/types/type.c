@@ -34,6 +34,11 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
     UBI(f_new);
     UBI(f_init);
     
+    UBI(f_free);
+
+    UBI(f_str);
+    UBI(f_repr);
+
     UBI(f_getattr);
     UBI(f_setattr);
     UBI(f_getitem);
@@ -98,7 +103,6 @@ void ks_type_setattr(ks_type self, ks_str attr, kso val) {
             // record the new name
             self->name = (ks_str)val;
         }
-
 
         else if (KS_STR_EQ_CONST(attr, "__new__")) self->f_new = val;
         else if (KS_STR_EQ_CONST(attr, "__init__")) self->f_init = val;

@@ -22,7 +22,7 @@ TFUNC(kobj, getattr) {
     #define SIG "kobj.__getattr__(self, attr)"
     REQ_N_ARGS(2);
     ks_kobj self = (ks_kobj)args[0];
-    REQ_TYPE("self", self, ks_T_kobj);
+    //REQ_TYPE("self", self, ks_T_kobj);
     ks_str attr = (ks_str)args[1];
     REQ_TYPE("attr", attr, ks_T_str);
 
@@ -41,7 +41,7 @@ TFUNC(kobj, setattr) {
     #define SIG "kobj.__setattr__(self, attr, val)"
     REQ_N_ARGS(3);
     ks_kobj self = (ks_kobj)args[0];
-    REQ_TYPE("self", self, ks_T_kobj);
+    //REQ_TYPE("self", self, ks_T_kobj);
     ks_str attr = (ks_str)args[1];
     REQ_TYPE("attr", attr, ks_T_str);
     kso val = args[2];
@@ -56,7 +56,7 @@ TFUNC(kobj, free) {
     #define SIG "kobj.__free__(self)"
     REQ_N_ARGS(1);
     ks_kobj self = (ks_kobj)args[0];
-    REQ_TYPE("self", self, ks_T_kobj);
+    //REQ_TYPE("self", self, ks_T_kobj);
 
     KSO_DECREF(self->attr);
 

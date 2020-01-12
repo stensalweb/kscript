@@ -21,20 +21,42 @@ print (xy, xy[0], xy[1])
 
 # dictionaries pair any object -> another object
 
-x = dict()
+#x = dict()
 
-x["asdf"] = 55 + 33
-x["another"] = 28379432
-x[x["asdf"]] = 234
+#x["asdf"] = 55 + 33
+#x["another"] = 28379432
+#x[x["asdf"]] = 234
 
-print (x, x["asdf"])
+#print (x, x["asdf"])
 
 # if you uncomment the following line, you will see a KeyError pop up
 #print (x["non-existant"])
 
 # you can get the type of an object by using the `type` function, and then output the name with its attr `__name__`
-print (type(x))
-print (type(x).__name__)
+#print (type(x))
+#print (type(x).__name__)
 
+
+
+
+# -*- custom types -*-
+
+
+# here's a custom type
+
+type MyType {
+    func __init__(self, x, y) {
+        self.x = x
+        self.y = (1, y, y+x)
+    }
+
+    func __str__(self) {
+        ret "Val<" + self.x + ", " + self.y + ">"
+    }
+}
+
+m = MyType(2, 3)
+
+print (m)
 
 
