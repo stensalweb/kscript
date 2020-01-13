@@ -161,9 +161,9 @@ void ks_strB_add(ks_strB* strb, char* val, int len) {
 // appends repr(obj) to the builder
 void ks_strB_add_repr(ks_strB* strb, kso obj) {
     if (obj->type == ks_T_str) {
-        ks_strB_add(strb, "\"", 1);
+        ks_strB_add(strb, "'", 1);
         ks_strB_add(strb, ((ks_str)obj)->chr, ((ks_str)obj)->len);
-        ks_strB_add(strb, "\"", 1);
+        ks_strB_add(strb, "'", 1);
     } else if (obj->type == ks_T_int) {
         char tmp[100];
         int tmp_p = 0;

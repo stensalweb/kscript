@@ -254,28 +254,51 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         int i;
         for (i = 0; i < self->v_type.body->v_list->len; ++i) {
             ks_ast cur = (ks_ast)self->v_type.body->v_list->items[i];
-            if (cur->atype != KS_AST_FUNC) {
-                kse_tok(cur->tok, "Invalid Syntax; Expected functions only in a type definition");
+            if (cur->atype == KS_AST_FUNC) {
+                // duplicate the type
+                ksc_dup(to);
+                STK_GROW(1);
+
+                // otherwise, generate the function
+                codegen(cur, to, geni);
+
+                // now, the function should be named so assign it
+                ksc_store_ao(to, (kso)cur->v_func.name);
+                STK_GROW(1-2);
+
+                // pop off the result
+                ksc_popu(to);
+                STK_GROW(-1);
+
+                // reset the stack, leaving on just the type itself
+                STK_TO(1);
+            } else if (cur->atype == KS_AST_BOP_ASSIGN) {
+                if (cur->v_bop.L->atype != KS_AST_VAR) {
+                    kse_tok(cur->tok_expr, "Invalid Syntax; In a type declaration, only assignments to attributes is allowed");
+                    return;
+                }
+                // duplicate the type
+                ksc_dup(to);
+                STK_GROW(1);
+
+                // otherwise, generate the function
+                codegen(cur, to, geni);
+
+                // now, the function should be named so assign it
+                ksc_store_ao(to, (kso)cur->v_bop.L->v_name);
+                STK_GROW(1-2);
+
+                // pop off the result
+                ksc_popu(to);
+                STK_GROW(-1);
+
+                // reset the stack, leaving on just the type itself
+                STK_TO(1);
+            } else {
+                kse_tok(cur->tok_expr, "Invalid Syntax; In a type declaration, only assignments and function definitions are allowed");
                 return;
             }
 
-            // duplicate the type
-            ksc_dup(to);
-            STK_GROW(1);
-
-            // otherwise, generate the function
-            codegen(cur, to, geni);
-
-            // now, the function should be named so assign it
-            ksc_store_ao(to, (kso)cur->v_func.name);
-            STK_GROW(1-2);
-
-            // pop off the result
-            ksc_popu(to);
-            STK_GROW(-1);
-
-            // reset the stack, leaving on just the type itself
-            STK_TO(1);
 
         }
 

@@ -85,13 +85,13 @@ void ks_init__str() {
     ks_type_setname_c(ks_T_str, "str");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
-    
-    ADDCF(ks_T_str, "__add__", str_add_);
+
+    ADDCF(ks_T_str, "__add__", "str.__add__(self, B)", str_add_);
 
     /* now create the constant single-length strings */
     int i;

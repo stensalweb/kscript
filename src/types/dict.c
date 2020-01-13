@@ -399,17 +399,17 @@ void ks_init__dict() {
     ks_type_setname_c(ks_T_dict, "dict");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
     
-    ADDCF(ks_T_dict, "__str__", dict_str_);
-    ADDCF(ks_T_dict, "__repr__", dict_repr_);
-    ADDCF(ks_T_dict, "__getitem__", dict_free_);
-    ADDCF(ks_T_dict, "__setitem__", dict_free_);
-    ADDCF(ks_T_dict, "__free__", dict_free_);
+    ADDCF(ks_T_dict, "__str__", "dict.__str__(self)", dict_str_);
+    ADDCF(ks_T_dict, "__repr__", "dict.__repr__(self)", dict_repr_);
+    ADDCF(ks_T_dict, "__getitem__", "dict.__getitem__(self, key)", dict_getitem_);
+    ADDCF(ks_T_dict, "__setitem__", "dict.__setitem__(self, key, val)", dict_free_);
+    ADDCF(ks_T_dict, "__free__", "dict.__free__(self)", dict_free_);
 
 }
 

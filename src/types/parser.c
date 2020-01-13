@@ -1407,6 +1407,8 @@ ks_ast ks_parse_stmt(ks_parser self) {
             ctok = CTOK();
             if (ctok.ttype == KS_TOK_COMMA) ADV1();
 
+            SKIP_IRR_S();
+
             // check for a 'catch' block
             ctok = CTOK();
             if (TOK_EQ(self, ctok, "catch")) {
@@ -1706,13 +1708,13 @@ void ks_init__parser() {
     ks_type_setname_c(ks_T_parser, "parser");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
-    
-    ADDCF(ks_T_parser, "__free__", parser_free_);
+
+    ADDCF(ks_T_parser, "__free__", "parser.__free__(self)", parser_free_);
 
 }
 

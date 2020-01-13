@@ -285,13 +285,13 @@ void ks_init__code() {
     ks_type_setname_c(ks_T_code, "code");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
     
-    ADDCF(ks_T_code, "__free__", code_free_);
+    ADDCF(ks_T_code, "__free__", "code.__free__(self)", code_free_);
 }
 
 

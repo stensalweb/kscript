@@ -376,12 +376,12 @@ void ks_init__ast() {
     ks_type_setname_c(ks_T_ast, "ast");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
     
-    ADDCF(ks_T_ast, "__free__", ast_free_);
+    ADDCF(ks_T_ast, "__free__", "ast.free(self)", ast_free_);
 
 }

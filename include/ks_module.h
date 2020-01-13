@@ -20,9 +20,9 @@
 #define MODULE_END() ks_module_init_t _module_init = {.f_init = _this_init_};
 
 // add a C function to a module:
-// i.e. MODULE_ADD_CFUNC(module, "asdfa", my_func_)
+// i.e. MODULE_ADD_CFUNC(module, "funcname", "decl(a, b)", my_func_)
 // my_func_ needs to be of `ks_cfunc_sig` to work
-#define MODULE_ADD_CFUNC(_mod, _cstr, _cfunc) { ks_cfunc made_cfunc = ks_cfunc_new(_cfunc); ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)made_cfunc); KSO_DECREF(made_cfunc); }
+#define MODULE_ADD_CFUNC(_mod, _cstr, _sigs, _cfunc) { ks_cfunc made_cfunc = ks_cfunc_new(_cfunc, _sigs); ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)made_cfunc); KSO_DECREF(made_cfunc); }
 
 // add a type to a module:
 // i.e. MODULE_ADD_TYPE(module, "MyType", T_mytype)

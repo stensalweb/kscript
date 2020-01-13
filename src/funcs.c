@@ -53,6 +53,8 @@ FUNC(dict) {
 FUNC(print) {
     #define SIG "print(args...)"
 
+    //KS_ASSERT(n_args == 0, "Expected 0 args, but got %i", n_args);
+
     // just print out all the arguments, then a newline
     int i;
     for (i = 0; i < n_args; ++i) {
@@ -180,8 +182,10 @@ FUNC(getattr) {
     }*/
 
     // try resolving this
-    if (obj->type->f_getattr != NULL) return kso_call(obj->type->f_getattr, n_args, args);
-    else {
+    if (obj->type->f_getattr != NULL) {
+        
+        return kso_call(obj->type->f_getattr, n_args, args);
+    } else {
         // try and look up an attribute and turn it into a member method
         kso Tattr = ks_type_getattr(obj->type, (ks_str)attr);
         if (Tattr != NULL) {
@@ -193,8 +197,13 @@ FUNC(getattr) {
             /*KSO_DECREF(Tattr);
             ks_pfunc_fill(mem_func, 1, obj);
             return mem_func;*/
+        } else {
+            // it was not found, and an error should have been added
+            return NULL;
         }
+
     }
+
 
     return NULL;
     #undef SIG
@@ -227,6 +236,7 @@ FUNC(getitem) {
     return kse_fmt("No '[]' method for '%T' type", args[0]);
     #undef SIG
 }
+
 FUNC(setitem) {
     #define SIG "setitem(obj, *keys, val)"
     REQ_N_ARGS_MIN(3);
@@ -338,6 +348,7 @@ FUNC(ne) {
     REQ_N_ARGS(2);
     // shortcut, the same object is never not equal to itself
     if (args[0] == args[1]) return KSO_FALSE;
+    printf("NE\n");
     BOP_RESOLVE(args[0], args[1], f_ne, "!=");
     #undef SIG
 }
@@ -349,38 +360,38 @@ void ksf_init() {
 
     /* builtins */
 
-    ks_F_print = ks_cfunc_new(print_);
-    ks_F_dict = ks_cfunc_new(dict_);
+    ks_F_print = ks_cfunc_new(print_, "print(*args)");
+    ks_F_dict = ks_cfunc_new(dict_, "dict()");
 
-    ks_F_type = ks_cfunc_new(type_);
-    ks_F_call = ks_cfunc_new(call_);
-    ks_F_hash = ks_cfunc_new(hash_);
-    ks_F_rand = ks_cfunc_new(rand_);
+    ks_F_type = ks_cfunc_new(type_, "type(obj)");
+    ks_F_call = ks_cfunc_new(call_, "call(func, args=(,))");
+    ks_F_hash = ks_cfunc_new(hash_, "hash(obj)");
+    ks_F_rand = ks_cfunc_new(rand_, "rand()");
     
-    ks_F_import = ks_cfunc_new(import_);
+    ks_F_import = ks_cfunc_new(import_, "import(module_name)");
 
-    ks_F_new_type = ks_cfunc_new(new_type_);
+    ks_F_new_type = ks_cfunc_new(new_type_, "__new_type__(name)");
 
-    ks_F_repr = ks_cfunc_new(repr_);
+    ks_F_repr = ks_cfunc_new(repr_, "repr(obj)");
 
-    ks_F_getattr = ks_cfunc_new(getattr_);
-    ks_F_setattr = ks_cfunc_new(setattr_);
+    ks_F_getattr = ks_cfunc_new(getattr_, "getattr(obj, attr)");
+    ks_F_setattr = ks_cfunc_new(setattr_, "setattr(obj, attr, val)");
 
-    ks_F_getitem = ks_cfunc_new(getitem_);
-    ks_F_setitem = ks_cfunc_new(setitem_);
+    ks_F_getitem = ks_cfunc_new(getitem_, "getitem(obj, *keys)");
+    ks_F_setitem = ks_cfunc_new(setitem_, "setitem(obj, *keys, val)");
 
-    ks_F_add = ks_cfunc_new(add_);
-    ks_F_sub = ks_cfunc_new(sub_);
-    ks_F_mul = ks_cfunc_new(mul_);
-    ks_F_div = ks_cfunc_new(div_);
-    ks_F_mod = ks_cfunc_new(mod_);
-    ks_F_pow = ks_cfunc_new(pow_);
-    ks_F_lt  = ks_cfunc_new(lt_);
-    ks_F_le  = ks_cfunc_new(le_);
-    ks_F_gt  = ks_cfunc_new(gt_);
-    ks_F_ge  = ks_cfunc_new(ge_);
-    ks_F_eq  = ks_cfunc_new(eq_);
-    ks_F_ne  = ks_cfunc_new(ne_);
+    ks_F_add = ks_cfunc_new(add_, "__add__(A, B)");
+    ks_F_sub = ks_cfunc_new(sub_, "__sub__(A, B)");
+    ks_F_mul = ks_cfunc_new(mul_, "__mul__(A, B)");
+    ks_F_div = ks_cfunc_new(div_, "__div__(A, B)");
+    ks_F_mod = ks_cfunc_new(mod_, "__mod__(A, B)");
+    ks_F_pow = ks_cfunc_new(pow_, "__pow__(A, B)");
+    ks_F_lt  = ks_cfunc_new(lt_, "__lt__(A, B)");
+    ks_F_le  = ks_cfunc_new(le_, "__le__(A, B)");
+    ks_F_gt  = ks_cfunc_new(gt_, "__gt__(A, B)");
+    ks_F_ge  = ks_cfunc_new(ge_, "__ge__(A, B)");
+    ks_F_eq  = ks_cfunc_new(eq_, "__eq__(A, B)");
+    ks_F_ne  = ks_cfunc_new(ne_, "__ne__(A, B)");
 
     /* set type functions */
 

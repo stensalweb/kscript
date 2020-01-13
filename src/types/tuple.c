@@ -3,7 +3,6 @@
 #include "ks_common.h"
 
 
-
 // create a tuple from a list of objects
 ks_tuple ks_tuple_new(kso* items, int n_items) {
     ks_tuple self = (ks_tuple)ks_malloc(sizeof(*self) + n_items * sizeof(kso));
@@ -45,10 +44,9 @@ ks_tuple ks_tuple_new_empty() {
 
 
 TFUNC(tuple, free) {
-    #define SIG "tuple.__free__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
-    REQ_TYPE("self", self, ks_T_tuple);
+    KS_REQ_TYPE(self, ks_T_tuple, "self");
 
     int i;
     for (i = 0; i < self->len; ++i) {
@@ -58,14 +56,12 @@ TFUNC(tuple, free) {
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 TFUNC(tuple, repr) {
-    #define SIG "tuple.__repr__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
-    REQ_TYPE("self", self, ks_T_tuple);
+    KS_REQ_TYPE(self, ks_T_tuple, "self");
 
     if (self->len == 0) {
         return (kso)ks_str_new("(,)");
@@ -86,14 +82,12 @@ TFUNC(tuple, repr) {
     ks_strB_add(&ksb, ")", 1);
 
     return (kso)ks_strB_finish(&ksb);
-    #undef SIG
 }
 
 TFUNC(tuple, str) {
-    #define SIG "tuple.__str__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
-    REQ_TYPE("self", self, ks_T_tuple);
+    KS_REQ_TYPE(self, ks_T_tuple, "self");
 
     if (self->len == 0) {
         return (kso)ks_str_new("(,)");
@@ -114,23 +108,18 @@ TFUNC(tuple, str) {
     ks_strB_add(&ksb, ")", 1);
 
     return (kso)ks_strB_finish(&ksb);
-    #undef SIG
 }
 
-
 TFUNC(tuple, getitem) {
-    #define SIG "tuple.__str__(self)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
-    REQ_TYPE("self", self, ks_T_tuple);
+    KS_REQ_TYPE(self, ks_T_tuple, "self");
     ks_int idx = (ks_int)args[1];
-    REQ_TYPE("idx", idx, ks_T_int);
 
-    if (idx->v_int < 0 || idx->v_int >= self->len) return kse_fmt("KeyError: %R (out of range)", idx);
+    if (idx->type != ks_T_int || idx->v_int < 0 || idx->v_int >= self->len) return kse_fmt("KeyError: %R", idx);
 
     // return the value
     return KSO_NEWREF(self->items[idx->v_int]);
-    #undef SIG
 }
 
 
@@ -146,18 +135,18 @@ void ks_init__tuple() {
     ks_type_setname_c(ks_T_tuple, "tuple");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
     
-    ADDCF(ks_T_tuple, "__str__", tuple_str_);
-    ADDCF(ks_T_tuple, "__repr__", tuple_repr_);
+    ADDCF(ks_T_tuple, "__str__", "tuple.__str__(self)", tuple_str_);
+    ADDCF(ks_T_tuple, "__repr__", "tuple.__repr__(self)", tuple_repr_);
 
-    ADDCF(ks_T_tuple, "__getitem__", tuple_getitem_);
+    ADDCF(ks_T_tuple, "__getitem__", "tuple.__getitem__(self, key)", tuple_getitem_);
 
-    ADDCF(ks_T_tuple, "__free__", tuple_free_);
+    ADDCF(ks_T_tuple, "__free__", "tuple.__free__(self)", tuple_free_);
 
 }
 

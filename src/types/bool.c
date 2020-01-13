@@ -17,7 +17,18 @@ void ks_init__bool() {
     /* create the type */
     T_bool = KS_TYPE_INIT();
 
+
     ks_type_setname_c(ks_T_bool, "bool");
+
+    // create the global values
+    V_true = (struct ks_bool) {
+        KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_bool)
+        .v_bool = true
+    };
+    V_false = (struct ks_bool) {
+        KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_bool)
+        .v_bool = false
+    };
 
 }
 

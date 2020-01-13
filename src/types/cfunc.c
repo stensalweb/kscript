@@ -4,11 +4,12 @@
 
 
 // create a new C-function wrapper
-ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc) {
+ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc, char* sig_s) {
     ks_cfunc self = (ks_cfunc)ks_malloc(sizeof(*self));
     *self = (struct ks_cfunc) {
         KSO_BASE_INIT(ks_T_cfunc)
-        .v_cfunc = v_cfunc
+        .sig_s   = ks_str_new(sig_s),
+        .v_cfunc = v_cfunc,
     };
     return self;
 }

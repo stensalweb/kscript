@@ -84,13 +84,13 @@ void ks_init__pfunc() {
     ks_type_setname_c(ks_T_pfunc, "pfunc");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
-    
-    ADDCF(ks_T_pfunc, "__free__", pfunc_free_);
+
+    ADDCF(ks_T_pfunc, "__free__", "pfunc.__free__(self)", pfunc_free_);
 
 }
 

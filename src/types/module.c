@@ -154,14 +154,14 @@ void ks_init__module() {
     ks_type_setname_c(ks_T_module, "module");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
     
-    ADDCF(ks_T_module, "__getattr__", module_getattr_);
-    ADDCF(ks_T_module, "__setattr__", module_setattr_);
+    ADDCF(ks_T_module, "__getattr__", "module.__getattr__(self, attr)", module_getattr_);
+    ADDCF(ks_T_module, "__setattr__", "module.__setattr__(self, attr, val)", module_setattr_);
 
-    ADDCF(ks_T_module, "__free__", module_free_);
+    ADDCF(ks_T_module, "__free__", "module.__free__(self)", module_free_);
 }

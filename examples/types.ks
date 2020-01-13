@@ -45,18 +45,23 @@ print (xy, xy[0], xy[1])
 # here's a custom type
 
 type MyType {
+
+    T = [1, 2, 3]
+
     func __init__(self, x, y) {
         self.x = x
         self.y = (1, y, y+x)
     }
 
     func __str__(self) {
-        ret "Val<" + self.x + ", " + self.y + ">"
+        try ret "Val<" + self.x + ", " + self.y + ">", catch, ret "ERR"
     }
 }
 
+# construct it
 m = MyType(2, 3)
 
 print (m)
 
+print (MyType.T, type(m).T)
 

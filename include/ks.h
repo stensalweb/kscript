@@ -222,6 +222,25 @@ bool kse_dumpall();
 // clear the errors, returning true if there were any
 bool kse_clear();
 
+// assert that `_expr` is true, issuing an error if not
+// should be used only in Cfuncs/functions that will return NULL
+#define KS_ASSERT(_expr, ...) { if (!(_expr)) { return kse_fmt("AssertError: " __VA_ARGS__); } }
+
+// assert that `_expr` is true, issuing an error if not
+// should be used only in Cfuncs/functions that will return NULL
+// this just requires something to be true, but does not throw an AssertError if it is not,
+// just a generic error
+#define KS_REQ(_expr, ...) { if (!(_expr)) { return kse_fmt(__VA_ARGS__); } }
+
+// require that an object has a given type, or print an error. _name is for printing purposes
+#define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "'type(%s)' (%T) was not '%s'", _name, _obj, (_type)->name)
+
+// require that an object be a sub type of a given type, or print an error. _name is for printing purposes
+#define KS_REQ_SUBTYPE(_obj, _type, _name) KS_REQ(ks_type_issub((_obj)->type, (_type)), "'type(%s)' (%T) was not a subtype of '%s'", _name, _obj, (_type)->name)
+
+// assert that the number of arguments is a correct value
+#define KS_REQ_N_ARGS(_narg, _correct) KS_REQ((_narg) == (_correct), "Wrong number of args, expected %i, but got %i", _narg, _correct)
+
 
 /* global state */
 

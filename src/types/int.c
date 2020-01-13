@@ -360,28 +360,28 @@ void ks_init__int() {
     ks_type_setname_c(ks_T_int, "int");
 
     // add cfuncs
-    #define ADDCF(_type, _name, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn); \
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
         ks_type_setattr_c(_type, _name, _f); \
         KSO_DECREF(_f); \
     }
     
-    ADDCF(ks_T_int, "__str__", int_str_);
-    ADDCF(ks_T_int, "__repr__", int_repr_);
+    ADDCF(ks_T_int, "__str__", "int.__str__(self)", int_str_);
+    ADDCF(ks_T_int, "__repr__", "int.__repr__(self)", int_repr_);
 
-    ADDCF(ks_T_int, "__add__", int_add_);
-    ADDCF(ks_T_int, "__sub__", int_sub_);
-    ADDCF(ks_T_int, "__mul__", int_mul_);
-    ADDCF(ks_T_int, "__div__", int_div_);
-    ADDCF(ks_T_int, "__mod__", int_mod_);
-    ADDCF(ks_T_int, "__pow__", int_pow_);
+    ADDCF(ks_T_int, "__add__", "int.__add__(A, B)", int_add_);
+    ADDCF(ks_T_int, "__sub__", "int.__sub__(A, B)", int_sub_);
+    ADDCF(ks_T_int, "__mul__", "int.__mul__(A, B)", int_mul_);
+    ADDCF(ks_T_int, "__div__", "int.__div__(A, B)", int_div_);
+    ADDCF(ks_T_int, "__mod__", "int.__mod__(A, B)", int_mod_);
+    ADDCF(ks_T_int, "__pow__", "int.__pow__(A, B)", int_pow_);
 
-    ADDCF(ks_T_int, "__lt__", int_lt_);
-    ADDCF(ks_T_int, "__le__", int_le_);
-    ADDCF(ks_T_int, "__gt__", int_gt_);
-    ADDCF(ks_T_int, "__ge__", int_ge_);
-    ADDCF(ks_T_int, "__eq__", int_eq_);
-    ADDCF(ks_T_int, "__ne__", int_ne_);
+    ADDCF(ks_T_int, "__lt__", "int.__lt__(A, B)", int_lt_);
+    ADDCF(ks_T_int, "__le__", "int.__le__(A, B)", int_le_);
+    ADDCF(ks_T_int, "__gt__", "int.__gt__(A, B)", int_gt_);
+    ADDCF(ks_T_int, "__ge__", "int.__ge__(A, B)", int_ge_);
+    ADDCF(ks_T_int, "__eq__", "int.__eq__(A, B)", int_eq_);
+    ADDCF(ks_T_int, "__ne__", "int.__ne__(A, B)", int_ne_);
 
     /* now create the constant tables */
     int i;

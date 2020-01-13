@@ -653,11 +653,13 @@ ks_type ks_type_new(char* name);
 // add a parent type to a given type
 void ks_type_add_parent(ks_type self, ks_type parent);
 
-
+// return 1 if `self` inherits (somewhere in its tree of dependencies) from `parent`, 0 otherwise
+// NOTE: this also returns 1 if self==parent
+int ks_type_issub(ks_type self, ks_type parent);
 
 /* setters */
 
-// sets a type's name
+// sets the name, eqiuvalent to `ks_type_setattr_c(self, "__name__", ks_str_new(name))`
 void ks_type_setname_c(ks_type self, char* name);
 
 // gets an attribute by name
@@ -1141,13 +1143,19 @@ ks_ast ks_ast_new_type(ks_str name, ks_ast body);
 typedef struct ks_cfunc {
     KSO_BASE
 
+    // signature/usage string, for printing error message/representation
+    // i.e.:
+    // `func_name(*args)`
+    // this should be how it would appear if typed in kscript source code
+    ks_str sig_s;
+
     // the actual C function pointer, which is callable given a number of args and a list of arguments
     ks_cfunc_sig v_cfunc;
 
 }* ks_cfunc;
 
-// create a new C-function wrapper
-ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc);
+// create a new C-function wrapper, given a signature string describing the calling convention
+ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc, char* sig_s);
 
 
 /* pfunc -> a type representing a partial function, i.e. a function which has some of its arguments

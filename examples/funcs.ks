@@ -1,5 +1,6 @@
 #!ks
 
+
 # function to determine if a given integer is a prime
 func is_prime(x) {
     # only integers can be prime
