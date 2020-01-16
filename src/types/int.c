@@ -44,6 +44,20 @@ ks_int ks_int_new(int64_t v_int) {
 
 /* type functions */
 
+
+// int.__new__(obj) -> convert `obj` to an integer
+TFUNC(int, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+    kso self = args[0];
+    if (self->type == ks_T_int) return KSO_NEWREF(self);
+    else if (self->type == ks_T_str) return (kso)ks_int_new(atoll(((ks_str)self)->chr));
+    else {
+        // return an error
+        KS_ERR_TYPECONV(self, ks_T_int);
+    }
+}
+
+
 // int.__str__(self) -> return the integer as its string
 TFUNC(int, str) {
     #define SIG "int.__str__(self)"
@@ -366,6 +380,7 @@ void ks_init__int() {
         KSO_DECREF(_f); \
     }
     
+    ADDCF(ks_T_int, "__new__", "int.__new__(obj)", int_new_);
     ADDCF(ks_T_int, "__str__", "int.__str__(self)", int_str_);
     ADDCF(ks_T_int, "__repr__", "int.__repr__(self)", int_repr_);
 

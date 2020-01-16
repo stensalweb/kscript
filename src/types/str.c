@@ -64,14 +64,39 @@ ks_str ks_str_new_cfmt(const char* fmt, ...) {
 /* exporting functionality */
 
 
+TFUNC(str, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+    kso obj = (kso)args[0];
+    if (obj->type == ks_T_str) return KSO_NEWREF(obj);
+    else {
+        // do tostring
+        return (kso)ks_str_new_cfmt("%S", obj);
+    }
+
+}
+
 TFUNC(str, add) {
-    #define SIG "str.add(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
 
     // just append their string representation
     return (kso)ks_str_new_cfmt("%S%S", args[0], args[1]);
-    #undef SIG
 }
+
+TFUNC(str, getitem) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_T_str, "self");
+    ks_int key = (ks_int)args[1];
+    KS_REQ_TYPE(key, ks_T_int, "key");
+    
+    int idx = key->v_int;
+    if (idx < 0) idx += self->len;
+    if (idx < 0 || idx >= self->len) return kse_fmt("KeyError: %R", key);
+
+
+    return (kso)ks_str_new_l(&self->chr[key->v_int], 1);
+}
+
 
 
 struct ks_type T_str, *ks_T_str = &T_str;
@@ -91,7 +116,9 @@ void ks_init__str() {
         KSO_DECREF(_f); \
     }
 
+    ADDCF(ks_T_str, "__new__", "str.__new__(obj)", str_new_);
     ADDCF(ks_T_str, "__add__", "str.__add__(self, B)", str_add_);
+    ADDCF(ks_T_str, "__getitem__", "str.__getitem__(self, key)", str_getitem_);
 
     /* now create the constant single-length strings */
     int i;

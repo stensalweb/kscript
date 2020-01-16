@@ -231,7 +231,7 @@ FUNC(getitem) {
     kso obj = args[0];
 
     // resolve the function
-    if (obj->type->f_getitem != NULL) return kso_call(obj->type->f_getitem, 2, args);
+    if (obj->type->f_getitem != NULL) return kso_call(obj->type->f_getitem, n_args, args);
 
     return kse_fmt("No '[]' method for '%T' type", args[0]);
     #undef SIG

@@ -894,32 +894,47 @@ kso kso_call(kso func, int n_args, kso* args) {
             // nothing to call
             return kse_fmt("Tried calling on '%S', but had no `__new__` method", fty->name);
         } else {
-            // call the creation routine
-            kso new_val = kso_call(f_new, 0, NULL);
-            new_val->type = fty;
-            if (fty->f_init != NULL) {
-                if (n_args > 0) {
-                    kso* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
-                    new_args[0] = new_val;
-                    memcpy(&new_args[1], args, sizeof(kso) * n_args);
 
-                    // call the initialization function
-                    kso res = kso_call(fty->f_init, 1 + n_args, new_args);
-                    if (res == NULL) return NULL;
-                    
-                    KSO_DECREF(res);
-                    ks_free(new_args);
+            // search for type.__init__(vals..)
+            kso f_init = fty->f_init;
 
-                } else {
-                    kso_call(fty->f_init, 1, (kso*)&new_val);
-                }
+            if (f_init == NULL) {
+                // since there is no __init__, we will just call the `__new__(*args)` func
+                // this means there are no initialization, and this is probably an immutable type
+                return kso_call(f_new, n_args, args);
+            } else {
+                // since there is an __init__, first call __new__ with no arguments, then 
+                // initialize it with `args` in __init__
 
+                // call the creation routine, which should accept 0 arguments
+                // (those arguments are passed to __init__ instead)
+                kso new_val = kso_call(f_new, 0, NULL);
+                if (new_val == NULL) return NULL;
+
+                // manually set the type, because f_new will set it to the base type
+                // this is helpful for derived types
+                new_val->type = fty;
+
+                // prepend `new_val` as the self in our arguments, so memcpy them
+                kso* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
+                new_args[0] = new_val;
+                // copy the rest, if applicable
+                if (n_args > 1) memcpy(&new_args[1], args, sizeof(kso) * n_args);
+
+                // call the initialization function with our self, arguments
+                kso res = kso_call(fty->f_init, 1 + n_args, new_args);
+                if (res == NULL) return NULL;
+
+                // the return result is ignored, as we are returning our value from __new__
+                KSO_DECREF(res);
+
+                // free our temporary arguments
+                ks_free(new_args);
+
+                // return our created value, that has been initialized
+                return new_val;
             }
-
-            //printf("%d\n", new_val->refcnt);
-
-            return new_val;
-        } 
+        }
 
     } else if (func->type == ks_T_pfunc) {
         // TODO: implement optimized versions for pfunc<kfunc>

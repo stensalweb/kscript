@@ -239,7 +239,10 @@ bool kse_clear();
 #define KS_REQ_SUBTYPE(_obj, _type, _name) KS_REQ(ks_type_issub((_obj)->type, (_type)), "'type(%s)' (%T) was not a subtype of '%s'", _name, _obj, (_type)->name)
 
 // assert that the number of arguments is a correct value
-#define KS_REQ_N_ARGS(_narg, _correct) KS_REQ((_narg) == (_correct), "Wrong number of args, expected %i, but got %i", _narg, _correct)
+#define KS_REQ_N_ARGS(_narg, _correct) KS_REQ((_narg) == (_correct), "Wrong number of args, expected %i, but got %i", _correct, _narg)
+
+// error that you can't convert `_obj` to type `_type`
+#define KS_ERR_TYPECONV(_obj, _type) return kse_fmt("Don't know how to convert type '%S' to type '%S'", (_obj)->type->name, (_type)->name);
 
 
 /* global state */
