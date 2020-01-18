@@ -29,9 +29,8 @@ MODULE_INIT() {
     }
     
     ADDCF(ks_T_mm_Audio, "__repr__", "mm.Audio.__repr__(self)", mm_Audio_repr_);
-    ADDCF(ks_T_mm_Audio, "__call__", "mm.Audio.__call__(self)", mm_Audio_call_);
-    ADDCF(ks_T_mm_Audio, "__free__", "mm.Audio.__free__(self)", mm_Audio_free_);
-
+    //ADDCF(ks_T_mm_Audio, "__call__", "mm.Audio.__call__(self)", mm_Audio_call_);
+    //ADDCF(ks_T_mm_Audio, "__free__", "mm.Audio.__free__(self)", mm_Audio_free_);
     // add our type
     MODULE_ADD_TYPE(mod, "Audio", ks_T_mm_Audio);
 

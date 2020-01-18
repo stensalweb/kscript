@@ -258,7 +258,6 @@ TFUNC(code, free) {
     // get the arguments
     ks_code self = (ks_code)args[0];
 
-
     // deref the constant pool
     KSO_DECREF(self->v_const);
 

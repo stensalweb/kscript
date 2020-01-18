@@ -5,6 +5,10 @@
 // for plugin loading
 #include <dlfcn.h>
 
+
+// the search paths for modules, should be a list of strings
+ks_list ksm_search_path = NULL;
+
 // create a new module with a given name
 ks_module ks_module_new(ks_str name) {
     ks_module self = (ks_module)ks_malloc(sizeof(*self));
@@ -34,52 +38,56 @@ ks_module ks_module_new_c(char* name) {
 }
 
 
+// internal function to attempt a load
+static ks_module attempt_load(ks_str fname) {
+
+    // first ensure the extension is correct
+    char* ext = strrchr(fname->chr, '.');
+    if (ext == NULL) {
+        ks_debug("[LOAD_MODULE] file '%S' didn't work; not a valid extension", fname);
+        return NULL;
+    }
+
+    if (strcmp(ext, ".so") != 0) {
+        ks_debug("[LOAD_MODULE] '%S' is not a `.so` file", fname);
+        return NULL;
+    }
+
+    // now, load it via dlopen
+    void* handle = dlopen(fname->chr, RTLD_LAZY);    
+    if (handle == NULL) {
+        ks_debug("[LOAD_MODULE] problems opening '%S': %s", fname, dlerror());
+        return NULL;
+    }
+
+    // and get the module source from it
+    ks_module_init_t* mod_init = (ks_module_init_t*)dlsym(handle, "_module_init");
+    if (mod_init == NULL) {
+        ks_debug("[LOAD_MODULE] problems loading '%S'._module_init: %s", fname, dlerror());
+        return NULL;
+    }
+
+    // it was successful
+    ks_debug("[LOAD_MODULE] success using '%S', now returning its result...", fname);
+
+    // call the init function
+    return (ks_module)mod_init->f_init(0, NULL);
+}
 // load a module by a given name
 ks_module ks_load_module(ks_str name) {
+    ks_str fname = NULL;
+    ks_module res = NULL;
+
+    #define ATTEMPT(fmt, ...) { fname = ks_str_new_cfmt(fmt, __VA_ARGS__); res = attempt_load(fname); KSO_DECREF(fname); if (res) { return res; } }
+
+    // first, just try the name itself as a .so
+    ATTEMPT("%S", name);
 
     int i;
-    for (i = 0; i < 1; ++i) {
-        // generate new paths
+    for (i = 0; i < ksm_search_path->len; ++i) {
+        // generate new paths from search paths
+        ATTEMPT("%S/libksm_%S.so", ksm_search_path->items[i], name);
 
-        ks_str libfile = ks_str_new_cfmt("%S", name);
-
-        ks_debug("[LOAD_MODULE] trying file '%S'...", libfile);
-
-        // first ensure the extension is correct
-        char* ext = strrchr(libfile->chr, '.');
-        if (ext == NULL) {
-            ks_debug("[LOAD_MODULE] file '%S' didn't work; not a valid extension", libfile);
-            KSO_DECREF(libfile);
-            continue;
-        }
-        if (strcmp(ext, ".so") != 0) {
-            ks_debug("[LOAD_MODULE] '%S' is not a `.so` file", libfile);
-            KSO_DECREF(libfile);
-            continue;
-        }
-
-        // now, load it via dlopen
-        void* handle = dlopen(libfile->chr, RTLD_LAZY);    
-        if (handle == NULL) {
-            ks_debug("[LOAD_MODULE] problems opening '%S': %s", libfile, dlerror());
-            KSO_DECREF(libfile);
-            continue;
-        }
-
-        // and get the module source from it
-        ks_module_init_t* mod_init = (ks_module_init_t*)dlsym(handle, "_module_init");
-        if (mod_init == NULL) {
-            ks_debug("[LOAD_MODULE] problems loading '%S'._module_init: %s", libfile, dlerror());
-            KSO_DECREF(libfile);
-            continue;
-        }
-
-        // it was successful
-        ks_debug("[LOAD_MODULE] success using '%S', now returning its result...", libfile);
-
-        KSO_DECREF(libfile);
-
-        return (ks_module)mod_init->f_init(0, NULL);
     }
 
     return kse_fmt("ImportError: Could not find module '%S'", name);
@@ -164,4 +172,29 @@ void ks_init__module() {
     ADDCF(ks_T_module, "__setattr__", "module.__setattr__(self, attr, val)", module_setattr_);
 
     ADDCF(ks_T_module, "__free__", "module.__free__(self)", module_free_);
+    // create an empty search path
+    ksm_search_path = ks_list_new_empty();
+
+    // get the ':' seperated path 
+    char* ksm_path = getenv("KSM_PATH");
+    if (ksm_path != NULL) {
+        int slen = strlen(ksm_path);
+        // some were given
+        int i, _last = 0;
+        for (i = 0; i < slen; ++i) {
+            if (ksm_path[i] == ':') {
+                // path seperator, so add it to the list
+                ks_str cpath = ks_str_new_l(ksm_path+_last, i-_last-1);
+                ks_list_push(ksm_search_path, (kso)cpath);
+                KSO_DECREF(cpath);
+                _last = i+1;
+            }
+        }
+        // and do it for the last
+
+        ks_str cpath = ks_str_new_l(ksm_path+_last, i-_last);
+        ks_list_push(ksm_search_path, (kso)cpath);
+        KSO_DECREF(cpath);
+        //ks_info("KSM_PATH -> %R", ksm_search_path);
+    }
 }

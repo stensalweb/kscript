@@ -13,6 +13,18 @@ ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc, char* sig_s) {
     };
     return self;
 }
+TFUNC(cfunc, free) {
+    
+    // get the arguments
+    ks_cfunc self = (ks_cfunc)args[0];
+    KS_REQ_TYPE(self, ks_T_cfunc, "self");
+
+    KSO_DECREF(self->sig_s);
+
+    ks_free(self);
+
+    return KSO_NONE;
+}
 
 /* exporting functionality */
 
@@ -25,6 +37,14 @@ void ks_init__cfunc() {
     
     ks_type_setname_c(ks_T_cfunc, "cfunc");
 
+    // add cfuncs
+    #define ADDCF(_type, _name, _sig, _fn) { \
+        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
+        ks_type_setattr_c(_type, _name, _f); \
+        KSO_DECREF(_f); \
+    }
+    
+    ADDCF(ks_T_cfunc, "__free__", "cfunc.__free__(self)", cfunc_free_);
 }
 
 

@@ -278,5 +278,11 @@ static inline uint64_t ks_hash_bytes(uint8_t* chr, int len) {
 int64_t ks_random_i64();
 
 
+/* module/extern loading */
+
+// list of strings for searching for modules
+extern ks_list ksm_search_path;
+
+
 #endif
 

@@ -145,7 +145,9 @@ FUNC(import) {
     REQ_N_ARGS(1);
     ks_str name = (ks_str)args[0];
     REQ_TYPE("name", name, ks_T_str);
-    return (kso)ks_load_module(name);
+    kso ret = (kso)ks_load_module(name);
+    
+    return ret;
     #undef SIG
 }
 
