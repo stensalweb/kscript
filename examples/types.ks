@@ -53,6 +53,10 @@ type MyType {
         self.y = (1, y, y+x)
     }
 
+    func get(self, z) {
+        ret self.x + z
+    }
+
     func __str__(self) {
         try ret "Val<" + self.x + ", " + self.y + ">", catch, ret "ERR"
     }
@@ -64,4 +68,6 @@ m = MyType(2, 3)
 print (m)
 
 print (MyType.T, type(m).T)
+
+print (m.get(5))
 
