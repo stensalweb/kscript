@@ -86,7 +86,12 @@ ks_module ks_load_module(ks_str name) {
     int i;
     for (i = 0; i < ksm_search_path->len; ++i) {
         // generate new paths from search paths
+
+        // check for $PATH/libksm_$NAME.so
         ATTEMPT("%S/libksm_%S.so", ksm_search_path->items[i], name);
+
+        // check for $PATH/$NAME/libksm_$NAME.so
+        ATTEMPT("%S/%S/libksm_%S.so", ksm_search_path->items[i], name, name);
 
     }
 
