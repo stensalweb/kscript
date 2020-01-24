@@ -70,6 +70,9 @@ int main(int argc, char** argv) {
     SET_GLOBAL("__eq__", ks_F_eq);
     SET_GLOBAL("__ne__", ks_F_ne);
 
+    SET_GLOBAL("__neg__", ks_F_neg);
+    SET_GLOBAL("__sqig__", ks_F_sqig);
+
     // check for errors so far
     if (kse_dumpall()) return -1;
 
@@ -112,6 +115,9 @@ int main(int argc, char** argv) {
             // parse out the whole expression            
             prog_ast = ks_parse_program(par);
             if (kse_dumpall()) return -1;
+
+            // optimize it
+            prog_ast = ks_ast_fopt(prog_ast, ks_ast_opt_propconst, NULL);
 
             // generate the bytecode
             prog_bc = ks_ast_codegen(prog_ast, NULL);

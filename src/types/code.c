@@ -238,6 +238,9 @@ void ksc_ge        (ks_code code) KSC_(KSBC_GE)
 void ksc_eq        (ks_code code) KSC_(KSBC_EQ)
 void ksc_ne        (ks_code code) KSC_(KSBC_NE)
 
+void ksc_neg       (ks_code code) KSC_(KSBC_NEG)
+void ksc_sqig      (ks_code code) KSC_(KSBC_SQIG)
+
 /* branching/conditionals */
 void ksc_jmp       (ks_code code, int relamt) KSC_I32(KSBC_JMP, relamt)
 void ksc_jmpt      (ks_code code, int relamt) KSC_I32(KSBC_JMPT, relamt)

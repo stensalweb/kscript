@@ -361,6 +361,30 @@ TFUNC(int, ne) {
 }
 
 
+
+// int.__neg__(A) -> returns -A
+TFUNC(int, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_int A = (ks_int)args[0];
+    KS_REQ_TYPE(A, ks_T_int, "A");
+
+    return (kso)ks_int_new(-A->v_int);
+}
+
+// int.__sqig__(A) -> returns ~A
+TFUNC(int, sqig) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_int A = (ks_int)args[0];
+    KS_REQ_TYPE(A, ks_T_int, "A");
+
+    return (kso)ks_int_new(~A->v_int);
+}
+
+
+
+
+
+
 /* exporting functionality */
 
 struct ks_type T_int, *ks_T_int = &T_int;
@@ -397,6 +421,9 @@ void ks_init__int() {
     ADDCF(ks_T_int, "__ge__", "int.__ge__(A, B)", int_ge_);
     ADDCF(ks_T_int, "__eq__", "int.__eq__(A, B)", int_eq_);
     ADDCF(ks_T_int, "__ne__", "int.__ne__(A, B)", int_ne_);
+
+    ADDCF(ks_T_int, "__neg__", "int.__neg__(A)", int_neg_);
+    ADDCF(ks_T_int, "__sqig__", "int.__sqig__(A)", int_sqig_);
 
     /* now create the constant tables */
     int i;

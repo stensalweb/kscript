@@ -103,6 +103,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // add meta after arguments
         ks_code_add_meta(to, self);
 
+        // add specific type
         /**/ if (self->atype == KS_AST_BOP_ADD) ksc_add(to);
         else if (self->atype == KS_AST_BOP_SUB) ksc_sub(to);
         else if (self->atype == KS_AST_BOP_MUL) ksc_mul(to);
@@ -115,7 +116,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         else if (self->atype == KS_AST_BOP_GE)  ksc_ge(to);
         else if (self->atype == KS_AST_BOP_EQ)  ksc_eq(to);
         else if (self->atype == KS_AST_BOP_NE)  ksc_ne(to);
-
+        else {
+            kse_fmt("Unknown BOP type %i", self->atype);
+        }
         // pop 2, but push result back on
         STK_GROW(1 - 2);
     } else if (self->atype == KS_AST_BOP_ASSIGN) {
@@ -181,6 +184,23 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         } else {
             kse_tok(ks_tok_combo(self->v_bop.L->tok_expr, self->tok), "Invalid left-hand side of `=` operator, must have a variable or an attribute!");
         }
+    } else if (self->atype >= KS_AST_UOP_NEG && self->atype <= KS_AST_UOP_SQIG) {
+        /* handle unary operator */
+        
+        // generate the value
+        codegen(self->v_uop, to, geni);
+
+        // now, emit a unary operator bytecode
+
+        // add specific type
+        /**/ if (self->atype == KS_AST_UOP_NEG) ksc_neg(to);
+        else if (self->atype == KS_AST_UOP_SQIG) ksc_sqig(to);
+        else {
+            kse_fmt("Unknown UOP type %i", self->atype);
+        }
+
+        // the stack should say the same, because unary operators take 1 operand and produce a result
+        STK_GROW(0);
 
     } else if (self->atype == KS_AST_CALL) {
 

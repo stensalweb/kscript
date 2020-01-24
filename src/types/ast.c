@@ -1,6 +1,218 @@
-/* types/ast.c - reprsernts an Abstract Syntax Tree */
+/* types/ast.c - represents an Abstract Syntax Tree
+
+Generally, a program can be thought of a control flow diagram and/or a computational graph/tree.
+
+This is a high level representation of that tree, and how it can be traversed, read, etc from C.
+
+These are typically generated from a parser (see `types/parser.c` for how they are constructed programmatically)
+
+
+
+Specifics:
+
+The `self->atype` attribute tells what kind of AST it is respectively.
+
+If it is KS_AST_BOP_*, then it is a binary operator, KS_AST_UOP_*, a unary operator, etc
+
+There are specific attributes in the union of the AST that are used by certain types of ASTs.
+
+These are documented in `ks_types.h`, for more complete information.
+
+
+TODO:
+
+  * Traversal algorithms/visitor functions
+
+
+*/
 
 #include "ks_common.h"
+
+
+
+// visits an ast recursively
+void ks_ast_visit(ks_ast self, ks_ast_visit_f func, void* data) {
+
+    // call the function
+    int res = func(self, data);
+
+    // now, handle the children of the function
+    int i;
+    switch (self->atype) {
+    case KS_AST_TRUE:
+    case KS_AST_FALSE:
+    case KS_AST_NONE:
+    case KS_AST_INT:
+    case KS_AST_STR:
+    case KS_AST_VAR:
+    case KS_AST_CODE:
+        // do nothing, they don't have child nodes
+        break;
+
+    case KS_AST_ATTR:
+        ks_ast_visit(self->v_attr.obj, func, data);
+        break;
+
+    case KS_AST_TUPLE:
+    case KS_AST_LIST:
+    case KS_AST_CALL:
+    case KS_AST_SUBSCRIPT:
+    case KS_AST_BLOCK:
+        for (i = 0; i < self->v_list->len; ++i) {
+            ks_ast_visit((ks_ast)self->v_list->items[i], func, data);
+        }
+        break;
+
+    case KS_AST_FUNC:
+        ks_ast_visit(self->v_func.body, func, data);
+        break;
+
+    case KS_AST_TYPE:
+        ks_ast_visit(self->v_type.body, func, data);
+        break;
+
+    case KS_AST_IF:
+        ks_ast_visit(self->v_if.cond, func, data);
+        ks_ast_visit(self->v_if.body, func, data);
+        if (self->v_if.has_else) ks_ast_visit(self->v_if.v_else, func, data);
+        break;
+
+    case KS_AST_WHILE:
+        ks_ast_visit(self->v_while.cond, func, data);
+        ks_ast_visit(self->v_while.body, func, data);
+        break;
+
+    case KS_AST_TRY:
+        ks_ast_visit(self->v_try.v_try, func, data);
+        if (self->v_try.v_catch != NULL) ks_ast_visit(self->v_try.v_catch, func, data);
+        break;
+
+    case KS_AST_RET:
+        if (self->v_ret != NULL) ks_ast_visit(self->v_ret, func, data);
+        break;
+
+    // handle all binary operators
+    case KS_AST_BOP_ADD:
+    case KS_AST_BOP_SUB:
+    case KS_AST_BOP_MUL:
+    case KS_AST_BOP_DIV:
+    case KS_AST_BOP_MOD:
+    case KS_AST_BOP_POW:
+    case KS_AST_BOP_LT:
+    case KS_AST_BOP_LE:
+    case KS_AST_BOP_GT:
+    case KS_AST_BOP_GE:
+    case KS_AST_BOP_EQ:
+    case KS_AST_BOP_NE:
+    case KS_AST_BOP_ASSIGN:
+        ks_ast_visit(self->v_bop.L, func, data);
+        ks_ast_visit(self->v_bop.R, func, data);
+        break;
+
+    // handle all unary operators
+    case KS_AST_UOP_NEG:
+    case KS_AST_UOP_SQIG:
+        ks_ast_visit(self->v_uop, func, data);
+        break;
+    
+
+    default:
+        break;
+    }
+
+
+}
+
+// optimizes an AST given a function
+ks_ast ks_ast_fopt(ks_ast self, ks_ast_opt_f func, void* data) {
+
+    // first, handle the children of the function
+    int i;
+    switch (self->atype) {
+    case KS_AST_TRUE:
+    case KS_AST_FALSE:
+    case KS_AST_NONE:
+    case KS_AST_INT:
+    case KS_AST_STR:
+    case KS_AST_VAR:
+    case KS_AST_CODE:
+        // do nothing, they don't have child nodes
+        break;
+
+    case KS_AST_ATTR:
+        self->v_attr.obj = ks_ast_fopt(self->v_attr.obj, func, data);
+        break;
+
+    case KS_AST_TUPLE:
+    case KS_AST_LIST:
+    case KS_AST_CALL:
+    case KS_AST_SUBSCRIPT:
+    case KS_AST_BLOCK:
+        for (i = 0; i < self->v_list->len; ++i) {
+            self->v_list->items[i] = (kso)ks_ast_fopt((ks_ast)self->v_list->items[i], func, data);
+        }
+        break;
+
+    case KS_AST_FUNC:
+        self->v_func.body = ks_ast_fopt(self->v_func.body, func, data);
+        break;
+
+    case KS_AST_TYPE:
+        self->v_type.body = ks_ast_fopt(self->v_type.body, func, data);
+        break;
+
+    case KS_AST_IF:
+        self->v_if.cond = ks_ast_fopt(self->v_if.cond, func, data);
+        self->v_if.body = ks_ast_fopt(self->v_if.body, func, data);
+        if (self->v_if.has_else) self->v_if.v_else = ks_ast_fopt(self->v_if.v_else, func, data);
+        break;
+
+    case KS_AST_WHILE:
+        self->v_while.cond = ks_ast_fopt(self->v_while.cond, func, data);
+        self->v_while.body = ks_ast_fopt(self->v_while.body, func, data);
+        break;
+
+    case KS_AST_TRY:
+        self->v_try.v_try = ks_ast_fopt(self->v_try.v_try, func, data);
+        if (self->v_try.v_catch != NULL) self->v_try.v_catch = ks_ast_fopt(self->v_try.v_catch, func, data);
+        break;
+
+    case KS_AST_RET:
+        if (self->v_ret != NULL) self->v_ret = ks_ast_fopt(self->v_ret, func, data);
+        break;
+
+    // handle all binary operators
+    case KS_AST_BOP_ADD:
+    case KS_AST_BOP_SUB:
+    case KS_AST_BOP_MUL:
+    case KS_AST_BOP_DIV:
+    case KS_AST_BOP_MOD:
+    case KS_AST_BOP_POW:
+    case KS_AST_BOP_LT:
+    case KS_AST_BOP_LE:
+    case KS_AST_BOP_GT:
+    case KS_AST_BOP_GE:
+    case KS_AST_BOP_EQ:
+    case KS_AST_BOP_NE:
+    case KS_AST_BOP_ASSIGN:
+        self->v_bop.L = ks_ast_fopt(self->v_bop.L, func, data);
+        self->v_bop.R = ks_ast_fopt(self->v_bop.R, func, data);
+        break;
+
+    // handle all unary operators
+    case KS_AST_UOP_NEG:
+    case KS_AST_UOP_SQIG:
+        self->v_uop = ks_ast_fopt(self->v_uop, func, data);
+        break;
+    
+
+    default:
+        break;
+    }
+
+    // now, optimize the current node with the given function and return the result
+    return func(self, data);
+}
 
 
 // initializes to an empty token, with a given type
@@ -350,6 +562,13 @@ TFUNC(ast, free) {
         KSO_DECREF(self->v_bop.L);
         KSO_DECREF(self->v_bop.R);
         break;
+
+    // handle all unary operators
+    case KS_AST_UOP_NEG:
+    case KS_AST_UOP_SQIG:
+        KSO_DECREF(self->v_uop);
+        break;
+    
 
     default:
         return kse_fmt(SIG ": AST obj @ %p was of unknown type %i", self, self->atype);

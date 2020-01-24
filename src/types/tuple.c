@@ -111,7 +111,7 @@ TFUNC(tuple, str) {
 }
 
 TFUNC(tuple, getitem) {
-    KS_REQ_N_ARGS(n_args, 1);
+    KS_REQ_N_ARGS(n_args, 2);
     ks_tuple self = (ks_tuple)args[0];
     KS_REQ_TYPE(self, ks_T_tuple, "self");
     ks_int idx = (ks_int)args[1];

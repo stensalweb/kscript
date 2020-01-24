@@ -521,6 +521,7 @@ void ksc_ne        (ks_code code);
 
 /* unary operators */
 void ksc_neg       (ks_code code);
+void ksc_sqig      (ks_code code);
 
 /* branching/conditionals */
 void ksc_jmp       (ks_code code, int relamt);
@@ -627,8 +628,9 @@ struct ks_type {
 
     /** unary operator functions **/
 
-    // -a
-    kso f_neg;
+    // -a       ~a
+    // __neg__ __sqig__
+    kso f_neg, f_sqig;
 
     // the rest of the members of the type
     ks_dict __dict__;
@@ -642,8 +644,8 @@ struct ks_type {
     .f_str = NULL, .f_repr = NULL, .f_hash = NULL, .f_call = NULL, \
     .f_getattr = NULL, .f_setattr = NULL, .f_getitem = NULL, .f_setitem = NULL, \
     .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_mod = NULL, .f_pow = NULL, \
-    .f_neg = NULL, \
     .f_lt = NULL, .f_le = NULL, .f_gt = NULL, .f_ge = NULL, .f_eq = NULL, .f_ne = NULL, \
+    .f_neg = NULL, .f_sqig = NULL, \
     .__dict__ = ks_dict_new_empty() })
 
 
@@ -754,7 +756,7 @@ enum {
 
     /* add operator, '+' */
     KS_TOK_O_ADD,
-    /* sub operator, '-' */
+    /* sub operator, '-' (also can be unary operator) */
     KS_TOK_O_SUB,
     /* mul operator, '*' */
     KS_TOK_O_MUL,
@@ -762,7 +764,7 @@ enum {
     KS_TOK_O_DIV,
     /* mod operator, '%' */
     KS_TOK_O_MOD,
-    ///* pow operator, '**' */
+    /* pow operator, '**' */
     KS_TOK_O_POW,
 
     /* less-than operator, '<' */
@@ -780,6 +782,9 @@ enum {
 
     /* assignment operator, '=' */
     KS_TOK_O_ASSIGN,
+
+    /* inverse operator, '~' */
+    KS_TOK_O_TIL,
 
 
     // phony ending member
@@ -933,6 +938,9 @@ enum {
     /* neg, -a, the negation of a given value  */
     KS_AST_UOP_NEG,
 
+    /* inv, ~a, the inverse of a given value */
+    KS_AST_UOP_SQIG,
+
 
     /** blocks/collections of other ASTs **/
 
@@ -1071,6 +1079,38 @@ struct ks_ast {
     };
 
 };
+
+
+// definition of a function that can be called on an AST as a visitor function
+// use `ks_ast_visit(ast, func, data)` to execute it
+typedef int (*ks_ast_visit_f)(ks_ast self, void* data);
+
+// visits all members of an AST, given a visitor function and some data
+// visits the node first, then the children
+void ks_ast_visit(ks_ast self, ks_ast_visit_f func, void* data);
+
+
+// definnition of a function that replaces a given AST with a more optimized version
+// use `self = ks_ast_opt(self, func, data)` to optimize it
+
+typedef ks_ast (*ks_ast_opt_f)(ks_ast self, void* data);
+
+// visits all members of an AST, replacing them with the result of a given function,
+// visits the children first, replacing them in place in the parent,
+// then the parent
+// NOTE: this function should always be used like: self = ks_opt_self(self, func, data),
+// since the original AST may be deleted if it can be optimized
+ks_ast ks_ast_fopt(ks_ast self, ks_ast_opt_f func, void* data);
+
+/* optimization passes (see: opt/*.c files) */
+
+// a constant propogation optimizer, for expressions with literals
+// i.e. 2+3 -> 5
+// see opt/propconst.c for the implementation
+// *data should be NULL
+ks_ast ks_ast_opt_propconst(ks_ast self, void* data);
+
+
 
 // create a new AST representing the 'true' value
 ks_ast ks_ast_new_true();

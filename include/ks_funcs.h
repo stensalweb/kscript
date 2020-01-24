@@ -77,6 +77,7 @@ extern ks_cfunc
 
     /* unary operators */
     ks_F_neg,
+    ks_F_sqig,
 
     /* comparison */
     ks_F_lt,

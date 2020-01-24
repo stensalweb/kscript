@@ -87,12 +87,14 @@ static ks_str tok_getstr(ks_tok tok) {
             char lit = '\0';
 
             // wheter or not there was a valid escape code
-            bool hasOne = false;
+            bool hasOne = true;
 
             if (c == 'n') {
                 lit = '\n';
             } else if (c == '\\') {
                 lit = '\\';
+            } else {
+                hasOne = false;
             }
 
             if (hasOne) {
@@ -268,6 +270,9 @@ static void parser_tokenize(ks_parser self) {
 
         // special operators
         STR_TOK(KS_TOK_O_ASSIGN, "=")
+        
+        // unary
+        STR_TOK(KS_TOK_O_TIL, "~")
 
         else {
             // wind to the correct part for the error
@@ -528,9 +533,8 @@ typedef struct syop {
         // ^ exponetentiation, highest in PEMDAS
         SYP_POW,
 
-        // unary operators always have the highest precedence
+        // unary operators should override most operators except power
         SYP_UNARY,
-
 
         SYP__END
 
@@ -602,7 +606,9 @@ static syop
 /* unary operators */
 
 static syop
-    syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG)
+    syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG),
+    syu_sqig = SYUOP(SYA_UOP_PRE, KS_AST_UOP_SQIG)
+    
 
 ;
 
@@ -722,7 +728,7 @@ ks_ast ks_parse_expr(ks_parser self) {
     #define TOKE_ISBOP(_type) (_type >= KS_TOK_O_ADD && _type <= KS_TOK_O_ASSIGN)
 
     // tells you whether ot not a given token is a unary operator
-    #define TOKE_ISUOP(_type) (false)
+    #define TOKE_ISUOP(_type) (_type >= KS_TOK_O_SUB && _type <= KS_TOK_O_TIL)
 
     // tells you whether or not a given token is any kind of operator
     #define TOKE_ISOP(_type) (TOKE_ISBOP(_type) || TOKE_ISUOP(_type))
@@ -854,7 +860,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             // check and make sure no double commas
             if (ltok.ttype == KS_TOK_COMMA) PEXPR_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax; expected a value between these commas");
 
-            if (!TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "SyntaxError; did not expect this here");
+            if (!(TOKE_ISVAL(ltok.ttype) || ltok.ttype == KS_TOK_LPAR)) PEXPR_ERR(ctok, "SyntaxError; did not expect this here");
 
             // just reduce the top of the stack until we get to a '(' or '['
             while (Ops.len > 0) {
@@ -1014,6 +1020,7 @@ ks_ast ks_parse_expr(ks_parser self) {
                 // this is a unary prefix operator
 
                 KPE_OPCASE(ctok, "-", syu_neg)
+                KPE_OPCASE(ctok, "~", syu_sqig)
 
                 PEXPR_ERR(ctok, "Invalid Syntax");
             } else {

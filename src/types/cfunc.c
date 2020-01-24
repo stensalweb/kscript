@@ -13,9 +13,8 @@ ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc, char* sig_s) {
     };
     return self;
 }
+
 TFUNC(cfunc, free) {
-    
-    // get the arguments
     ks_cfunc self = (ks_cfunc)args[0];
     KS_REQ_TYPE(self, ks_T_cfunc, "self");
 

@@ -241,6 +241,9 @@ static void VM_exec() {
         INIT_INST_LABEL(KSBC_EQ)
         INIT_INST_LABEL(KSBC_NE)
 
+        INIT_INST_LABEL(KSBC_NEG)
+        INIT_INST_LABEL(KSBC_SQIG)
+
         INIT_INST_LABEL(KSBC_JMP)
         INIT_INST_LABEL(KSBC_JMPT)
         INIT_INST_LABEL(KSBC_JMPF)
@@ -685,6 +688,23 @@ static void VM_exec() {
         T_BOP_LABEL(KSBC_EQ, "==", ks_F_eq)
         T_BOP_LABEL(KSBC_NE, "!=", ks_F_ne)
 
+        // unary operator template
+        #define T_UOP_LABEL(_UOP, _opstr, _opcfunc) INST_LABEL(_UOP) \
+            DECODE(ksbc_); \
+            _exec_trace("uop " _opstr); \
+            imm_args[0] = VM_stk_pop(); \
+            new_obj = _opcfunc->v_cfunc(1, imm_args); \
+            if (new_obj == NULL) { \
+                DECREF_N(imm_args, 1); \
+                EXEC_ERR_RECLAIM("Error in op " _opstr); \
+            } \
+            VM_stk_pushu(new_obj); \
+            DECREF_N(imm_args, 1); \
+            NEXT_INST();
+
+        T_UOP_LABEL(KSBC_NEG, "-", ks_F_neg);
+        T_UOP_LABEL(KSBC_SQIG, "~", ks_F_sqig);
+
         INST_LABEL(KSBC_JMP)
             DECODE(ksbc_i32);
             _exec_trace("jmp %+i", inst.i32.i32);
@@ -839,7 +859,7 @@ static void VM_exec() {
     // should never get here
 }
 
-// method for calling a kfunc
+// method for calling a kfunc (internal bytecode function)
 static kso kso_vm_call_kfunc(ks_kfunc func, int n_args, kso* args) {
     // push on values
     if (n_args != func->params->len) {
@@ -891,8 +911,9 @@ kso kso_call(kso func, int n_args, kso* args) {
             /*if (((ks_type)func)->f_call != NULL) {
                 return kso_call(((ks_type)func)->f_call, n_args, args);
             }*/
-            // nothing to call
-            return kse_fmt("Tried calling on '%S', but had no `__new__` method", fty->name);
+            // nothing to call, since no constructor is known for this type.
+            // this is odd, most types should have a constructor
+            return kse_fmt("Tried calling on type '%S', but had no `__new__` method", fty->name);
         } else {
 
             // search for type.__init__(vals..)
@@ -971,7 +992,7 @@ kso kso_call(kso func, int n_args, kso* args) {
 
 
     // else, cause an error
-    return kse_fmt("Tried calling obj: %R, which was not callable!", func);
+    return kse_fmt("'%T' type is not callable!", func);
 }
 
 // return the globals

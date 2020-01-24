@@ -36,7 +36,13 @@ ks_cfunc
     ks_F_gt  = NULL,
     ks_F_ge  = NULL,
     ks_F_eq  = NULL,
-    ks_F_ne  = NULL
+    ks_F_ne  = NULL,
+
+    /* unary operators */
+    ks_F_neg = NULL,
+    ks_F_sqig = NULL
+
+
 ;
 
 
@@ -350,10 +356,35 @@ FUNC(ne) {
     REQ_N_ARGS(2);
     // shortcut, the same object is never not equal to itself
     if (args[0] == args[1]) return KSO_FALSE;
-    printf("NE\n");
     BOP_RESOLVE(args[0], args[1], f_ne, "!=");
     #undef SIG
 }
+
+
+/* unary operators */
+
+// unary operator resolving
+#define UOP_RESOLVE(_A, _opf, _ops) { \
+    kso oA = (_A), oR = NULL; \
+    ks_type tA = oA->type; \
+    if (tA->_opf != NULL) { \
+        oR = kso_call(tA->_opf, 1, &oA); \
+        if (oR) return oR; \
+    } \
+    kse_fmt("Unary operator '" _ops "' not defined for type '%T'", oA); \
+}
+
+FUNC(neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    UOP_RESOLVE(args[0], f_neg, "-");
+}
+
+
+FUNC(sqig) {
+    KS_REQ_N_ARGS(n_args, 1);
+    UOP_RESOLVE(args[0], f_sqig, "~");
+}
+
 
 
 
@@ -394,6 +425,9 @@ void ksf_init() {
     ks_F_ge  = ks_cfunc_new(ge_, "__ge__(A, B)");
     ks_F_eq  = ks_cfunc_new(eq_, "__eq__(A, B)");
     ks_F_ne  = ks_cfunc_new(ne_, "__ne__(A, B)");
+
+    ks_F_neg  = ks_cfunc_new(neg_, "__neg__(A)");
+    ks_F_sqig  = ks_cfunc_new(sqig_, "__sqig__(A)");
 
     /* set type functions */
 

@@ -82,6 +82,82 @@ TFUNC(str, add) {
     return (kso)ks_str_new_cfmt("%S%S", args[0], args[1]);
 }
 
+// internal method for string comparison
+static int s_strcmp(ks_str a, ks_str b) {
+    if (a->len != b->len) return a->len - b->len;
+    else return memcmp(a->chr, b->chr, a->len);
+}
+
+TFUNC(str, cmp) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+
+    int res = s_strcmp(a, b);
+    if (res > 0) res = 1;
+    if (res < 0) res = -1;
+    // just append their string representation
+    return (kso)ks_int_new(res);
+}
+
+
+TFUNC(str, lt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+    return KSO_BOOL(s_strcmp(a, b) < 0);
+}
+TFUNC(str, le) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+    return KSO_BOOL(s_strcmp(a, b) <- 0);
+}
+TFUNC(str, gt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+    return KSO_BOOL(s_strcmp(a, b) > 0);
+}
+TFUNC(str, ge) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+    return KSO_BOOL(s_strcmp(a, b) >= 0);
+}
+TFUNC(str, eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+    return KSO_BOOL(s_strcmp(a, b) == 0);
+}
+TFUNC(str, ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str a = (ks_str)args[0], b = (ks_str)args[1];
+    KS_REQ_TYPE(a, ks_T_str, "a");
+    KS_REQ_TYPE(b, ks_T_str, "b");
+    return KSO_BOOL(s_strcmp(a, b) != 0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 TFUNC(str, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str self = (ks_str)args[0];
@@ -96,6 +172,42 @@ TFUNC(str, getitem) {
 
     return (kso)ks_str_new_l(&self->chr[key->v_int], 1);
 }
+
+
+// -self, reverse self
+TFUNC(str, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_T_str, "self");
+
+    // create a temporary buffer
+    char* new_str = ks_malloc(self->len);
+
+    // reverse the string
+    int i;
+    for (i = 0; 2 * i < self->len; ++i) {
+        new_str[i] = self->chr[self->len - i - 1];
+        new_str[self->len - i - 1] = self->chr[i];
+    }
+
+    // construct a new string
+    kso ret = (kso)ks_str_new_l(new_str, self->len);
+
+    // free tmp buffer
+    ks_free(new_str);
+
+    // return generated string
+    return ret;
+}
+
+// ~self, strip of whitespace
+TFUNC(str, sqig) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_T_str, "self");
+    return KSO_NEWREF(self);
+}
+
 
 
 
@@ -117,8 +229,21 @@ void ks_init__str() {
     }
 
     ADDCF(ks_T_str, "__new__", "str.__new__(obj)", str_new_);
-    ADDCF(ks_T_str, "__add__", "str.__add__(self, B)", str_add_);
+
     ADDCF(ks_T_str, "__getitem__", "str.__getitem__(self, key)", str_getitem_);
+
+    ADDCF(ks_T_str, "__add__", "str.__add__(self, B)", str_add_);
+
+    ADDCF(ks_T_str, "__neg__", "str.__neg__(self)", str_neg_);
+    ADDCF(ks_T_str, "__sqig__", "str.__sqig__(self)", str_sqig_);
+
+    ADDCF(ks_T_str, "__cmp__", "str.__cmp__(self)", str_cmp_);
+    ADDCF(ks_T_str, "__lt__", "str.__lt__(self)", str_lt_);
+    ADDCF(ks_T_str, "__le__", "str.__le__(self)", str_le_);
+    ADDCF(ks_T_str, "__gt__", "str.__gt__(self)", str_gt_);
+    ADDCF(ks_T_str, "__ge__", "str.__ge__(self)", str_ge_);
+    ADDCF(ks_T_str, "__eq__", "str.__eq__(self)", str_eq_);
+    ADDCF(ks_T_str, "__ne__", "str.__ne__(self)", str_ne_);
 
     /* now create the constant single-length strings */
     int i;

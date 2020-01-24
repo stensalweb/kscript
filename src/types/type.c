@@ -168,6 +168,9 @@ void ks_type_setattr(ks_type self, ks_str attr, kso val) {
         else if (KS_STR_EQ_CONST(attr, "__eq__") ) self->f_eq = val;
         else if (KS_STR_EQ_CONST(attr, "__ne__") ) self->f_ne = val;
 
+        else if (KS_STR_EQ_CONST(attr, "__neg__") ) self->f_neg = val;
+        else if (KS_STR_EQ_CONST(attr, "__sqig__") ) self->f_sqig = val;
+
         // don't short circuit, as it should also be generically set in
         // the dictionary as well (that will also record the reference)
 

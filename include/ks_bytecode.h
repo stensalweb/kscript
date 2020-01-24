@@ -202,9 +202,11 @@ enum {
 
     /** UNARY OPERATORS **/
     
-    // UNEG - replaces the top of the stack with the negated value
-    KSBC_UNEG,
-
+    // neg - replaces the top of the stack with the negated value
+    KSBC_NEG,
+    
+    // sqig - replaces the top of the stack with the squiggly operator (~top)
+    KSBC_SQIG,
 
 
     /** jumps/branches **/

@@ -44,9 +44,10 @@ typedef struct ks_mm_Audio {
 // if data==NULL, then it is initialized to 0
 ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, float* data);
 
-
+TFUNC(mm_Audio, new);
 TFUNC(mm_Audio, repr);
-TFUNC(mm_Audio, call);
+TFUNC(mm_Audio, str);
+TFUNC(mm_Audio, getattr);
 TFUNC(mm_Audio, free);
 
 #endif
