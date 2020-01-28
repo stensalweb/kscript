@@ -5,12 +5,11 @@
 # the kscript installation directory. Use `../../` to use the local one,
 #   or `/usr/local` (or another path that it was installed to) for the system-wide one
 KS_DIR         ?= ../..
-#KS_DIR         ?= /usr/local
 
 # CFLAGS for compiling this module, just need to include kscript
-mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include
+mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include -I$()
 
-# linker flags for compiling this module, just need to link to kscript
+# linker flags for compiling this module,
 mod_LDFLAGS    ?= $(LDFLAGS) -lavcodec -lavformat
 
 
@@ -39,3 +38,5 @@ $(mod_LIB): $(mod_o)
 # rule to restart the compilation, removing anything done so far
 clean:
 	rm -rf $(wildcard $(mod_LIB) $(mod_o))
+
+
