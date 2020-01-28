@@ -41,8 +41,8 @@ ks_src          := $(addprefix src/, ks.c )
 ksm_std         := $(KSM_STD)
 
 # now, generate a list of `.o` files needed
-libks_o         := $(patsubst %.c,build/%.o, $(libks_src))
-ks_o            := $(patsubst %.c,build/%.o, $(ks_src))
+libks_o         := $(patsubst %.c,%.o, $(libks_src))
+ks_o            := $(patsubst %.c,%.o, $(ks_src))
 ksm_std_so      := $(patsubst %,std/%/libksm_%.so, $(ksm_std))
 
 
@@ -81,7 +81,7 @@ clean:
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`
 # `$<`: means the input file (%.c in this case)
 # `$@`: means the output file (%.o in thie case)
-build/%.o: %.c
+%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
 

@@ -10,9 +10,9 @@ Although kscript itself strives to require 0 dependencies other than a C compile
 
 Here are a list of standard modules (found in `./std`) and their requirements
 
-| Module | Deps | Ubuntu Install | Homebrew Install | URL |
-| mm |  |
+### `mm`
 
+The multimedia module `mm` has requirements. It requires ffmpeg's libraries, which is built locally
 
 
 
