@@ -15,6 +15,11 @@ Classes in this module:
 #include <ks_common.h>
 
 
+// for libav, audio video library
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+
+
 /* declare our types in this module */
 
 extern ks_type

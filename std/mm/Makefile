@@ -11,7 +11,7 @@ KS_DIR         ?= ../..
 mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include
 
 # linker flags for compiling this module, just need to link to kscript
-mod_LDFLAGS    ?= $(LDFLAGS)
+mod_LDFLAGS    ?= $(LDFLAGS) -lavcodec -lavformat
 
 
 # -*- targets/source setup -*-
@@ -22,7 +22,6 @@ mod_src_c      := ./main.c ./audio.c
 # the output library file (this should begin with `libksm_` so KSM knows its a valid module file)
 mod_LIB        := ./libksm_mm.so
 
-
 # -*- generated output -*-
 mod_o          := $(patsubst %.c,%.o, $(mod_src_c))
 
@@ -31,7 +30,7 @@ mod_o          := $(patsubst %.c,%.o, $(mod_src_c))
 
 # rule to compile the module file, linking it with kscript
 $(mod_LIB): $(mod_o)
-	$(CC) $(mod_CFLAGS) -shared $^ $(mod_LDFLAGS) -lsox -o $@
+	$(CC) $(mod_CFLAGS) -shared $^ $(mod_LDFLAGS) -o $@
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c

@@ -13,6 +13,9 @@ ks_type ks_T_mm_Audio = NULL;
 // initialization code for the module
 MODULE_INIT() {
 
+    // initalize libav
+    av_register_all();
+
     // create the module
     ks_module mod = ks_module_new_c(MODULE_NAME);
 

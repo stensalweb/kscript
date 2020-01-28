@@ -6,7 +6,7 @@ Includes reading/writing/transforming of audio data
 
 #include "ksm_mm.h"
 
-/* include an mp3 loading library, for loading into float buffers */
+/* include an mp3 loading library, for loading into float buffers 
 //#define MINIMP3_ONLY_MP3
 //#define MINIMP3_ONLY_SIMD
 //#define MINIMP3_NO_SIMD
@@ -17,7 +17,7 @@ Includes reading/writing/transforming of audio data
 
 
 #include <sox.h>
-
+*/
 
 // create a new audio object, with given parameters.
 // if data==NULL, then it is initialized to 0.0f for all the data
@@ -45,71 +45,129 @@ ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, float* data) {
     return self;
 }
 
+#define AUDIO_INBUF_SIZE 20480
+#define AUDIO_REFILL_THRESH 4096
+
+#define BUFFER_SIZE 20480
+
+#define die printf
+
 // read in from a given file, overwriting the data
 void ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
-    // get the extension
-    char* ext = strrchr(fname, '.');
 
-    // open with libsox
-    sox_format_t* ft = sox_open_read(fname, NULL, NULL, NULL);
+    #define READ_ERR(...) { kse_fmt(__VA_ARGS__); return; }
+    #define logging ks_info
 
-    // temporary buffer
-    const int bsize = 4096;
-    sox_sample_t buf[bsize];
+    // create a format context
+    AVFormatContext* fmt_ctx = avformat_alloc_context();
+    if (!fmt_ctx) READ_ERR("Couldn't alloc context!");
 
-    if (ft) {
-        size_t amt, total = 0;
-        while ((amt = sox_read(ft, buf, bsize)) == bsize) {
-            // continue reading
-            self->buf = ks_realloc(self->buf, sizeof(*self->buf) * (total + amt));
-            
-            int i;
-            for (i = 0; i < amt; ++i) {
-                // convert it
-                //float csamp = SOX_SAMPLE_TO_FLOAT_32BIT(buf[i], ft->clips);
-                float csamp = (float)(2 * (buf[i] - (double)SOX_SAMPLE_MIN)/((double)SOX_SAMPLE_MAX-(double)SOX_SAMPLE_MIN) - 1);
-                self->buf[total + i] = csamp;
+    if (avformat_open_input(&fmt_ctx, fname, NULL, NULL) != 0) READ_ERR("Couldn't open input!");
+    //logging("format %s", fmt_ctx->iformat->name);
+
+    if (avformat_find_stream_info(fmt_ctx, NULL) < 0) READ_ERR("Couldn't get stream info");
+
+    // now, configure the codec for reading it
+    AVCodec* codec = NULL;
+    AVCodecParameters* codec_par = NULL;
+
+    // audio stream index
+    int A_idx = -1;
+
+    // loop though all the streams and print its main information
+    int i;
+    for (i = 0; i < fmt_ctx->nb_streams; i++) {
+        AVCodecParameters* i_codec_p = fmt_ctx->streams[i]->codecpar;
+
+        // finds the registered decoder for a codec ID
+        // https://ffmpeg.org/doxygen/trunk/group__lavc__decoding.html#ga19a0ca553277f019dd5b0fec6e1f9dca
+        AVCodec* i_codec = avcodec_find_decoder(i_codec_p->codec_id);
+
+        if (!i_codec) READ_ERR("Unsupported codec!");
+
+        // when the stream is a video we store its index, codec parameters and codec
+        if (i_codec_p->codec_type == AVMEDIA_TYPE_AUDIO) {
+            // we found the first audio stream, so set our variables
+            A_idx = i;
+            codec = i_codec;
+            codec_par = i_codec_p;
+            break;
+        }
+
+        // print its name, id and bitrate
+        //logging("\tCodec %s ID %i bit_rate %lld", pLocalCodec->name, pLocalCodec->id, pCodecParameters->bit_rate);
+    }
+
+    // ensure a stream was found
+    if (A_idx < 0) READ_ERR("There was no audio!");
+
+    // and it had a valid codec
+    if (!codec) READ_ERR("No codec!");
+
+    // create a specific instance of the codec for our file
+    AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+    if (!codec_ctx) READ_ERR("Failed to alloc codec_ctx");
+
+    codec_ctx->sample_fmt = AV_SAMPLE_FMT_DBL;
+    codec_ctx->channels = codec_par->channels;
+    codec_ctx->pkt_timebase = fmt_ctx->streams[A_idx]->time_base;
+
+    //if (avcodec_parameters_to_context(codec_ctx, fmt_ctx->streams[i]->codecpar) < 0) READ_ERR("Failed to copy codec params to context");
+
+    if (avcodec_open2(codec_ctx, codec, NULL) < 0) READ_ERR("Failed top open codec");
+
+    // allocate a frame & packet for reading in chunks of the file
+    AVFrame*  frm = av_frame_alloc();
+    AVPacket* pkt = av_packet_alloc();
+
+    if (!frm || !pkt) READ_ERR("Failed to alloc frame");
+
+    // reset the audio buffer object to the current codec
+    self->samples = 0;
+    self->channels = codec_par->channels;
+    self->hz = codec_par->sample_rate;
+
+    // now, keep reading frames while in the video
+    while (av_read_frame(fmt_ctx, pkt) >= 0) {
+        if (pkt->stream_index == A_idx) {
+
+            int got_frame;
+            // keep going
+            if (avcodec_decode_audio4(codec_ctx, frm, &got_frame, pkt) < 0) break;
+            if (!got_frame) continue;
+
+            int start_out = self->samples;
+            self->samples += frm->nb_samples;
+            self->buf = ks_realloc(self->buf, sizeof(*self->buf) * self->samples * self->channels);
+
+            // get our frames
+            for (i = 0; i < frm->nb_samples; ++i) {
+                int j;
+                for (j = 0; j < self->channels; ++j) {
+                    double reading = ((float*)frm->extended_data[j])[i];
+                    //if (fabs(reading) > fabs(maxabs)) maxabs = reading;
+                    self->buf[self->channels * (i + start_out) + j] = reading;
+                }
             }
-
-            total += amt;
         }
-        self->channels = ft->signal.channels;
-        self->samples = total / ft->signal.channels;
-        self->hz = ft->signal.rate;
-    } else {
-        kse_fmt("Error reading audio file '%s'", fname);
+
+        // deref the packet
+        av_packet_unref(pkt);
     }
 
-    sox_close(ft);
+    // free our temporary buffers
+    av_frame_free(&frm);
+    av_packet_free(&pkt);
 
+    // free our format context
+    avformat_close_input(&fmt_ctx);
+    avformat_free_context(fmt_ctx);
+
+    // and remove our decoder
+    avcodec_free_context(&codec_ctx);
+
+    // done!
     return;
-    /*
-
-    if (strcmp(ext, ".mp3") == 0) {
-
-        // read in the mp3 using the library
-
-        mp3dec_t mp3d;
-        mp3dec_file_info_t info;
-        if (mp3dec_load(&mp3d, fname, &info, NULL, NULL)) {
-            kse_fmt("Error reading audio file '%s'", fname);
-            return;
-        }
-
-        self->channels = info.channels;
-        self->hz = info.hz;
-        self->samples = info.samples / info.channels;
-        self->buf = ks_realloc(self->buf, sizeof(*self->buf) * self->channels * self->samples);
-        memcpy(self->buf, info.buffer, sizeof(*self->buf) * self->channels * self->samples);
-
-        // we done here
-        free(info.buffer);
-
-    } else {
-        kse_fmt("Unknown file format '%s'", ext);
-        return;
-    }
-*/
 }
 
 
@@ -214,7 +272,7 @@ TFUNC(mm_Audio, write) {
 
     // output to file
 
-
+/*
     sox_signalinfo_t siginfo;
     siginfo.channels = self->channels;
     siginfo.length = self->samples * self->channels;
@@ -252,6 +310,7 @@ TFUNC(mm_Audio, write) {
     } else {
         kse_fmt("Error writing audio file '%S'", fname);
     }
+    */
 
     return KSO_NEWREF(self);
 }
