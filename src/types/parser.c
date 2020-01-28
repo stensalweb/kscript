@@ -55,6 +55,23 @@ static int64_t tok_getint(ks_tok tok) {
     return atoll(tmp);
 }
 
+// generates a float from a given token
+static double tok_getfloat(ks_tok tok) {
+
+    if (tok.ttype != KS_TOK_FLOAT) {
+        ks_warn("tok_getfloat() passed a non-float token (type %i)", tok.ttype);
+        return 0;
+    }
+    static char tmp[100];
+    int len = tok.len;
+    if (len > 99) len = 99;
+    memcpy(tmp, tok.v_parser->src->chr + tok.offset, len);
+    tmp[len] = '\0';
+    return strtod(tmp, NULL);
+}
+
+
+
 
 // returns a string literal value of the token, but unescaped.
 // For example, 'Hello\nWorld' replaces the \\ and n with 
@@ -192,8 +209,23 @@ static void parser_tokenize(ks_parser self) {
                 ADV(1);
             } while (isdigit(CUR()));
 
-            // declare the string of digits as a single integer
-            ADD_TOK(KS_TOK_INT);
+            // allow floats
+            if (CUR() == '.') {
+                ADV(1);
+
+                // read fractional part
+                do {
+                    ADV(1);
+                } while (isdigit(CUR()));
+
+                // declare the string of digits as a float
+                ADD_TOK(KS_TOK_FLOAT);
+
+            } else {
+
+                // declare the string of digits as a single integer
+                ADD_TOK(KS_TOK_INT);
+            }
 
         } else if (isidents(c)) {
             // parse an identifier
@@ -692,6 +724,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             if (Out.len < 1) PEXPR_ERR(top.tok, "Invalid Syntax"); \
             ks_ast new_uop = ks_ast_new_uop(top.uop_type, Spop(Out)); \
             new_uop->tok = top.tok; \
+            new_uop->tok_expr = top.tok; \
             KSO_DECREF(new_uop->v_uop); \
             Spush(Out, new_uop); \
         } else if (top.type == SYT_LPAR) { \
@@ -722,7 +755,7 @@ ks_ast ks_parse_expr(ks_parser self) {
     #define PEXPR_ERR(...) { kse_tok(__VA_ARGS__); wasErr = true; goto parseexpr_end; }
 
     // tells you whether or not a given token type means that the last value was a value, or an operator
-    #define TOKE_ISVAL(_type) (_type == KS_TOK_INT || _type == KS_TOK_STR || _type == KS_TOK_IDENT || _type == KS_TOK_RPAR || _type == KS_TOK_RBRACK)
+    #define TOKE_ISVAL(_type) (_type == KS_TOK_INT || _type == KS_TOK_FLOAT || _type == KS_TOK_STR || _type == KS_TOK_IDENT || _type == KS_TOK_RPAR || _type == KS_TOK_RBRACK)
 
     // tells you whether or not a given token is a binary operator
     #define TOKE_ISBOP(_type) (_type >= KS_TOK_O_ADD && _type <= KS_TOK_O_ASSIGN)
@@ -779,6 +812,15 @@ ks_ast ks_parse_expr(ks_parser self) {
             new_int->tok_expr = new_int->tok = ctok;
             Spush(Out, new_int);
 
+
+        } else if (ctok.ttype == KS_TOK_FLOAT) {
+            // can't have 2 value types in a row
+            if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
+    
+            // just push this onto the value stack
+            ks_ast new_float = ks_ast_new_float(tok_getfloat(ctok));
+            new_float->tok_expr = new_float->tok = ctok;
+            Spush(Out, new_float);
         } else if (ctok.ttype == KS_TOK_STR) {
             // can't have 2 value types in a row
             if (TOKE_ISVAL(ltok.ttype)) PEXPR_ERR(ctok, "Invalid Syntax");
@@ -1621,7 +1663,7 @@ ks_ast ks_parse_stmt(ks_parser self) {
 
         return res;
 
-    } else if (TOKE_ISVAL(ctok.ttype) || ctok.ttype == KS_TOK_LBRACK || ctok.ttype == KS_TOK_LPAR) {
+    } else if (TOKE_ISVAL(ctok.ttype) || ctok.ttype == KS_TOK_LBRACK || ctok.ttype == KS_TOK_LPAR || TOKE_ISUOP(ctok.ttype)) {
 
         // just parse a normal expression
         ks_ast res = ks_parse_expr(self);

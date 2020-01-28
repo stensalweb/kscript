@@ -35,6 +35,8 @@ void ks_init__bool();
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__int();
 // INTERNAL METHOD; DO NOT CALL
+void ks_init__float();
+// INTERNAL METHOD; DO NOT CALL
 void ks_init__str();
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__tuple();

@@ -26,11 +26,20 @@ To build the current version of kscript (library, and executable), first get a c
 
 To get the latest commit, use `git clone https://github.com/chemicaldevelopment/kscript`. This will clone the repo into `kscript/`.
 
+For minimum dependencies, run:
+
+`sudo apt install autogen autotools-dev autoconf`
+
+This will build dependencies of the standard library
+
 Now, `cd kscript`, and run these commands:
+
 
   * `make init` (creates `include/kscript_config.h`)
   * `make` (builds the library & executable)
   * (optional) `sudo make install` (installs kscript to `/usr/local`)
+
+See [BUILD.md](./BUILD.md) for more information
 
 To change the install path, run `PREFIX=/path/to/install sudo make install`
 

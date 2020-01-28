@@ -256,6 +256,16 @@ ks_ast ks_ast_new_int(int64_t v_int) {
     return self;
 }
 
+// create a new AST representing a constant float
+ks_ast ks_ast_new_float(double v_float) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        _AST_INIT(KS_AST_FLOAT)
+        .v_val = (kso)ks_float_new(v_float)
+    };
+    return self;
+}
+
 // create a new AST representing a constant string
 ks_ast ks_ast_new_str(ks_str v_str) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -489,6 +499,7 @@ TFUNC(ast, free) {
         break;
 
     case KS_AST_INT:
+    case KS_AST_FLOAT:
     case KS_AST_STR:
         KSO_DECREF(self->v_val);
         break;

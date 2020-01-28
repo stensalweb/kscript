@@ -8,16 +8,12 @@
 #error Need to define MODULE_NAME for ks_module.h
 #endif
 
-
 // create a function for initializing the module:
 // example:
 // MODULE_INIT() {
 // /* init code goes here */
 // }
-#define MODULE_INIT() MFUNC(_this, init)
-
-// boilerplate to be included at the end of the module file, so it is a valid kscript module
-#define MODULE_END() ks_module_init_t _module_init = {.f_init = _this_init_};
+#define MODULE_INIT() static MFUNC(_module, init)
 
 // add a C function to a module:
 // i.e. MODULE_ADD_CFUNC(module, "funcname", "decl(a, b)", my_func_)
@@ -28,9 +24,16 @@
 // i.e. MODULE_ADD_TYPE(module, "MyType", T_mytype)
 #define MODULE_ADD_TYPE(_mod, _cstr, _type) { ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)(_type)); KSO_DECREF(_type); }
 
+// declare the initialization function
 
 // include helper macros for the module
 #include "ks_common.h"
+
+// declare the initialization function, which should be defined in 1 file
+MODULE_INIT();
+
+// create a loadable symbol named `_this_init_` that makes the kscript module loadable from the main interpreter
+ks_module_init_t _this_init_ = { .f_init = _module_init_ };
 
 #endif
 

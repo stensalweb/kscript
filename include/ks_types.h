@@ -91,6 +91,7 @@ extern ks_type
     ks_T_none,
     ks_T_bool,
     ks_T_int,
+    ks_T_float,
     ks_T_str,
 
     ks_T_tuple,
@@ -188,6 +189,22 @@ ks_int ks_int_new(int64_t v_int);
 
 // yield the integer value as a C-int
 #define KS_INT_VAL(_int_obj) ((_int_obj)->v_int)
+
+/* float -> represents a real number, typically internally as a double
+*/
+typedef struct ks_float {
+    KSO_BASE
+
+    // the actual value, as a double
+    double v_float;
+
+}* ks_float;
+
+// constructs a new float value froma given C-style double
+ks_float ks_float_new(double v_float);
+
+// yield the value as a C-style double
+#define KS_FLOAT_VAL(_float_obj) ((_float_obj)->v_float)
 
 /* str -> the string type, a collection of ASCII characters
 This type is immutable, and internally is both length encoded & NUL-terminated
@@ -488,6 +505,9 @@ void ksc_const_false(ks_code code);
 void ksc_const_none(ks_code code);
 // const `v_int`; pushes a literal integer
 void ksc_int      (ks_code code, int64_t v_int);
+// const `v_float`; pushes a literal float
+void ksc_float    (ks_code code, double v_float);
+
 
 /* different constant loaders for C-strings */
 
@@ -723,6 +743,8 @@ enum {
 
     /* an integer literal */
     KS_TOK_INT,
+    /* a float literal */
+    KS_TOK_FLOAT,
     /* a string literal */
     KS_TOK_STR,
     /* a variable identifier (this can also be a keyword in a language) */
@@ -875,6 +897,8 @@ enum {
 
     /* means this AST represents a constant integer value */
     KS_AST_INT,
+    /* means this AST represents a constant float value */
+    KS_AST_FLOAT,
     /* means this AST represents a constant string value */
     KS_AST_STR,
     /* means this AST represents a variable reference, which will be looked up */
@@ -977,7 +1001,7 @@ struct ks_ast {
     // a union representing all the possible values of the AST
     union {
 
-        /* the value iff atype==KS_AST_INT,KS_AST_STR */
+        /* the value iff atype==KS_AST_INT,KS_AST_FLOAT,KS_AST_STR */
         kso v_val;
 
         /* the name of the variable iff atype==KS_AST_VAR */
@@ -1121,6 +1145,8 @@ ks_ast ks_ast_new_none();
 
 // create a new AST representing a constant int
 ks_ast ks_ast_new_int(int64_t v_int);
+// create a new AST representing a constant float
+ks_ast ks_ast_new_float(double v_float);
 // create a new AST representing a constant string
 ks_ast ks_ast_new_str(ks_str v_str);
 

@@ -1,4 +1,10 @@
-/* ksm_mm.h - header for the multi-media library included with kscript */
+/* ksm_mm.h - header for the multi-media library included with kscript
+
+Classes in this module:
+
+  * mm.Audio : class describing audio operations, reading writing, manipulating/etc
+
+*/
 
 
 #pragma once
@@ -41,14 +47,19 @@ typedef struct ks_mm_Audio {
 // audio methods
 
 // create a new audio object, with given parameters.
-// if data==NULL, then it is initialized to 0
+// if data==NULL, then it is initialized to 0.0f for all the data
 ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, float* data);
 
+// kscript-visible methods
 TFUNC(mm_Audio, new);
 TFUNC(mm_Audio, repr);
 TFUNC(mm_Audio, str);
 TFUNC(mm_Audio, getattr);
+TFUNC(mm_Audio, getitem);
+TFUNC(mm_Audio, setitem);
 TFUNC(mm_Audio, free);
+TFUNC(mm_Audio, write);
+
 
 #endif
 

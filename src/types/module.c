@@ -61,9 +61,9 @@ static ks_module attempt_load(ks_str fname) {
     }
 
     // and get the module source from it
-    ks_module_init_t* mod_init = (ks_module_init_t*)dlsym(handle, "_module_init");
+    ks_module_init_t* mod_init = (ks_module_init_t*)dlsym(handle, "_this_init_");
     if (mod_init == NULL) {
-        ks_debug("[LOAD_MODULE] problems loading '%S'._module_init: %s", fname, dlerror());
+        ks_debug("[LOAD_MODULE] problems loading '%S'._this_init_: %s", fname, dlerror());
         return NULL;
     }
 

@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
     /* builtin types */
     SET_GLOBAL("bool",  ks_T_bool);
     SET_GLOBAL("int",   ks_T_int);
+    SET_GLOBAL("float",   ks_T_float);
     SET_GLOBAL("str",   ks_T_str);
     SET_GLOBAL("tuple", ks_T_tuple);
     SET_GLOBAL("list",  ks_T_list);
@@ -203,7 +204,7 @@ int main(int argc, char** argv) {
     if (kse_dumpall()) return -1;
 
     int64_t total_diff = (int64_t)ks_memuse() - MU;
-    if (total_diff != 0) ks_warn("possible leak of %i bytes detected", (int)total_diff);
+    //if (total_diff != 0) ks_warn("possible leak of %i bytes detected", (int)total_diff);
 
     ks_debug("[MEM] maximum: %l", ks_memuse_max());
 

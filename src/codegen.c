@@ -63,6 +63,10 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         ks_code_add_meta(to, self);
         ksc_int(to, ((ks_int)self->v_val)->v_int);
         STK_GROW(1);
+    } else if (self->atype == KS_AST_FLOAT) {
+        ks_code_add_meta(to, self);
+        ksc_float(to, ((ks_float)self->v_val)->v_float);
+        STK_GROW(1);
     } else if (self->atype == KS_AST_STR) {
         ks_code_add_meta(to, self);
         ksc_cstr(to, ((ks_str)self->v_val)->chr);
@@ -191,6 +195,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         codegen(self->v_uop, to, geni);
 
         // now, emit a unary operator bytecode
+
+        // add meta
+        ks_code_add_meta(to, self);
 
         // add specific type
         /**/ if (self->atype == KS_AST_UOP_NEG) ksc_neg(to);

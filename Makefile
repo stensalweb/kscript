@@ -20,12 +20,15 @@ CFLAGS     ?= -O3 -std=c99
 # set the installation prefix
 PREFIX     ?= /usr/local
 
+# which standard modules to build? default is all of them
+KSM_STD    ?= mm
+
 
 # -*- INPUT FILES
 
 # the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libks_types_src := $(addprefix src/types/, none.c bool.c int.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c pfunc.c kobj.c )
+libks_types_src := $(addprefix src/types/, none.c bool.c int.c float.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c pfunc.c kobj.c )
 libks_src       := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c $(addprefix opt/, propconst.c ) ) $(libks_types_src)
 libks_src_h     := $(addprefix ./include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
 
@@ -35,11 +38,11 @@ ks_src          := $(addprefix src/, ks.c )
 
 
 # standard modules
-ksm_std         := mm
+ksm_std         := $(KSM_STD)
 
 # now, generate a list of `.o` files needed
-libks_o         := $(patsubst %.c,%.o, $(libks_src))
-ks_o            := $(patsubst %.c,%.o, $(ks_src))
+libks_o         := $(patsubst %.c,build/%.o, $(libks_src))
+ks_o            := $(patsubst %.c,build/%.o, $(ks_src))
 ksm_std_so      := $(patsubst %,std/%/libksm_%.so, $(ksm_std))
 
 
@@ -78,7 +81,8 @@ clean:
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`
 # `$<`: means the input file (%.c in this case)
 # `$@`: means the output file (%.o in thie case)
-%.o: %.c
+build/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations

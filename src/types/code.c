@@ -148,6 +148,16 @@ int ksc_refconst_int(ks_code code, int64_t v_int) {
     return ret;
 }
 
+
+// add a constant reference to the `v_float` value
+int ksc_refconst_float(ks_code code, double v_float) {
+    ks_float myfloat = ks_float_new(v_float);
+    int ret = ksc_refconst(code, (kso)myfloat);
+    KSO_DECREF(myfloat);
+    return ret;
+}
+
+
 // add a constant reference to the `v_const` list, returning the index
 int ksc_refconst_str(ks_code code, const char* cstr, int len) {
     ks_str mystr = ks_str_new_l(cstr, len);
@@ -209,6 +219,9 @@ void ksc_const_false(ks_code code) KSC_(KSBC_CONST_FALSE)
 void ksc_const_none(ks_code code) KSC_(KSBC_CONST_NONE)
 // const `v_int`; pushes a literal integer
 void ksc_int      (ks_code code, int64_t v_int) KSC_I32(KSBC_CONST, ksc_refconst_int(code, v_int))
+// const `v_float`; pushes a literal integer
+void ksc_float     (ks_code code, double v_float) KSC_I32(KSBC_CONST, ksc_refconst_float(code, v_float))
+
 
 /* different constant loaders for C-strings */
 

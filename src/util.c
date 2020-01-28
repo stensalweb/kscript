@@ -110,6 +110,7 @@ void ks_init() {
     ks_init__none();
     ks_init__bool();
     ks_init__int();
+    ks_init__float();
     ks_init__str();
 
     ks_init__tuple();

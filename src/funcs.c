@@ -192,24 +192,28 @@ FUNC(getattr) {
     // try resolving this
     if (obj->type->f_getattr != NULL) {
         
-        return kso_call(obj->type->f_getattr, n_args, args);
-    } else {
-        // try and look up an attribute and turn it into a member method
-        kso Tattr = ks_type_getattr(obj->type, (ks_str)attr);
-        if (Tattr != NULL) {
-            // create a member function
-            ks_pfunc mem_func = ks_pfunc_new(Tattr);
-            KSO_DECREF(Tattr);
-            ks_pfunc_fill(mem_func, 0, obj);
-            return (kso)mem_func;
-            /*KSO_DECREF(Tattr);
-            ks_pfunc_fill(mem_func, 1, obj);
-            return mem_func;*/
-        } else {
-            // it was not found, and an error should have been added
-            return NULL;
-        }
+        kso res =  kso_call(obj->type->f_getattr, n_args, args);
+        if (res != NULL) return res;
 
+        // clear errors
+        kse_clear();
+
+    }
+
+    // try and look up an attribute and turn it into a member method
+    kso Tattr = ks_type_getattr(obj->type, (ks_str)attr);
+    if (Tattr != NULL) {
+        // create a member function
+        ks_pfunc mem_func = ks_pfunc_new(Tattr);
+        KSO_DECREF(Tattr);
+        ks_pfunc_fill(mem_func, 0, obj);
+        return (kso)mem_func;
+        /*KSO_DECREF(Tattr);
+        ks_pfunc_fill(mem_func, 1, obj);
+        return mem_func;*/
+    } else {
+        // it was not found, and an error should have been added
+        return NULL;
     }
 
 

@@ -31,7 +31,7 @@ mod_o          := $(patsubst %.c,%.o, $(mod_src_c))
 
 # rule to compile the module file, linking it with kscript
 $(mod_LIB): $(mod_o)
-	$(CC) $(mod_CFLAGS) -shared $^ $(mod_LDFLAGS) -o $@
+	$(CC) $(mod_CFLAGS) -shared $^ $(mod_LDFLAGS) -lsox -o $@
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c
