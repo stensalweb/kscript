@@ -24,6 +24,11 @@
 // i.e. MODULE_ADD_TYPE(module, "MyType", T_mytype)
 #define MODULE_ADD_TYPE(_mod, _cstr, _type) { ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)(_type)); KSO_DECREF(_type); }
 
+// add a value as an attribute to the module
+// i.e. MODULE_ADD_VAL(module, "MyType", T_mytype)
+#define MODULE_ADD_VAL(_mod, _cstr, _val) { ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)(_val)); KSO_DECREF(_val); }
+
+
 // declare the initialization function
 
 // include helper macros for the module

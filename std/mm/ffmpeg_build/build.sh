@@ -74,7 +74,6 @@ download(){
 }
 
 echo "#### FFmpeg static build ####"
-
 #this is our working directory
 cd $BUILD_DIR
 
@@ -113,6 +112,12 @@ download \
   "" \
   "b0d7d20da2a418fa4f53a559946ea079" \
   "https://bitbucket.org/multicoreware/x265/downloads/"
+
+download \
+  "xvidcore-1.3.2.tar.gz" \
+  "" \
+  "" \
+  "http://downloads.xvid.org/downloads/"
 
 download \
   "v0.1.6.tar.gz" \
@@ -255,10 +260,18 @@ fi
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
 
+
+echo "*** Building xvid ***"
+cd $BUILD_DIR/xvid*/build/generic
+[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --disable-static --enable-shared --enable-pic
+PATH="$BIN_DIR:$PATH" make -j $jval
+make install
+
 echo "*** Building x264 ***"
 cd $BUILD_DIR/x264*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --enable-static --disable-shared --disable-opencl --enable-pic
+[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --disable-static --enable-shared --disable-opencl --enable-pic
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
 
@@ -275,14 +288,14 @@ echo "*** Building fdk-aac ***"
 cd $BUILD_DIR/fdk-aac*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 autoreconf -fiv
-[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared
+[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
 echo "*** Building harfbuzz ***"
 cd $BUILD_DIR/harfbuzz-*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-./configure --prefix=$TARGET_DIR --disable-shared --enable-static
+./configure --prefix=$TARGET_DIR --enable-shared --disable-static
 make -j $jval
 make install
 
@@ -290,7 +303,7 @@ echo "*** Building libass ***"
 cd $BUILD_DIR/libass-*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
@@ -299,14 +312,14 @@ cd $BUILD_DIR/lame*
 # The lame build script does not recognize aarch64, so need to set it manually
 uname -a | grep -q 'aarch64' && lame_build_target="--build=arm-linux" || lame_build_target=''
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --enable-nasm --disable-shared $lame_build_target
+[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --enable-nasm --enable-shared $lame_build_target
 make
 make install
 
 echo "*** Building opus ***"
 cd $BUILD_DIR/opus*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared
+[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --enable-shared
 make
 make install
 
@@ -362,7 +375,7 @@ echo "*** Building zimg ***"
 cd $BUILD_DIR/zimg-release-*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --enable-static  --prefix=$TARGET_DIR --disable-shared
+./configure --disable-static  --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
@@ -370,7 +383,7 @@ echo "*** Building libwebp ***"
 cd $BUILD_DIR/libwebp*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
@@ -378,7 +391,7 @@ echo "*** Building libogg ***"
 cd $BUILD_DIR/ogg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
@@ -387,7 +400,7 @@ echo "*** Building libvorbis ***"
 cd $BUILD_DIR/vorbis*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
@@ -395,7 +408,7 @@ echo "*** Building libspeex ***"
 cd $BUILD_DIR/speex*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --enable-shared
 make -j $jval
 make install
 
@@ -415,6 +428,8 @@ if [ "$platform" = "linux" ]; then
     --extra-ldexeflags="-static" \
     --bindir="$BIN_DIR" \
     --enable-pic \
+    --disable-asm \
+    --enable-shared \
     --disable-ffplay \
     --disable-fontconfig \
     --disable-frei0r \
@@ -439,7 +454,7 @@ if [ "$platform" = "linux" ]; then
     --enable-libwebp \
     --enable-libx264 \
     --enable-libx265 \
-    --disable-libxvid \
+    --enable-libxvid \
     --enable-libzimg \
     --enable-nonfree \
     --enable-openssl \
@@ -476,7 +491,7 @@ elif [ "$platform" = "darwin" ]; then
     --enable-libwebp \
     --enable-libx264 \
     --enable-libx265 \
-    --disable-libxvid \
+    --enable-libxvid \
     --enable-libzimg \
     --enable-nonfree \
     --enable-openssl \
@@ -486,5 +501,4 @@ fi
 
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
-make distclean
 hash -r

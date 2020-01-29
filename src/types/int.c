@@ -50,6 +50,7 @@ TFUNC(int, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso self = args[0];
     if (self->type == ks_T_int) return KSO_NEWREF(self);
+    else if (self->type == ks_T_float) return (kso)ks_int_new((int64_t)floor(((ks_float)self)->v_float));
     else if (self->type == ks_T_str) return (kso)ks_int_new(atoll(((ks_str)self)->chr));
     else {
         // return an error

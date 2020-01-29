@@ -7,10 +7,10 @@
 KS_DIR         ?= ../..
 
 # CFLAGS for compiling this module, just need to include kscript
-mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include -I$()
+mod_CFLAGS     ?= -fPIC $(CFLAGS) -I$(KS_DIR)/include
 
 # linker flags for compiling this module,
-mod_LDFLAGS    ?= $(LDFLAGS) -lavcodec -lavformat
+mod_LDFLAGS    ?= $(LDFLAGS) -lavformat -lavcodec
 
 
 # -*- targets/source setup -*-

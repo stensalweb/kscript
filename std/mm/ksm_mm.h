@@ -18,6 +18,10 @@ Classes in this module:
 // for libav, audio video library
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/opt.h>
+
+// software resampler
+#include <libswresample/swresample.h>
 
 
 /* declare our types in this module */
@@ -45,7 +49,7 @@ typedef struct ks_mm_Audio {
     // for stereo:
     // LRLRLRLRLR (interleaved)
     // thus, the size is channels*n_samples*sizeof(*buf)
-    float* buf;
+    double* buf;
 
 }* ks_mm_Audio;
 
@@ -53,7 +57,7 @@ typedef struct ks_mm_Audio {
 
 // create a new audio object, with given parameters.
 // if data==NULL, then it is initialized to 0.0f for all the data
-ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, float* data);
+ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, double* data);
 
 // kscript-visible methods
 TFUNC(mm_Audio, new);
