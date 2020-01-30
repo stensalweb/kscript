@@ -108,26 +108,33 @@ static inline int mm_avc_cvt(const AVCodecContext* codec_ctx, void* _data, int n
 }
 
 // read in from a given file, overwriting the data
-void ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
-
-    #define READ_ERR(...) { kse_fmt(__VA_ARGS__); goto audio_read_end; }
+int ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
+    int errstat = 0;
+    #define READ_ERR(...) { kse_fmt(__VA_ARGS__); errstat = 1; goto audio_read_end; }
     #define logging ks_info
-
-    // create a format context
-    AVFormatContext* fmt_ctx = avformat_alloc_context();
-    if (!fmt_ctx) READ_ERR("Internal err in `avformat_alloc_context()`");
 
     // convert everything to doubles
     enum AVSampleFormat smp_fmt = AV_SAMPLE_FMT_DBL;
 
+    // now, configure the codec for reading it
+    AVCodec* codec = NULL;
+    AVCodecContext* codec_ctx = NULL;
+    AVCodecParameters* codec_par = NULL;
+
+    // allocate a frame & packet for reading in chunks of the file
+    AVFrame*  frm = av_frame_alloc();
+    AVPacket* pkt = av_packet_alloc();
+
+    // create a format context
+    AVFormatContext* fmt_ctx = avformat_alloc_context();
+
+    if (!fmt_ctx || !frm || !pkt) READ_ERR("Internal av* alloc failure");
+
     if (avformat_open_input(&fmt_ctx, fname, NULL, NULL) != 0) READ_ERR("Couldn't open file '%s'", fname);
+
     //logging("format %s", fmt_ctx->iformat->name);
 
     if (avformat_find_stream_info(fmt_ctx, NULL) < 0) READ_ERR("Couldn't get stream info for file '%s'", fname);
-
-    // now, configure the codec for reading it
-    AVCodec* codec = NULL;
-    AVCodecParameters* codec_par = NULL;
 
     // audio stream index
     int A_idx = -1;
@@ -163,7 +170,7 @@ void ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
     if (!codec) READ_ERR("No codec!");
 
     // create a specific instance of the codec for our file
-    AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+    codec_ctx = avcodec_alloc_context3(codec);
     if (!codec_ctx) READ_ERR("Failed to alloc codec_ctx");
 
     // set variables
@@ -175,11 +182,6 @@ void ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
 
     if (avcodec_open2(codec_ctx, codec, NULL) < 0) READ_ERR("Failed top open codec");
 
-    // allocate a frame & packet for reading in chunks of the file
-    AVFrame*  frm = av_frame_alloc();
-    AVPacket* pkt = av_packet_alloc();
-
-    if (!frm || !pkt) READ_ERR("Failed to alloc frame");
 
     // reset the audio buffer object to the current codec
     self->samples = 0;
@@ -242,9 +244,36 @@ void ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
     if (codec_ctx) avcodec_free_context(&codec_ctx);
 
     // done!
-    return;
+    return errstat;
 }
 
+// write to a given file
+void ks_mm_Audio_write(ks_mm_Audio self, char* fname) {
+
+    #define WRITE_ERR(...) { kse_fmt(__VA_ARGS__); return; }
+
+    const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_WAVPACK);
+    if (!codec) WRITE_ERR("Couldn't find .wav encoder");
+
+    AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+    if (!codec_ctx) WRITE_ERR("Couldn't alloc codec_ctx");
+
+    codec_ctx->sample_fmt = AV_SAMPLE_FMT_DBL;
+    int supp = 0;
+
+    // search through the sample formats that are supported
+    const enum AVSampleFormat* p = codec->sample_fmts;
+    while (*p != AV_SAMPLE_FMT_NONE) {
+        if (*p == codec_ctx->sample_fmt) supp = 1;
+        p++;
+    }
+
+    if (!supp) WRITE_ERR("Encoder couldn't handle doubles");
+
+
+
+
+}
 
 TFUNC(mm_Audio, new) {
     //KS_REQ_N_ARGS(n_args, 0);
@@ -258,7 +287,10 @@ TFUNC(mm_Audio, new) {
         KS_REQ_TYPE(fname, ks_T_str, "fname");
         // construct a new argument
         self = ks_mm_Audio_new(0, 1, 44100, NULL);
-        ks_mm_Audio_read(self, fname->chr);
+        if (ks_mm_Audio_read(self, fname->chr) != 0) {
+            KSO_DECREF(self);
+            return NULL;
+        }
     } else {
         return kse_fmt("Wrong number of args, expected 0 or 1, not %i", n_args);
     }
@@ -346,7 +378,7 @@ TFUNC(mm_Audio, write) {
     KS_REQ_TYPE(fname, ks_T_str, "fname");
 
     // output to file
-
+    ks_mm_Audio_write(self, fname->chr);
 /*
     sox_signalinfo_t siginfo;
     siginfo.channels = self->channels;

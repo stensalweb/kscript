@@ -10,7 +10,7 @@ KS_DIR         ?= ../..
 mod_CFLAGS     ?= -fPIC $(CFLAGS) -I$(KS_DIR)/include
 
 # linker flags for compiling this module,
-mod_LDFLAGS    ?= $(LDFLAGS) -lavformat -lavcodec
+mod_LDFLAGS    ?= $(LDFLAGS) -lavformat -lavcodec -lavutil
 
 
 # -*- targets/source setup -*-
