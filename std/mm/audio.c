@@ -88,12 +88,12 @@ static inline int mm_avc_cvt(const AVCodecContext* codec_ctx, void* _data, int n
         for (i = 0; i < num; ++i) {
             output[stride * i] = (double)data[i] / 0x7FFFFFFFFFFFFFFF;
         }
-    } else if (sfmt == AV_SAMPLE_FMT_FLT || sfmt == AV_SAMPLE_FMT_FLT) {
+    } else if (sfmt == AV_SAMPLE_FMT_FLT || sfmt == AV_SAMPLE_FMT_FLTP) {
         float* data = (float*)_data;
         for (i = 0; i < num; ++i) {
             output[stride * i] = (double)data[i];
         }
-    } else if (sfmt == AV_SAMPLE_FMT_FLT || sfmt == AV_SAMPLE_FMT_FLT) {
+    } else if (sfmt == AV_SAMPLE_FMT_DBL || sfmt == AV_SAMPLE_FMT_DBLP) {
         double* data = (double*)_data;
         for (i = 0; i < num; ++i) {
             output[stride * i] = (double)data[i];
@@ -132,30 +132,19 @@ int ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
 
     if (avformat_open_input(&fmt_ctx, fname, NULL, NULL) != 0) READ_ERR("Couldn't open file '%s'", fname);
 
-    //logging("format %s", fmt_ctx->iformat->name);
-
     if (avformat_find_stream_info(fmt_ctx, NULL) < 0) READ_ERR("Couldn't get stream info for file '%s'", fname);
-
+    
     // audio stream index
     int A_idx = -1;
 
     // loop though all the streams and print its main information
     int i;
     for (i = 0; i < fmt_ctx->nb_streams; i++) {
-        AVCodecParameters* i_codec_p = fmt_ctx->streams[i]->codecpar;
-
-        // finds the registered decoder for a codec ID
-        // https://ffmpeg.org/doxygen/trunk/group__lavc__decoding.html#ga19a0ca553277f019dd5b0fec6e1f9dca
-        AVCodec* i_codec = avcodec_find_decoder(i_codec_p->codec_id);
-
-        if (!i_codec) READ_ERR("Unsupported codec!");
-
-        // when the stream is a video we store its index, codec parameters and codec
-        if (i_codec_p->codec_type == AVMEDIA_TYPE_AUDIO) {
+        // ensure it is valid and an audio stream
+        if (fmt_ctx->streams[i]->codecpar 
+            && fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
             // we found the first audio stream, so set our variables
             A_idx = i;
-            codec = i_codec;
-            codec_par = i_codec_p;
             break;
         }
 
@@ -164,10 +153,16 @@ int ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
     }
 
     // ensure a stream was found
-    if (A_idx < 0) READ_ERR("There was no audio!");
+    if (A_idx < 0) READ_ERR("There was no audio stream in '%s'", fname);
 
-    // and it had a valid codec
-    if (!codec) READ_ERR("No codec!");
+    // get the codec parser
+    codec_par = fmt_ctx->streams[A_idx]->codecpar;
+    if (!codec_par) READ_ERR("No valid codec parser for '%s'", fname);
+
+    // finds the registered decoder for a codec ID
+    // https://ffmpeg.org/doxygen/trunk/group__lavc__decoding.html#ga19a0ca553277f019dd5b0fec6e1f9dca
+    codec = avcodec_find_decoder(codec_par->codec_id);
+    if (!codec) READ_ERR("No valid codec for '%s'", fname);
 
     // create a specific instance of the codec for our file
     codec_ctx = avcodec_alloc_context3(codec);
@@ -338,7 +333,10 @@ TFUNC(mm_Audio, getitem) {
     ks_int idx = (ks_int)args[1];
     KS_REQ_TYPE(idx, ks_T_int, "idx");
 
-    return (kso)ks_float_new((double)self->buf[idx->v_int]);
+    int64_t idxi = idx->v_int;
+    if (idxi < 0 || idxi > self->channels * self->samples) return kse_fmt("Sample %S out of range", idx);
+
+    return (kso)ks_float_new(self->buf[idxi]);
 }
 
 

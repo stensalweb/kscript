@@ -8,7 +8,13 @@ It is built off of `ffmpeg`'s libraries, `avformat`, `avcodec`, and `avutil`. Th
 
 You can build using `ffmpeg_build/` folder, with the `./build.sh` script. Otherwise, you can install (on ubuntu) the following:
 
-`sudo apt install ffmpeg libavcodec-dev libavcodec-extra libavformat-dev libavutil-dev libflac-dev`
+First, use the updated ffmpeg PPA: `sudo add-apt-repository ppa:jonathonf/ffmpeg-4`
+
+Now, run:
+
+`sudo apt install --reinstall ffmpeg libavcodec-dev libavcodec-extra libavformat-dev libavutil-dev libflac-dev`
+
+Without the newer PPA, there is a good chance the older versions of ffmpeg will not work
 
 This will have: 
 
