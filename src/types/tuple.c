@@ -123,6 +123,28 @@ TFUNC(tuple, getitem) {
 }
 
 
+TFUNC(tuple, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_tuple self = (ks_tuple)args[0];
+
+    kso* vals = ks_malloc(sizeof(kso) * self->len);
+
+    int i, j = 0;
+    for (i = self->len - 1; i >= 0; --i) {
+        vals[j++] = self->items[i];
+    }
+
+    ks_tuple res = ks_tuple_new(vals, self->len);
+
+    ks_free(vals);
+
+    // return the value
+    return (kso)res;
+}
+
+
+
+
 /* exporting functionality */
 
 struct ks_type T_tuple, *ks_T_tuple = &T_tuple;
@@ -145,6 +167,8 @@ void ks_init__tuple() {
     ADDCF(ks_T_tuple, "__repr__", "tuple.__repr__(self)", tuple_repr_);
 
     ADDCF(ks_T_tuple, "__getitem__", "tuple.__getitem__(self, key)", tuple_getitem_);
+
+    ADDCF(ks_T_tuple, "__neg__", "tuple.__neg__(self, key)", tuple_neg_);
 
     ADDCF(ks_T_tuple, "__free__", "tuple.__free__(self)", tuple_free_);
 

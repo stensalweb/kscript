@@ -82,6 +82,22 @@ void ks_list_clear(ks_list self) {
 
 
 
+TFUNC(list, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+    kso val = args[0];
+
+    if (val->type == ks_T_list) {
+        return val;
+    } else if (val->type == ks_T_tuple) {
+        // create a new list
+        return (kso)ks_list_new(((ks_tuple)val)->items, ((ks_tuple)val)->len);
+    } else {
+        KS_ERR_TYPECONV(val, ks_T_list);
+    }
+    return NULL;
+}
+
+
 TFUNC(list, free) {
     #define SIG "list.__free__(self)"
     REQ_N_ARGS(1);
@@ -229,6 +245,26 @@ TFUNC(list, add) {
 
 
 
+
+
+// list.__neg__(self) -> returns the list in reverse order
+TFUNC(list, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_T_list, "self");
+
+    ks_list res = ks_list_new_empty();
+
+    // process in reverse order
+    int i;
+    for (i = self->len - 1; i >= 0; --i) {
+        ks_list_push(res, self->items[i]);
+    }
+
+    return (kso)res;
+}
+
+
 /* exporting functionality */
 
 struct ks_type T_list, *ks_T_list = &T_list;
@@ -247,11 +283,16 @@ void ks_init__list() {
         KSO_DECREF(_f); \
     }
 
+    ADDCF(ks_T_list, "__new__", "list.__new__(val)", list_new_);
+    
     ADDCF(ks_T_list, "__str__", "list.__str__(self)", list_str_);
     ADDCF(ks_T_list, "__repr__", "list.__repr__(self)", list_repr_);
 
     ADDCF(ks_T_list, "__getitem__", "list.__getitem__(self, key)", list_getitem_);
     ADDCF(ks_T_list, "__setitem__", "list.__setitem__(self, key, val)", list_setitem_);
+
+    ADDCF(ks_T_list, "__add__", "list.__add__(self, key)", list_add_);
+    ADDCF(ks_T_list, "__neg__", "list.__neg__(self)", list_neg_);
 
     ADDCF(ks_T_list, "__free__", "list.__free__(self)", list_free_);
 
