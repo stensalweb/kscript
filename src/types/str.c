@@ -13,6 +13,12 @@
 // list of the single character constants (empty==NULL)
 static struct ks_str str_const_chr_tbl[_STR_CHR_MAX];
 
+/* internal utility functions */
+
+static inline bool iswhite(char c) {
+    return c == ' ' || c == '\t' || c == '\n';
+}
+
 /* C creation routines */
 
 /* constructs a new string from a character array and length, need not be NUL-terminated */
@@ -147,17 +153,6 @@ TFUNC(str, ne) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 TFUNC(str, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str self = (ks_str)args[0];
@@ -205,9 +200,55 @@ TFUNC(str, sqig) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
-    return KSO_NEWREF(self);
+
+    char* inp = self->chr;
+    ks_strB bld = ks_strB_create();
+
+    while (*inp) {
+        while (*inp && iswhite(*inp)) {
+            inp++;
+        }
+        char* st = inp;
+        while (*inp && !iswhite(*inp)) {
+            inp++;
+        }
+        ks_strB_add(&bld, st, (int)(inp - st));
+    }
+
+    return (kso)ks_strB_finish(&bld);
 }
 
+
+/* other utility functions */
+
+// str.split(self) : split on whitespace
+TFUNC(str, split) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_T_str, "self");
+
+
+    // keep the segments
+    ks_list segs = ks_list_new_empty();
+    
+    char* inp = self->chr;
+
+    while (*inp) {
+        while (*inp && iswhite(*inp)) {
+            inp++;
+        }
+        char* st = inp;
+        while (*inp && !iswhite(*inp)) {
+            inp++;
+        }
+        // add segment to the list
+        ks_str seg = ks_str_new_l(st, (int)(inp - st));
+        ks_list_push(segs, (kso)seg);
+        KSO_DECREF(seg);
+    }
+
+    return (kso)segs;
+}
 
 
 
@@ -244,6 +285,8 @@ void ks_init__str() {
     ADDCF(ks_T_str, "__ge__", "str.__ge__(self)", str_ge_);
     ADDCF(ks_T_str, "__eq__", "str.__eq__(self)", str_eq_);
     ADDCF(ks_T_str, "__ne__", "str.__ne__(self)", str_ne_);
+
+    ADDCF(ks_T_str, "split", "str.split(self)", str_split_);
 
     /* now create the constant single-length strings */
     int i;

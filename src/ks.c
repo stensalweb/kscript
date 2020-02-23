@@ -74,6 +74,9 @@ int main(int argc, char** argv) {
     SET_GLOBAL("__neg__", ks_F_neg);
     SET_GLOBAL("__sqig__", ks_F_sqig);
 
+    /* misc. builtin functions */
+    SET_GLOBAL("shell", ks_F_shell);
+
     // check for errors so far
     if (kse_dumpall()) return -1;
 

@@ -235,6 +235,64 @@ void ks_dict_set_cstr(ks_dict self, char* cstr, kso val) {
 /* TYPE FUNCS */
 
 
+TFUNC(dict, new) {
+    if (n_args == 0) {
+        return (kso)ks_dict_new_empty();
+    } else if (n_args == 1) {
+        // should be a collection of (key, val) pairs in a list/tuple
+        kso entries = args[0];
+        kso* ent_src = NULL;
+        int ne = 0;
+        if (entries->type == ks_T_list) {
+            ent_src = ((ks_list)entries)->items;
+            ne = ((ks_list)entries)->len;
+        } else if (entries->type == ks_T_tuple) {
+            ent_src = ((ks_tuple)entries)->items;
+            ne = ((ks_tuple)entries)->len;
+        } else {
+            return kse_fmt("Invalid argument; expected the first argument to be either a list or tuple containg (key, val) pairs");
+        }
+
+        ks_dict ret = ks_dict_new_empty();
+
+        // set them all
+        int i;
+        for (i = 0; i < ne; ++i) {
+            kso cur = ent_src[i];
+            if (cur->type == ks_T_tuple) {
+                ks_tuple curtup = (ks_tuple)cur;
+                if (curtup->len == 2) {
+                    // add key value pair
+                    ks_dict_set(ret, curtup->items[0], kso_hash(curtup->items[0]), curtup->items[1]);
+                } else {
+                    KSO_DECREF(ret);
+                    return kse_fmt("Invalid key,val pair (idx %i) in the list of (key, val) pairs. Expected length 2, but got length %i", i, (int)curtup->len);
+                }
+
+            } else {
+                KSO_DECREF(ret);
+                return kse_fmt("Invalid argument (idx %i) in the list of (key, val) pairs. Was of type '%T', but expected a tuple", i, cur);
+            }
+        }
+        return (kso)ret;
+
+    } else if (n_args % 2 == 0) {
+        // every other argument is key,val
+        ks_dict ret = ks_dict_new_empty();
+
+        int i;
+        for (i = 0; i < n_args; i += 2) {
+            ks_dict_set(ret, args[i+0], kso_hash(args[i+0]), args[i+1]);
+        }
+
+        return (kso)ret;
+
+    } else {
+        return kse_fmt("Invalid arguments; expected either: '[(key, val), ...]' or 'key, val, ...' to create dict");
+    }
+}
+
+
 TFUNC(dict, str) {
     #define SIG "dict.__str__(self)"
     REQ_N_ARGS(1);
@@ -405,6 +463,7 @@ void ks_init__dict() {
         KSO_DECREF(_f); \
     }
     
+    ADDCF(ks_T_dict, "__new__", "dict.__new__(...)", dict_new_);
     ADDCF(ks_T_dict, "__str__", "dict.__str__(self)", dict_str_);
     ADDCF(ks_T_dict, "__repr__", "dict.__repr__(self)", dict_repr_);
     ADDCF(ks_T_dict, "__getitem__", "dict.__getitem__(self, key)", dict_getitem_);

@@ -85,7 +85,9 @@ extern ks_cfunc
     ks_F_gt,
     ks_F_ge,
     ks_F_eq,
-    ks_F_ne
+    ks_F_ne,
+
+    ks_F_shell
 
 ;
 

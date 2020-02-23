@@ -40,7 +40,10 @@ ks_cfunc
 
     /* unary operators */
     ks_F_neg = NULL,
-    ks_F_sqig = NULL
+    ks_F_sqig = NULL,
+
+    /* interop */
+    ks_F_shell = NULL
 
 
 ;
@@ -390,6 +393,18 @@ FUNC(sqig) {
 }
 
 
+/* system interop */
+
+// shell(cmd) -> run a command
+FUNC(shell) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str cmd = (ks_str)args[0];
+    KS_REQ_TYPE(cmd, ks_T_str, "cmd");
+
+    // run the command with `system()`
+    return (kso)ks_int_new(system(cmd->chr));
+}
+
 
 
 // initializes the default C functions
@@ -432,6 +447,8 @@ void ksf_init() {
 
     ks_F_neg  = ks_cfunc_new(neg_, "__neg__(A)");
     ks_F_sqig  = ks_cfunc_new(sqig_, "__sqig__(A)");
+
+    ks_F_shell = ks_cfunc_new(shell_, "shell(cmd)");
 
     /* set type functions */
 

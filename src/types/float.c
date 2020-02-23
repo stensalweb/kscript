@@ -32,7 +32,7 @@ TFUNC(float, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso self = args[0];
     if (self->type == ks_T_float) return KSO_NEWREF(self);
-    else if (self->type == ks_T_int) return (kso)ks_float_new(KS_INT_VAL((ks_int)self));
+    else if (self->type == ks_T_int) return (kso)ks_float_new(floor(((ks_int)self)->v_int));
     else if (self->type == ks_T_str) return (kso)ks_float_new(strtod(((ks_str)self)->chr, NULL));
     else {
         // return an error
@@ -109,6 +109,10 @@ TFUNC(float, add) {
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
         return (kso)ks_float_new(((ks_float)A)->v_float + ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return (kso)ks_float_new(((ks_int)A)->v_int + ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return (kso)ks_float_new(((ks_float)A)->v_float + ((ks_int)B)->v_int);
     }
 
     return NULL;
@@ -121,6 +125,10 @@ TFUNC(float, sub) {
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
         return (kso)ks_float_new(((ks_float)A)->v_float - ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return (kso)ks_float_new(((ks_int)A)->v_int - ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return (kso)ks_float_new(((ks_float)A)->v_float - ((ks_int)B)->v_int);
     }
 
     return NULL;
@@ -133,6 +141,10 @@ TFUNC(float, mul) {
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
         return (kso)ks_float_new(((ks_float)A)->v_float * ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return (kso)ks_float_new(((ks_int)A)->v_int * ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return (kso)ks_float_new(((ks_float)A)->v_float * ((ks_int)B)->v_int);
     }
 
     return NULL;
@@ -146,6 +158,10 @@ TFUNC(float, div) {
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
         return (kso)ks_float_new(((ks_float)A)->v_float / ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return (kso)ks_float_new(((ks_int)A)->v_int / ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return (kso)ks_float_new(((ks_float)A)->v_float / ((ks_int)B)->v_int);
     }
 
     return NULL;
@@ -164,6 +180,26 @@ TFUNC(float, mod) {
         if (res < 0) res += Bf;
 
         return (kso)ks_float_new(res);
+    }else if (A->type == ks_T_int && B->type == ks_T_float) {
+        int64_t Ai = ((ks_int)A)->v_int;
+        double Bf = ((ks_float)B)->v_float;
+
+        double Rf = fmod(Ai, Bf);
+
+        // by convention, modulo should always be positive
+        if (Rf < 0) Rf += Bf;
+
+        return (kso)ks_float_new(Rf);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        double Af = ((ks_float)A)->v_float;
+        int64_t Bi = ((ks_int)B)->v_int;
+
+        double Rf = fmod(Af, Bi);
+
+        // by convention, modulo should always be positive
+        if (Rf < 0) Rf += Bi;
+
+        return (kso)ks_float_new(Rf);
     }
 
     return NULL;
@@ -179,91 +215,120 @@ TFUNC(float, pow) {
         double Bf = ((ks_float)B)->v_float;
 
         return (kso)ks_float_new(pow(Af, Bf));
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        int64_t Ai = ((ks_int)A)->v_int;
+        double Bf = ((ks_float)B)->v_float;
+
+        return (kso)ks_float_new(pow(Ai, Bf));
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        double Af = ((ks_float)A)->v_float;
+        int64_t Bi = ((ks_int)B)->v_int;
+
+        return (kso)ks_float_new(pow(Af, Bi));
     }
 
     return NULL;
 }
-/*
 
-
-// int.__lt__(A, B) -> returns A < B
-TFUNC(int, lt) {
-    #define SIG "int.__lt__(A, B)"
-    REQ_N_ARGS(2);
+// float.__lt__(A, B) -> returns A < B
+TFUNC(float, lt) {
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int < ((ks_int)B)->v_int);
+    if (A->type == ks_T_float && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_float)A)->v_float < ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_int)A)->v_int < ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return KSO_BOOL(((ks_float)A)->v_float < ((ks_int)B)->v_int);
     }
 
     return NULL;
     #undef SIG
 }
 
-// int.__le__(A, B) -> returns A <= B
-TFUNC(int, le) {
-    #define SIG "int.__le__(A, B)"
-    REQ_N_ARGS(2);
+// float.__le__(A, B) -> returns A <= B
+TFUNC(float, le) {
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int <= ((ks_int)B)->v_int);
+    if (A->type == ks_T_float && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_float)A)->v_float <= ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_int)A)->v_int <= ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return KSO_BOOL(((ks_float)A)->v_float <= ((ks_int)B)->v_int);
     }
 
     return NULL;
     #undef SIG
 }
 
-// int.__gt__(A, B) -> returns A > B
-TFUNC(int, gt) {
+// float.__gt__(A, B) -> returns A > B
+TFUNC(float, gt) {
     #define SIG "int.__gt__(A, B)"
     REQ_N_ARGS(2);
     kso A = args[0], B = args[1];
 
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int > ((ks_int)B)->v_int);
+    if (A->type == ks_T_float && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_float)A)->v_float > ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_int)A)->v_int > ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return KSO_BOOL(((ks_float)A)->v_float > ((ks_int)B)->v_int);
     }
 
     return NULL;
     #undef SIG
 }
 
-// int.__ge__(A, B) -> returns A >= B
-TFUNC(int, ge) {
+// float.__ge__(A, B) -> returns A >= B
+TFUNC(float, ge) {
     #define SIG "int.__ge__(A, B)"
     REQ_N_ARGS(2);
     kso A = args[0], B = args[1];
 
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int >= ((ks_int)B)->v_int);
+    if (A->type == ks_T_float && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_float)A)->v_float >= ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_int)A)->v_int >= ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return KSO_BOOL(((ks_float)A)->v_float >= ((ks_int)B)->v_int);
     }
-
     return NULL;
     #undef SIG
 }
 
-// int.__eq__(A, B) -> returns A == B
-TFUNC(int, eq) {
+// float.__eq__(A, B) -> returns A == B
+TFUNC(float, eq) {
     #define SIG "int.__eq__(A, B)"
     REQ_N_ARGS(2);
     kso A = args[0], B = args[1];
 
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int == ((ks_int)B)->v_int);
+    if (A->type == ks_T_float && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_float)A)->v_float == ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_int)A)->v_int == ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return KSO_BOOL(((ks_float)A)->v_float == ((ks_int)B)->v_int);
     }
 
     return NULL;
     #undef SIG
 }
 
-// int.__ne__(A, B) -> returns A == B
-TFUNC(int, ne) {
+// float.__ne__(A, B) -> returns A == B
+TFUNC(float, ne) {
     #define SIG "int.__ne__(A, B)"
     REQ_N_ARGS(2);
     kso A = args[0], B = args[1];
-
-    if (A->type == ks_T_int && B->type == ks_T_int) {
-        return KSO_BOOL(((ks_int)A)->v_int != ((ks_int)B)->v_int);
+    
+    if (A->type == ks_T_float && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_float)A)->v_float != ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_int && B->type == ks_T_float) {
+        return KSO_BOOL(((ks_int)A)->v_int != ((ks_float)B)->v_float);
+    } else if (A->type == ks_T_float && B->type == ks_T_int) {
+        return KSO_BOOL(((ks_float)A)->v_float != ((ks_int)B)->v_int);
     }
 
     return NULL;
@@ -271,7 +336,6 @@ TFUNC(int, ne) {
 }
 
 
-*/
 
 // float.__neg__(A) -> returns -A
 TFUNC(float, neg) {
@@ -312,15 +376,13 @@ void ks_init__float() {
     ADDCF(ks_T_float, "__div__", "float.__div__(A, B)", float_div_);
     ADDCF(ks_T_float, "__mod__", "float.__mod__(A, B)", float_mod_);
     ADDCF(ks_T_float, "__pow__", "float.__pow__(A, B)", float_pow_);
-/*
 
-    ADDCF(ks_T_int, "__lt__", "int.__lt__(A, B)", int_lt_);
-    ADDCF(ks_T_int, "__le__", "int.__le__(A, B)", int_le_);
-    ADDCF(ks_T_int, "__gt__", "int.__gt__(A, B)", int_gt_);
-    ADDCF(ks_T_int, "__ge__", "int.__ge__(A, B)", int_ge_);
-    ADDCF(ks_T_int, "__eq__", "int.__eq__(A, B)", int_eq_);
-    ADDCF(ks_T_int, "__ne__", "int.__ne__(A, B)", int_ne_);
-*/
+    ADDCF(ks_T_float, "__lt__", "float.__lt__(A, B)", float_lt_);
+    ADDCF(ks_T_float, "__le__", "float.__le__(A, B)", float_le_);
+    ADDCF(ks_T_float, "__gt__", "float.__gt__(A, B)", float_gt_);
+    ADDCF(ks_T_float, "__ge__", "float.__ge__(A, B)", float_ge_);
+    ADDCF(ks_T_float, "__eq__", "float.__eq__(A, B)", float_eq_);
+    ADDCF(ks_T_float, "__ne__", "float.__ne__(A, B)", float_ne_);
 
     ADDCF(ks_T_float, "__neg__", "float.__neg__(A)", float_neg_);
 }
