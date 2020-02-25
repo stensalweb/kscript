@@ -201,7 +201,7 @@ static void parser_tokenize(ks_parser self) {
             // if the next character is a newline (it should always be), skip it
             //if (CUR() == '\n') ADV(1);
 
-        } else if (isdigit(c) || c == '.') {
+        } else if (isdigit(c) || c == '.' && isdigit(src[i+1])) {
             // this is either an integer or a floating point.
             // For now, we only support integers, but that will of course change
 
