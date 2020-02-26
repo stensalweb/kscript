@@ -88,6 +88,17 @@ TFUNC(str, add) {
     return (kso)ks_str_new_cfmt("%S%S", args[0], args[1]);
 }
 
+TFUNC(str, mod) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_T_str, "self");
+    ks_str v_args = (ks_tuple)args[1];
+    KS_REQ_TYPE(v_args, ks_T_tuple, "args");
+
+    return ks_str_new_kfmt(self, v_args);
+}
+
+
 // internal method for string comparison
 static int s_strcmp(ks_str a, ks_str b) {
     if (a->len != b->len) return a->len - b->len;
@@ -251,6 +262,17 @@ TFUNC(str, split) {
 }
 
 
+// str.format(self, args) : format string
+TFUNC(str, format) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_T_str, "self");
+    ks_str v_args = (ks_tuple)args[1];
+    KS_REQ_TYPE(v_args, ks_T_tuple, "args");
+
+    return ks_str_new_kfmt(self, v_args);
+}
+
 
 struct ks_type T_str, *ks_T_str = &T_str;
 
@@ -275,6 +297,8 @@ void ks_init__str() {
 
     ADDCF(ks_T_str, "__add__", "str.__add__(self, B)", str_add_);
 
+    ADDCF(ks_T_str, "__mod__", "str.__mod__(self, args)", str_mod_);
+
     ADDCF(ks_T_str, "__neg__", "str.__neg__(self)", str_neg_);
     ADDCF(ks_T_str, "__sqig__", "str.__sqig__(self)", str_sqig_);
 
@@ -287,6 +311,7 @@ void ks_init__str() {
     ADDCF(ks_T_str, "__ne__", "str.__ne__(self)", str_ne_);
 
     ADDCF(ks_T_str, "split", "str.split(self)", str_split_);
+    ADDCF(ks_T_str, "format", "str.format(self, args=(,))", str_format_);
 
     /* now create the constant single-length strings */
     int i;

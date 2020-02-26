@@ -10,8 +10,11 @@ ks_code ks_code_new_empty(ks_list v_const) {
         KSO_BASE_INIT(ks_T_code)
         .v_const = v_const,
         .bc_n = 0, .bc = NULL,
-        .meta_ast_n = 0, .meta_ast = NULL
+        .meta_ast_n = 0, .meta_ast = NULL,
+        .hrname = NULL
     };
+
+
 
     // record our reference
     KSO_INCREF(v_const);
@@ -263,9 +266,15 @@ void ksc_jmpf      (ks_code code, int relamt) KSC_I32(KSBC_JMPF, relamt)
 void ksc_ret       (ks_code code) KSC_(KSBC_RET)
 void ksc_ret_none  (ks_code code) KSC_(KSBC_RET_NONE)
 
+
+
 /* exception handling */
 void ksc_exc_add   (ks_code code, int abspos) KSC_I32(KSBC_EXC_ADD, abspos)
 void ksc_exc_rem   (ks_code code) KSC_(KSBC_EXC_REM)
+
+void ksc_throw     (ks_code code) KSC_(KSBC_THROW);
+
+
 
 // called when the object should be freed
 
@@ -284,6 +293,8 @@ TFUNC(code, free) {
     ks_free(self->meta_ast);
 
     ks_free(self);
+
+    if (self->hrname) KSO_DECREF(self->hrname);
 
     return KSO_NONE;
 }

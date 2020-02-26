@@ -160,6 +160,7 @@ enum {
     */
     KSBC_LIST,
 
+
     /** binary operators **/
 
     /* ADD - pops off 2 objects, binary-adds them
@@ -235,6 +236,14 @@ enum {
     /* RET_NONE - return a new none (i.e. does not touch the stack) as the function result
     1[KSBC_RET_NONE] */
     KSBC_RET_NONE,
+
+
+    /** exception handling **/
+
+    /* THROW - pop off an item from the stack, and 'throw' it as an error
+    1[THROW]
+    */
+    KSBC_THROW,
 
 
     /** exception handling **/

@@ -423,3 +423,102 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap) {
 }
 
 
+// create a new string from k-script style formatting
+ks_str ks_str_new_kfmt(ks_str kfmt, ks_tuple args) {
+
+    // string builder, for building up the value
+    ks_strB ksb = ks_strB_create();
+
+    // current formatting flags
+    struct fmta F_args = FMTA_NONE;
+
+    // the formatting fields, as a C str. These are the arguments between `%` and the specifier.
+    // EXAMPLE: %*i -> `*` as the fmt_args
+    // %.*s -> `.*` as the fmt_args
+    char F_fld[256];
+    int F_fld_len = 0;
+
+    // a temporary buffer, mainly for constructing integers
+    char tmp[256];
+    // the current position in the temporary buffer
+    int tmp_p;
+
+    // current index into arguments
+    int args_i = 0;
+
+
+    // get a C-style string
+    char* fmt = kfmt->chr;
+
+    // current pointer to the format
+    int i, j;
+    for (i = 0; fmt[i] != '\0'; ) {
+
+        if (fmt[i] == '%') {
+            // we have hit a format specifier, time to parse
+            // skip the `%`
+            i++;
+
+            // add a literal '%', don't format
+            if (fmt[i] == '%') { ks_strB_add(&ksb, "%", 1); i++; continue; }
+
+            // reset the formatting flags
+            F_args = FMTA_NONE;
+
+            // start parsing out the formatting arguments
+            F_fld_len = 0;
+            // parse until we get to an alpha character, which means we have parsed the formatting field
+            while (fmt[i] && !isalpha(fmt[i]) && F_fld_len < 100) {
+                char ca = fmt[i++];
+                F_fld[F_fld_len++] = ca;
+                /**/ if (ca == '*') F_args.flags |= FE_STAR;
+                else if (ca == '+') F_args.flags |= FE_SIGN;
+                else if (ca == '0') F_args.flags |= FE_ZERO;
+                else {
+                    // maybe emit a warning? unrecocognized field flag
+                }
+            }
+
+            // NUL-terminate it
+            F_fld[F_fld_len] = '\0';
+
+            // get the specifier, then skip it
+            char spec = fmt[i++];
+
+            // reset the temporary buffer pointer
+            tmp_p = 0;
+
+            if (args_i >= args->len) {
+                KSO_DECREF(ks_strB_finish(&ksb));
+                return kse_fmt("Extra format specifier (only had %i arguments, but %i requested)", (int)args->len, args_i);
+            }
+
+            kso obj = args->items[args_i++];
+
+
+            if (spec == 's') {
+
+                ks_strB_add_tostr(&ksb, obj);
+
+            } else {
+                // unknown specifier
+                KSO_DECREF(ks_strB_finish(&ksb));
+                return kse_fmt("Unknown format specifier '%%%c'", spec);
+            }
+
+        } else {
+            int s_i = i;
+            // else, go through, scan for all the literal values, until we hit the end or format specifier `%`
+            for (; fmt[i] != '\0' && fmt[i] != '%'; ++i) ;
+
+            // append them here
+
+            ks_strB_add(&ksb, (char*)(fmt+s_i), i - s_i);
+
+        }
+    }
+
+    return ks_strB_finish(&ksb);
+}
+
+

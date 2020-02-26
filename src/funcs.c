@@ -15,6 +15,7 @@ ks_cfunc
     ks_F_hash = NULL,
     ks_F_rand = NULL,
     ks_F_import = NULL,
+    ks_F_exit = NULL,
 
     ks_F_new_type = NULL,
     
@@ -112,6 +113,28 @@ FUNC(hash) {
     REQ_N_ARGS(1);
     return (kso)ks_int_new(kso_hash(args[0]));
     #undef SIG
+}
+
+FUNC(exit) {
+    KS_REQ_N_ARGS_RANGE(n_args, 0, 1);
+    if (n_args == 0) {
+        exit(0);
+        return NULL;
+    } else if (n_args == 1) {
+
+        kso arg = args[0];
+        if (arg->type == ks_T_int) {
+            exit((int)((ks_int)arg)->v_int);
+        } else {
+            // error
+            ks_warn("exit(code) called with non-int (type '%T')", arg);
+            exit(1);
+        }
+
+        return NULL;
+    } else {
+        return NULL;
+    }
 }
 
 FUNC(call) {
@@ -401,8 +424,12 @@ FUNC(shell) {
     ks_str cmd = (ks_str)args[0];
     KS_REQ_TYPE(cmd, ks_T_str, "cmd");
 
+    int res = system(cmd->chr);
+
+    if (res == -1) return kse_fmt("system() called failed!");
+
     // run the command with `system()`
-    return (kso)ks_int_new(system(cmd->chr));
+    return (kso)ks_int_new(res >> 8);
 }
 
 
@@ -419,6 +446,7 @@ void ksf_init() {
     ks_F_call = ks_cfunc_new(call_, "call(func, args=(,))");
     ks_F_hash = ks_cfunc_new(hash_, "hash(obj)");
     ks_F_rand = ks_cfunc_new(rand_, "rand()");
+    ks_F_exit = ks_cfunc_new(exit_, "exit(code=0)");
     
     ks_F_import = ks_cfunc_new(import_, "import(module_name)");
 

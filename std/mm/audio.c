@@ -6,21 +6,9 @@ Includes reading/writing/transforming of audio data
 
 #include "ksm_mm.h"
 
-/* include an mp3 loading library, for loading into float buffers 
-//#define MINIMP3_ONLY_MP3
-//#define MINIMP3_ONLY_SIMD
-//#define MINIMP3_NO_SIMD
-//#define MINIMP3_NONSTANDARD_BUT_LOGICAL
-#define MINIMP3_FLOAT_OUTPUT
-#define MINIMP3_IMPLEMENTATION
-#include "./minimp3-ex.h"
-
-
-#include <sox.h>
-*/
 
 // create a new audio object, with given parameters.
-// if data==NULL, then it is initialized to 0.0f for all the data
+// if data==NULL, then it is initialized to 0.0 for all the data
 ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, double* data) {
     // create a new one
     ks_mm_Audio self = ks_malloc(sizeof(*self));
@@ -50,7 +38,6 @@ ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, double* data) {
 
 #define BUFFER_SIZE 20480
 
-#define die printf
 
 
 // function that writes a number of samples to a given output, returns 0 on success, otherwise on Error
@@ -58,7 +45,7 @@ ks_mm_Audio ks_mm_Audio_new(int samples, int channels, int hz, double* data) {
 // updating every `stride`th value (so stride=2 means that output[0], output[2], output[stride*n] is written)
 // `data` is assumed to be a pointer directly to the data, so for planar data, this function should be called on each channel,
 // and `stride` should be the number of channels, so that output is skipped
-static inline int mm_avc_cvt(const AVCodecContext* codec_ctx, void* _data, int num, double* output, int stride) {
+static inline int convert_buf(const AVCodecContext* codec_ctx, void* _data, int num, double* output, int stride) {
     // get sampling format
     const enum AVSampleFormat sfmt = codec_ctx->sample_fmt;
     // shared variables
@@ -202,7 +189,7 @@ int ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
 
                 // convert each channel into the appropriate stride self
                 for (i = 0; i < self->channels; ++i) {
-                    erc |= mm_avc_cvt(codec_ctx, frm->extended_data[i], frm->nb_samples, &self->buf[start_out + i], self->channels);
+                    erc |= convert_buf(codec_ctx, frm->extended_data[i], frm->nb_samples, &self->buf[start_out + i], self->channels);
                 }
 
                 if (erc) READ_ERR("Invalid/unsupported sample format in file '%s'", fname)
@@ -211,7 +198,7 @@ int ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
 
 
                 // since they packed together, just output them all contiguously
-                int erc = mm_avc_cvt(codec_ctx, frm->extended_data[0], frm->nb_samples * self->channels, &self->buf[start_out], 1);
+                int erc = convert_buf(codec_ctx, frm->extended_data[0], frm->nb_samples * self->channels, &self->buf[start_out], 1);
                 if (erc) READ_ERR("Invalid/unsupported sample format in file '%s'", fname)
 
             }
@@ -242,31 +229,133 @@ int ks_mm_Audio_read(ks_mm_Audio self, char* fname) {
     return errstat;
 }
 
+static int encode(AVCodecContext* codec_ctx, AVFrame* frm, AVPacket* pkt, FILE* fp) {
+    int ret = 0;
+
+    if ((ret = avcodec_send_frame(codec_ctx, frm)) < 0) {
+        kse_fmt("Internal packet read error");
+        return -1;
+    }
+
+    while (ret >= 0) {
+        ret = avcodec_receive_packet(codec_ctx, pkt);
+
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+            return 0;
+        } else if (ret < 0) {
+            kse_fmt("Internal packet read error");
+            return -1;
+           // WRITE_ERR("Failed to encode audio frame");
+        }
+
+        fwrite(pkt->data, 1, pkt->size, fp);
+        av_packet_unref(pkt);
+    }
+    return 0;
+}
+
 // write to a given file
-void ks_mm_Audio_write(ks_mm_Audio self, char* fname) {
+int ks_mm_Audio_write(ks_mm_Audio self, char* fname) {
+    int errstat = 0;
 
-    #define WRITE_ERR(...) { kse_fmt(__VA_ARGS__); return; }
+    #define WRITE_ERR(...) { kse_fmt(__VA_ARGS__); errstat = 1; goto audio_write_end; }
 
-    const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_WAVPACK);
-    if (!codec) WRITE_ERR("Couldn't find .wav encoder");
+    FILE* fp = NULL;
 
-    AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+    AVCodecContext* codec_ctx = NULL;
+
+    AVFrame* frm = NULL;
+    AVPacket* pkt = NULL;
+
+    const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_VORBIS);
+    if (!codec) WRITE_ERR("Couldn't find .mp3 encoder");
+
+    codec_ctx = avcodec_alloc_context3(codec);
     if (!codec_ctx) WRITE_ERR("Couldn't alloc codec_ctx");
 
-    codec_ctx->sample_fmt = AV_SAMPLE_FMT_DBL;
+    codec_ctx->bit_rate = 128000;
+    codec_ctx->sample_rate = 44100;
+    codec_ctx->channel_layout = AV_CH_LAYOUT_STEREO;
+    codec_ctx->channels = 2;
+    codec_ctx->sample_fmt = AV_SAMPLE_FMT_FLTP;
+
     int supp = 0;
 
     // search through the sample formats that are supported
     const enum AVSampleFormat* p = codec->sample_fmts;
     while (*p != AV_SAMPLE_FMT_NONE) {
-        if (*p == codec_ctx->sample_fmt) supp = 1;
+        if (*p == codec_ctx->sample_fmt) {
+            supp = 1;
+            break;
+        }
         p++;
     }
 
-    if (!supp) WRITE_ERR("Encoder couldn't handle doubles");
+    if (!supp) WRITE_ERR("Encoder couldn't handle planar-float format");
 
+    if (avcodec_open2(codec_ctx, codec, NULL) < 0) {
+        WRITE_ERR("Couldn't open codec");
+    }
 
+    int frame_size = codec_ctx->frame_size;
 
+    fp = fopen(fname, "wb");
+    if (!fp) {
+        WRITE_ERR("Couldn't open file '%s'", fname);
+    }
+
+    pkt = av_packet_alloc();
+    if (!pkt) {
+        WRITE_ERR("Could not allocated packet");
+    }
+
+    frm = av_frame_alloc();
+    if (!frm) {
+        WRITE_ERR("Could not allocate frame");
+    }
+
+    frm->nb_samples = codec_ctx->frame_size;
+    frm->channel_layout = codec_ctx->channel_layout;
+	frm->format = codec_ctx->sample_fmt;
+
+    if (av_frame_get_buffer(frm, 0) < 0) {
+        WRITE_ERR("Failed to get data buffer for AVFrame");        
+    }
+
+    int i, j, ret = 0;
+    for(i = 0; i < 100; i++) {
+        if (av_frame_make_writable(frm) < 0) {
+            WRITE_ERR("Could not mark frame as writable");
+        }
+
+        // fill data with random things
+        float* samples = frm->data[0];
+        for (j = 0; j < codec_ctx->frame_size; j++) {
+            samples[j] = sinf(j + i * codec_ctx->frame_size);
+        }
+
+        // now, encode the frame
+        if (encode(codec_ctx, frm, pkt, fp) < 0) {
+            WRITE_ERR("Failed to encode frame");
+        } 
+
+        
+    }
+    
+    if (encode(codec_ctx, NULL, pkt, fp) < 0) {
+        WRITE_ERR("Failed to encode final frame");
+    }
+
+    audio_write_end:
+
+    if (fp) fclose(fp);
+    if (frm) av_frame_free(&frm);
+    if (pkt) av_packet_free(&pkt);
+
+    if (codec_ctx) {
+        avcodec_close(codec_ctx);
+        av_free(codec_ctx);
+    }
 
 }
 

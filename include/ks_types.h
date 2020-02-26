@@ -429,6 +429,9 @@ typedef struct ks_code {
     // (since internally, instructions just store an index into this array)
     ks_list v_const;
 
+    // human readable name for the code
+    ks_str hrname;
+
     // the actual bytecode
     uint8_t* bc;
 
@@ -459,7 +462,6 @@ void ks_code_add_meta(ks_code self, ks_ast ast);
 
 // link in another code object, appending it to the end, and merging its referenced constants
 void ks_code_linkin(ks_code self, ks_code other);
-
 
 /* bytecode generation helpers */
 
@@ -551,6 +553,9 @@ void ksc_jmpf      (ks_code code, int relamt);
 /* returning/control flow */
 void ksc_ret       (ks_code code);
 void ksc_ret_none  (ks_code code);
+
+/* throwing/errors */
+void ksc_throw     (ks_code code);
 
 /* exception handling */
 void ksc_exc_add   (ks_code code, int abspos);
@@ -923,6 +928,8 @@ enum {
     KS_AST_WHILE,
     /* means this AST represents a try-catch block */
     KS_AST_TRY,
+    /* means this AST represents throw statement */
+    KS_AST_THROW,
 
     /* means this AST represents a return statement */
     KS_AST_RET,
@@ -1064,6 +1071,9 @@ struct ks_ast {
 
         } v_try;
 
+        /* the expression that will be evaluated and thrown by a throw statement iff atype==KS_AST_THROW */
+        ks_ast v_throw;
+
 
 
         /* the value to return iff atype==KS_AST_RET */
@@ -1183,6 +1193,10 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast body);
 // if `v_catch==NULL`, then no catch block is created
 // if v_catch_target is NULL, then the error will be discarded, and not stored to a local variable
 ks_ast ks_ast_new_try(ks_ast v_try, ks_ast v_catch, ks_str v_catch_target);
+
+// construct a new throw {...} block to  
+ks_ast ks_ast_new_throw(ks_ast v_throw);
+
 
 // return a new ast representing a return
 ks_ast ks_ast_new_ret(ks_ast val);

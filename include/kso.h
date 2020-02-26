@@ -18,6 +18,9 @@ ks_str ks_str_new_vcfmt(const char* fmt, va_list ap);
 // creates a new string from C-style format arguments (i.e. only C-types are supported, not arbitrary kscript objects)
 ks_str ks_str_new_cfmt(const char* fmt, ...);
 
+// create a new string from k-script style formatting
+ks_str ks_str_new_kfmt(ks_str kfmt, ks_tuple args);
+
 // generates the bytecode for a given AST, returns the code object
 // NOTE: this is implemented in codegen.c, rather than kso.c
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const);

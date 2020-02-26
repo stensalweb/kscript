@@ -39,6 +39,7 @@ int main(int argc, char** argv) {
     SET_GLOBAL("print",  ks_F_print);
     SET_GLOBAL("hash",   ks_F_hash);
     SET_GLOBAL("rand",   ks_F_rand);
+    SET_GLOBAL("exit",   ks_F_exit);
 
     /* builtin types */
     SET_GLOBAL("bool",  ks_T_bool);
@@ -127,6 +128,8 @@ int main(int argc, char** argv) {
             prog_bc = ks_ast_codegen(prog_ast, NULL);
             if (kse_dumpall()) return -1;
 
+            prog_bc->hrname = ks_str_new(optarg);
+
             ks_debug("Running `-e`: '%s' (compiled to %ib)", par->src->chr, prog_bc->bc_n);
             // TODO: maybe output the assembly here
 
@@ -155,6 +158,8 @@ int main(int argc, char** argv) {
             // generate the bytecode
             prog_bc = ks_ast_codegen(prog_ast, NULL);
             if (kse_dumpall()) return -1;
+
+            prog_bc->hrname = ks_str_new(optarg);
 
             ks_debug("Running `-f`: '%s' (compiled to %ib)", par->src_name->chr, prog_bc->bc_n);
             // TODO: maybe output the assembly here

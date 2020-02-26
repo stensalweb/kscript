@@ -51,6 +51,7 @@ extern ks_cfunc
     ks_F_call,
     ks_F_hash,
     ks_F_print,
+    ks_F_exit,
     
     ks_F_import,
     ks_F_rand,

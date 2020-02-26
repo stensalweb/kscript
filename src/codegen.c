@@ -246,6 +246,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // generate the function code
         ks_code new_code = ks_ast_codegen(self->v_func.body, NULL);
 
+        new_code->hrname = (ks_str)KSO_NEWREF(self->v_func.name);
+
+
         // create a function
         ks_kfunc new_kfunc = ks_kfunc_new(self->v_func.params, new_code);
         KSO_DECREF(new_code);
@@ -403,6 +406,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // TODO: generate short-circuit jumping code
         codegen(self->v_if.cond, to, geni);
 
+        ks_code_add_meta(to, self);
 
         // position of the jump at the conditional
         int p_condjump = to->bc_n;
@@ -475,6 +479,9 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // TODO: generate short-circuit jumping code
         codegen(self->v_while.cond, to, geni);
 
+
+        ks_code_add_meta(to, self);
+
         // capture the position where the jump instruction begins
         int cond_jmpf_p = to->bc_n;
         // this will be filled in later
@@ -517,8 +524,10 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
         // fill this in later
         ksc_exc_add(to, -1);
 
-        // first, generate the try part
+        // first, generate the try part (which should be a block)
         codegen(self->v_try.v_try, to, geni);
+
+        ks_code_add_meta(to, self);
 
         // and afterwards, remove the try/catch (if there was no error)
         ksc_exc_rem(to);
@@ -536,7 +545,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
             // since we don't know what will generate after this, just set it here
             i_excadd->i32 = to->bc_n;
-
+            
             if (self->v_try.v_catch_target != NULL) {
                 // we want to store it in a given name
                 ksc_storeo(to, (kso)self->v_try.v_catch_target);
@@ -547,14 +556,11 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
             // now, generate the catch part
             codegen(self->v_try.v_catch, to, geni);
-
             int p_a_catch = to->bc_n;
 
             // now, we're done. so correct the jump after the try block so if no error occurs, it does not run the catch block
             ksbc_i32* i_tryjmp = (ksbc_i32*)(to->bc + p_tryjmp);
-
             i_tryjmp->i32 = p_a_catch - p_a_tryjmp;
-
 
         } else {
             // there is no catch block, so the try simply flows through
@@ -565,10 +571,14 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
             // since we don't know what will generate after this, just set it here
             i_excadd->i32 = to->bc_n;
 
-            // no error catching target, so we pop it as an unused
-            ksc_popu(to);
         }
+    } else if (self->atype == KS_AST_THROW) {
 
+        codegen(self->v_throw, to, geni);
+
+        ks_code_add_meta(to, self);
+
+        ksc_throw(to);
 
     } else {
         kse_fmt("Given invalid AST (@%p) with type %i", self, self->atype);

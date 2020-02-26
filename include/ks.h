@@ -241,6 +241,8 @@ bool kse_clear();
 // assert that the number of arguments is a correct value
 #define KS_REQ_N_ARGS(_narg, _correct) KS_REQ((_narg) == (_correct), "Wrong number of args, expected %i, but got %i", _correct, _narg)
 
+// assert a given number of arguments
+#define KS_REQ_N_ARGS_RANGE(_narg, _min, _max) KS_REQ((_narg) >= (_min) && (_narg) <= (_max), "Wrong number of args, expected between %i and %i, but got %i", _min, _max, _narg)
 
 // error that you can't convert `_obj` to type `_type`
 #define KS_ERR_TYPECONV(_obj, _type) return kse_fmt("Don't know how to convert type '%S' to type '%S'", (_obj)->type->name, (_type)->name);
@@ -257,6 +259,8 @@ ks_dict ks_get_globals();
 // executes a chunk of code, discarding the results
 void ks_vm_exec(ks_code code);
 
+// internal coredump method
+void ks_vm_coredump();
 
 /* hash/utils */
 

@@ -20,6 +20,8 @@ static void ks_segfault_handle(int sg) {
 
     kse_dumpall();
 
+    ks_vm_coredump();
+
     void *array[10];
     size_t size;
 
@@ -29,7 +31,8 @@ static void ks_segfault_handle(int sg) {
     // print out all the frames to stderr
     fprintf(stderr, "Error: signal %d:\n", sg);
     backtrace_symbols_fd(array, size, STDERR_FILENO);
-    exit(1);
+
+
 
     exit(1);
 }

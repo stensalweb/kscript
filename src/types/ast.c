@@ -417,6 +417,20 @@ ks_ast ks_ast_new_try(ks_ast v_try, ks_ast v_catch, ks_str v_catch_target) {
 }
 
 
+// create a new throw expression
+ks_ast ks_ast_new_throw(ks_ast v_throw) {
+    ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
+    *self = (struct ks_ast) {
+        _AST_INIT(KS_AST_THROW)
+        .v_throw = v_throw
+    };
+    KSO_INCREF(v_throw);
+
+    return self;
+}
+
+
+
 // create a new AST representing a return statement
 ks_ast ks_ast_new_ret(ks_ast val) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -551,6 +565,9 @@ TFUNC(ast, free) {
         if (self->v_try.v_catch != NULL) KSO_DECREF(self->v_try.v_catch);
         if (self->v_try.v_catch_target != NULL) KSO_DECREF(self->v_try.v_catch_target);
         break;
+    case KS_AST_THROW:
+        KSO_DECREF(self->v_throw);
+        break;
 
     case KS_AST_RET:
         KSO_DECREF(self->v_ret);
@@ -591,7 +608,6 @@ TFUNC(ast, free) {
     return KSO_NONE;
     #undef SIG
 }
-
 
 
 /* exporting functionality */

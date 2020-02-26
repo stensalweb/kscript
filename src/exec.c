@@ -192,7 +192,6 @@ static inline kso VM_stk_top() {
 static void VM_exec() {
 
     /* helpers */
-
     #define DECREF_N(_objp, _n) { int _i, _stop = (_n); for (_i = 0; _i < _stop; ++_i) { KSO_DECREF((_objp)[_i]); } }
 
     /* instructions/computed goto */
@@ -253,6 +252,8 @@ static void VM_exec() {
 
         INIT_INST_LABEL(KSBC_EXC_ADD)
         INIT_INST_LABEL(KSBC_EXC_REM)
+
+        INIT_INST_LABEL(KSBC_THROW)
 
     };
 
@@ -803,10 +804,74 @@ static void VM_exec() {
             // continue on
             NEXT_INST();
 
+        INST_LABEL(KSBC_THROW)
+            DECODE(ksbc_);
+            _exec_trace("throw");
+
+            // throw the item on top of the stack, so just go to EXC
+            //kse_fmt("Object thrown: %R", VM_stk_top());
+
+            _EXEC_ERR("Object thrown: %R, but not caught!", VM_stk_top());
+            goto EXC_throw;
+
+            //EXEC_ERR("Object thrown: %R", VM_stk_top());
+
+            // continue on
+            NEXT_INST();
+
+
+
         /* exception handling  */
+        EXC_throw:
+            _exec_trace("exc_throw");
+            kso toperr = VM_stk_pop();
+                        
+            if (VM.eframe_stk_len > 0) {
+                // if we have an exception handler
+                // pop off the top exc handler
+                struct vm_eframe_stk top = VM.eframe_stk[--VM.eframe_stk_len];
+
+
+                // rewind so the stack trace is correct
+                while (VM.frame_stk_len > top.frame_stk_len) {
+                    VM_pop_frame();
+                }
+
+                // rewind so the main stack is correct
+                while (VM.stk.len > top.stk_len) {
+                    VM_stk_popu();
+                }
+
+                // push error back
+                VM_stk_push(toperr);
+
+                kse_clear();
+
+                // now, we change the program counter to 
+                pc = VM.frame_stk[VM.frame_stk_len-1].pc = top.exc_to;
+
+                // and keep executing
+                NEXT_INST();
+
+            } else {
+                // we don't, so clear everything and exit
+
+                // rewind, then exit
+                while (VM.frame_stk_len > start_fsl) {
+                    VM_pop_frame();
+                }
+
+                // dump all errors
+                kse_dumpall();
+                
+                exit(1);
+
+                return;
+            }
+
         EXC:
             _exec_trace("exc");
-
+            
             if (VM.eframe_stk_len > 0) {
                 // if we have an exception handler
                 // pop off the top exc handler
@@ -822,11 +887,12 @@ static void VM_exec() {
                     VM_stk_popu();
                 }
 
+
                 // get the last error
                 kso last_err = kse_pop();
 
                 // add on the error to the stack
-                VM_stk_pushu(last_err);
+                if (last_err != NULL) VM_stk_pushu(last_err);
 
                 // clear the rest
                 kse_clear();
@@ -840,7 +906,6 @@ static void VM_exec() {
             } else {
                 // we don't, so clear everything and exit
 
-                //ks_error("EXCEPTION");
                 // rewind, then exit
                 while (VM.frame_stk_len > start_fsl) {
                     VM_pop_frame();
@@ -892,6 +957,32 @@ void ks_vm_exec(ks_code code) {
     VM_stk_popu();
 }
 
+
+void ks_vm_coredump() {
+    #undef _EXEC_ERR
+    #define _EXEC_ERR(...) { \
+        int i, bc_n = CUR_SCOPE().pc, haderr = 0; \
+        for (i = 0; i < CUR_SCOPE().code->meta_ast_n; ++i) { \
+            if (CUR_SCOPE().code->meta_ast[i].bc_n >= bc_n) { \
+                haderr = 1; \
+                kse_tok(CUR_SCOPE().code->meta_ast[i].ast->tok_expr, __VA_ARGS__); \
+                break; \
+            } \
+        } \
+        if (haderr = 0) kse_fmt(__VA_ARGS__); \
+    }
+
+    _EXEC_ERR("COREDUMP");
+
+    int i;
+    for (i = 0; i < VM.frame_stk_len; ++i) {
+        char *s = VM.frame_stk[i].code->hrname != NULL ? VM.frame_stk[i].code->hrname->chr : "__anon";
+        printf("%2i: %s (%p)\n", (int)i, s, (void*)VM.frame_stk[i].code);
+    }
+    
+
+    exit(1);
+}
 
 // call an object as a callable, with a list of arguments
 kso kso_call(kso func, int n_args, kso* args) {

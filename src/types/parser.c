@@ -789,8 +789,8 @@ ks_ast ks_parse_expr(ks_parser self) {
 
     while (true) {
 
-        // skip over comments
-        while (VALID() && CTOK().ttype == KS_TOK_COMMENT) ADV1()
+        // skip over comments & newlines
+        while (VALID() && (CTOK().ttype == KS_TOK_COMMENT || CTOK().ttype == KS_TOK_NEWLINE)) ADV1()
 
         // make sure we're in bounds
         if (!VALID()) goto parseexpr_end;
@@ -1482,10 +1482,10 @@ ks_ast ks_parse_stmt(ks_parser self) {
                 if (ctok.ttype == KS_TOK_COMMA) ADV1();
      
                 SKIP_IRR_S();
+                
                 // now, read the main block
                 ks_ast v_catch = ks_parse_stmt(self);
                 if (v_catch == NULL) PSTMT_ERREXT();
-
 
                 // set up the try/catch block
                 ks_ast ret_tryc = ks_ast_new_try(v_try, v_catch, catch_target);
@@ -1509,8 +1509,22 @@ ks_ast ks_parse_stmt(ks_parser self) {
                 return ret_tryc;
             }
 
+        } else if (TOK_EQ(self, ctok, "throw")) {
+            // skip it
+            ADV1();
 
+            // now, read expression
+            ks_ast v_throw = ks_parse_expr(self);
+            if (v_throw == NULL) PSTMT_ERREXT();
 
+            // construct a new node
+            ks_ast ret_throw = ks_ast_new_throw(v_throw);
+            KSO_DECREF(v_throw);
+
+            ret_throw->tok = ctok;
+            ret_throw->tok_expr = ks_tok_combo(ret_throw->tok, v_throw->tok_expr);
+
+            return ret_throw;
 
         } else if (TOK_EQ(self, ctok, "catch")) {
             PSTMT_ERR(ctok, "SyntaxError; 'catch' without previous 'try'");
