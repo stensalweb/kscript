@@ -19,11 +19,21 @@ C-arg:
   %*s, int, char* : formats a C-string, given a length before the full value
   %o, kso : formats an object in a generic way, with type name and address
 
-Kscript-arg:
+C-arg object formatters:
 
   %S, kso : formats the kscript object as if `str()` had been called on it (i.e. tostring)
   %R, kso : formats the kscript object as if `repr()` had been called on it
   %T, kso : formats the type name of the kscript object
+
+
+ -*- kfmt methods -*-
+
+These methods are meant to be called from kscript. These are more dynamic in nature, and take arrays rather than C-style varargs
+
+But, they work similarly:
+
+(in kscript) `"%s %s".format()`
+
 
 
 */
@@ -517,7 +527,10 @@ ks_str ks_str_new_kfmt(ks_str kfmt, ks_tuple args) {
 
         }
     }
-
+    if (args_i != args->len) {
+        KSO_DECREF(ks_strB_finish(&ksb));
+        return kse_fmt("Not all format specifiers were converted! (only used %i)", args_i);
+    }
     return ks_strB_finish(&ksb);
 }
 

@@ -303,11 +303,11 @@ FUNC(setitem) {
     ks_type tA = oA->type, tB = oB->type; \
     if (tA->_opf != NULL) { \
         oR = kso_call(tA->_opf, 2, ((kso[]){oA, oB})); \
-        if (oR) return oR; \
+        if (oR || kse_N() != 0) return oR; \
     } \
     if (tB->_opf != NULL) { \
         oR = kso_call(tB->_opf, 2, ((kso[]){oA, oB})); \
-        if (oR) return oR; \
+        if (oR || kse_N() != 0) return oR; \
     } \
     BOP_MISMATCH(_A, _B, _ops); \
 }
