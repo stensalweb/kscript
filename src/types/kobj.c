@@ -11,7 +11,7 @@ since it requires the __dict__
 
 #include "ks_common.h"
 
-TFUNC(kobj, new) {
+KS_TFUNC(kobj, new) {
     KS_REQ(n_args == 0, "Given wrong number of args, expected 0, but got %i", n_args);
 
     ks_kobj self = ks_malloc(sizeof(*self));
@@ -23,7 +23,7 @@ TFUNC(kobj, new) {
     return (kso)self;
 }
 
-TFUNC(kobj, getattr) {
+KS_TFUNC(kobj, getattr) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_kobj self = (ks_kobj)args[0];
     KS_REQ_SUBTYPE(self, ks_T_kobj, "self");
@@ -61,7 +61,7 @@ TFUNC(kobj, getattr) {
     }
 }
 
-TFUNC(kobj, setattr) {
+KS_TFUNC(kobj, setattr) {
     KS_REQ_N_ARGS(n_args, 3);
     ks_kobj self = (ks_kobj)args[0];
     KS_REQ_SUBTYPE(self, ks_T_kobj, "self");
@@ -76,7 +76,7 @@ TFUNC(kobj, setattr) {
     return KSO_NEWREF(val);
 }
 
-TFUNC(kobj, free) {
+KS_TFUNC(kobj, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_kobj self = (ks_kobj)args[0];
     KS_REQ_SUBTYPE(self, ks_T_kobj, "self");

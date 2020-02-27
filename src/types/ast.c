@@ -1,34 +1,30 @@
 /* types/ast.c - represents an Abstract Syntax Tree
-
-Generally, a program can be thought of a control flow diagram and/or a computational graph/tree.
-
-This is a high level representation of that tree, and how it can be traversed, read, etc from C.
-
-These are typically generated from a parser (see `types/parser.c` for how they are constructed programmatically)
-
-
-
-Specifics:
-
-The `self->atype` attribute tells what kind of AST it is respectively.
-
-If it is KS_AST_BOP_*, then it is a binary operator, KS_AST_UOP_*, a unary operator, etc
-
-There are specific attributes in the union of the AST that are used by certain types of ASTs.
-
-These are documented in `ks_types.h`, for more complete information.
-
-
-TODO:
-
-  * Traversal algorithms/visitor functions
-
-
-*/
+ *
+ * Generally, a program can be thought of a control flow diagram and/or a computational graph/tree.
+ *
+ * This is a high level representation of that tree, and how it can be traversed, read, etc from C.
+ *
+ * These are typically generated from a parser (see `types/parser.c` for how they are constructed programmatically)
+ *
+ *
+ * Specifics:
+ *
+ * The `self->atype` attribute tells what kind of AST it is respectively.
+ *
+ * If it is KS_AST_BOP_*, then it is a binary operator, KS_AST_UOP_*, a unary operator, etc
+ *
+ * There are specific attributes in the union of the AST that are used by certain types of ASTs.
+ *
+ * These are documented in `ks_types.h`, for more complete information.
+ *
+ *
+ * TODO:
+ *   * Traversal algorithms/visitor functions
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
 #include "ks_common.h"
-
-
 
 // visits an ast recursively
 void ks_ast_visit(ks_ast self, ks_ast_visit_f func, void* data) {
@@ -119,7 +115,6 @@ void ks_ast_visit(ks_ast self, ks_ast_visit_f func, void* data) {
     default:
         break;
     }
-
 
 }
 
@@ -381,7 +376,9 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast body, ks_ast v_else) {
     return self;
 }
 
+// attach an 'else' block to an AST (which must be an 'if' AST)
 void ks_ast_attach_else(ks_ast self, ks_ast v_else) {
+    assert(self->atype == KS_AST_IF);
     if (self->v_if.has_else) KSO_DECREF(self->v_if.v_else);
 
     self->v_if.has_else = v_else != NULL;
@@ -416,7 +413,6 @@ ks_ast ks_ast_new_try(ks_ast v_try, ks_ast v_catch, ks_str v_catch_target) {
     return self;
 }
 
-
 // create a new throw expression
 ks_ast ks_ast_new_throw(ks_ast v_throw) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -429,8 +425,6 @@ ks_ast ks_ast_new_throw(ks_ast v_throw) {
     return self;
 }
 
-
-
 // create a new AST representing a return statement
 ks_ast ks_ast_new_ret(ks_ast val) {
     ks_ast self = (ks_ast)ks_malloc(sizeof(*self));
@@ -441,7 +435,6 @@ ks_ast ks_ast_new_ret(ks_ast val) {
     KSO_INCREF(val);
     return self;
 }
-
 
 // createa a new AST representing a block of code
 ks_ast ks_ast_new_code(ks_code code) {
@@ -498,12 +491,11 @@ ks_ast ks_ast_new_type(ks_str name, ks_ast body) {
     return self;
 }
 
-
-TFUNC(ast, free) {
-    #define SIG "ast.__free__(self)"
-    REQ_N_ARGS(1);
+// free an AST
+KS_TFUNC(ast, free) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_ast self = (ks_ast)args[0];
-    REQ_TYPE("self", self, ks_T_ast);
+    KS_REQ_TYPE(self, ks_T_ast, "self");
 
     switch (self->atype) {
     case KS_AST_TRUE:
@@ -599,14 +591,13 @@ TFUNC(ast, free) {
     
 
     default:
-        return kse_fmt(SIG ": AST obj @ %p was of unknown type %i", self, self->atype);
+        return kse_fmt("AST obj @ %p was of unknown type %i", self, self->atype);
         break;
     }
 
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 

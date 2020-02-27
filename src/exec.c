@@ -1,16 +1,16 @@
 /* exec.c - the main file implementing the bytecode interpreter's execution loop 
-
-kscript uses a bytecode interpreter with computed goto to have a fairly efficient execution cycle.
-
-Much is still in the air about this though; I may switch to smaller instructions, more instructions, and
-internals are still very much not-pinned-down.
-
-The biggest things to handle from here are type/module/function creation & closures. This includes
-possibly making a frame and actual kscript object so it is reference counted, and closures would
-keep a reference to it. I think that is how it will end up, but I'm not rushing right now.
-
-*/
-
+ *
+ * kscript uses a bytecode interpreter with computed goto to have a fairly efficient execution cycle.
+ *
+ * Much is still in the air about this though; I may switch to smaller instructions, more instructions, and
+ * internals are still very much not-pinned-down.
+ *
+ * The biggest things to handle from here are type/module/function creation & closures. This includes
+ * possibly making a frame and actual kscript object so it is reference counted, and closures would
+ * keep a reference to it. I think that is how it will end up, but I'm not rushing right now.
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 #include "ks.h"
 
 // comment this out to disable execution tracing
@@ -831,7 +831,6 @@ static void VM_exec() {
                 // pop off the top exc handler
                 struct vm_eframe_stk top = VM.eframe_stk[--VM.eframe_stk_len];
 
-
                 // rewind so the stack trace is correct
                 while (VM.frame_stk_len > top.frame_stk_len) {
                     VM_pop_frame();
@@ -876,6 +875,7 @@ static void VM_exec() {
                 // if we have an exception handler
                 // pop off the top exc handler
                 struct vm_eframe_stk top = VM.eframe_stk[--VM.eframe_stk_len];
+//                printf("ERR\n");
 
                 // rewind so the stack trace is correct
                 while (VM.frame_stk_len > top.frame_stk_len) {
@@ -961,7 +961,8 @@ void ks_vm_exec(ks_code code) {
 void ks_vm_coredump() {
     #undef _EXEC_ERR
     #define _EXEC_ERR(...) { \
-        int i, bc_n = CUR_SCOPE().pc, haderr = 0; \
+        int i, haderr = 0; \
+        int bc_n = (int)CUR_SCOPE().pc; \
         for (i = 0; i < CUR_SCOPE().code->meta_ast_n; ++i) { \
             if (CUR_SCOPE().code->meta_ast[i].bc_n >= bc_n) { \
                 haderr = 1; \
@@ -1097,5 +1098,4 @@ void ks_init__EXEC() {
     VM.globals = ks_dict_new_empty();
     
 }
-
 

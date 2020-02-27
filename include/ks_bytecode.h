@@ -1,56 +1,58 @@
 /* ks_bytecode.h - definition of bytecode instructions/format
-
-## GENERAL BYTECODE FORMAT
-
-In general, the bytecodes should be as short as possible, so that loops and functions always fit on a
-single page. This is not hard to do, and I did a test of a 1000000 line long file with a pretty good 
-operations/line density. It came out to 18MB of bytecode (using the full 4-byte int extra data, which
-was unneccesary; all could have been condensed single byte values)
-
-That means it is approximately 18 bytes/line, thus about 227 lines/page (assuming 4kb page).
-
-Most functions are under this already, and so I'm not worrying about cache performance too much. However,
-with single byte extra opcode, that would drop down to, I estimate, around 6 bytes/line, and thus 670
-lines/page. That is very good indeed, so there is no need for cramming everything in ridiculously.
-
-The general generators `ksc_*` will just output bytecode and append to a `ks_code` object. They are 
-called with 4 byte integers, but internally will revert to single bytes if the opcode is small enough.
-
-
-So, bytecode operations that take no arguments just take up one byte:
-
-----------
-| 1: opc |
-----------
-size: 1 byte
-
-And most that take an argument <=255 will be reduced to an opcode and an amount:
-
--------------------
-| 1: opc | 1: val |
--------------------
-size: 2 bytes
-
-And any with larger arguments will take up 4 additional bytes:
-
-----------------------------------------------
-| 1: opc | 4: val                            |
-----------------------------------------------
-size: 5 bytes
-
-This is, of course, with the exception of the jmp commands, which always take 4 byte signed integers (for 
-now). Having variable sized jumps can make it very difficult for the code generator. This may be changed in
-the future, with an updated bytecode generator.
-
-### JUMPING BYTECODE
-
-For example, if a jump is added, but then later needs to be resized, it has to re-link all the messed up 
-jump targets between the jump and its destination. Eventually, I will probably do this (maybe add an 
-optimizing step which can do it after the code generator has ran), but right now its not a huge priority.
-
-In most cases, jumps will add an additional 3 bytes than are really neccessary, just so it is error-prone
-
-*/
+ *
+ * GENERAL BYTECODE FORMAT
+ *
+ * In general, the bytecodes should be as short as possible, so that loops and functions always fit on a
+ * single page. This is not hard to do, and I did a test of a 1000000 line long file with a pretty good 
+ * operations/line density. It came out to 18MB of bytecode (using the full 4-byte int extra data, which
+ * was unneccesary; all could have been condensed single byte values)
+ *
+ * That means it is approximately 18 bytes/line, thus about 227 lines/page (assuming 4kb page).
+ *
+ * Most functions are under this already, and so I'm not worrying about cache performance too much. However,
+ * with single byte extra opcode, that would drop down to, I estimate, around 6 bytes/line, and thus 670
+ * lines/page. That is very good indeed, so there is no need for cramming everything in ridiculously.
+ *
+ * The general generators `ksc_*` will just output bytecode and append to a `ks_code` object. They are 
+ * called with 4 byte integers, but internally will revert to single bytes if the opcode is small enough.
+ *
+ *
+ * So, bytecode operations that take no arguments just take up one byte:
+ *
+ * ----------
+ * | 1: opc |
+ * ----------
+ * size: 1 byte
+ *
+ * And most that take an argument <=255 will be reduced to an opcode and an amount:
+ *
+ * -------------------
+ * | 1: opc | 1: val |
+ * -------------------
+ * size: 2 bytes
+ *
+ * And any with larger arguments will take up 4 additional bytes:
+ * ----------------------------------------------
+ * | 1: opc | 4: val *  *  *  *  *  *  * |
+ * ----------------------------------------------
+ * size: 5 bytes
+ *
+ * 
+ * This is, of course, with the exception of the jmp commands, which always take 4 byte signed integers (for 
+ * now). Having variable sized jumps can make it very difficult for the code generator. This may be changed in
+ * the future, with an updated bytecode generator.
+ *
+ * ### JUMPING BYTECODE
+ *
+ * For example, if a jump is added, but then later needs to be resized, it has to re-link all the messed up 
+ * jump targets between the jump and its destination. Eventually, I will probably do this (maybe add an 
+ * optimizing step which can do it after the code generator has ran), but right now its not a huge priority.
+ *
+ * In most cases, jumps will add an additional 3 bytes than are really neccessary, just so it is error-prone
+ * 
+ * @author: Cade Brown <brown.cade@gmail.com>
+ * 
+ */
 
 #pragma once
 #ifndef KS_BYTECODE_H__

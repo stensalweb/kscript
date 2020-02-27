@@ -59,7 +59,7 @@ ks_cfunc
  * If a specific 'arg' is not a string, 
  * 
  */
-FUNC(print) {
+KS_FUNC(print) {
     // just print out all the arguments, then a newline
     int i;
     for (i = 0; i < n_args; ++i) {
@@ -100,25 +100,22 @@ FUNC(print) {
 
 
 /* misc util */
-FUNC(type) {
-    #define SIG "type(obj)"
-    REQ_N_ARGS(1);
-
+KS_FUNC(type) {
+    KS_REQ_N_ARGS(n_args, 1);
     kso res = (kso)args[0]->type;
 
     return KSO_NEWREF(res);
-    #undef SIG
 }
 
-FUNC(hash) {
-    #define SIG "hash(obj)"
-    REQ_N_ARGS(1);
+KS_FUNC(hash) {
+    KS_REQ_N_ARGS(n_args, 1);
+
     return (kso)ks_int_new(kso_hash(args[0]));
-    #undef SIG
 }
 
-FUNC(exit) {
+KS_FUNC(exit) {
     KS_REQ_N_ARGS_RANGE(n_args, 0, 1);
+
     if (n_args == 0) {
         exit(0);
         return NULL;
@@ -139,9 +136,8 @@ FUNC(exit) {
     }
 }
 
-FUNC(call) {
-    #define SIG "call(func, args=(,))"
-    REQ_N_ARGS_RANGE(1, 2);
+KS_FUNC(call) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
 
     if (n_args == 1) {
         return kso_call(args[0], 0, NULL);
@@ -156,89 +152,79 @@ FUNC(call) {
     }
 
     return NULL;
-    #undef SIG
 }
 
 
-FUNC(rand) {
-    #define SIG "rand()"
-    REQ_N_ARGS(0);
+KS_FUNC(rand) {
+    KS_REQ_N_ARGS(n_args, 0);
+
     return (kso)ks_int_new(ks_random_i64());
-    #undef SIG
 }
 
-FUNC(repr) {
-    #define SIG "repr(obj)"
-    REQ_N_ARGS(1);
+KS_FUNC(repr) {
+    KS_REQ_N_ARGS(n_args, 1);
+
     return (kso)ks_str_new_cfmt("%R", args[0]);
-    #undef SIG
 }
 
-FUNC(import) {
-    #define SIG "import(name)"
-    REQ_N_ARGS(1);
+KS_FUNC(import) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_str name = (ks_str)args[0];
-    REQ_TYPE("name", name, ks_T_str);
+    KS_REQ_TYPE(name, ks_T_str, "name");
+
     kso ret = (kso)ks_load_module(name);
     
     return ret;
-    #undef SIG
 }
 
-
-FUNC(new_type) {
-    #define SIG "__new_type__(name)"
-    REQ_N_ARGS(1);
+KS_FUNC(new_type) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_str name = (ks_str)args[0];
-    REQ_TYPE("name", name, ks_T_str);
+    KS_REQ_TYPE(name, ks_T_str, "name");
+
+    // construct a new type
     ks_type new_type = ks_type_new(name->chr);
     
     // always parent to the kobj
     ks_type_add_parent(new_type, ks_T_kobj);
 
     return (kso)new_type;
-    #undef SIG
 }
-
-
-
 
 
 
 /* attribute resolving */
 
-FUNC(getattr) {
-    #define SIG "getattr(obj, attr)"
-    REQ_N_ARGS(2);
-
+KS_FUNC(getattr) {
+    KS_REQ_N_ARGS(n_args, 2);
     kso obj = args[0], attr = args[1];
 
-    /*if (obj->type == ks_T_dict) {
-        return ks_dict_get((ks_dict)obj, attr, kso_hash(attr));
-    }*/
-
-    // try resolving this
+    // loop up type(obj).__getattr__() function to call
     if (obj->type->f_getattr != NULL) {
-        
-        kso res =  kso_call(obj->type->f_getattr, n_args, args);
+        // if it exists, we try and call that with all arguments (args[0] becomes 'self')
+        kso res = kso_call(obj->type->f_getattr, n_args, args);
+
+        // if it was successful, return it
         if (res != NULL) return res;
 
-        // clear errors
+        // otherwise, clear the error stack & try specific to that object
         kse_clear();
-
     }
 
-    // try and look up an attribute and turn it into a member method
+    // otherwise, look up specific attributes about its type, and try and resolve the reference
+    //   to a member function
     kso Tattr = ks_type_getattr(obj->type, (ks_str)attr);
     if (Tattr != NULL) {
-        // create a member function
+        // it was a valid attribute
+        // construct a partial function 
         ks_pfunc mem_func = ks_pfunc_new(Tattr);
         KSO_DECREF(Tattr);
+
+        // now, set argument #0 to be filled as 'obj' (i.e. the 'self')
         ks_pfunc_fill(mem_func, 0, obj);
+
+        // return the member function
         return (kso)mem_func;
-        /*KSO_DECREF(Tattr);
-        ks_pfunc_fill(mem_func, 1, obj);
-        return mem_func;*/
     } else {
         // it was not found, and an error should have been added
         return NULL;
@@ -246,48 +232,42 @@ FUNC(getattr) {
 
 
     return NULL;
-    #undef SIG
 }
-FUNC(setattr) {
-    #define SIG "setattr(obj, attr, val)"
-    REQ_N_ARGS(3);
-
+KS_FUNC(setattr) {
+    KS_REQ_N_ARGS(n_args, 3);
     kso obj = args[0], attr = args[1], val = args[2];
 
-    // try resolving this
-    if (obj->type->f_setattr != NULL) return kso_call(obj->type->f_setattr, n_args, args);
+    // if the type supports setting the attribute, do it
+    if (obj->type->f_setattr != NULL) {
+        return kso_call(obj->type->f_setattr, n_args, args);
+    }
 
     return NULL;
-    #undef SIG
 }
 
 
 /* item getting/setting */
 
-FUNC(getitem) {
-    #define SIG "getitem(obj, *keys)"
-    REQ_N_ARGS_MIN(2);
+KS_FUNC(getitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 2);
 
     kso obj = args[0];
 
-    // resolve the function
+    // try and call type(obj).__getitem__()
     if (obj->type->f_getitem != NULL) return kso_call(obj->type->f_getitem, n_args, args);
 
     return kse_fmt("No '[]' method for '%T' type", args[0]);
-    #undef SIG
 }
 
-FUNC(setitem) {
-    #define SIG "setitem(obj, *keys, val)"
-    REQ_N_ARGS_MIN(3)
+KS_FUNC(setitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 3);
 
     kso obj = args[0];
 
-    // try resolving this
+    // try calling type(obj).__setitem__()
     if (obj->type->f_setitem != NULL) return kso_call(obj->type->f_setitem, n_args, args);
 
     return kse_fmt("No '[]=' method for '%T' type", args[0]);
-    #undef SIG
 }
 
 /* iterators */
@@ -295,7 +275,7 @@ FUNC(setitem) {
 
 /* iter(obj) -> return an iterator for a given object
  */
-FUNC(iter) {
+KS_FUNC(iter) {
     KS_REQ_N_ARGS(n_args, 1);
     kso obj = args[0];
 
@@ -310,7 +290,7 @@ FUNC(iter) {
 
 /* next(iter_obj) -> return the next object in an iterator, incrementing th eiterator
  */
-FUNC(next) {
+KS_FUNC(next) {
     KS_REQ_N_ARGS(n_args, 1);
     kso iter_obj = args[0];
 
@@ -348,81 +328,59 @@ FUNC(next) {
 }
 
 /* define binary operator functions  */
-FUNC(add) {
-    #define SIG "add(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(add) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_add, "+");
-    #undef SIG
 }
-FUNC(sub) {
-    #define SIG "sub(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(sub) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_sub, "-");
-    #undef SIG
 }
-FUNC(mul) {
-    #define SIG "mul(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(mul) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_mul, "*");
-    #undef SIG
 }
-FUNC(div) {
-    #define SIG "div(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(div) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_div, "/");
-    #undef SIG
 }
-FUNC(mod) {
-    #define SIG "mod(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(mod) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_mod, "%%");
-    #undef SIG
 }
-FUNC(pow) {
-    #define SIG "pow(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(pow) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_pow, "**");
-    #undef SIG
 }
-FUNC(lt) {
-    #define SIG "lt(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(lt) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_lt, "<");
-    #undef SIG
 }
-FUNC(le) {
-    #define SIG "le(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(le) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_le, "<=");
-    #undef SIG
 }
-FUNC(gt) {
-    #define SIG "gt(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(gt) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_gt, ">");
-    #undef SIG
 }
-FUNC(ge) {
-    #define SIG "ge(A, B)"
-    REQ_N_ARGS(2);
+KS_FUNC(ge) {
+    KS_REQ_N_ARGS(n_args, 2);
     BOP_RESOLVE(args[0], args[1], f_ge, ">=");
-    #undef SIG
 }
-FUNC(eq) {
-    #define SIG "eq(A, B)"
-    REQ_N_ARGS(2);
-    // shortcut, the same object is always equal to itself
+KS_FUNC(eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    // we introduce a shortcut; if the two objects are the same pointer, they must be equal
     if (args[0] == args[1]) return KSO_TRUE;
+    // otherwise, resolve the operator
     BOP_RESOLVE(args[0], args[1], f_eq, "==");
-    #undef SIG
 }
-FUNC(ne) {
-    #define SIG "ne(A, B)"
-    REQ_N_ARGS(2);
-    // shortcut, the same object is never not equal to itself
+KS_FUNC(ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    // introduce a shortcut; if the two objects are the same pointer, they must be equal, so they are not not-equal
     if (args[0] == args[1]) return KSO_FALSE;
+    // otherwise, resolve the operator
     BOP_RESOLVE(args[0], args[1], f_ne, "!=");
-    #undef SIG
 }
 
 
@@ -439,13 +397,12 @@ FUNC(ne) {
     kse_fmt("Unary operator '" _ops "' not defined for type '%T'", oA); \
 }
 
-FUNC(neg) {
+KS_FUNC(neg) {
     KS_REQ_N_ARGS(n_args, 1);
     UOP_RESOLVE(args[0], f_neg, "-");
 }
 
-
-FUNC(sqig) {
+KS_FUNC(sqig) {
     KS_REQ_N_ARGS(n_args, 1);
     UOP_RESOLVE(args[0], f_sqig, "~");
 }
@@ -454,7 +411,7 @@ FUNC(sqig) {
 /* system interop */
 
 // shell(cmd) -> run a command
-FUNC(shell) {
+KS_FUNC(shell) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str cmd = (ks_str)args[0];
     KS_REQ_TYPE(cmd, ks_T_str, "cmd");

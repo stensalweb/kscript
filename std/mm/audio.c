@@ -359,7 +359,7 @@ int ks_mm_Audio_write(ks_mm_Audio self, char* fname) {
 
 }
 
-TFUNC(mm_Audio, new) {
+KS_TFUNC(mm_Audio, new) {
     //KS_REQ_N_ARGS(n_args, 0);
     ks_mm_Audio self = NULL;
 
@@ -382,7 +382,7 @@ TFUNC(mm_Audio, new) {
     return (kso)self;
 }
 
-TFUNC(mm_Audio, str) {
+KS_TFUNC(mm_Audio, str) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");
@@ -390,7 +390,7 @@ TFUNC(mm_Audio, str) {
     return (kso)ks_str_new_cfmt("<'%T' (%ismp %ihz %ichn) @ %p>", self, self->samples, self->hz, self->channels, self);
 }
 
-TFUNC(mm_Audio, repr) {
+KS_TFUNC(mm_Audio, repr) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");
@@ -399,7 +399,7 @@ TFUNC(mm_Audio, repr) {
 }
 
 
-TFUNC(mm_Audio, getattr) {
+KS_TFUNC(mm_Audio, getattr) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");
@@ -415,7 +415,7 @@ TFUNC(mm_Audio, getattr) {
     }
 }
 
-TFUNC(mm_Audio, getitem) {
+KS_TFUNC(mm_Audio, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");
@@ -429,7 +429,7 @@ TFUNC(mm_Audio, getitem) {
 }
 
 
-TFUNC(mm_Audio, setitem) {
+KS_TFUNC(mm_Audio, setitem) {
     KS_REQ_N_ARGS(n_args, 3);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");
@@ -444,7 +444,7 @@ TFUNC(mm_Audio, setitem) {
 
 }
 
-TFUNC(mm_Audio, free) {
+KS_TFUNC(mm_Audio, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");
@@ -457,7 +457,7 @@ TFUNC(mm_Audio, free) {
 
 
 
-TFUNC(mm_Audio, write) {
+KS_TFUNC(mm_Audio, write) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_mm_Audio self = (ks_mm_Audio)args[0];
     KS_REQ_TYPE(self, ks_T_mm_Audio, "self");

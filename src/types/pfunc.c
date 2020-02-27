@@ -58,7 +58,7 @@ void ks_pfunc_fill(ks_pfunc self, int arg_idx, kso val) {
 
 }
 
-TFUNC(pfunc, free) {
+KS_TFUNC(pfunc, free) {
     ks_pfunc self = (ks_pfunc)args[0];
 
     int i;

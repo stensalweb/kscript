@@ -43,7 +43,7 @@ ks_tuple ks_tuple_new_empty() {
 }
 
 
-TFUNC(tuple, free) {
+KS_TFUNC(tuple, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
     KS_REQ_TYPE(self, ks_T_tuple, "self");
@@ -58,7 +58,7 @@ TFUNC(tuple, free) {
     return KSO_NONE;
 }
 
-TFUNC(tuple, repr) {
+KS_TFUNC(tuple, repr) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
     KS_REQ_TYPE(self, ks_T_tuple, "self");
@@ -84,7 +84,7 @@ TFUNC(tuple, repr) {
     return (kso)ks_strB_finish(&ksb);
 }
 
-TFUNC(tuple, str) {
+KS_TFUNC(tuple, str) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
     KS_REQ_TYPE(self, ks_T_tuple, "self");
@@ -110,7 +110,7 @@ TFUNC(tuple, str) {
     return (kso)ks_strB_finish(&ksb);
 }
 
-TFUNC(tuple, getitem) {
+KS_TFUNC(tuple, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_tuple self = (ks_tuple)args[0];
     KS_REQ_TYPE(self, ks_T_tuple, "self");
@@ -123,7 +123,7 @@ TFUNC(tuple, getitem) {
 }
 
 
-TFUNC(tuple, neg) {
+KS_TFUNC(tuple, neg) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_tuple self = (ks_tuple)args[0];
 

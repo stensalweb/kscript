@@ -1,38 +1,35 @@
 /* ks.h - main header for the kscript library.
-
-Meant to be a flexible, dynamic programming language with fast startup time, easy
-C extension API, with a rich standard library. 
-
-Much is a work in progress, but most of the basic types are implemented. The next big goals are:
-
-  * user-defined types (kscript-defined types)
-  * function closures (scope hoisting and carrying)
-  * constructors/class programming interface (how will __new__ / __call__ work?)
-
-
-Further down the line, the first big public changes neccessary before any release or tutorial is
-really written are:
-
-  * Module/package system (this has not really been done at all. We want a very clear way to install
-        and manage packages)
-  * Versioning/compatability. Obviously, for the first bit, the language will be rapidly changing.
-        eventually, it should be mostly backwards compatible in a way people can count on and not have
-        to care about the specific version they have or are writing for. A lot needs to be standardized
-        that has not been determined yet
-  * Tests/example cases, including failures
-  * Proper error types, so catch blocks can discriminate correctly
-
-See more at: https://github.com/ChemicalDevelopment/kscript
-
-@author: Cade Brown <brown.cade@gmail.com>
-
-*/
+ *
+ * Meant to be a flexible, dynamic programming language with fast startup time, easy
+ *   C extension API, with a rich standard library. 
+ *
+ * Much is a work in progress, but most of the basic types are implemented. The next big goals are:
+ *
+ * * user-defined types (kscript-defined types)
+ * * function closures (scope hoisting and carrying)
+ * * constructors/class programming interface (how will __new__ / __call__ work?)
+ *
+ * Further down the line, the first big public changes neccessary before any release or tutorial is
+ *   really written are:
+ *  * Module/package system (this has not really been done at all. We want a very clear way to install
+ *      and manage packages)
+ *  * Versioning/compatability. Obviously, for the first bit, the language will be rapidly changing.
+ *      eventually, it should be mostly backwards compatible in a way people can count on and not have
+ *      to care about the specific version they have or are writing for. A lot needs to be standardized
+ *      that has not been determined yet
+ *  * Tests/example cases, including failures
+ *  * Proper error types, so catch blocks can discriminate correctly
+ *
+ * See more at: https://github.com/ChemicalDevelopment/kscript
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
 #pragma once
 #ifndef KS_H__
 #define KS_H__
 
-/* constants about kscript */
+/* constants about kscript & versioning */
 
 // the major version of the release
 #define KS_VER_MAJOR 0
@@ -58,6 +55,7 @@ See more at: https://github.com/ChemicalDevelopment/kscript
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include <assert.h>
 
 /* timing headers (which may be different on windows/mac) */
 #include <time.h>
@@ -222,30 +220,50 @@ bool kse_dumpall();
 // clear the errors, returning true if there were any
 bool kse_clear();
 
+
+/* assertions/requirements for checking & generating errors */
+
 // assert that `_expr` is true, issuing an error if not
-// should be used only in Cfuncs/functions that will return NULL
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
 #define KS_ASSERT(_expr, ...) { if (!(_expr)) { return kse_fmt("AssertError: " __VA_ARGS__); } }
 
 // assert that `_expr` is true, issuing an error if not
 // should be used only in Cfuncs/functions that will return NULL
 // this just requires something to be true, but does not throw an AssertError if it is not,
 // just a generic error
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
 #define KS_REQ(_expr, ...) { if (!(_expr)) { return kse_fmt(__VA_ARGS__); } }
 
+
+// error that you can't convert `_obj` to type `_type`
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
+#define KS_ERR_TYPECONV(_obj, _type) return kse_fmt("Don't know how to convert type '%S' to type '%S'", (_obj)->type->name, (_type)->name);
+
+
 // require that an object has a given type, or print an error. _name is for printing purposes
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
 #define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "'type(%s)' (%T) was not '%s'", _name, _obj, (_type)->name->chr)
 
 // require that an object be a sub type of a given type, or print an error. _name is for printing purposes
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
 #define KS_REQ_SUBTYPE(_obj, _type, _name) KS_REQ(ks_type_issub((_obj)->type, (_type)), "'type(%s)' (%T) was not a subtype of '%s'", _name, _obj, (_type)->name->chr)
 
+
 // assert that the number of arguments is a correct value
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
 #define KS_REQ_N_ARGS(_narg, _correct) KS_REQ((_narg) == (_correct), "Wrong number of args, expected %i, but got %i", _correct, _narg)
 
-// assert a given number of arguments
-#define KS_REQ_N_ARGS_RANGE(_narg, _min, _max) KS_REQ((_narg) >= (_min) && (_narg) <= (_max), "Wrong number of args, expected between %i and %i, but got %i", _min, _max, _narg)
+// assert that the number of arguments is at least a minimum
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
+#define KS_REQ_N_ARGS_MIN(_narg, _min) KS_REQ((_narg) >= (_min), "Wrong number of args, expected at least %i, but got %i", _min, _narg)
 
-// error that you can't convert `_obj` to type `_type`
-#define KS_ERR_TYPECONV(_obj, _type) return kse_fmt("Don't know how to convert type '%S' to type '%S'", (_obj)->type->name, (_type)->name);
+// assert that the number of arguments is at most a maximum
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
+#define KS_REQ_N_ARGS_MAX(_narg, _max) KS_REQ((_narg) <= (_max), "Wrong number of args, expected at most %i, but got %i", _max, _narg)
+
+// assert a given number of arguments
+// NOTE: Should be used only in Cfuncs that return a kso (i.e. this will return NULL)
+#define KS_REQ_N_ARGS_RANGE(_narg, _min, _max) KS_REQ((_narg) >= (_min) && (_narg) <= (_max), "Wrong number of args, expected between %i and %i, but got %i", _min, _max, _narg)
 
 
 /* global state */
@@ -255,6 +273,7 @@ ks_dict ks_get_globals();
 
 
 /* VM execution */
+
 
 // executes a chunk of code, discarding the results
 void ks_vm_exec(ks_code code);

@@ -1,9 +1,10 @@
 /* ks_internal.h - internal, non-exported functions & data
-
-This file is not included with `ks.h`, as it includes internal initialization methods that must
-be called at initialization time
-
-*/
+ *
+ * This file is not included with `ks.h`, as it includes internal initialization methods that must
+ * be called at initialization time
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
 #pragma once
 #ifndef KS_INTERNAL_H__

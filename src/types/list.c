@@ -87,7 +87,7 @@ void ks_list_clear(ks_list self) {
 
 // list.__new__(val) -> constructs a new list from 'val', which in general
 //   creates a list from all the elements of 'val', which can be a tuple/collection type
-TFUNC(list, new) {
+KS_TFUNC(list, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso val = args[0];
 
@@ -104,7 +104,7 @@ TFUNC(list, new) {
 }
 
 // list.__free__(self) -> frees the list's resources & de-records references
-TFUNC(list, free) {
+KS_TFUNC(list, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -123,7 +123,7 @@ TFUNC(list, free) {
     return KSO_NONE;
 }
 
-TFUNC(list, repr) {
+KS_TFUNC(list, repr) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -149,7 +149,7 @@ TFUNC(list, repr) {
     return (kso)ks_strB_finish(&ksb);
 }
 
-TFUNC(list, str) {
+KS_TFUNC(list, str) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -175,7 +175,7 @@ TFUNC(list, str) {
     return (kso)ks_strB_finish(&ksb);
 }
 
-TFUNC(list, hash) {
+KS_TFUNC(list, hash) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -183,7 +183,7 @@ TFUNC(list, hash) {
     return kse_fmt("'list' objects are not hashable!");
 }
 
-TFUNC(list, getitem) {
+KS_TFUNC(list, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -195,7 +195,7 @@ TFUNC(list, getitem) {
     return KSO_NEWREF(self->items[idx]);
 }
 
-TFUNC(list, setitem) {
+KS_TFUNC(list, setitem) {
     KS_REQ_N_ARGS(n_args, 3);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -217,16 +217,16 @@ TFUNC(list, setitem) {
 
 
 // list.__iter__(self) -> return a list iterator object
-TFUNC(list, iter) {
+KS_TFUNC(list, iter) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
 
-    return ks_list_iter_new(self);
+    return (kso)ks_list_iter_new(self);
 }
 
 
-TFUNC(list, add) {
+KS_TFUNC(list, add) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");
@@ -251,7 +251,7 @@ TFUNC(list, add) {
 
 
 // list.__neg__(self) -> returns the list in reverse order
-TFUNC(list, neg) {
+KS_TFUNC(list, neg) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_T_list, "self");

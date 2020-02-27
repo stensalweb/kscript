@@ -500,7 +500,7 @@ ks_str ks_str_new_kfmt(ks_str kfmt, ks_tuple args) {
 
             if (args_i >= args->len) {
                 KSO_DECREF(ks_strB_finish(&ksb));
-                return kse_fmt("Extra format specifier (only had %i arguments, but %i requested)", (int)args->len, args_i);
+                return kse_fmt("Extra format specifier (only had %i arguments, but %i requested)", (int)args->len, args_i+1);
             }
 
             kso obj = args->items[args_i++];

@@ -1,26 +1,26 @@
 /* ks_types.h - definition of the builtin/primitive types
-
-This defines the internal structure of the builtin types, as well as descibing their
-functionality, including constructing, managing, etc
-
-the builtin types:
-
-  * none: the none-type, only a global singleton exists
-  * bool: the boolean type, either true or false, and 2 singletons exist for the values
-  * int: an integer type, typically a wrapper around the largest machine size integer
-  * !long (not included yet): an arbitrarily long integer
-  * str: a string of characters, with a length. these are immutable
-  * tuple: an immutable collection indexable like a list
-  * list: a mutable, indexable collection of objects
-  * dict: a key->value mapping that can take any type in or out
-  * code: executable collection of bytecode
-  * kfunc: wrapper around the code that descibes a function
-  * cfunc: a wrapper around a callable C function
-  * pfunc: a type desrcibing a partially-filled out function which is callable
-
-See the C files in `types/` for the actual implementations of the types
-
-*/
+ *
+ * This defines the internal structure of the builtin types, as well as descibing their
+ * functionality, including constructing, managing, etc
+ *
+ * BUILTIN:
+ *  none: the none-type, only a global singleton exists
+ *  bool: the boolean type, either true or false, and 2 singletons exist for the values
+ *  int: an integer type, typically a wrapper around the largest machine size integer
+ *  long (not included yet): an arbitrarily long integer
+ *  str: a string of characters, with a length. these are immutable
+ *  tuple: an immutable collection indexable like a list
+ *  list: a mutable, indexable collection of objects
+ *  dict: a key->value mapping that can take any type in or out
+ *  code: executable collection of bytecode
+ *  kfunc: wrapper around the code that descibes a function
+ *  cfunc: a wrapper around a callable C function
+ *  pfunc: a type desrcibing a partially-filled out function which is callable
+ *
+ * See the C files in `types/` for the actual implementations of the types
+ * 
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
 #pragma once
 #ifndef KS_TYPES_H__
@@ -1279,6 +1279,19 @@ void ks_pfunc_fill(ks_pfunc self, int arg_idx, kso val);
 
 /* error -> a type representing an error */
 
+
+/* stkframe -> an internal type mainly used for execution */
+typedef struct ks_stkframe {
+    KSO_BASE
+
+    // the parent stackframe, NULL if this is a global stack frame
+    struct ks_stkframe* parent;
+
+    // local variables on this current stack frame
+    ks_dict locals;
+
+
+}* ks_stkframe ;
 
 /* kobj -> the base object type,  */
 

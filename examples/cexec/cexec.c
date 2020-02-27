@@ -43,11 +43,11 @@ FUNCTIONS:
 
 /* now, define our function that runs a given command */
 
-MFUNC(cexec, run) {
+KS_MFUNC((cexec, run) {
     #define SIG "cexec.run(cmd)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_str cmd = (ks_str)args[0];
-    REQ_TYPE("cmd", cmd, ks_T_str);
+    KS_REQ_TYPE(cmd, ks_T_str, "cmd");
 
     // file pointer to command output
     FILE* fp = NULL;
@@ -82,7 +82,7 @@ MODULE_INIT() {
     ks_module mod = ks_module_new_c("cexec");
 
     // add our function
-    MODULE_ADD_CFUNC(mod, "run", cexec_run_);
+    MODULE_ADD_CKS_FUNC(mod, "run", cexec_run_);
     
     // return our module
     return (kso)mod;

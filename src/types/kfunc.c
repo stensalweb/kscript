@@ -17,11 +17,10 @@ ks_kfunc ks_kfunc_new(ks_list params, ks_code code) {
 }
 
 
-TFUNC(kfunc, free) {
-    #define SIG "kfunc.__free__(self)"
-    REQ_N_ARGS(1);
+KS_TFUNC(kfunc, free) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_kfunc self = (ks_kfunc)args[0];
-    REQ_TYPE("self", self, ks_T_kfunc);
+    KS_REQ_TYPE(self, ks_T_kfunc, "self");
 
     KSO_DECREF(self->params);
     KSO_DECREF(self->code);
@@ -29,7 +28,6 @@ TFUNC(kfunc, free) {
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 /* exporting functionality */

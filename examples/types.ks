@@ -41,33 +41,37 @@ print (xy, xy[0], xy[1])
 
 # -*- custom types -*-
 
+# GI - Guassian Integer (https://en.wikipedia.org/wiki/Gaussian_integer)
+type GI {
 
-# here's a custom type
-
-type MyType {
-
-    T = [1, 2, 3]
+    my_list = [1, 2, 3]
 
     func __init__(self, x, y) {
         self.x = x
-        self.y = (1, y, y+x)
-    }
-
-    func get(self, z) {
-        ret self.x + z
+        self.y = y
     }
 
     func __str__(self) {
-        try ret "Val<" + self.x + ", " + self.y + ">", catch, ret "ERR"
+        try ret "%s+%si" % (self.x, self.y), catch e, ret "ERR"
     }
+
+    func __add__(self, other) {
+        ret GI(self.x + other.x, self.y + other.y)
+    }
+
+    func __mul__(self, other) {
+        ret GI(self.x * other.x - self.y * other.y, self.x * other.y + self.y * other.x)
+    }
+
 }
 
-# construct it
-m = MyType(2, 3)
+A = GI(0, 1)
+B = GI(1, 1)
 
-print (m)
 
-print (MyType.T, type(m).T)
+print (A, B, A + B, A*B)
 
-print (m.get(5))
+print (A.my_lisft())
+
+print ("AFTER")
 

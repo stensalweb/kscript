@@ -46,7 +46,7 @@ ks_int ks_int_new(int64_t v_int) {
 
 
 // int.__new__(obj) -> convert `obj` to an integer
-TFUNC(int, new) {
+KS_TFUNC(int, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso self = args[0];
     if (self->type == ks_T_int) return KSO_NEWREF(self);
@@ -60,11 +60,10 @@ TFUNC(int, new) {
 
 
 // int.__str__(self) -> return the integer as its string
-TFUNC(int, str) {
-    #define SIG "int.__str__(self)"
-    REQ_N_ARGS(1);
+KS_TFUNC(int, str) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_int self = (ks_int)args[0];
-    REQ_TYPE("self", self, ks_T_int);
+    KS_REQ_TYPE(self, ks_T_int, "self");
 
     // capture it as an actual integer
     int64_t self_i = self->v_int;
@@ -110,11 +109,11 @@ TFUNC(int, str) {
 }
 
 // int.__repr__(self) -> return the integer as its string representation
-TFUNC(int, repr) {
+KS_TFUNC(int, repr) {
     #define SIG "int.__repr__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_int self = (ks_int)args[0];
-    REQ_TYPE("self", self, ks_T_int);
+    KS_REQ_TYPE(self, ks_T_int, "self");
 
     // capture it as an actual integer
     int64_t self_i = self->v_int;
@@ -161,9 +160,9 @@ TFUNC(int, repr) {
 
 
 // int.__add__(A, B) -> returns the sum of A and B
-TFUNC(int, add) {
+KS_TFUNC(int, add) {
     #define SIG "int.__add__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -175,9 +174,9 @@ TFUNC(int, add) {
 }
 
 // int.__sub__(A, B) -> returns the difference of A and B
-TFUNC(int, sub) {
+KS_TFUNC(int, sub) {
     #define SIG "int.__sub__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -189,9 +188,9 @@ TFUNC(int, sub) {
 }
 
 // int.__mul__(A, B) -> returns the difference of A and B
-TFUNC(int, mul) {
+KS_TFUNC(int, mul) {
     #define SIG "int.mul(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -203,9 +202,9 @@ TFUNC(int, mul) {
 }
 
 // int.__div__(A, B) -> returns the quotient of A and B
-TFUNC(int, div) {
+KS_TFUNC(int, div) {
     #define SIG "int.__div__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -217,9 +216,9 @@ TFUNC(int, div) {
 }
 
 // int.__mod__(A, B) -> returns the modulo of A and B (always positive)
-TFUNC(int, mod) {
+KS_TFUNC(int, mod) {
     #define SIG "int.__mod__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -239,9 +238,9 @@ TFUNC(int, mod) {
 }
 
 // int.__pow__(A, B) -> returns the power of A and B
-TFUNC(int, pow) {
+KS_TFUNC(int, pow) {
     #define SIG "int.__pow__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -278,9 +277,9 @@ TFUNC(int, pow) {
 }
 
 // int.__lt__(A, B) -> returns A < B
-TFUNC(int, lt) {
+KS_TFUNC(int, lt) {
     #define SIG "int.__lt__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -292,9 +291,9 @@ TFUNC(int, lt) {
 }
 
 // int.__le__(A, B) -> returns A <= B
-TFUNC(int, le) {
+KS_TFUNC(int, le) {
     #define SIG "int.__le__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -306,9 +305,9 @@ TFUNC(int, le) {
 }
 
 // int.__gt__(A, B) -> returns A > B
-TFUNC(int, gt) {
+KS_TFUNC(int, gt) {
     #define SIG "int.__gt__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -320,9 +319,9 @@ TFUNC(int, gt) {
 }
 
 // int.__ge__(A, B) -> returns A >= B
-TFUNC(int, ge) {
+KS_TFUNC(int, ge) {
     #define SIG "int.__ge__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -334,9 +333,9 @@ TFUNC(int, ge) {
 }
 
 // int.__eq__(A, B) -> returns A == B
-TFUNC(int, eq) {
+KS_TFUNC(int, eq) {
     #define SIG "int.__eq__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -348,9 +347,9 @@ TFUNC(int, eq) {
 }
 
 // int.__ne__(A, B) -> returns A == B
-TFUNC(int, ne) {
+KS_TFUNC(int, ne) {
     #define SIG "int.__ne__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_int && B->type == ks_T_int) {
@@ -364,7 +363,7 @@ TFUNC(int, ne) {
 
 
 // int.__neg__(A) -> returns -A
-TFUNC(int, neg) {
+KS_TFUNC(int, neg) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_int A = (ks_int)args[0];
     KS_REQ_TYPE(A, ks_T_int, "A");
@@ -373,7 +372,7 @@ TFUNC(int, neg) {
 }
 
 // int.__sqig__(A) -> returns ~A
-TFUNC(int, sqig) {
+KS_TFUNC(int, sqig) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_int A = (ks_int)args[0];
     KS_REQ_TYPE(A, ks_T_int, "A");

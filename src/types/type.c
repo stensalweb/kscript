@@ -209,7 +209,7 @@ kso ks_type_getattr_c(ks_type self, char* attr) {
 
 /* generic functions */
 
-TFUNC(type, getattr) {
+KS_TFUNC(type, getattr) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_type self = (ks_type)args[0];
     KS_REQ_TYPE(self, ks_T_type, "self");
@@ -219,7 +219,7 @@ TFUNC(type, getattr) {
     return ks_type_getattr(self, attr);
 }
 
-TFUNC(type, setattr) {
+KS_TFUNC(type, setattr) {
     KS_REQ_N_ARGS(n_args, 3);
     ks_type self = (ks_type)args[0];
     KS_REQ_TYPE(self, ks_T_type, "self")
@@ -235,7 +235,7 @@ TFUNC(type, setattr) {
     return KSO_NEWREF(val);
 }
 
-TFUNC(type, free) {
+KS_TFUNC(type, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_type self = (ks_type)args[0];
     KS_REQ_TYPE(self, ks_T_type, "self")

@@ -1,4 +1,8 @@
-/* ks_module.h - header to be included when defining a kscript module extension in C */
+/* ks_module.h - header to be included when defining a kscript module extension in C 
+ *
+ * 
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
 #pragma once
 #ifndef KS_MODULE_H__
@@ -13,12 +17,12 @@
 // MODULE_INIT() {
 // /* init code goes here */
 // }
-#define MODULE_INIT() static MFUNC(_module, init)
+#define MODULE_INIT() static KS_MFUNC((_module, init)
 
 // add a C function to a module:
-// i.e. MODULE_ADD_CFUNC(module, "funcname", "decl(a, b)", my_func_)
+// i.e. MODULE_ADD_CKS_FUNC(module, "funcname", "decl(a, b)", my_func_)
 // my_func_ needs to be of `ks_cfunc_sig` to work
-#define MODULE_ADD_CFUNC(_mod, _cstr, _sigs, _cfunc) { ks_cfunc made_cfunc = ks_cfunc_new(_cfunc, _sigs); ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)made_cfunc); KSO_DECREF(made_cfunc); }
+#define MODULE_ADD_CKS_FUNC(_mod, _cstr, _sigs, _cfunc) { ks_cfunc made_cfunc = ks_cfunc_new(_cfunc, _sigs); ks_dict_set_cstr((_mod)->__dict__, _cstr, (kso)made_cfunc); KSO_DECREF(made_cfunc); }
 
 // add a type to a module:
 // i.e. MODULE_ADD_TYPE(module, "MyType", T_mytype)

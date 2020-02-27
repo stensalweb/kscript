@@ -17,7 +17,6 @@ void ks_init__bool() {
     /* create the type */
     T_bool = KS_TYPE_INIT();
 
-
     ks_type_setname_c(ks_T_bool, "bool");
 
     // create the global values

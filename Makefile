@@ -16,12 +16,12 @@
 # set the C compiler (?= means 'set if not already set')
 CC         ?= cc
 # set the compiler flags
-CFLAGS     ?= -O3 -std=c99
+CFLAGS     ?= -O3 -std=c99 
 # set the installation prefix
 PREFIX     ?= /usr/local
 
 # which standard modules to build? default is all of them
-KSM_STD    ?= mm
+KSM_STD    ?= 
 
 
 # -*- INPUT FILES
@@ -81,7 +81,7 @@ clean:
 # in makefile, `%` is like a wildcard, `%.c` will match `DIR/ANYTHING.c`
 # `$<`: means the input file (%.c in this case)
 # `$@`: means the output file (%.o in thie case)
-%.o: %.c
+%.o: %.c $(libks_src_h)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
 

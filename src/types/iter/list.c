@@ -19,7 +19,7 @@ ks_list_iter ks_list_iter_new(ks_list list_obj) {
 }
 
 // kscript function to construct a list iterator
-TFUNC(list_iter, new) {
+KS_TFUNC(list_iter, new) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list list_obj = (ks_list)args[0];
     KS_REQ_TYPE(list_obj, ks_T_list, "list_obj");
@@ -28,7 +28,7 @@ TFUNC(list_iter, new) {
 }
 
 // grab the next value from the iterator
-TFUNC(list_iter, next) {
+KS_TFUNC(list_iter, next) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list_iter self = (ks_list_iter)args[0];
     KS_REQ_TYPE(self, ks_T_list_iter, "self");
@@ -44,7 +44,7 @@ TFUNC(list_iter, next) {
 
 
 // free the list iterator object
-TFUNC(list_iter, free) {
+KS_TFUNC(list_iter, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_list_iter self = (ks_list_iter)args[0];
     KS_REQ_TYPE(self, ks_T_list_iter, "self");

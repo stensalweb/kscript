@@ -1,43 +1,44 @@
 /* ks_funcs.h - the standard/builtin functions, as kscript objects
-
-Included:
-
-UTIL/GENERIC:
-  * repr(obj) : returns the string representation of an object
-  * type(obj) : returns the type of `obj`
-  * call(obj, args=(,)) : calls `obj` as a function, given arguments
-  * hash(obj) : returns an object's hash, as an integer
-  * print(*objs) : prints all objects out to the console
-
-MODULE/NAMESPACING:
-  * import(name) : imports a given file as a module, returns item
-
-ITERATORS:
-  * iter(obj) : return an iterator for 'obj'
-  * next(iter_obj) : returns the next item for the iterator 'iter_obj'
-
-OPERATORS:
-  * __add__(a, b) : returns a+b
-  * __sub__(a, b) : returns a-b
-  * __mul__(a, b) : returns a*b
-  * __div__(a, b) : returns a/b
-  * __mod__(a, b) : returns a%b
-  * __pow__(a, b) : returns a**b
-  * __lt__(a, b) : returns a<b
-  * __le__(a, b) : returns a<=b
-  * __gt__(a, b) : returns a>b
-  * __ge__(a, b) : returns a>=b
-  * __eq__(a, b) : returns a==b
-  * __ne__(a, b) : returns a!=b
-  * __neg__(a) : returns -a
-  
-MATH/MISC:
-  * rand() : returns a random integer
-
-
-See the file `funcs.c` for the implementation of these
-
-*/
+ *
+ * Included:
+ *
+ * UTIL/GENERIC:
+ *  * repr(obj) : returns the string representation of an object
+ *  * type(obj) : returns the type of `obj`
+ *  * call(obj, args=(,)) : calls `obj` as a function, given arguments
+ *  * hash(obj) : returns an object's hash, as an integer
+ *  * print(*objs) : prints all objects out to the console
+ *
+ * MODULE/NAMESPACING:
+ *  * import(name) : imports a given file as a module, returns item
+ *
+ * ITERATORS:
+ *  * iter(obj) : return an iterator for 'obj'
+ *  * next(iter_obj) : returns the next item for the iterator 'iter_obj'
+ *
+ * OPERATORS:
+ *  * __add__(a, b) : returns a+b
+ *  * __sub__(a, b) : returns a-b
+ *  * __mul__(a, b) : returns a*b
+ *  * __div__(a, b) : returns a/b
+ *  * __mod__(a, b) : returns a%b
+ *  * __pow__(a, b) : returns a**b
+ *  * __lt__(a, b) : returns a<b
+ *  * __le__(a, b) : returns a<=b
+ *  * __gt__(a, b) : returns a>b
+ *  * __ge__(a, b) : returns a>=b
+ *  * __eq__(a, b) : returns a==b
+ *  * __ne__(a, b) : returns a!=b
+ *  * __neg__(a) : returns -a
+ *  
+ * MATH/MISC:
+ *  * rand() : returns a random integer
+ *
+ *
+ * See the file `funcs.c` for the implementation of these
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
 #pragma once
 #ifndef KS_FUNCS_H__

@@ -16,7 +16,6 @@ void ks_init__error() {
     T_error = KS_TYPE_INIT();
 
     ks_type_set_namec(ks_T_error, "Error");
-
 }
 
 

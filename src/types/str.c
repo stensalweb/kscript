@@ -70,7 +70,7 @@ ks_str ks_str_new_cfmt(const char* fmt, ...) {
 /* exporting functionality */
 
 
-TFUNC(str, new) {
+KS_TFUNC(str, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso obj = (kso)args[0];
     if (obj->type == ks_T_str) return KSO_NEWREF(obj);
@@ -81,21 +81,21 @@ TFUNC(str, new) {
 
 }
 
-TFUNC(str, add) {
+KS_TFUNC(str, add) {
     KS_REQ_N_ARGS(n_args, 2);
 
     // just append their string representation
     return (kso)ks_str_new_cfmt("%S%S", args[0], args[1]);
 }
 
-TFUNC(str, mod) {
+KS_TFUNC(str, mod) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
-    ks_str v_args = (ks_tuple)args[1];
+    ks_tuple v_args = (ks_tuple)args[1];
     KS_REQ_TYPE(v_args, ks_T_tuple, "args");
 
-    return ks_str_new_kfmt(self, v_args);
+    return (kso)ks_str_new_kfmt(self, v_args);
 }
 
 
@@ -105,7 +105,7 @@ static int s_strcmp(ks_str a, ks_str b) {
     else return memcmp(a->chr, b->chr, a->len);
 }
 
-TFUNC(str, cmp) {
+KS_TFUNC(str, cmp) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
@@ -119,42 +119,42 @@ TFUNC(str, cmp) {
 }
 
 
-TFUNC(str, lt) {
+KS_TFUNC(str, lt) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
     KS_REQ_TYPE(b, ks_T_str, "b");
     return KSO_BOOL(s_strcmp(a, b) < 0);
 }
-TFUNC(str, le) {
+KS_TFUNC(str, le) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
     KS_REQ_TYPE(b, ks_T_str, "b");
     return KSO_BOOL(s_strcmp(a, b) <- 0);
 }
-TFUNC(str, gt) {
+KS_TFUNC(str, gt) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
     KS_REQ_TYPE(b, ks_T_str, "b");
     return KSO_BOOL(s_strcmp(a, b) > 0);
 }
-TFUNC(str, ge) {
+KS_TFUNC(str, ge) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
     KS_REQ_TYPE(b, ks_T_str, "b");
     return KSO_BOOL(s_strcmp(a, b) >= 0);
 }
-TFUNC(str, eq) {
+KS_TFUNC(str, eq) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
     KS_REQ_TYPE(b, ks_T_str, "b");
     return KSO_BOOL(s_strcmp(a, b) == 0);
 }
-TFUNC(str, ne) {
+KS_TFUNC(str, ne) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str a = (ks_str)args[0], b = (ks_str)args[1];
     KS_REQ_TYPE(a, ks_T_str, "a");
@@ -164,7 +164,7 @@ TFUNC(str, ne) {
 
 
 
-TFUNC(str, getitem) {
+KS_TFUNC(str, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
@@ -181,7 +181,7 @@ TFUNC(str, getitem) {
 
 
 // -self, reverse self
-TFUNC(str, neg) {
+KS_TFUNC(str, neg) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
@@ -207,7 +207,7 @@ TFUNC(str, neg) {
 }
 
 // ~self, strip of whitespace
-TFUNC(str, sqig) {
+KS_TFUNC(str, sqig) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
@@ -233,7 +233,7 @@ TFUNC(str, sqig) {
 /* other utility functions */
 
 // str.split(self) : split on whitespace
-TFUNC(str, split) {
+KS_TFUNC(str, split) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
@@ -263,14 +263,14 @@ TFUNC(str, split) {
 
 
 // str.format(self, args) : format string
-TFUNC(str, format) {
+KS_TFUNC(str, format) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_T_str, "self");
-    ks_str v_args = (ks_tuple)args[1];
+    ks_tuple v_args = (ks_tuple)args[1];
     KS_REQ_TYPE(v_args, ks_T_tuple, "args");
 
-    return ks_str_new_kfmt(self, v_args);
+    return (kso)ks_str_new_kfmt(self, v_args);
 }
 
 

@@ -1,5 +1,4 @@
-/* kso.h - implementation of builtin objects/types */
-
+/* kso.h - implementation of various object interface functions (TODO: move this somewhere else) */
 
 #pragma once
 
@@ -24,7 +23,6 @@ ks_str ks_str_new_kfmt(ks_str kfmt, ks_tuple args);
 // generates the bytecode for a given AST, returns the code object
 // NOTE: this is implemented in codegen.c, rather than kso.c
 ks_code ks_ast_codegen(ks_ast self, ks_list v_const);
-
 
 
 /* GENERIC OBJECT FUNCTIONALITY */

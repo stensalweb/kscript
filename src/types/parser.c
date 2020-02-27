@@ -1742,23 +1742,20 @@ ks_ast ks_parse_program(ks_parser self) {
 
 /* exported type functions */
 
-TFUNC(parser, free) {
-    #define SIG "parser.__free__(self)"
-    REQ_N_ARGS(1);
+KS_TFUNC(parser, free) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_parser self = (ks_parser)args[0];
-    REQ_TYPE("self", self, ks_T_parser);
+    KS_REQ_TYPE(self, ks_T_parser, "self");
 
-
-    ks_free(self->toks);
-
+    // remove references
     KSO_DECREF(self->src_name);
-
     KSO_DECREF(self->src);
 
+    // free our buffers
+    ks_free(self->toks);
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 

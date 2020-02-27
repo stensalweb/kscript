@@ -19,7 +19,7 @@ ks_dict_iter ks_dict_iter_new(ks_dict dict_obj) {
 }
 
 // kscript function to construct a dict iterator
-TFUNC(dict_iter, new) {
+KS_TFUNC(dict_iter, new) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict dict_obj = (ks_dict)args[0];
     KS_REQ_TYPE(dict_obj, ks_T_dict, "dict_obj");
@@ -28,11 +28,10 @@ TFUNC(dict_iter, new) {
 }
 
 // grab the next value from the iterator
-TFUNC(dict_iter, next) {
+KS_TFUNC(dict_iter, next) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict_iter self = (ks_dict_iter)args[0];
     KS_REQ_TYPE(self, ks_T_dict_iter, "self");
-
 
     int idx = self->pos;
 
@@ -55,12 +54,12 @@ TFUNC(dict_iter, next) {
     self->pos = idx + 1;
 
     // construct a tuple from key, val
-    return ks_tuple_new((kso[]){ self->dict_obj->buckets[idx].key, self->dict_obj->buckets[idx].val }, 2);
+    return (kso)ks_tuple_new((kso[]){ self->dict_obj->buckets[idx].key, self->dict_obj->buckets[idx].val }, 2);
 }
 
 
 // free the dict iterator object
-TFUNC(dict_iter, free) {
+KS_TFUNC(dict_iter, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict_iter self = (ks_dict_iter)args[0];
     KS_REQ_TYPE(self, ks_T_dict_iter, "self");

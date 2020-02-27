@@ -122,14 +122,14 @@ void ks_code_linkin(ks_code self, ks_code other) {
 
 /* code generation helpers */
 
-void ksc_addbytes(ks_code code, int size, uint8_t* new_bytes) {
+static void ksc_addbytes(ks_code code, int size, uint8_t* new_bytes) {
     int start = code->bc_n;
     code->bc = ks_realloc(code->bc, code->bc_n += size);
     memcpy(&code->bc[start], new_bytes, size);
 }
 
 // add a constant to the `v_const` list, returning the index
-int ksc_refconst(ks_code code, kso val) {
+static int ksc_refconst(ks_code code, kso val) {
     int i;
     for (i = 0; i < code->v_const->len; ++i) {
         // try and find a match, and just return that index instead of adding it
@@ -144,7 +144,7 @@ int ksc_refconst(ks_code code, kso val) {
 
 
 // add a constant reference to the `v_int` value
-int ksc_refconst_int(ks_code code, int64_t v_int) {
+static int ksc_refconst_int(ks_code code, int64_t v_int) {
     ks_int myint = ks_int_new(v_int);
     int ret = ksc_refconst(code, (kso)myint);
     KSO_DECREF(myint);
@@ -153,7 +153,7 @@ int ksc_refconst_int(ks_code code, int64_t v_int) {
 
 
 // add a constant reference to the `v_float` value
-int ksc_refconst_float(ks_code code, double v_float) {
+static int ksc_refconst_float(ks_code code, double v_float) {
     ks_float myfloat = ks_float_new(v_float);
     int ret = ksc_refconst(code, (kso)myfloat);
     KSO_DECREF(myfloat);
@@ -162,7 +162,7 @@ int ksc_refconst_float(ks_code code, double v_float) {
 
 
 // add a constant reference to the `v_const` list, returning the index
-int ksc_refconst_str(ks_code code, const char* cstr, int len) {
+static int ksc_refconst_str(ks_code code, const char* cstr, int len) {
     ks_str mystr = ks_str_new_l(cstr, len);
     int ret = ksc_refconst(code, (kso)mystr);
     KSO_DECREF(mystr);
@@ -266,8 +266,6 @@ void ksc_jmpf      (ks_code code, int relamt) KSC_I32(KSBC_JMPF, relamt)
 void ksc_ret       (ks_code code) KSC_(KSBC_RET)
 void ksc_ret_none  (ks_code code) KSC_(KSBC_RET_NONE)
 
-
-
 /* exception handling */
 void ksc_exc_add   (ks_code code, int abspos) KSC_I32(KSBC_EXC_ADD, abspos)
 void ksc_exc_rem   (ks_code code) KSC_(KSBC_EXC_REM)
@@ -275,26 +273,20 @@ void ksc_exc_rem   (ks_code code) KSC_(KSBC_EXC_REM)
 void ksc_throw     (ks_code code) KSC_(KSBC_THROW);
 
 
-
 // called when the object should be freed
-
-TFUNC(code, free) {
-
-    // get the arguments
+KS_TFUNC(code, free) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_code self = (ks_code)args[0];
 
     // deref the constant pool
     KSO_DECREF(self->v_const);
+    if (self->hrname) KSO_DECREF(self->hrname);
 
-    // free the bytecode
+    // free our allocated buffers
     ks_free(self->bc);
-
-    // free meta
     ks_free(self->meta_ast);
-
     ks_free(self);
 
-    if (self->hrname) KSO_DECREF(self->hrname);
 
     return KSO_NONE;
 }

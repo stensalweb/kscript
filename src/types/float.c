@@ -28,7 +28,7 @@ ks_float ks_float_new(double v_float) {
 /* type functions */
 
 // float.__new__(obj) -> convert `obj` to an float
-TFUNC(float, new) {
+KS_TFUNC(float, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso self = args[0];
     if (self->type == ks_T_float) return KSO_NEWREF(self);
@@ -42,7 +42,7 @@ TFUNC(float, new) {
 
 
 // float.__str__(self) -> return the integer as its string
-TFUNC(float, str) {
+KS_TFUNC(float, str) {
     KS_REQ_N_ARGS(1, n_args);
     ks_float self = (ks_float)args[0];
     KS_REQ_TYPE(self, ks_T_float, "self");
@@ -98,12 +98,12 @@ TFUNC(float, str) {
 }
 
 // float.__repr__(self) -> return thefloat as its string representation
-TFUNC(float, repr) {
+KS_TFUNC(float, repr) {
     return (kso)ks_str_new("ASD");
 }
 
 // float.__add__(A, B) -> returns the sum of A and B
-TFUNC(float, add) {
+KS_TFUNC(float, add) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -119,7 +119,7 @@ TFUNC(float, add) {
 }
 
 // float.__sub__(A, B) -> returns the difference of A and B
-TFUNC(float, sub) {
+KS_TFUNC(float, sub) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -135,7 +135,7 @@ TFUNC(float, sub) {
 }
 
 // float.__mul__(A, B) -> returns the product of A and B
-TFUNC(float, mul) {
+KS_TFUNC(float, mul) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -152,7 +152,7 @@ TFUNC(float, mul) {
 
 
 // float.__div__(A, B) -> returns the quotient of A and B
-TFUNC(float, div) {
+KS_TFUNC(float, div) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -168,7 +168,7 @@ TFUNC(float, div) {
 }
 
 // float.__mod__(A, B) -> returns the modulo of A and B (always positive)
-TFUNC(float, mod) {
+KS_TFUNC(float, mod) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -206,7 +206,7 @@ TFUNC(float, mod) {
 }
 
 // float.__pow__(A, B) -> returns the power of A and B
-TFUNC(float, pow) {
+KS_TFUNC(float, pow) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -231,7 +231,7 @@ TFUNC(float, pow) {
 }
 
 // float.__lt__(A, B) -> returns A < B
-TFUNC(float, lt) {
+KS_TFUNC(float, lt) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -248,7 +248,7 @@ TFUNC(float, lt) {
 }
 
 // float.__le__(A, B) -> returns A <= B
-TFUNC(float, le) {
+KS_TFUNC(float, le) {
     KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
@@ -265,9 +265,9 @@ TFUNC(float, le) {
 }
 
 // float.__gt__(A, B) -> returns A > B
-TFUNC(float, gt) {
+KS_TFUNC(float, gt) {
     #define SIG "int.__gt__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
@@ -283,9 +283,9 @@ TFUNC(float, gt) {
 }
 
 // float.__ge__(A, B) -> returns A >= B
-TFUNC(float, ge) {
+KS_TFUNC(float, ge) {
     #define SIG "int.__ge__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
@@ -300,9 +300,9 @@ TFUNC(float, ge) {
 }
 
 // float.__eq__(A, B) -> returns A == B
-TFUNC(float, eq) {
+KS_TFUNC(float, eq) {
     #define SIG "int.__eq__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
 
     if (A->type == ks_T_float && B->type == ks_T_float) {
@@ -318,9 +318,9 @@ TFUNC(float, eq) {
 }
 
 // float.__ne__(A, B) -> returns A == B
-TFUNC(float, ne) {
+KS_TFUNC(float, ne) {
     #define SIG "int.__ne__(A, B)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     kso A = args[0], B = args[1];
     
     if (A->type == ks_T_float && B->type == ks_T_float) {
@@ -338,7 +338,7 @@ TFUNC(float, ne) {
 
 
 // float.__neg__(A) -> returns -A
-TFUNC(float, neg) {
+KS_TFUNC(float, neg) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_float A = (ks_float)args[0];
     KS_REQ_TYPE(A, ks_T_float, "A");

@@ -7,6 +7,8 @@
  * A bucket is said to be empty if `bucket.val==NULL`, so this can be used to test if you
  *   can put an item in the bucket
  * 
+ * 
+ * 
  */
 
 #include "ks_common.h"
@@ -62,6 +64,7 @@ static bool dict_entry_matches(struct ks_dict_entry entry, kso key, uint64_t has
 
 /* prime number finding, for optimal hash-table sizes */
 
+// return true iff 'x' is prime
 static bool isprime(int x) {
     // true if prime
     if (x < 2) return false;
@@ -78,6 +81,7 @@ static bool isprime(int x) {
 
     return true;
 }
+
 // returns the next prime after x (not including x)
 static int nextprime(int x) {
     // round up to next odd number
@@ -95,8 +99,9 @@ static int nextprime(int x) {
     return p;
 }
 
-
+// resize a dictionary to a given size
 void ks_dict_resize(ks_dict self, int new_size) {
+    // if we already have enough, do nothing
     if (self->n_buckets >= new_size) return;
 
     // always round up to a prime number
@@ -111,13 +116,13 @@ void ks_dict_resize(ks_dict self, int new_size) {
     self->n_buckets = new_size;
     self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
 
-    // initialize them to empty
+    // initialize them to empty buckets
     int i;
     for (i = 0; i < self->n_buckets; ++i) {
         self->buckets[i] = (struct ks_dict_entry){ .key = NULL, .hash = 0, .val = NULL };
     }
 
-    // go through all the buckets, and merge them over
+    // go through all the buckets, and merge them over, this is called rehashing
     for (i = 0; i < old_n_buckets; ++i) {
         struct ks_dict_entry* old_entry = &old_buckets[i];
 
@@ -135,9 +140,10 @@ void ks_dict_resize(ks_dict self, int new_size) {
 
 int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
 
+    // we will always hold a new reference to 'val'
     KSO_INCREF(val);
 
-    // make sure it is large enough
+    // make sure it is large enough, and/or resize if it has reached the critical load factor
     if (self->n_buckets * _DICT_LOAD_MAX <= self->n_items * 100) {
         ks_dict_resize(self, _DICT_NEW_SIZE(self));
     }
@@ -236,8 +242,9 @@ void ks_dict_set_cstr(ks_dict self, char* cstr, kso val) {
 
 /* KSCRIPT FUNCTIONS */
 
-
-TFUNC(dict, new) {
+// dict.__new__(...)
+// TODO: document
+KS_TFUNC(dict, new) {
     if (n_args == 0) {
         // just construct an empty one
         return (kso)ks_dict_new_empty();
@@ -298,7 +305,7 @@ TFUNC(dict, new) {
 
 
 // dict.__str__(self) -> return a string for the dictionary
-TFUNC(dict, str) {
+KS_TFUNC(dict, str) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_T_dict, "self");
@@ -329,7 +336,7 @@ TFUNC(dict, str) {
 }
 
 // dict.__repr__(self) -> return a string representation of the dictionary
-TFUNC(dict, repr) {
+KS_TFUNC(dict, repr) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_T_dict, "self");
@@ -360,7 +367,7 @@ TFUNC(dict, repr) {
 }
 
 // dict.__free__(self) -> free dictionary
-TFUNC(dict, free) {
+KS_TFUNC(dict, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_T_dict, "self");
@@ -384,7 +391,7 @@ TFUNC(dict, free) {
 
 
 // dict.__getitem__(self, key, def=None) -> get item by 'key' in dictionary, with an optional default argument
-TFUNC(dict, getitem) {
+KS_TFUNC(dict, getitem) {
     KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_T_dict, "self");
@@ -407,7 +414,7 @@ TFUNC(dict, getitem) {
 }
 
 // dict.__setitem____(self, key, val) -> set a given key in the dictionary to that value
-TFUNC(dict, setitem) {
+KS_TFUNC(dict, setitem) {
 
     KS_REQ_N_ARGS(n_args, 3);
     ks_dict self = (ks_dict)args[0];
@@ -420,7 +427,7 @@ TFUNC(dict, setitem) {
 }
 
 
-TFUNC(dict, get) {
+KS_TFUNC(dict, get) {
     KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_T_dict, "self");
@@ -440,18 +447,14 @@ TFUNC(dict, get) {
     return KSO_NEWREF(res);
 }
 
-
-
 // dict.__iter__(self) -> return a dictionary key,val iterator for 'self'
-TFUNC(dict, iter) {
+KS_TFUNC(dict, iter) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_T_dict, "self");
 
     return (kso)ks_dict_iter_new(self);
 }
-
-
 
 
 /* exporting functionality */

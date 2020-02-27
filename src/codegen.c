@@ -448,6 +448,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
             // generate the 'else' block
             codegen(self->v_if.v_else, to, geni);
+            STK_TO(0);
 
             // position after the if & else blocks
             int p_a_all = to->bc_n;

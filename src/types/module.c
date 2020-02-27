@@ -99,13 +99,12 @@ ks_module ks_load_module(ks_str name) {
 }
 
 
-TFUNC(module, getattr) {
-    #define SIG "module.__getattr__(self, attr)"
-    REQ_N_ARGS(2);
+KS_TFUNC(module, getattr) {
+    KS_REQ_N_ARGS(n_args, 2);
     ks_module self = (ks_module)args[0];
-    REQ_TYPE("self", self, ks_T_module);
+    KS_REQ_TYPE(self, ks_T_module, "self");
     ks_str attr = (ks_str)args[1];
-    REQ_TYPE("attr", attr, ks_T_str);
+    KS_REQ_TYPE(attr, ks_T_str, "attr");
 
     kso ret = NULL;
 
@@ -125,26 +124,23 @@ TFUNC(module, getattr) {
 }
 
 
-TFUNC(module, setattr) {
-    #define SIG "module.__setattr__(self, attr, val)"
-    REQ_N_ARGS(3);
+KS_TFUNC(module, setattr) {
+    KS_REQ_N_ARGS(n_args, 3);
     ks_module self = (ks_module)args[0];
-    REQ_TYPE("self", self, ks_T_module);
+    KS_REQ_TYPE(self, ks_T_module, "self");
     ks_str attr = (ks_str)args[1];
-    REQ_TYPE("attr", attr, ks_T_str);
+    KS_REQ_TYPE(attr, ks_T_str, "attr");
     kso val = args[2];
 
     ks_dict_set(self->__dict__, (kso)attr, attr->v_hash, val);
 
     return KSO_NEWREF(val);
-    #undef SIG
 }
 
-TFUNC(module, free) {
-    #define SIG "module.__free__(self)"
-    REQ_N_ARGS(1);
+KS_TFUNC(module, free) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_module self = (ks_module)args[0];
-    REQ_TYPE("self", self, ks_T_module);
+    KS_REQ_TYPE(self, ks_T_module, "self");
 
     KSO_DECREF(self->name);
     KSO_DECREF(self->__dict__);
@@ -152,7 +148,6 @@ TFUNC(module, free) {
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 /* exporting functionality */
