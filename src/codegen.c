@@ -526,6 +526,7 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
         // first, generate the try part (which should be a block)
         codegen(self->v_try.v_try, to, geni);
+        STK_TO(0);
 
         ks_code_add_meta(to, self);
 
@@ -553,9 +554,12 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
             
             // pop off the last value
             ksc_popu(to);
+            STK_GROW(-1);
 
             // now, generate the catch part
             codegen(self->v_try.v_catch, to, geni);
+            STK_TO(0);
+
             int p_a_catch = to->bc_n;
 
             // now, we're done. so correct the jump after the try block so if no error occurs, it does not run the catch block

@@ -12,6 +12,10 @@ UTIL/GENERIC:
 MODULE/NAMESPACING:
   * import(name) : imports a given file as a module, returns item
 
+ITERATORS:
+  * iter(obj) : return an iterator for 'obj'
+  * next(iter_obj) : returns the next item for the iterator 'iter_obj'
+
 OPERATORS:
   * __add__(a, b) : returns a+b
   * __sub__(a, b) : returns a-b
@@ -29,10 +33,11 @@ OPERATORS:
   
 MATH/MISC:
   * rand() : returns a random integer
-  * 
+
+
+See the file `funcs.c` for the implementation of these
 
 */
-
 
 #pragma once
 #ifndef KS_FUNCS_H__
@@ -45,20 +50,23 @@ MATH/MISC:
 
 /* global singletons representing the builtin functions as objects */
 extern ks_cfunc
-    /* utils */
-    ks_F_repr,
+    /* single-object utilities */
     ks_F_type,
-    ks_F_call,
     ks_F_hash,
-    ks_F_print,
-    ks_F_exit,
-    
-    ks_F_import,
+    ks_F_repr,
+
+    /* multi-object uilities */
+    ks_F_call,
+
     ks_F_rand,
+    ks_F_print,
+
+    ks_F_import,
+
+    ks_F_shell,
+    ks_F_exit,
 
     ks_F_new_type,
-
-    ks_F_dict,
 
     /* attribute getting/setting */
     ks_F_getattr,
@@ -68,6 +76,10 @@ extern ks_cfunc
     ks_F_getitem,
     ks_F_setitem,
 
+    /* iterators */
+    ks_F_iter,
+    ks_F_next,
+  
     /* operators */
     ks_F_add,
     ks_F_sub,
@@ -86,15 +98,9 @@ extern ks_cfunc
     ks_F_gt,
     ks_F_ge,
     ks_F_eq,
-    ks_F_ne,
-
-    ks_F_shell
-
+    ks_F_ne
+    
 ;
-
-
-
-
 
 
 #endif

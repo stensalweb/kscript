@@ -790,7 +790,10 @@ ks_ast ks_parse_expr(ks_parser self) {
     while (true) {
 
         // skip over comments & newlines
-        while (VALID() && (CTOK().ttype == KS_TOK_COMMENT || CTOK().ttype == KS_TOK_NEWLINE)) ADV1()
+        // only skip over newlines if we are in the middle of a (...) or a [...] block
+        while (VALID() && (CTOK().ttype == KS_TOK_COMMENT || 
+            (n_pars != 0 && CTOK().ttype == KS_TOK_NEWLINE) || 
+            (n_bracks != 0 && CTOK().ttype == KS_TOK_NEWLINE))) ADV1()
 
         // make sure we're in bounds
         if (!VALID()) goto parseexpr_end;

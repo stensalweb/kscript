@@ -54,8 +54,14 @@ int main(int argc, char** argv) {
     SET_GLOBAL("pfunc", ks_T_pfunc);
     SET_GLOBAL("kobj", ks_T_kobj);
 
+    SET_GLOBAL("list_iter", ks_T_list_iter);
+
     /* internal helpers */
     SET_GLOBAL("__new_type__", ks_F_new_type);
+
+    /* iterables */
+    SET_GLOBAL("iter", ks_F_iter);
+    SET_GLOBAL("next", ks_F_next);
 
     /* operators */
     SET_GLOBAL("__add__", ks_F_add);

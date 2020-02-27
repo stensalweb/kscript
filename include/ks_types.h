@@ -633,6 +633,13 @@ struct ks_type {
     // type.setitem(self, attr, val) -> set  `self[item] = val`
     kso f_setitem;
 
+    /** iterator functions **/
+
+    // type.__iter__(self) -> return an iterator for this given object
+    kso f_iter;
+    // type.__next__(self) -> return the next item in the iterator, incrementing the iterator
+    kso f_next;
+
     /** operator functions **/
 
     //  +      -
@@ -668,6 +675,7 @@ struct ks_type {
     .f_new = NULL, .f_init = NULL, \
     .f_str = NULL, .f_repr = NULL, .f_hash = NULL, .f_call = NULL, \
     .f_getattr = NULL, .f_setattr = NULL, .f_getitem = NULL, .f_setitem = NULL, \
+    .f_iter = NULL, .f_next = NULL, \
     .f_add = NULL, .f_sub = NULL, .f_mul = NULL, .f_div = NULL, .f_mod = NULL, .f_pow = NULL, \
     .f_lt = NULL, .f_le = NULL, .f_gt = NULL, .f_ge = NULL, .f_eq = NULL, .f_ne = NULL, \
     .f_neg = NULL, .f_sqig = NULL, \
@@ -1284,6 +1292,57 @@ typedef struct ks_kobj {
 
 // new empty kobj
 ks_kobj ks_kobj_new();
+
+
+
+/** ITER TYPES - types which are just iterators of other types **/
+
+extern ks_type
+    ks_T_list_iter,
+    ks_T_dict_iter
+
+;
+
+
+/* ks_list_iter - the iterator for elements in a list 
+ *
+ * SEE: types/iter/list.c for the implementation
+ */
+typedef struct ks_list_iter {
+    KSO_BASE
+
+    // a reference to the list object, which is being grabbed from
+    ks_list list_obj;
+
+    // current position in the list, starting at 0
+    int pos;
+
+}* ks_list_iter;
+
+
+// construct a new list iteration object
+ks_list_iter ks_list_iter_new(ks_list list_obj);
+
+
+/* ks_dict_iter - the iterator for entries in a dict
+ *
+ * SEE: types/iter/dict.c for the implementation
+ */
+typedef struct ks_dict_iter {
+    KSO_BASE
+
+    // a reference to the list object, which is being grabbed from
+    ks_dict dict_obj;
+
+    // current position in the list, starting at 0
+    int pos;
+
+}* ks_dict_iter;
+
+
+// construct a new list iteration object
+ks_dict_iter ks_dict_iter_new(ks_dict dict_obj);
+
 
 
 

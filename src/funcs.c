@@ -4,7 +4,6 @@
 #include "ks_common.h"
 
 /* declarations  */
-
 ks_cfunc
     ks_F_print = NULL,
     ks_F_dict = NULL,
@@ -24,6 +23,9 @@ ks_cfunc
 
     ks_F_getitem = NULL,
     ks_F_setitem = NULL,
+
+    ks_F_iter = NULL,
+    ks_F_next = NULL,
 
     /* binary operators */
     ks_F_add = NULL,
@@ -46,29 +48,23 @@ ks_cfunc
     /* interop */
     ks_F_shell = NULL
 
-
 ;
 
 
 /* builtin default functions */
 
-FUNC(dict) {
-    #define SIG "dict()"
-    REQ_N_ARGS(0)
 
-    return (kso)ks_dict_new_empty();
-    #undef SIG
-}
-
+/* print(*args) -> print out all 'args' (seperated by a space), and then a newline
+ *
+ * If a specific 'arg' is not a string, 
+ * 
+ */
 FUNC(print) {
-    #define SIG "print(args...)"
-
-    //KS_ASSERT(n_args == 0, "Expected 0 args, but got %i", n_args);
-
     // just print out all the arguments, then a newline
     int i;
     for (i = 0; i < n_args; ++i) {
 
+        // put space between them
         if (i != 0) putc(' ', stdout);
         
         kso arg_i = args[i];
@@ -80,20 +76,26 @@ FUNC(print) {
         } else if (arg_i->type == ks_T_int) {
             printf("%ld", ((ks_int)arg_i)->v_int);
         } else {
+            // convert to string (i.e. str(obj)), and print that
             ks_str str_arg_i = kso_tostr(arg_i);
+            if (str_arg_i == NULL) return NULL;
+            if (str_arg_i->type != ks_T_str) {
+                return kse_fmt("Object '%R' could not be converted to string! (str() returns a non-string object!)", arg_i);
+            }
+            // otherwise, output the string
             fwrite(str_arg_i->chr, 1, str_arg_i->len, stdout);
             KSO_DECREF(str_arg_i);
         }
 
     }
 
+    // end with newline
     putc('\n', stdout);
 
     // optional
     fflush(stdout);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 
@@ -277,7 +279,7 @@ FUNC(getitem) {
 
 FUNC(setitem) {
     #define SIG "setitem(obj, *keys, val)"
-    REQ_N_ARGS_MIN(3);
+    REQ_N_ARGS_MIN(3)
 
     kso obj = args[0];
 
@@ -287,6 +289,39 @@ FUNC(setitem) {
     return kse_fmt("No '[]=' method for '%T' type", args[0]);
     #undef SIG
 }
+
+/* iterators */
+
+
+/* iter(obj) -> return an iterator for a given object
+ */
+FUNC(iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    kso obj = args[0];
+
+    if (obj->type->f_iter == NULL) {
+        return kse_fmt("'%T' object is not iterable!", obj);
+    } else {
+        // call the iterator
+        return kso_call(obj->type->f_iter, 1, &obj);
+    }
+}
+
+
+/* next(iter_obj) -> return the next object in an iterator, incrementing th eiterator
+ */
+FUNC(next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    kso iter_obj = args[0];
+
+    if (iter_obj->type->f_next == NULL) {
+        return kse_fmt("'%T' object is not next()-able!", iter_obj);
+    } else {
+        // call the iterator
+        return kso_call(iter_obj->type->f_next, 1, &iter_obj);
+    }
+}
+
 
 /* binary operators */
 
@@ -439,26 +474,31 @@ void ksf_init() {
 
     /* builtins */
 
-    ks_F_print = ks_cfunc_new(print_, "print(*args)");
-    ks_F_dict = ks_cfunc_new(dict_, "dict()");
-
     ks_F_type = ks_cfunc_new(type_, "type(obj)");
-    ks_F_call = ks_cfunc_new(call_, "call(func, args=(,))");
     ks_F_hash = ks_cfunc_new(hash_, "hash(obj)");
+    ks_F_repr = ks_cfunc_new(repr_, "repr(obj)");
+
+    ks_F_call = ks_cfunc_new(call_, "call(func, args=(,))");
+
     ks_F_rand = ks_cfunc_new(rand_, "rand()");
-    ks_F_exit = ks_cfunc_new(exit_, "exit(code=0)");
-    
+    ks_F_print = ks_cfunc_new(print_, "print(*args)");
+
     ks_F_import = ks_cfunc_new(import_, "import(module_name)");
 
-    ks_F_new_type = ks_cfunc_new(new_type_, "__new_type__(name)");
+    ks_F_shell = ks_cfunc_new(shell_, "shell(cmd)");
+    ks_F_exit = ks_cfunc_new(exit_, "exit(code=0)");
 
-    ks_F_repr = ks_cfunc_new(repr_, "repr(obj)");
+    ks_F_new_type = ks_cfunc_new(new_type_, "__new_type__(name)");
 
     ks_F_getattr = ks_cfunc_new(getattr_, "getattr(obj, attr)");
     ks_F_setattr = ks_cfunc_new(setattr_, "setattr(obj, attr, val)");
 
     ks_F_getitem = ks_cfunc_new(getitem_, "getitem(obj, *keys)");
     ks_F_setitem = ks_cfunc_new(setitem_, "setitem(obj, *keys, val)");
+
+
+    ks_F_iter = ks_cfunc_new(iter_, "__iter__(obj)");
+    ks_F_next = ks_cfunc_new(next_, "__next__(iter_obj)");
 
     ks_F_add = ks_cfunc_new(add_, "__add__(A, B)");
     ks_F_sub = ks_cfunc_new(sub_, "__sub__(A, B)");
@@ -476,7 +516,6 @@ void ksf_init() {
     ks_F_neg  = ks_cfunc_new(neg_, "__neg__(A)");
     ks_F_sqig  = ks_cfunc_new(sqig_, "__sqig__(A)");
 
-    ks_F_shell = ks_cfunc_new(shell_, "shell(cmd)");
 
     /* set type functions */
 

@@ -1,2 +1,4 @@
 
-try try x = y, catch e, throw 3, catch f, throw "GOT: " + type(f).__name__
+try x = 3, catch e, throw 5
+
+print (x)

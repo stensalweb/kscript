@@ -59,4 +59,9 @@ void ks_init__pfunc();
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__kobj();
 
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__list_iter();
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__dict_iter();
+
 #endif /* KS_INTERNAL_H__ */

@@ -1,10 +1,13 @@
-/* types/tuple.c - the tuple of values type */
+/* types/list.c - implementation of the standard list type
+ *
+ * Essentially, it holds a list of references to other kscript objects,
+ *   and can be resized dynamically
+ * 
+ */
 
 #include "ks_common.h"
 
-
-
-// create a list from a list of objects
+// create a list from a pointer to items
 ks_list ks_list_new(kso* items, int n_items) {
     ks_list self = (ks_list)ks_malloc(sizeof(*self));
     *self = (struct ks_list) {
@@ -22,7 +25,7 @@ ks_list ks_list_new(kso* items, int n_items) {
     return self;
 }
 
-// create a new empty list
+// create a new empty list (i.e. has no elements)
 ks_list ks_list_new_empty() {
     return ks_list_new(NULL, 0);
 }
@@ -82,9 +85,12 @@ void ks_list_clear(ks_list self) {
 
 
 
+// list.__new__(val) -> constructs a new list from 'val', which in general
+//   creates a list from all the elements of 'val', which can be a tuple/collection type
 TFUNC(list, new) {
     KS_REQ_N_ARGS(n_args, 1);
     kso val = args[0];
+
 
     if (val->type == ks_T_list) {
         return val;
@@ -97,32 +103,30 @@ TFUNC(list, new) {
     return NULL;
 }
 
-
+// list.__free__(self) -> frees the list's resources & de-records references
 TFUNC(list, free) {
-    #define SIG "list.__free__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
 
 
+    // de-record references to the objects
     int i;
     for (i = 0; i < self->len; ++i) {
         KSO_DECREF(self->items[i]);
     }
 
+    // free our allocated buffers
     ks_free(self->items);
-
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 TFUNC(list, repr) {
-    #define SIG "list.__repr__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
 
     if (self->len == 0) {
         return (kso)ks_str_new("[]");
@@ -143,14 +147,12 @@ TFUNC(list, repr) {
     ks_strB_add(&ksb, "]", 1);
 
     return (kso)ks_strB_finish(&ksb);
-    #undef SIG
 }
 
 TFUNC(list, str) {
-    #define SIG "list.__str__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
 
     if (self->len == 0) {
         return (kso)ks_str_new("[]");
@@ -171,40 +173,34 @@ TFUNC(list, str) {
     ks_strB_add(&ksb, "]", 1);
 
     return (kso)ks_strB_finish(&ksb);
-    #undef SIG
 }
 
 TFUNC(list, hash) {
-    #define SIG "list.__hash__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
 
     return kse_fmt("'list' objects are not hashable!");
-    #undef SIG
 }
 
 TFUNC(list, getitem) {
-    #define SIG "list.__getitem__(self, key)"
-    REQ_N_ARGS(2);
+    KS_REQ_N_ARGS(n_args, 2);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
     ks_int key = (ks_int)args[1];
-    REQ_TYPE("key", key, ks_T_int);
+    KS_REQ_TYPE(key, ks_T_int, "key");
 
     int64_t idx = key->v_int;
     if (idx < 0 || idx >= self->len) return kse_fmt("KeyError: %l (out of range)", idx);
     return KSO_NEWREF(self->items[idx]);
-    #undef SIG
 }
 
 TFUNC(list, setitem) {
-    #define SIG "list.__setitem__(self, key, val)"
-    REQ_N_ARGS(3);
+    KS_REQ_N_ARGS(n_args, 3);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
     ks_int key = (ks_int)args[1];
-    REQ_TYPE("key", key, ks_T_int);
+    KS_REQ_TYPE(key, ks_T_int, "key");
     kso val = args[2];
 
     int64_t idx = key->v_int;
@@ -216,16 +212,24 @@ TFUNC(list, setitem) {
     KSO_DECREF(old_val);
 
     return self->items[idx] = val;
-    #undef SIG
 }
 
 
 
-TFUNC(list, add) {
-    #define SIG "list.__add__(self, other)"
-    REQ_N_ARGS(2);
+// list.__iter__(self) -> return a list iterator object
+TFUNC(list, iter) {
+    KS_REQ_N_ARGS(n_args, 1);
     ks_list self = (ks_list)args[0];
-    REQ_TYPE("self", self, ks_T_list);
+    KS_REQ_TYPE(self, ks_T_list, "self");
+
+    return ks_list_iter_new(self);
+}
+
+
+TFUNC(list, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_T_list, "self");
     kso other = args[1];
 
     if (other->type == ks_T_list) {
@@ -240,7 +244,6 @@ TFUNC(list, add) {
     }
 
     return NULL;
-    #undef SIG
 }
 
 
@@ -290,6 +293,8 @@ void ks_init__list() {
 
     ADDCF(ks_T_list, "__getitem__", "list.__getitem__(self, key)", list_getitem_);
     ADDCF(ks_T_list, "__setitem__", "list.__setitem__(self, key, val)", list_setitem_);
+
+    ADDCF(ks_T_list, "__iter__", "list.__iter__(self)", list_iter_);
 
     ADDCF(ks_T_list, "__add__", "list.__add__(self, key)", list_add_);
     ADDCF(ks_T_list, "__neg__", "list.__neg__(self)", list_neg_);

@@ -1,23 +1,27 @@
-/* types/dict.c - dictionary implementation */
+/* types/dict.c - dictionary implementation, for key->value mappings of all types
+ *
+ * Internally, we use a hash table with open addressing to store the objects,
+ *   and their hashes are determined by the builtin hash() function (although we make
+ *   optimizations for hashes of strings, which are the most common, and are precomputed)
+ * 
+ * A bucket is said to be empty if `bucket.val==NULL`, so this can be used to test if you
+ *   can put an item in the bucket
+ * 
+ */
 
 #include "ks_common.h"
 
-/*
-Dictionary implementation:
-
-*/
-
-// starting length for the dictionary
+// starting length for the dictionary, the minimum
 #define _DICT_MIN_LEN 8
 
 // the maximum load value (as a percentage used)
 // once the load factor exceeds this, the dictionary is resized
-#define _DICT_LOAD_MAX 25
+#define _DICT_LOAD_MAX 30
 
-// generates the new size for the dictionary
+// generates the new size for the dictionary when it needs to be resized
 #define _DICT_NEW_SIZE(_dict) (2 * (_dict)->n_buckets + (_dict)->n_items)
 
-// return a new empty dictionary
+// return a new empty dictionary, with no elements
 ks_dict ks_dict_new_empty() {
     ks_dict self = (ks_dict)ks_malloc(sizeof(*self));
     *self = (struct ks_dict) {
@@ -27,6 +31,7 @@ ks_dict ks_dict_new_empty() {
         .buckets = ks_malloc(sizeof(*self->buckets) * _DICT_MIN_LEN)
     };
 
+    // initialize them to empty buckets (i.e. everything is 0)
     int i;
     for (i = 0; i < _DICT_MIN_LEN; ++i) {
         self->buckets[i] = (struct ks_dict_entry){ .key = NULL, .hash = 0, .val = NULL };
@@ -197,7 +202,6 @@ kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
 
 }
 
-
 // gets an item in the dictionary, given a C-string key
 kso ks_dict_get_cstrl(ks_dict self, char* cstr, int len) {
     ks_str stro = ks_str_new_l(cstr, len);
@@ -206,7 +210,6 @@ kso ks_dict_get_cstrl(ks_dict self, char* cstr, int len) {
     return ret;
 }
 
-
 // gets an item in the dictionary, given a C-string key
 kso ks_dict_get_cstr(ks_dict self, char* cstr) {
     ks_str stro = ks_str_new(cstr);
@@ -214,7 +217,6 @@ kso ks_dict_get_cstr(ks_dict self, char* cstr) {
     KSO_DECREF(stro);
     return ret;
 }
-
 
 // sets an item in the dictionary, given a C-string key
 void ks_dict_set_cstrl(ks_dict self, char* cstr, int len, kso val) {
@@ -232,11 +234,12 @@ void ks_dict_set_cstr(ks_dict self, char* cstr, kso val) {
 }
 
 
-/* TYPE FUNCS */
+/* KSCRIPT FUNCTIONS */
 
 
 TFUNC(dict, new) {
     if (n_args == 0) {
+        // just construct an empty one
         return (kso)ks_dict_new_empty();
     } else if (n_args == 1) {
         // should be a collection of (key, val) pairs in a list/tuple
@@ -253,6 +256,7 @@ TFUNC(dict, new) {
             return kse_fmt("Invalid argument; expected the first argument to be either a list or tuple containg (key, val) pairs");
         }
 
+        // otherwise, create an object and fill it with entries
         ks_dict ret = ks_dict_new_empty();
 
         // set them all
@@ -293,23 +297,24 @@ TFUNC(dict, new) {
 }
 
 
+// dict.__str__(self) -> return a string for the dictionary
 TFUNC(dict, str) {
-    #define SIG "dict.__str__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
-    REQ_TYPE("self", self, ks_T_dict);
+    KS_REQ_TYPE(self, ks_T_dict, "self");
 
     if (self->n_items == 0) {
         return (kso)ks_str_new("{}");
     }
 
+    // format for the string builder is {KEY: VAL, KEY: VAL, ...}
     ks_strB ksb = ks_strB_create();
-
     ks_strB_add(&ksb, "{", 1);
 
     int i, num = 0;
     for (i = 0; i < self->n_buckets; ++i) {
         struct ks_dict_entry* ent = &self->buckets[i];
+        // only add non-empty buckets
         if (ent->val != NULL) {
             if (num != 0) ks_strB_add(&ksb, ", ", 2);
             ks_strB_add_repr(&ksb, ent->key);
@@ -321,26 +326,26 @@ TFUNC(dict, str) {
     ks_strB_add(&ksb, "}", 1);
 
     return (kso)ks_strB_finish(&ksb);
-    #undef SIG
 }
 
+// dict.__repr__(self) -> return a string representation of the dictionary
 TFUNC(dict, repr) {
-    #define SIG "dict.__repr__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
-    REQ_TYPE("self", self, ks_T_dict);
+    KS_REQ_TYPE(self, ks_T_dict, "self");
 
     if (self->n_items == 0) {
         return (kso)ks_str_new("{}");
     }
 
+    // format for the string builder is {KEY: VAL, KEY: VAL, ...}
     ks_strB ksb = ks_strB_create();
-
     ks_strB_add(&ksb, "{", 1);
 
     int i, num = 0;
     for (i = 0; i < self->n_buckets; ++i) {
         struct ks_dict_entry* ent = &self->buckets[i];
+        // only add non-empty buckets
         if (ent->val != NULL) {
             if (num != 0) ks_strB_add(&ksb, ", ", 2);
             ks_strB_add_repr(&ksb, ent->key);
@@ -352,46 +357,40 @@ TFUNC(dict, repr) {
     ks_strB_add(&ksb, "}", 1);
 
     return (kso)ks_strB_finish(&ksb);
-    #undef SIG
 }
 
+// dict.__free__(self) -> free dictionary
 TFUNC(dict, free) {
-    #define SIG "dict.__free__(self)"
-    REQ_N_ARGS(1);
+    KS_REQ_N_ARGS(n_args, 1);
     ks_dict self = (ks_dict)args[0];
-
-    REQ_TYPE("self", self, ks_T_dict);
-
+    KS_REQ_TYPE(self, ks_T_dict, "self");
 
     int i;
-
     for (i = 0; i < self->n_buckets; ++i) {
         struct ks_dict_entry* entry = &self->buckets[i];
+        // dec-references from non-empty buckets
         if (entry->val != NULL) {
             KSO_DECREF(entry->key);
             KSO_DECREF(entry->val);
         }
     }
 
+    // free allocated buffers
     ks_free(self->buckets);
-
     ks_free(self);
 
     return KSO_NONE;
-    #undef SIG
 }
 
 
+// dict.__getitem__(self, key, def=None) -> get item by 'key' in dictionary, with an optional default argument
 TFUNC(dict, getitem) {
-    #define SIG "dict.__getitem__(self, key[, default])"
-    REQ_N_ARGS_RANGE(2, 3);
+    KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
     ks_dict self = (ks_dict)args[0];
-    REQ_TYPE("self", self, ks_T_dict);
+    KS_REQ_TYPE(self, ks_T_dict, "self");
     kso key = args[1];
 
-    ks_info("%R", ks_T_dict->__dict__);
-
-
+    // ask for the result in the dictionary
     kso res = ks_dict_get(self, key, kso_hash(key));
 
     if (res == NULL) {
@@ -399,33 +398,32 @@ TFUNC(dict, getitem) {
             // default here
             res = args[2];
         } else {
+            // otherwise, it was requested with an error
             return kse_fmt("KeyError: %R", key);
         }
     }
 
     return KSO_NEWREF(res);
-    #undef SIG
 }
 
+// dict.__setitem____(self, key, val) -> set a given key in the dictionary to that value
 TFUNC(dict, setitem) {
-    #define SIG "dict.__setitem__(self, key, val)"
-    REQ_N_ARGS(3);
+
+    KS_REQ_N_ARGS(n_args, 3);
     ks_dict self = (ks_dict)args[0];
-    REQ_TYPE("self", self, ks_T_dict);
+    KS_REQ_TYPE(self, ks_T_dict, "self");
     kso key = args[1], val = args[2];
 
     ks_dict_set(self, key, kso_hash(key), val);
 
     return KSO_NEWREF(val);
-    #undef SIG
 }
 
 
 TFUNC(dict, get) {
-    #define SIG "dict.get(self, key, default=None)"
-    REQ_N_ARGS_RANGE(2, 3);
+    KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
     ks_dict self = (ks_dict)args[0];
-    REQ_TYPE("self", self, ks_T_dict);
+    KS_REQ_TYPE(self, ks_T_dict, "self");
     kso key = args[1];
 
     kso res = ks_dict_get(self, key, kso_hash(key));
@@ -440,8 +438,19 @@ TFUNC(dict, get) {
     }
 
     return KSO_NEWREF(res);
-    #undef SIG
 }
+
+
+
+// dict.__iter__(self) -> return a dictionary key,val iterator for 'self'
+TFUNC(dict, iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_T_dict, "self");
+
+    return (kso)ks_dict_iter_new(self);
+}
+
 
 
 
@@ -466,8 +475,12 @@ void ks_init__dict() {
     ADDCF(ks_T_dict, "__new__", "dict.__new__(...)", dict_new_);
     ADDCF(ks_T_dict, "__str__", "dict.__str__(self)", dict_str_);
     ADDCF(ks_T_dict, "__repr__", "dict.__repr__(self)", dict_repr_);
+    
     ADDCF(ks_T_dict, "__getitem__", "dict.__getitem__(self, key)", dict_getitem_);
-    ADDCF(ks_T_dict, "__setitem__", "dict.__setitem__(self, key, val)", dict_free_);
+    ADDCF(ks_T_dict, "__setitem__", "dict.__setitem__(self, key, val)", dict_setitem_);
+
+    ADDCF(ks_T_dict, "__iter__", "dict.__iter__(self)", dict_iter_);
+
     ADDCF(ks_T_dict, "__free__", "dict.__free__(self)", dict_free_);
 
 }

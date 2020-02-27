@@ -154,6 +154,9 @@ void ks_type_setattr(ks_type self, ks_str attr, kso val) {
         else if (KS_STR_EQ_CONST(attr, "__getitem__") ) self->f_getitem = val;
         else if (KS_STR_EQ_CONST(attr, "__setitem__") ) self->f_setitem = val;
 
+        else if (KS_STR_EQ_CONST(attr, "__iter__") ) self->f_iter = val;
+        else if (KS_STR_EQ_CONST(attr, "__next__") ) self->f_next = val;
+
         else if (KS_STR_EQ_CONST(attr, "__add__") ) self->f_add = val;
         else if (KS_STR_EQ_CONST(attr, "__sub__") ) self->f_sub = val;
         else if (KS_STR_EQ_CONST(attr, "__mul__") ) self->f_mul = val;
