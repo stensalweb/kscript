@@ -109,7 +109,9 @@ extern ks_type
     ks_T_type,
     ks_T_module,
 
-    ks_T_kobj
+    ks_T_kobj,
+
+    ks_T_error
 
 ;
 
@@ -1293,13 +1295,14 @@ typedef struct ks_stkframe {
 
 }* ks_stkframe ;
 
-/* kobj -> the base object type,  */
+/* kobj -> the base object type, which is completely generic and can store any number of attributes */
+
+// this is the base for any class deriving from KOBJ
+#define KSO_KOBJ_BASE KSO_BASE ks_dict attr;
+
 
 typedef struct ks_kobj {
-    KSO_BASE
-
-    // attribute dictionary
-    ks_dict attr;
+    KSO_KOBJ_BASE
 
 }* ks_kobj;
 
@@ -1355,6 +1358,27 @@ typedef struct ks_dict_iter {
 
 // construct a new list iteration object
 ks_dict_iter ks_dict_iter_new(ks_dict dict_obj);
+
+
+/* ERROR TYPES */
+
+/* ks_error - the generic class which all errors are derived from
+ *
+ * 
+ * Standard attributes are:
+ *   error.what -> a string representing the reason behind the error
+ *
+ * SEE: types/error/erroc.c for the implementation
+ */
+typedef struct ks_error {
+    KSO_KOBJ_BASE
+
+}* ks_error;
+
+
+// construct a new Error with a given message
+ks_error ks_error_new(ks_str what);
+
 
 
 

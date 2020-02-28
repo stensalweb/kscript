@@ -29,6 +29,10 @@ ks_type ks_type_new(char* name) {
 
 // add a parent to a type
 void ks_type_add_parent(ks_type self, ks_type parent) {
+    // see if we've already parented the type
+    int i;
+    for (i = 0; i < self->n_parents; ++i) if (self->parents[i] == parent) return;
+
     int idx = self->n_parents++;
     self->parents = ks_realloc(self->parents, sizeof(*self->parents) * self->n_parents);
 
@@ -46,11 +50,33 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
 
     UBI(f_str);
     UBI(f_repr);
+    UBI(f_hash);
 
     UBI(f_getattr);
     UBI(f_setattr);
     UBI(f_getitem);
     UBI(f_setitem);
+
+    UBI(f_add);
+    UBI(f_sub);
+    UBI(f_mul);
+    UBI(f_div);
+    UBI(f_mod);
+    UBI(f_pow);
+
+    UBI(f_lt);
+    UBI(f_gt);
+    UBI(f_le);
+    UBI(f_ge);
+    UBI(f_eq);
+    UBI(f_ne);
+
+    UBI(f_neg);
+    UBI(f_sqig);
+
+    UBI(f_iter);
+    UBI(f_next);
+
 }
 
 // return 1 if self inherits (somewhere in its tree of dependencies) from `parent`, 0 otherwise
@@ -95,6 +121,8 @@ kso ks_type_getattr(ks_type self, ks_str attr) {
     // to avoid recursive references, allow `__dict__` to be returned as a special case
     if (KS_STR_EQ_CONST(attr, "__dict__")) {
         return KSO_NEWREF(self->__dict__);
+    } else if (KS_STR_EQ_CONST(attr, "__parents__")) {
+        return (kso)ks_tuple_new((kso*)self->parents, self->n_parents);
     }
 
     // search through to get a generic attr
@@ -209,6 +237,25 @@ kso ks_type_getattr_c(ks_type self, char* attr) {
 
 /* generic functions */
 
+
+KS_TFUNC(type, str) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_type self = (ks_type)args[0];
+    KS_REQ_SUBTYPE(self, ks_T_type, "self");
+
+    return KSO_NEWREF(self->name);
+}
+
+KS_TFUNC(type, repr) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_type self = (ks_type)args[0];
+    KS_REQ_SUBTYPE(self, ks_T_type, "self");
+
+    return KSO_NEWREF(self->name);
+}
+
+
+
 KS_TFUNC(type, getattr) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_type self = (ks_type)args[0];
@@ -258,6 +305,19 @@ KS_TFUNC(type, free) {
     return KSO_NONE;
 }
 
+KS_TFUNC(type, ge) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_type self = (ks_type)args[0];
+    KS_REQ_SUBTYPE(self, ks_T_type, "self");
+    ks_type other = (ks_type)args[1];
+    KS_REQ_SUBTYPE(other, ks_T_type, "other");
+
+    return KSO_BOOL(ks_type_issub(self, other));
+}
+
+
+
+
 /* exporting functionality */
 
 struct ks_type T_type, *ks_T_type = &T_type;
@@ -276,8 +336,13 @@ void ks_init__type() {
         KSO_DECREF(_f); \
     }
 
+    ADDCF(ks_T_type, "__str__", "type.__str__(self)", type_str_);
+    ADDCF(ks_T_type, "__repr__", "type.__repr__(self)", type_repr_);
+
     ADDCF(ks_T_type, "__getattr__", "type.__getattr__(self, attr)", type_getattr_);
     ADDCF(ks_T_type, "__setattr__", "type.__setattr__(self, attr, val)", type_setattr_);
+
+    ADDCF(ks_T_type, "__ge__", "type.__ge__(self, other)", type_ge_);
 
     ADDCF(ks_T_type, "__free__", "type.__free__(self)", type_free_);
 

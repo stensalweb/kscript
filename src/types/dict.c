@@ -326,7 +326,7 @@ KS_TFUNC(dict, str) {
             if (num != 0) ks_strB_add(&ksb, ", ", 2);
             ks_strB_add_repr(&ksb, ent->key);
             ks_strB_add(&ksb, ": ", 2);
-            ks_strB_add_tostr(&ksb, ent->val);
+            ks_strB_add_repr(&ksb, ent->val);
             num++;
         }
     }
@@ -357,7 +357,7 @@ KS_TFUNC(dict, repr) {
             if (num != 0) ks_strB_add(&ksb, ", ", 2);
             ks_strB_add_repr(&ksb, ent->key);
             ks_strB_add(&ksb, ": ", 2);
-            ks_strB_add_tostr(&ksb, ent->val);
+            ks_strB_add_repr(&ksb, ent->val);
             num++;
         }
     }

@@ -358,6 +358,9 @@ KS_FUNC(lt) {
 }
 KS_FUNC(le) {
     KS_REQ_N_ARGS(n_args, 2);
+    // we introduce a shortcut; if the two objects are the same pointer, they must be equal
+    if (args[0] == args[1]) return KSO_TRUE;
+    // otherwise, resolve the operator
     BOP_RESOLVE(args[0], args[1], f_le, "<=");
 }
 KS_FUNC(gt) {
@@ -366,6 +369,9 @@ KS_FUNC(gt) {
 }
 KS_FUNC(ge) {
     KS_REQ_N_ARGS(n_args, 2);
+    // we introduce a shortcut; if the two objects are the same pointer, they must be equal
+    if (args[0] == args[1]) return KSO_TRUE;
+    // otherwise, resolve the operator
     BOP_RESOLVE(args[0], args[1], f_ge, ">=");
 }
 KS_FUNC(eq) {

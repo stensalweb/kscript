@@ -65,4 +65,9 @@ void ks_init__list_iter();
 // INTERNAL METHOD; DO NOT CALL
 void ks_init__dict_iter();
 
+
+// INTERNAL METHOD; DO NOT CALL
+void ks_init__error();
+
+
 #endif /* KS_INTERNAL_H__ */

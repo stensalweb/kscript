@@ -172,7 +172,19 @@ void ks_strB_add(ks_strB* strb, char* val, int len) {
 void ks_strB_add_repr(ks_strB* strb, kso obj) {
     if (obj->type == ks_T_str) {
         ks_strB_add(strb, "'", 1);
-        ks_strB_add(strb, ((ks_str)obj)->chr, ((ks_str)obj)->len);
+        int i;
+        ks_str str_obj = (ks_str)obj;
+        for (i = 0; i < str_obj->len; ++i) {
+            char c = str_obj->chr[i];
+            if (c == '\n') {
+                ks_strB_add(strb, "\\n", 2);
+            } else if (c == '\t') {
+                ks_strB_add(strb, "\\t", 2);
+            } else {
+                ks_strB_add(strb, &c, 1);
+            }
+        }
+        //ks_strB_add(strb, ((ks_str)obj)->chr, ((ks_str)obj)->len);
         ks_strB_add(strb, "'", 1);
     } else if (obj->type == ks_T_int) {
         char tmp[100];

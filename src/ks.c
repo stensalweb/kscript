@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
     SET_GLOBAL("kfunc", ks_T_kfunc);
     SET_GLOBAL("pfunc", ks_T_pfunc);
     SET_GLOBAL("kobj", ks_T_kobj);
+    SET_GLOBAL("Error", ks_T_error);
 
     SET_GLOBAL("list_iter", ks_T_list_iter);
 

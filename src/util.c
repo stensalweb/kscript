@@ -129,6 +129,7 @@ void ks_init() {
     ks_init__list_iter();
     ks_init__dict_iter();
 
+    ks_init__error();
 
     // initialize builtin functions
     ksf_init();

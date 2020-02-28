@@ -16,7 +16,6 @@ ks_kfunc ks_kfunc_new(ks_list params, ks_code code) {
     return self;
 }
 
-
 KS_TFUNC(kfunc, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_kfunc self = (ks_kfunc)args[0];
