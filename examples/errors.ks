@@ -17,7 +17,20 @@ func f() {
 }
 
 
+func err() {
+    throw Error("My error")
+}
+
+
+
+
+type T{}
+
+x = T()
 print(1, 2, f())
 
+try err(), catch e, print (e)
 
+
+print ("After")
 

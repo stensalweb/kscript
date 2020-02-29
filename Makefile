@@ -16,7 +16,7 @@
 # set the C compiler (?= means 'set if not already set')
 CC         ?= cc
 # set the compiler flags
-CFLAGS     ?= -O3 -std=c99 
+CFLAGS     ?= -g -std=c99 
 # set the installation prefix
 PREFIX     ?= /usr/local
 

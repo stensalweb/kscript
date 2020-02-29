@@ -672,7 +672,7 @@ struct ks_type {
 };
 
 // initializes a struct ks_type. This does create a new dictionary
-#define KS_TYPE_INIT() ((struct ks_type){ KSO_BASE_INIT(ks_T_type) .name = NULL, \
+#define KS_TYPE_INIT() ((struct ks_type){ KSO_BASE_INIT_RF(2, KSOF_NONE, ks_T_type) .name = NULL, \
     .n_parents = 0, .parents = NULL, \
     .f_new = NULL, .f_init = NULL, \
     .f_str = NULL, .f_repr = NULL, .f_hash = NULL, .f_call = NULL, \

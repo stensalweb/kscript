@@ -1061,7 +1061,7 @@ ks_ast ks_parse_expr(ks_parser self) {
             #define KPE_OPCASE(_tok, _opstr, _opval) if (TOK_EQ(self, _tok, _opstr)) { used = _opval; goto kpe_op_resolve; }
 
             // TODO: implement unary operators
-            if (TOKE_ISOP(ltok.ttype) || ltok.ttype == KS_TOK_COMMA || ltok.ttype == KS_TOK_LPAR || ltok.ttype == KS_TOK_LBRACK || ltok.ttype == KS_TOK_LBRACE) {
+            if (ltok.ttype == KS_TOK_NONE || TOKE_ISOP(ltok.ttype) || ltok.ttype == KS_TOK_COMMA || ltok.ttype == KS_TOK_LPAR || ltok.ttype == KS_TOK_LBRACK || ltok.ttype == KS_TOK_LBRACE) {
                 // this is a unary prefix operator
 
                 KPE_OPCASE(ctok, "-", syu_neg)

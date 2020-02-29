@@ -158,7 +158,7 @@ bool kso_free(kso obj) {
     // now, free it
 
     // uncomment to trace frees
-    //ks_trace("kso_free(%o) (repr was: %R)", obj, obj);
+    ks_trace("kso_free(%o) (repr was: %R)", obj, obj);
 
     // capture the type name before freeing it so we have it for an error message, even if something happens
     // to the object

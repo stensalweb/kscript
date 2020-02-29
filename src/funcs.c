@@ -298,7 +298,8 @@ KS_FUNC(next) {
         return kse_fmt("'%T' object is not next()-able!", iter_obj);
     } else {
         // call the iterator
-        return kso_call(iter_obj->type->f_next, 1, &iter_obj);
+        kso res = kso_call(iter_obj->type->f_next, 1, &iter_obj);
+        return res;
     }
 }
 

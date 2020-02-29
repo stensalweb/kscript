@@ -531,9 +531,6 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
         ks_code_add_meta(to, self);
 
-        // and afterwards, remove the try/catch (if there was no error)
-        ksc_exc_rem(to);
-
         if (self->v_try.v_catch != NULL) {
             // there is a catch block
             int p_tryjmp = to->bc_n;
@@ -569,12 +566,15 @@ static void codegen(ks_ast self, ks_code to, cgi geni) {
 
         } else {
             // there is no catch block, so the try simply flows through
+            ks_warn("Try without catch");
 
             // so, fill in this as the current position to jump to in case of error
             ksbc_i32* i_excadd = (ksbc_i32*)(to->bc + p_excadd);
 
             // since we don't know what will generate after this, just set it here
             i_excadd->i32 = to->bc_n;
+
+            ksc_exc_rem(to);
 
         }
     } else if (self->atype == KS_AST_THROW) {

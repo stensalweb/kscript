@@ -11,7 +11,7 @@ Then, other code can poll it via `kse_N()` to check how many errors, and
 // current error stack
 static ks_list err_stk = NULL;
 
-void* kse_addo(ks_str errmsg) {
+void* kse_addo(kso errmsg) {
     ks_list_push(err_stk, (kso)errmsg);
     return NULL;
 }
@@ -101,7 +101,7 @@ void* kse_tok(ks_tok tok, const char* fmt, ...) {
 
     }
 
-    kse_addo(errstr);
+    kse_addo((kso)errstr);
     KSO_DECREF(errstr);
 
     return NULL;
@@ -116,7 +116,7 @@ int kse_N() {
 
 // pop off an error
 kso kse_pop() {
-    return ks_list_pop(err_stk);
+    return err_stk->len > 0 ? ks_list_pop(err_stk) : NULL;
 }
 
 

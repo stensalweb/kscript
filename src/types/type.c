@@ -34,7 +34,7 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
     for (i = 0; i < self->n_parents; ++i) if (self->parents[i] == parent) return;
 
     int idx = self->n_parents++;
-    self->parents = ks_realloc(self->parents, sizeof(*self->parents) * self->n_parents);
+    self->parents = ks_realloc(self->parents, sizeof(ks_type) * self->n_parents);
 
     // record the parent here
     self->parents[idx] = parent;
@@ -45,7 +45,6 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
 
     UBI(f_new);
     UBI(f_init);
-    
     UBI(f_free);
 
     UBI(f_str);
@@ -81,6 +80,7 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
 
 // return 1 if self inherits (somewhere in its tree of dependencies) from `parent`, 0 otherwise
 int ks_type_issub(ks_type self, ks_type parent) {
+
     if (self == parent) return 1;
 
     int i;
@@ -147,6 +147,7 @@ kso ks_type_getattr(ks_type self, ks_str attr) {
 
 // sets a given attribute on the type
 void ks_type_setattr(ks_type self, ks_str attr, kso val) {
+
 
     // check if this is sets an attribute which begins with `__`
     if (attr->len > 2 && attr->chr[0] == '_' && attr->chr[1] == '_') {
@@ -286,7 +287,7 @@ KS_TFUNC(type, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_type self = (ks_type)args[0];
     KS_REQ_TYPE(self, ks_T_type, "self")
-    
+
     // disregard references to the hierarchy of parents
     int i;
     for (i = 0; i < self->n_parents; ++i) {
@@ -301,6 +302,7 @@ KS_TFUNC(type, free) {
 
     // and free the pointer too
     ks_free(self);
+
 
     return KSO_NONE;
 }
@@ -328,6 +330,7 @@ void ks_init__type() {
     T_type = KS_TYPE_INIT();
     
     ks_type_setname_c(ks_T_type, "type");
+
 
     // add cfuncs
     #define ADDCF(_type, _name, _sig, _fn) { \

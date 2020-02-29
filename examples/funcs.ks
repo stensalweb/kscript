@@ -49,4 +49,36 @@ test(17)    # prime
 test(9001)  # prime
 test(9007)  # prime
 
+type Primes {
+    func __init__(self) {
+        self.v = 1
+    }
+
+
+    func __next__(self) {
+
+        v = self.v
+        while ~is_prime(v) {
+            v = v + 1
+        }
+
+        # always increment it
+        self.v = v + 1
+
+        if v > 1000, throw Error("Too large!")
+
+        ret v
+    }
+
+}
+
+p = Primes()
+print (p)
+
+try {
+    while i = next(p), print (i)
+} catch e {
+    if type(e) >= Error, print (e)
+    else throw e
+}
 

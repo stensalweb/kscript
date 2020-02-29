@@ -12,7 +12,7 @@ since it requires the __dict__
 #include "ks_common.h"
 
 KS_TFUNC(kobj, new) {
-    KS_REQ(n_args == 0, "Given wrong number of args, expected 0, but got %i", n_args);
+    KS_REQ_N_ARGS(n_args, 0);
 
     ks_kobj self = ks_malloc(sizeof(*self));
     *self = (struct ks_kobj) {

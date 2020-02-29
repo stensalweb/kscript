@@ -197,8 +197,8 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 // add a C-string as an error message
 void* kse_add(const char* errmsg);
 
-// add a ks_str as an error message
-void* kse_addo(ks_str errmsg);
+// add an object as an error
+void* kse_addo(kso errmsg);
 
 // add a C-style format string (internally using ks_str_new_vcfmt) to generate an error message
 // NOTE: Not all common formats are supported
