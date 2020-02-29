@@ -1,27 +1,27 @@
-/* types/none.c - implementation of the builtin `none` type */
+/* types/none.c - the none-type
+ *
+ * 
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
-#include "ks_common.h"
+
+#include "ks-impl.h"
 
 
-/* exporting functionality */
+// forward declare it
+KS_TYPE_DECLFWD(ks_type_none);
 
-struct ks_type T_none, *ks_T_none = &T_none;
+ks_none KS_NONE;
 
-struct ks_none V_none, *ks_V_none = &V_none;
 
-void ks_init__none() {
+// initialize none type
+void ks_type_none_init() {
+    KS_INIT_TYPE_OBJ(ks_type_none);
 
-    /* create the type */
-    T_none = KS_TYPE_INIT();
-    
-    ks_type_setname_c(ks_T_none, "none");
+    // initialize global singleton
+    KS_NONE = KS_ALLOC_OBJ(ks_none);
 
-    // create the global none
-    V_none = (struct ks_none) {
-        KSO_BASE_INIT_RF(1, KSOF_IMMORTAL, ks_T_none)
-    };
+    KS_INIT_OBJ(KS_NONE, ks_type_none);
+
 }
-
-
-
 

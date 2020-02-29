@@ -1,490 +1,490 @@
-/* types/dict.c - dictionary implementation, for key->value mappings of all types
+/* types/dict.c - kscript's basic dictionary implementation
  *
- * Internally, we use a hash table with open addressing to store the objects,
- *   and their hashes are determined by the builtin hash() function (although we make
- *   optimizations for hashes of strings, which are the most common, and are precomputed)
  * 
- * A bucket is said to be empty if `bucket.val==NULL`, so this can be used to test if you
- *   can put an item in the bucket
- * 
- * 
- * 
+ * @author: Cade Brown <brown.cade@gmail.com>
  */
 
-#include "ks_common.h"
 
-// starting length for the dictionary, the minimum
-#define _DICT_MIN_LEN 8
-
-// the maximum load value (as a percentage used)
-// once the load factor exceeds this, the dictionary is resized
-#define _DICT_LOAD_MAX 30
-
-// generates the new size for the dictionary when it needs to be resized
-#define _DICT_NEW_SIZE(_dict) (2 * (_dict)->n_buckets + (_dict)->n_items)
-
-// return a new empty dictionary, with no elements
-ks_dict ks_dict_new_empty() {
-    ks_dict self = (ks_dict)ks_malloc(sizeof(*self));
-    *self = (struct ks_dict) {
-        KSO_BASE_INIT(ks_T_dict)
-        .n_items = 0,
-        .n_buckets = _DICT_MIN_LEN,
-        .buckets = ks_malloc(sizeof(*self->buckets) * _DICT_MIN_LEN)
-    };
-
-    // initialize them to empty buckets (i.e. everything is 0)
-    int i;
-    for (i = 0; i < _DICT_MIN_LEN; ++i) {
-        self->buckets[i] = (struct ks_dict_entry){ .key = NULL, .hash = 0, .val = NULL };
-    }
-    return self;
-}
+#include "ks-impl.h"
 
 
-/* dictionary helpers */
+/* CONSTANTS */
 
-// maps a hash to a bucket index
-static int32_t dict_buck(ks_dict self, uint64_t hash) {
-    return hash % self->n_buckets;
-}
+// The value for a bucket if that bucket is 'empty'
+#define BUCKET_EMPTY (int)(-1)
 
-// gets the next bucket, given a try index
-// this is the probing function
-static int32_t dict_buck_next(int32_t cur_buck, int try) {
-    // linear probing
-    return cur_buck + 1;
-}
+// The value for a bucket if that bucket was at one point filled, but has since been deleted
+#define BUCKET_DELETED (int)(-2)
 
-// check whether it fully matches
-static bool dict_entry_matches(struct ks_dict_entry entry, kso key, uint64_t hash) {
-    // TODO: Also add a literal `x==y` using their object types and everything
-    return entry.hash == hash && kso_eq(entry.key, key);
-}
 
-/* prime number finding, for optimal hash-table sizes */
+// the maximum load a dictionary should have; anything above this is resized
+#define DICT_MAX_LOAD 0.4f
 
-// return true iff 'x' is prime
-static bool isprime(int x) {
-    // true if prime
-    if (x < 2) return false;
-    if (x == 2 || x == 3 || x == 5) return true;
-    if (x % 2 == 0 || x % 3 == 0 || x % 5 == 0) return false;
 
-    // sqrt(x)
 
-    // now check all odd numbers  from 7 to sqrt(x)
-    int i;
-    for (i = 7; i * i <= x; i += 2) {
+
+// forward declare it
+KS_TYPE_DECLFWD(ks_type_dict);
+
+
+// return true if 'x' is prime, false otherwise
+static bool is_prime(int x) {
+    /**/ if (x < 2) return false;
+    else if (x == 2 || x == 3 || x == 5) return true;
+    else if (x % 2 == 0 || x % 3 == 0 || x % 5 == 0) return false;
+
+    int i = 3;
+    while (i * i <= x) {
         if (x % i == 0) return false;
+        i += 2;
     }
 
     return true;
 }
 
-// returns the next prime after x (not including x)
-static int nextprime(int x) {
-    // round up to next odd number
-    int p;
-    if (x % 2 == 0) p = x + 1;
-    else p = x + 2;
+
+// return the next prime > x
+static int next_prime(int x) {
+
+    int i = x % 2 == 0 ? x + 1 : x + 2;
+
+    // search for primes
+    while (!is_prime(i)) {
+        i += 2;
+    }
+
+    return i;
+}
+
+// create a kscript dictionary from entries
+ks_dict ks_new_dict(int len, ks_obj* entries) {
+    ks_dict self = KS_ALLOC_OBJ(ks_dict);
+    KS_INIT_OBJ(self, ks_type_dict);
+
+    // always start with no entries
+    self->n_entries = 0;
+    self->entries = NULL;
+
+    // calculate a good size of buckets for the length
+    self->n_buckets = next_prime(2 * len + 5);
+    self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
+    
+    // now, set all buckets to empty
+    int i;
+    for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = BUCKET_EMPTY;
+
+    // now, set the (key, val) pairs of 'entries' into the dictionary
+    for (i = 0; i < len; ++i) {
+        ks_dict_set(self, 0, entries[2 * i], entries[2 * i + 1]);
+    }
+
+
+    return self;
+}
+
+
+// construct a new dictionary from C-style entries
+ks_dict ks_new_dict_c(ks_dict_ent_c* ent_cs) {
+
+    ks_dict self = KS_ALLOC_OBJ(ks_dict);
+    KS_INIT_OBJ(self, ks_type_dict);
+
+    // always start with no entries
+    self->n_entries = 0;
+    self->entries = NULL;
+
+    // calculate a good size of buckets for the length
+    self->n_buckets = 5;
+    self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
+    
+    // now, set all buckets to empty
+    int i;
+    for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = BUCKET_EMPTY;
+
+    // now, set the (key, val) pairs of 'entries' into the dictionary
+
+    while (ent_cs->key != NULL) {
+        // keep iterating t hrough entries
+        ks_str my_key = ks_new_str(ent_cs->key);
+        ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cs->val);
+
+        KS_DECREF(my_key);
+
+        // next entry
+        ent_cs++;
+    }
+
+
+    return self;
+
+}
+
+// construct a new dictionary from C-style entries, but do not create new references for them
+ks_dict ks_new_dict_cn(ks_dict_ent_c* ent_cns) {
+
+    ks_dict self = KS_ALLOC_OBJ(ks_dict);
+    KS_INIT_OBJ(self, ks_type_dict);
+
+    // always start with no entries
+    self->n_entries = 0;
+    self->entries = NULL;
+
+    // calculate a good size of buckets for the length
+    self->n_buckets = 5;
+    self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
+    
+    // now, set all buckets to empty
+    int i;
+    for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = BUCKET_EMPTY;
+
+    // now, set the (key, val) pairs of 'entries' into the dictionary
+
+    while (ent_cns->key != NULL) {
+        // keep iterating t hrough entries
+        ks_str my_key = ks_new_str(ent_cns->key);
+        ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cns->val);
+
+        KS_DECREF(my_key);
+
+        // since there will be a reference added, we remove it here
+        KS_DECREF(ent_cns->val);
+
+        // next entry
+        ent_cns++;
+    }
+
+
+    return self;
+
+}
+
+// Sets a list of C-entries (without creating new references)
+int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns) {
+    while (ent_cns->key != NULL) {
+        // keep iterating t hrough entries
+        ks_str my_key = ks_new_str(ent_cns->key);
+
+        ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cns->val);
+
+        KS_DECREF(my_key);
+
+        // since there will be a reference added, we remove it here
+        KS_DECREF(ent_cns->val);
+
+        // next entry
+        ent_cns++;
+    }
+}
+
+
+// free a kscript dict
+void ks_free_dict(ks_dict self) {
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        // decrease any reference we held here
+        if (self->entries[i].key) KS_DECREF(self->entries[i].key);
+        if (self->entries[i].val) KS_DECREF(self->entries[i].val);
+    }
+
+    ks_free(self->buckets);
+    ks_free(self->entries);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+}
+
+
+/* ACCESS UTILS */
+
+// resize a dictionary to have a new number of buckets
+static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
+
+    // check if we are alreayd large enough
+    if (self->n_buckets >= new_n_buckets) return;
+
+    // ensure its a prime
+    new_n_buckets = next_prime(new_n_buckets - 1);
+
+    int i;
+
+    // now, allocate new buckets
+    self->n_buckets = new_n_buckets;
+    self->buckets = ks_realloc(self->buckets, sizeof(*self->buckets) * self->n_buckets);
+    for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = BUCKET_EMPTY;
+
+
+    // now, go through and rehash the entries
+    for (i = 0; i < self->n_entries; ++i) {
+        // i'th entry
+        struct ks_dict_entry* ent = self->entries + i;
+
+        if (ent->hash == 0 || ent->val == NULL) {
+            // this item has been deleted; so shift all the entries down 1 and continue
+            int j;
+            for (j = i; j < self->n_entries - 1; ++j) {
+                self->entries[j] = self->entries[j + 1];
+            }
+
+            // retry the current i
+            i--;
+            // there is now 1 less entry
+            self->n_entries--;
+
+            continue;
+
+        }
+
+        // bucket index (bi)
+        ks_size_t bi = ent->hash % self->n_buckets;
+
+        // keep track of original
+        ks_size_t bi_orig = bi;
+        ks_size_t tries = 0;
+
+
+        bool found = false;
+
+        do {
+
+            // get the entry index (ei), which is an index into self->entries
+            int ei = self->buckets[bi];
+
+            if (ei == BUCKET_EMPTY) {
+                // the bucket is empty, so set it to 'i' (current entry) and continue;
+                self->buckets[bi] = i;
+                found = true;
+                break;
+            }
+
+            // probing function
+            bi = bi_orig + tries;
+
+            // always wrap it back around the range
+            bi %= self->n_buckets;
+        } while (bi != bi_orig);
+
+        if (!found) {
+            ks_error("Internal Dictionary Error! (Could not resize)");
+        }
+    }
+
+
+}
+
+
+// test whether or not the dictionary has a given key
+bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key) {
+    // try and make sure that hash is correct
+    if (hash == 0) hash = ks_hash(key);
+    if (hash == 0) return false;
+
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
+
+    // keep track of original
+    ks_size_t bi_orig = bi;
+    ks_size_t tries = 0;
 
     do {
-        if (isprime(p)) return p;
 
-        p += 2;
-    } while (true);
-    
-    // just return it anyway
-    return p;
-}
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
 
-// resize a dictionary to a given size
-void ks_dict_resize(ks_dict self, int new_size) {
-    // if we already have enough, do nothing
-    if (self->n_buckets >= new_size) return;
-
-    // always round up to a prime number
-    new_size = nextprime(new_size);
-    //ks_trace("dict resize %d -> %d", self->n_buckets, new_size);
-
-    // get the old entries
-    int old_n_buckets = self->n_buckets;
-    struct ks_dict_entry* old_buckets = self->buckets;
-
-    // allocate the new buckets
-    self->n_buckets = new_size;
-    self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
-
-    // initialize them to empty buckets
-    int i;
-    for (i = 0; i < self->n_buckets; ++i) {
-        self->buckets[i] = (struct ks_dict_entry){ .key = NULL, .hash = 0, .val = NULL };
-    }
-
-    // go through all the buckets, and merge them over, this is called rehashing
-    for (i = 0; i < old_n_buckets; ++i) {
-        struct ks_dict_entry* old_entry = &old_buckets[i];
-
-        if (old_entry->val != NULL) {
-            // we have a valid bucket that needs to be copied
-            ks_dict_set(self, old_entry->key, old_entry->hash, old_entry->val);
-            KSO_DECREF(old_entry->key);
-            KSO_DECREF(old_entry->val);
-        }
-    }
-
-    // free the old buckets
-    ks_free(old_buckets);
-}
-
-int ks_dict_set(ks_dict self, kso key, uint64_t hash, kso val) {
-
-    // we will always hold a new reference to 'val'
-    KSO_INCREF(val);
-
-    // make sure it is large enough, and/or resize if it has reached the critical load factor
-    if (self->n_buckets * _DICT_LOAD_MAX <= self->n_items * 100) {
-        ks_dict_resize(self, _DICT_NEW_SIZE(self));
-    }
-
-    struct ks_dict_entry* entry = NULL;
-    int b_idx = dict_buck(self, hash), tries = 0;
-
-    // first, search through filled buckets (those)
-    while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
-
-        if (dict_entry_matches(*entry, key, hash)) {
-            // we've found it, just replace the value
-            KSO_DECREF(entry->val);
-            entry->val = val;
-            return b_idx;
-        }
-
-        // update the bucket index, try again
-        b_idx = dict_buck_next(b_idx, tries);
-        // wrap back around
-        while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
-    }
-
-    // if we've gotten to here, it means we found an empty bucket, so just replace it, and add the new item
-    KSO_INCREF(key);
-    
-    self->n_items++;
-
-    *entry = (struct ks_dict_entry) {
-        .key = key,
-        .hash = hash,
-        .val = val
-    };
-
-    return b_idx;
-}
-
-kso ks_dict_get(ks_dict self, kso key, uint64_t hash) {
-    if (self->n_buckets == 0) return NULL;
-
-    int b_idx = dict_buck(self, hash), tries = 0;
-    struct ks_dict_entry* entry = NULL;
-
-
-    // search through non-empty buckets
-    while ((entry = &self->buckets[b_idx])->val != NULL && tries++ < self->n_buckets) {
-
-        if (dict_entry_matches(*entry, key, hash)) {
-            // we've found a match, just return it
-            return entry->val;
-        }
-
-        // update the bucket index, try again
-        b_idx = dict_buck_next(b_idx, tries);
-        // wrap back around
-        while (b_idx > self->n_buckets) b_idx -= self->n_buckets;
-    }
-
-
-    // not found, return NULL
-    return NULL;
-
-}
-
-// gets an item in the dictionary, given a C-string key
-kso ks_dict_get_cstrl(ks_dict self, char* cstr, int len) {
-    ks_str stro = ks_str_new_l(cstr, len);
-    kso ret = ks_dict_get(self, (kso)stro, stro->v_hash);
-    KSO_DECREF(stro);
-    return ret;
-}
-
-// gets an item in the dictionary, given a C-string key
-kso ks_dict_get_cstr(ks_dict self, char* cstr) {
-    ks_str stro = ks_str_new(cstr);
-    kso ret = ks_dict_get(self, (kso)stro, stro->v_hash);
-    KSO_DECREF(stro);
-    return ret;
-}
-
-// sets an item in the dictionary, given a C-string key
-void ks_dict_set_cstrl(ks_dict self, char* cstr, int len, kso val) {
-    ks_str stro = ks_str_new_l(cstr, len);
-    ks_dict_set(self, (kso)stro, stro->v_hash, val);
-    KSO_DECREF(stro);
-}
-
-
-// sets an item in the dictionary, given a C-string key
-void ks_dict_set_cstr(ks_dict self, char* cstr, kso val) {
-    ks_str stro = ks_str_new(cstr);
-    ks_dict_set(self, (kso)stro, stro->v_hash, val);
-    KSO_DECREF(stro);
-}
-
-
-/* KSCRIPT FUNCTIONS */
-
-// dict.__new__(...)
-// TODO: document
-KS_TFUNC(dict, new) {
-    if (n_args == 0) {
-        // just construct an empty one
-        return (kso)ks_dict_new_empty();
-    } else if (n_args == 1) {
-        // should be a collection of (key, val) pairs in a list/tuple
-        kso entries = args[0];
-        kso* ent_src = NULL;
-        int ne = 0;
-        if (entries->type == ks_T_list) {
-            ent_src = ((ks_list)entries)->items;
-            ne = ((ks_list)entries)->len;
-        } else if (entries->type == ks_T_tuple) {
-            ent_src = ((ks_tuple)entries)->items;
-            ne = ((ks_tuple)entries)->len;
-        } else {
-            return kse_fmt("Invalid argument; expected the first argument to be either a list or tuple containg (key, val) pairs");
-        }
-
-        // otherwise, create an object and fill it with entries
-        ks_dict ret = ks_dict_new_empty();
-
-        // set them all
-        int i;
-        for (i = 0; i < ne; ++i) {
-            kso cur = ent_src[i];
-            if (cur->type == ks_T_tuple) {
-                ks_tuple curtup = (ks_tuple)cur;
-                if (curtup->len == 2) {
-                    // add key value pair
-                    ks_dict_set(ret, curtup->items[0], kso_hash(curtup->items[0]), curtup->items[1]);
-                } else {
-                    KSO_DECREF(ret);
-                    return kse_fmt("Invalid key,val pair (idx %i) in the list of (key, val) pairs. Expected length 2, but got length %i", i, (int)curtup->len);
-                }
-
-            } else {
-                KSO_DECREF(ret);
-                return kse_fmt("Invalid argument (idx %i) in the list of (key, val) pairs. Was of type '%T', but expected a tuple", i, cur);
+        /**/ if (ei == BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so it is not in here
+            return false;
+        } else if (ei == BUCKET_DELETED) {
+            // do nothing; skip it
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+            if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
+                // they are equal, so it contains the key
+                return true;
             }
         }
-        return (kso)ret;
 
-    } else if (n_args % 2 == 0) {
-        // every other argument is key,val
-        ks_dict ret = ks_dict_new_empty();
 
-        int i;
-        for (i = 0; i < n_args; i += 2) {
-            ks_dict_set(ret, args[i+0], kso_hash(args[i+0]), args[i+1]);
+        // probing function
+        bi = bi_orig + tries;
+
+        // always wrap it back around the range
+        bi %= self->n_buckets;
+    } while (bi != bi_orig);
+
+
+    // default case, never found
+    return false;
+}
+
+// get a given element
+ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
+    // try and make sure that hash is correct
+    if (hash == 0) hash = ks_hash(key);
+    if (hash == 0) return NULL;
+
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
+
+    // keep track of original
+    ks_size_t bi_orig = bi;
+    ks_size_t tries = 0;
+
+    do {
+
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
+
+        /**/ if (ei == BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so we can say it does not contain the given key
+            return NULL;
+        } else if (ei == BUCKET_DELETED) {
+            // do nothing; skip it
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+            if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
+                // they are equal, so it contains the key already. Now, return the value
+                return self->entries[ei].val;
+            }
         }
 
-        return (kso)ret;
 
-    } else {
-        return kse_fmt("Invalid arguments; expected either: '[(key, val), ...]' or 'key, val, ...' to create dict");
-    }
+        // probing function
+        bi = bi_orig + tries;
+
+        // always wrap it back around the range
+        bi %= self->n_buckets;
+    } while (bi != bi_orig);
+
+
+    return NULL;
 }
 
 
-// dict.__str__(self) -> return a string for the dictionary
-KS_TFUNC(dict, str) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
 
-    if (self->n_items == 0) {
-        return (kso)ks_str_new("{}");
+// set the given element
+int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
+
+    if (self->n_entries >= self->n_buckets / 4) {
+        // we need to scale up the dictionary
+        dict_resize(self, self->n_buckets * 4);
     }
 
-    // format for the string builder is {KEY: VAL, KEY: VAL, ...}
-    ks_strB ksb = ks_strB_create();
-    ks_strB_add(&ksb, "{", 1);
+    // try and make sure that hash is correct
+    if (hash == 0) hash = ks_hash(key);
+    if (hash == 0) return -1;
 
-    int i, num = 0;
-    for (i = 0; i < self->n_buckets; ++i) {
-        struct ks_dict_entry* ent = &self->buckets[i];
-        // only add non-empty buckets
-        if (ent->val != NULL) {
-            if (num != 0) ks_strB_add(&ksb, ", ", 2);
-            ks_strB_add_repr(&ksb, ent->key);
-            ks_strB_add(&ksb, ": ", 2);
-            ks_strB_add_repr(&ksb, ent->val);
-            num++;
+    // we will always increase the reference count for the new value
+    KS_INCREF(val);
+
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
+
+    // keep track of original
+    ks_size_t bi_orig = bi;
+    ks_size_t tries = 0;
+
+
+    do {
+
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
+
+        if (ei == BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so we can safely replace it
+            ei = self->n_entries++;
+            self->entries = ks_realloc(self->entries, sizeof(*self->entries) * self->n_entries);
+            // set the bucket to the new location
+            self->buckets[bi] = ei;
+
+            // since key is just now being added, we need to add a new reference to it
+            KS_INCREF(key);
+            
+            // set that entry
+            self->entries[ei] = (struct ks_dict_entry){ .hash = hash, .key = key, .val = val };
+
+            return 0;
+
+        } else if (ei == BUCKET_DELETED) {
+            // do nothing; skip it
+
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+            if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
+                // they are equal, so it contains the key already. Now, just update the value
+                self->entries[ei].val = val;
+                return 1;
+            }
         }
-    }
-    ks_strB_add(&ksb, "}", 1);
 
-    return (kso)ks_strB_finish(&ksb);
+
+        // probing function
+        bi = bi_orig + tries;
+
+        // always wrap it back around the range
+        bi %= self->n_buckets;
+    } while (bi != bi_orig);
+
+    // some problem adding it, should not happen
+    return -1;
 }
 
-// dict.__repr__(self) -> return a string representation of the dictionary
-KS_TFUNC(dict, repr) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
 
-    if (self->n_items == 0) {
-        return (kso)ks_str_new("{}");
-    }
 
-    // format for the string builder is {KEY: VAL, KEY: VAL, ...}
-    ks_strB ksb = ks_strB_create();
-    ks_strB_add(&ksb, "{", 1);
+// delete the given element
+bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
+    // try and make sure that hash is correct
+    if (hash == 0) hash = ks_hash(key);
+    if (hash == 0) return false;
 
-    int i, num = 0;
-    for (i = 0; i < self->n_buckets; ++i) {
-        struct ks_dict_entry* ent = &self->buckets[i];
-        // only add non-empty buckets
-        if (ent->val != NULL) {
-            if (num != 0) ks_strB_add(&ksb, ", ", 2);
-            ks_strB_add_repr(&ksb, ent->key);
-            ks_strB_add(&ksb, ": ", 2);
-            ks_strB_add_repr(&ksb, ent->val);
-            num++;
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
+
+    // keep track of original
+    ks_size_t bi_orig = bi;
+    ks_size_t tries = 0;
+
+    do {
+
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
+
+        if (ei == BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so it does not exist
+            return false;            
+
+        } else if (ei == BUCKET_DELETED) {
+            // do nothing; skip it
+
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+            if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
+                // they are equal, so it contains the key already. Now, remove that entry
+                if (self->entries[ei].key) KS_DECREF(self->entries[ei].key);
+                if (self->entries[ei].val) KS_DECREF(self->entries[ei].val);
+                self->entries[ei].hash = 0;
+                self->entries[ei].key = self->entries[ei].val = NULL;
+                self->buckets[bi] = BUCKET_DELETED;
+                return true;
+            }
         }
-    }
-    ks_strB_add(&ksb, "}", 1);
 
-    return (kso)ks_strB_finish(&ksb);
-}
 
-// dict.__free__(self) -> free dictionary
-KS_TFUNC(dict, free) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
+        // probing function
+        bi = bi_orig + tries;
 
-    int i;
-    for (i = 0; i < self->n_buckets; ++i) {
-        struct ks_dict_entry* entry = &self->buckets[i];
-        // dec-references from non-empty buckets
-        if (entry->val != NULL) {
-            KSO_DECREF(entry->key);
-            KSO_DECREF(entry->val);
-        }
-    }
+        // always wrap it back around the range
+        bi %= self->n_buckets;
+    } while (bi != bi_orig);
 
-    // free allocated buffers
-    ks_free(self->buckets);
-    ks_free(self);
-
-    return KSO_NONE;
+    // didn't exist
+    return false;
 }
 
 
-// dict.__getitem__(self, key, def=None) -> get item by 'key' in dictionary, with an optional default argument
-KS_TFUNC(dict, getitem) {
-    KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
-    kso key = args[1];
-
-    // ask for the result in the dictionary
-    kso res = ks_dict_get(self, key, kso_hash(key));
-
-    if (res == NULL) {
-        if (n_args == 3) {
-            // default here
-            res = args[2];
-        } else {
-            // otherwise, it was requested with an error
-            return kse_fmt("KeyError: %R", key);
-        }
-    }
-
-    return KSO_NEWREF(res);
-}
-
-// dict.__setitem____(self, key, val) -> set a given key in the dictionary to that value
-KS_TFUNC(dict, setitem) {
-
-    KS_REQ_N_ARGS(n_args, 3);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
-    kso key = args[1], val = args[2];
-
-    ks_dict_set(self, key, kso_hash(key), val);
-
-    return KSO_NEWREF(val);
-}
-
-
-KS_TFUNC(dict, get) {
-    KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
-    kso key = args[1];
-
-    kso res = ks_dict_get(self, key, kso_hash(key));
-
-    if (res == NULL) {
-        if (n_args == 3) {
-            // default here
-            res = args[2];
-        } else {
-            return kse_fmt("KeyError: %R", key);
-        }
-    }
-
-    return KSO_NEWREF(res);
-}
-
-// dict.__iter__(self) -> return a dictionary key,val iterator for 'self'
-KS_TFUNC(dict, iter) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_dict self = (ks_dict)args[0];
-    KS_REQ_TYPE(self, ks_T_dict, "self");
-
-    return (kso)ks_dict_iter_new(self);
-}
-
-
-/* exporting functionality */
-
-struct ks_type T_dict, *ks_T_dict = &T_dict;
-
-void ks_init__dict() {
-
-    /* create the type */
-    T_dict = KS_TYPE_INIT();
-
-    ks_type_setname_c(ks_T_dict, "dict");
-
-    // add cfuncs
-    #define ADDCF(_type, _name, _sig, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
-        ks_type_setattr_c(_type, _name, _f); \
-        KSO_DECREF(_f); \
-    }
-    
-    ADDCF(ks_T_dict, "__new__", "dict.__new__(...)", dict_new_);
-    ADDCF(ks_T_dict, "__str__", "dict.__str__(self)", dict_str_);
-    ADDCF(ks_T_dict, "__repr__", "dict.__repr__(self)", dict_repr_);
-    
-    ADDCF(ks_T_dict, "__getitem__", "dict.__getitem__(self, key)", dict_getitem_);
-    ADDCF(ks_T_dict, "__setitem__", "dict.__setitem__(self, key, val)", dict_setitem_);
-
-    ADDCF(ks_T_dict, "__iter__", "dict.__iter__(self)", dict_iter_);
-
-    ADDCF(ks_T_dict, "__free__", "dict.__free__(self)", dict_free_);
+// initialize dict type
+void ks_type_dict_init() {
+    KS_INIT_TYPE_OBJ(ks_type_dict);
 
 }
 

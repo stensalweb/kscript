@@ -28,9 +28,8 @@ KSM_STD    ?=
 
 # the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libks_types_src := $(addprefix src/types/, none.c bool.c int.c float.c str.c tuple.c list.c dict.c code.c kfunc.c type.c module.c parser.c ast.c cfunc.c pfunc.c kobj.c $(addprefix iter/, list.c dict.c) $(addprefix error/, error.c))
-libks_src       := $(addprefix src/, mem.c log.c err.c kso.c fmt.c exec.c funcs.c codegen.c util.c $(addprefix opt/, propconst.c ) ) $(libks_types_src)
-libks_src_h     := $(addprefix ./include/, ks_config.h ks_bytecode.h ks_common.h ks_funcs.h ks_module.h ks_types.h ks.h kso.h)
+libks_src       := $(addprefix src/, init.c log.c mem.c obj.c builder.c) $(addprefix src/types/, type.c none.c bool.c int.c str.c dict.c cfunc.c)
+libks_src_h     := $(addprefix src/, ks.h)
 
 # the sources for the ks executable (so things can be ran from 
 #   commandline)
@@ -67,7 +66,7 @@ default: $(ks_exe) $(ksm_std_so)
 
 # initializes the build process, cleaning, and then creating the configuration header
 init: clean
-	cp ks_config.T.h ./include/ks_config.h
+	cp ks_config.T.h ./src/ks_config.h
 
 # using wildcard means it only removes what exists, which makes for more useful
 #   messages
@@ -83,7 +82,7 @@ clean:
 # `$@`: means the output file (%.o in thie case)
 %.o: %.c $(libks_src_h)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I./include -fPIC $< -c -o $@
+	$(CC) $(CFLAGS) -I./src -fPIC $< -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
 # Since `libks_o` contains many files, we use `$^` to mean `all input files together`

@@ -1,51 +1,39 @@
-/* types/cfunc.c - represents callable C functions */
+/* types/cfunc.c - C-style function wrapper class
+ *
+ * 
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
-#include "ks_common.h"
+
+#include "ks-impl.h"
 
 
-// create a new C-function wrapper
-ks_cfunc ks_cfunc_new(ks_cfunc_sig v_cfunc, char* sig_s) {
-    ks_cfunc self = (ks_cfunc)ks_malloc(sizeof(*self));
-    *self = (struct ks_cfunc) {
-        KSO_BASE_INIT(ks_T_cfunc)
-        .sig_s   = ks_str_new(sig_s),
-        .v_cfunc = v_cfunc,
-    };
+// forward declare it
+KS_TYPE_DECLFWD(ks_type_cfunc);
+
+// create a kscript int from a C-style int
+ks_cfunc ks_new_cfunc(ks_obj (*func)(int n_args, ks_obj* args)) {
+    ks_cfunc self = KS_ALLOC_OBJ(ks_cfunc);
+    KS_INIT_OBJ(self, ks_type_cfunc);
+
+    // initialize type-specific things
+    self->func = func;
+
     return self;
 }
 
-// free a function
-KS_TFUNC(cfunc, free) {
-    ks_cfunc self = (ks_cfunc)args[0];
-    KS_REQ_TYPE(self, ks_T_cfunc, "self");
 
-    KSO_DECREF(self->sig_s);
-
-    ks_free(self);
-
-    return KSO_NONE;
-}
-
-/* exporting functionality */
-
-struct ks_type T_cfunc, *ks_T_cfunc = &T_cfunc;
-
-void ks_init__cfunc() {
-
-    /* create the type */
-    T_cfunc = KS_TYPE_INIT();
-    
-    ks_type_setname_c(ks_T_cfunc, "cfunc");
-
-    // add cfuncs
-    #define ADDCF(_type, _name, _sig, _fn) { \
-        kso _f = (kso)ks_cfunc_new(_fn, _sig); \
-        ks_type_setattr_c(_type, _name, _f); \
-        KSO_DECREF(_f); \
-    }
-    
-    ADDCF(ks_T_cfunc, "__free__", "cfunc.__free__(self)", cfunc_free_);
+// free a kscript cfunc
+void ks_free_cfunc(ks_cfunc self) {
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 }
 
 
+
+// initialize cfunc type
+void ks_type_cfunc_init() {
+    KS_INIT_TYPE_OBJ(ks_type_cfunc);
+
+}
 

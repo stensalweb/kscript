@@ -1,226 +1,140 @@
-/* mem.c - memory management routines
+/* mem.c - kscript's memory management routines
+ *
+ * 
+ * 
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
-Uses exponential reallocation for better performance,
-instead of reallocing `size`, it reallocs `A*size+B`
 
-1 <= A <= 2, typically
-and
-0 <= B <= 16, typically
+#include "ks-impl.h"
 
-Obviously, this uses slighly more memory, but only `A`x more memory.
 
-Thus, with `A=1.25`, the system may use 125% of the actual amount required.
-This is not a bad trade, for the speed increase, as well as the speedup from
-resizing an array.
+#define KS_MEM_TRACE
 
-For example, take linearly resizing an array every so many bytes in a loop, gradually.
 
-It would take `n` steps, where `a(n)=a(n-1)*A+B>=size`, which (discounting B), is:
-`a(n)~a(0)*A^n+B*n`, and thus `n (~ or <) log(size)/log(A)`, if A > 1, else:
-`n ~ size/B`. This reduces complexity from O(size/B*iter) to O(iter*log(size)/log(A)),
-i.e. from O(N^2) to O(NlogN). This is well worth the extra memory usage
-
-TODO: perhaps have different allocation algorithms for different sizes?
-
-*/
-
-#include "ks.h"
-
-// uncomment this line to enable memory tracing
-//#define DO_MEM_TRACE 
-
-#ifdef DO_MEM_TRACE
-#define memtrace(...) ks_trace("[MEM] " __VA_ARGS__);
+// only enable trace calls if the build enabled memory tracing
+#ifdef KS_MEM_TRACE
+#define memtrace(...) ks_trace("[mem] " __VA_ARGS__)
 #else
 #define memtrace(...)
 #endif
-// rounds up to the next memory size for the reallocation scheme
-#define MEM_NEXT_SIZE(_num) ((uint64_t)((_num) * 1.25 + 8))
 
-/* byte size formatting */
+// keep track of the current & maximum amount of memory that has been allocated by kscript
+static ks_size_t cur_mem = 0, max_mem = 0;
 
-// prefixes for sizes
-static const char* size_pfx[] = {
-    "B ",
-    "KB",
-    "MB",
-    "GB",
-    "TB",
-    "PB",
-    "EB"
-};
-
-// return the char for the unit string
-const char* ks_mem_us(size_t bytes) {
-    int idx = 0;
-    while (bytes > 1024 && idx < sizeof(size_pfx) / sizeof(*size_pfx)) {
-        idx++;
-        bytes /= 1024;
-    }
-    return size_pfx[idx];
-}
-
-// return the value of the unit string for an amount of bytes
-int ks_mem_uv(size_t bytes) {
-    int idx = 0;
-    while (bytes > 1024 && idx < sizeof(size_pfx) / sizeof(*size_pfx)) {
-        idx++;
-        bytes /= 1024;
-    }
-    return (int)bytes;
+// record a change in the given memory
+static void add_mem(int64_t amt) {
+    cur_mem += amt;
+    if (cur_mem > max_mem) max_mem = cur_mem;
 }
 
 
-// keep track of the sum of all memory allocated - freed
-static size_t mem_cur = 0;
-
-// keep track of the maximum memory allocated at one time
-static size_t mem_max = 0;
-
-// record a change in the memory, by a given amount
-static inline void rec_mem(int64_t amt) {
-    mem_cur += amt;
-
-    // update the maximum, if exceeded
-    if (mem_cur > mem_max) {
-        mem_max = mem_cur;
-    }
-}
-
-// internal buffer structure, which holds meta-data about how many bytes were actually allocated,
-// and then the pointer is right on top of it
-struct ksi_buf {
-
-    uint64_t size;
+// ks_ibuf - internal buffer datastructure used for storing meta-data about the allocated buffer
+struct ks_ibuf {
+    ks_size_t size;
 
     void* data[0];
-
 };
 
-// allocate `bytes` bytes of memories
-void* ks_malloc(size_t bytes) {
-    // ks_malloc(0) -> NULL
-    if (bytes == 0) return NULL;
 
-    // give information about allocations > 500 MB
-    if (bytes > 500 * 1024 * 1024) {
-        ks_debug("[MEM_LARGE] allocating %i%s ...", ks_mem_uv(bytes), ks_mem_us(bytes));
-    }
-    
-    // use the C standard library malloc to get a large enough buffer to hold the meta and data size requestd
-    struct ksi_buf* buf = malloc(sizeof(struct ksi_buf) + bytes);
+// allocate 'sz' bytes of memory, return a pointer to it
+void* ks_malloc(ks_size_t sz) {
+    if (sz == 0) return NULL;
 
-    // check for a problem
-    if (buf == NULL) {
-        ks_error("ks_malloc(%l) failed!", bytes);
-    }
-    
-    // set the size
-    buf->size = bytes;
 
-    // record the allocation
-    rec_mem(buf->size);
+    // attempt to allocate a buffer
+    struct ks_ibuf* buf = malloc(sizeof(struct ks_ibuf) + sz);
 
-    // get the offset giving the user pointer
-    void* usr_ptr = (void*)&buf->data;
-
-    // trace what happened (making sure to mention the user data, rather than the internal buffer)
-    memtrace("ks_malloc(%l) -> %p", bytes, usr_ptr);
-
-    // return the user their pointer
-    return usr_ptr;
-}
-
-// reallocate a pointer (may return a different pointer)
-void* ks_realloc(void* ptr, size_t bytes) {
-    // ks_realloc(ptr, 0) will free ptr, and return NULL
-    if (bytes == 0) {
-        ks_free(ptr);
+    if (!buf) {
+        ks_error("ks_malloc(%llu) failed!", sz);
         return NULL;
     }
-    // ks_realloc(NULL, bytes) == ks_malloc(bytes)
-    if (ptr == NULL) return ks_malloc(bytes);
 
-    // first, rewind behind the buffer and read our internal buffer structure
-    struct ksi_buf* buf = (struct ksi_buf*)ptr - 1;
+    // record the memory transaction
+    add_mem(buf->size = sz);
 
-    // get what size we are currently at
-    uint64_t start_size = buf->size;
+    // get what the user sees
+    void* usr_ptr = (void*)&buf->data;
 
-    if (buf->size < bytes) {
+    // trace out the result
+    memtrace("ks_malloc(%llu) -> %p", sz, usr_ptr);
 
-        // debug large reallocations
-        if (bytes > 500 * 1024 * 1024) {
-            ks_debug("[MEM_LARGE] reallocating %i%s ... (ptr: %p)", ks_mem_uv(bytes), ks_mem_us(bytes), ptr);
-        }
+    return usr_ptr;
 
-        // calculate the next size up
-        buf->size = MEM_NEXT_SIZE(bytes);
+}
 
-        // keep track of the original buffer
-        struct ksi_buf* orig_buf = buf;
+// attempt to reallocate 'ptr' to 'new_sz' bytes, return a pointer to it,
+//   or NULL if the reallocation failed
+void* ks_realloc(void* ptr, ks_size_t new_sz) {
 
-        // now, reallocate it
-        buf = realloc(buf, sizeof(struct ksi_buf) + buf->size);
-
-        // check for failure
-        if (buf == NULL) {
-            ks_error("ks_realloc(%p, %l) failed!", ptr, orig_buf->size);
-
-            // record the free
-            rec_mem(- start_size);
-
-            // by the spec, realloc is not supposed to touch the original buffer,
-            // so we need to free it
-            free(orig_buf);
-            return NULL;
-        } else {
-
-            // record memory changes
-            rec_mem(buf->size - start_size);
-
-            // get the user pointer
-            void* usr_ptr = (void*)&buf->data;
+    // handle simple cases
+    if (new_sz <= 0) return ptr;
+    if (ptr == NULL) return ks_malloc(new_sz);
 
 
-            //trace out the memory allocation
-            memtrace("ks_realloc(%p, %l) -> %p", ptr, bytes, usr_ptr, ks_mem_uv(bytes), ks_mem_us(bytes));
+    // go 'underneath' the buffer to our internal datastructure
+    struct ks_ibuf* buf = (struct ks_ibuf*)ptr - 1;
 
-            return usr_ptr;
+    // capture the starting size
+    ks_size_t start_sz = buf->size;
 
-        }
-    } else {
-        // no change is neccessary, the allocated area already has enough bytes to hold the requested amount
+
+    if (buf->size >= new_sz) {
+        // no need for reallocation, it holds enough memory already
         return ptr;
+    } else {
+        // otherwise, call C realloc() to get enough data
+
+        struct ks_ibuf* new_buf = realloc(buf, sizeof(struct ks_ibuf) + new_sz);
+
+        if (new_buf == NULL) {
+            // realloc failed
+
+            ks_error("ks_realloc(%p, %llu) failed!", ptr, new_sz);
+
+            // free our buffer we started with
+            free(buf);
+
+            return NULL;
+        }
+
+        new_buf->size = new_sz;
+
+        // record memory difference
+        add_mem((int64_t)new_sz - start_sz);
+
+        // get what the user sees
+        void* usr_ptr = (void*)&new_buf->data;
+
+        // memory trace it out
+        ks_trace("ks_realloc(%p, %llu) -> %p", ptr, new_sz, usr_ptr);
+
+        // return backl what the user sees
+        return usr_ptr;
     }
 }
 
 
+// attempt to free 'ptr'
 void ks_free(void* ptr) {
-    // ks_free(NULL) -> no-op
     if (ptr == NULL) return;
 
-    // get the buffer from underneath the data
-    struct ksi_buf* buf = (struct ksi_buf*)ptr - 1;
+    memtrace("ks_free(%p)", ptr);
 
-    // record number of bytes
-    size_t bytes = buf->size;
+    // go 'underneath' the buffer to our internal datastructure
+    struct ks_ibuf* buf = (struct ks_ibuf*)ptr - 1;
 
-    // internally free it
+    // get the current memory amount
+    ks_size_t sz = buf->size;
+
+    // remove memory
+    add_mem(-(int64_t)sz);
+
+    // actually free the memory
     free(buf);
 
-    // record memory difference
-    rec_mem(-bytes);
-
-    memtrace("ks_free(%p)", ptr);
 }
 
-size_t ks_memuse() {
-    return mem_cur;
-}
 
-size_t ks_memuse_max() {
-    return mem_max;
-}
 
 

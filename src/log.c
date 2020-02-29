@@ -1,6 +1,9 @@
-/* log.c - logging utilities for kscript, including debug levels */
+/* log.c - kscript logging functions 
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
 
-#include "ks.h"
+#include "ks-impl.h"
 
 // formatting colors
 #define BOLD   "\033[1m"
@@ -65,9 +68,12 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     va_start(args, fmt);
 
     // use advanced formatting
+    /*
     ks_str rstr = ks_str_new_vcfmt(fmt, args);
     fwrite(rstr->chr, 1, rstr->len, stdout);
     KSO_DECREF(rstr);
+    */
+    vfprintf(stdout, fmt, args);
     va_end(args);
 
     // always end with a newline for this function
