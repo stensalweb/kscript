@@ -28,6 +28,15 @@ static void add_mem(int64_t amt) {
     if (cur_mem > max_mem) max_mem = cur_mem;
 }
 
+// Return the current amount of memory being used, or -1 if memory usage is not being tracked
+int64_t ks_mem_cur() {
+    return cur_mem;
+}
+// Return the maximum amount of memory that has been used at one time, or -1 if memory usage is not being tracked
+int64_t ks_mem_max() {
+    return max_mem;
+}
+
 
 // ks_ibuf - internal buffer datastructure used for storing meta-data about the allocated buffer
 struct ks_ibuf {
@@ -40,7 +49,6 @@ struct ks_ibuf {
 // allocate 'sz' bytes of memory, return a pointer to it
 void* ks_malloc(ks_size_t sz) {
     if (sz == 0) return NULL;
-
 
     // attempt to allocate a buffer
     struct ks_ibuf* buf = malloc(sizeof(struct ks_ibuf) + sz);

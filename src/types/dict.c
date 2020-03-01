@@ -268,8 +268,6 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
             ks_error("Internal Dictionary Error! (Could not resize)");
         }
     }
-
-
 }
 
 
@@ -344,7 +342,7 @@ ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
             // possible match; the hashes match
             if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
                 // they are equal, so it contains the key already. Now, return the value
-                return self->entries[ei].val;
+                return KS_NEWREF(self->entries[ei].val);
             }
         }
 
@@ -481,10 +479,62 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
     return false;
 }
 
+/* member functions */
+
+// dict.__str__(self) -> convert to string
+static KS_TFUNC(dict, str) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+
+    ks_str_builder SB;
+    ks_str_builder_init(&SB);
+
+    ks_str_builder_add(&SB, 1, "{");
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].hash != 0) {
+            if (i > 0 && i < self->n_entries) ks_str_builder_add(&SB, 2, ", ");
+
+            // add the item
+            ks_str_builder_add_repr(&SB, self->entries[i].key);
+            ks_str_builder_add(&SB, 2, ": ");
+            ks_str_builder_add_repr(&SB, self->entries[i].val);
+        }
+    }
+
+    ks_str_builder_add(&SB, 1, "}");
+
+    ks_str ret = ks_str_builder_get(&SB);
+
+    ks_str_builder_free(&SB);
+
+    return (ks_obj)ret;
+};
+
+// dict.__free__(self) -> free resources
+static KS_TFUNC(dict, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+
+    // call internal free function
+    ks_free_dict(self);
+
+    return KSO_NONE;
+};
+
 
 // initialize dict type
 void ks_type_dict_init() {
-    KS_INIT_TYPE_OBJ(ks_type_dict);
+    KS_INIT_TYPE_OBJ(ks_type_dict, "dict");
+
+    ks_type_set_cn(ks_type_dict, (ks_dict_ent_c[]){
+        {"__str__", (ks_obj)ks_new_cfunc(dict_str_)},
+        {"__free__", (ks_obj)ks_new_cfunc(dict_free_)},
+        {NULL, NULL}   
+    });
 
 }
 

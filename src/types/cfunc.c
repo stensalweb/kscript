@@ -33,7 +33,7 @@ void ks_free_cfunc(ks_cfunc self) {
 
 // initialize cfunc type
 void ks_type_cfunc_init() {
-    KS_INIT_TYPE_OBJ(ks_type_cfunc);
+    KS_INIT_TYPE_OBJ(ks_type_cfunc, "cfunc");
 
 }
 

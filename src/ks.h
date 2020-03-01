@@ -18,6 +18,9 @@
 #include <string.h>
 #include <assert.h>
 
+// timing functions
+#include <time.h>
+#include <sys/time.h>
 
 /* CONSTANTS */
 
@@ -70,6 +73,9 @@ typedef uint64_t ks_hash_t;
 // ks_obj - the most generic kscript object, which any other objects are castable to
 typedef struct ks_obj* ks_obj;
 
+// ks_str - a string object in kscript
+typedef struct ks_str* ks_str;
+
 // ks_type - an object representing a type in kscript. Every object has a type, which you can check with `obj->type`
 typedef struct ks_type* ks_type;
 
@@ -102,7 +108,7 @@ typedef struct ks_dict* ks_dict;
 // Un-record a reference to a given object (i.e. decrement the reference count)
 // NOTE: If the reference count reaches 0 (i.e. the object has became unreachable), this frees
 //   the object
-#define KS_DECREF(_obj) { if (--((ks_obj)_obj)->refcnt <= 0) { printf("FREE\n"); } }
+#define KS_DECREF(_obj) { if (--((ks_obj)_obj)->refcnt <= 0) { ks_obj_free(((ks_obj)_obj)); } }
 
 
 // Allocate memory for a new object type (by default, use `ks_malloc`)
@@ -125,13 +131,9 @@ typedef struct ks_dict* ks_dict;
 }
 
 // Initialize an object that is itself a type
-// Example: KS_INIT_TYPE_OBJ(ks_type_int)
-#define KS_INIT_TYPE_OBJ(_typeObj) { \
-    ks_type typeObj = (ks_type)(_typeObj); \
-    typeObj->type = ks_type_type; \
-    KS_INCREF(ks_type_type); \
-    typeObj->refcnt = 1; \
-    typeObj->attr = ks_new_dict(0, NULL); \
+// Example: KS_INIT_TYPE_OBJ(ks_type_int, "int")
+#define KS_INIT_TYPE_OBJ(_typeObj, _name) { \
+    ks_init_type(_typeObj, _name); \
 }
 
 // Uninitialize an object, i.e. unrecord a reference to the type it has
@@ -176,6 +178,31 @@ struct ks_type {
     // attributes of the type (i.e. member functions, static variables, etc)
     ks_dict attr;
 
+    /* quick references: 
+     *
+     * These values are meant to be able to be quickly looked up, as they are builtins that will be called often.
+     * These should always be equal to 'type.$NAME', so 'type->__str__' should always be equal to 
+     *   'getattr(type, "__str__")'
+     * 
+     * The main reason for these attributes are speed of common operations, which this will allow us to skip a dict
+     *   lookup, and instead just check
+     * 
+     */
+
+    // type.__name__ -> the name of the type, typically human readable
+    ks_str __name__;
+
+    // type.__parents__ -> a list of parent classes from which this type derives from
+    ks_list __parents__;
+
+    // type.__str__(self) -> convert an item to a string
+    ks_obj __str__;
+
+    // type.__repr__(self) -> convert an item to a string representation
+    ks_obj __repr__;
+
+    // type.__free__(self) -> free the memory/references used by the object
+    ks_obj __free__;
 
 };
 
@@ -272,7 +299,7 @@ typedef struct {
 
 // ks_str - type representing a string of characters. Internally, the buffer is length encoded & NUL-terminated
 //   and the hash is computed at creation time
-typedef struct ks_str {
+struct ks_str {
     KS_OBJ_BASE
 
     // the hash of the string, cached, because it seems to be useful to precompute them
@@ -288,7 +315,7 @@ typedef struct ks_str {
     // and so new strings can be created with: `malloc(sizeof(*ks_str) + length)`
     char chr[2];
 
-}* ks_str;
+};
 
 
 // ks_cfunc - a C-function wrapper which can be called
@@ -336,8 +363,6 @@ bool ks_str_builder_add_str(ks_str_builder* self, ks_obj obj);
 // Free the string builder, freeing all internal resources (but not the built strings)
 void ks_str_builder_free(ks_str_builder* self);
 
-
-
 /* meta-types */
 
 // these are the built-in types
@@ -361,6 +386,10 @@ extern ks_type
 
 // Attempt to initialize the library. Return 'true' on success, 'false' otherwise
 bool ks_init();
+
+// Return the time, in seconds, since the library started. It uses a fairly good wall clock,
+//   but is only meant for rough approximation. Using the std time module is best for most results
+double ks_time();
 
 /* LOGGING */
 
@@ -401,8 +430,18 @@ void* ks_realloc(void* ptr, ks_size_t new_sz);
 // NOTE: `ks_free(NULL)` is a guaranteed NO-OP
 void ks_free(void* ptr);
 
+// Return the current amount of memory being used, or -1 if memory usage is not being tracked
+int64_t ks_mem_cur();
+
+// Return the maximum amount of memory that has been used at one time, or -1 if memory usage is not being tracked
+int64_t ks_mem_max();
+
 
 /* CREATING/DESTROYING PRIMITIVES */
+
+// Initialize a type variable. Make sure 'self' has not been ref cnted, etc. Just an allocated blob of memory!
+// NOTE: Returns a new reference
+void ks_init_type(ks_type self, char* name);
 
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
@@ -436,6 +475,16 @@ ks_dict ks_new_dict(int len, ks_obj* entries);
 
 // perform a string comparison on 2 strings
 int ks_str_cmp(ks_str A, ks_str B);
+
+// Push an object on to the end of the list, expanding the list
+void ks_list_push(ks_list self, ks_obj obj);
+
+// Pop off an object from the end of the list
+// NOTE: Returns a reference
+ks_obj ks_list_pop(ks_list self);
+
+// Pop off an object from the end of the list, destroying the reference
+void ks_list_popu(ks_list self);
 
 
 // special data structure for easier to read initialization from C
@@ -473,6 +522,7 @@ bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key);
 
 // Get a value of the dictionary
 // NULL if it does not exist
+// NOTE: Returns a new reference
 ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key);
 
 // Set a dictionary entry for a key, to a value
@@ -490,14 +540,38 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
 // result < 0 means there was some internal problem (most likely the key was not hashable)
 int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
-
 // Create a new C-function wrapper
 // NOTE: Returns a new reference
 ks_cfunc ks_new_cfunc(ks_obj (*func)(int n_args, ks_obj* args));
 
 
-/* OBJECT INTERFACE (see ./obj.c) */
+/* MISC. TYPE/OBJECT FUNCTIONS */
 
+// add a parent to the type, which the type will derive from
+void ks_type_add_parent(ks_type self, ks_type parent);
+
+// Get an attribute for the given type
+// 0 can be passed to 'hash', and it will be calculated
+// NOTE: Returns a new referece
+ks_obj ks_type_get(ks_type self, ks_str key);
+
+
+// Set an attribute for the given type
+// 0 can be passed to 'hash', and it will be calculated
+void ks_type_set(ks_type self, ks_str key, ks_obj val);
+
+// Set a C-style string key as the attribute for a type
+void ks_type_set_c(ks_type self, char* key, ks_obj val);
+
+// Sets a list of C-entries (without creating new references)
+// result == 0 means no problems
+// result < 0 means there was some internal problem (most likely the key was not hashable)
+// So, do NOT remove additional references from 'ent_cns'
+int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
+
+
+
+/* OBJECT INTERFACE (see ./obj.c) */
 
 // Get the string representation of an object, or NULL if there was an error
 // NOTE: Returns a new reference
@@ -506,6 +580,9 @@ ks_str ks_repr(ks_obj obj);
 // Convert the given object to a string, or NULL if there was an error
 // NOTE: Returns a new reference
 ks_str ks_to_str(ks_obj obj);
+
+// Free an object, by either calling its deconstructor or freeing the memory
+void ks_obj_free(ks_obj obj);
 
 // Return the length of the object (len(obj)) as an integer.
 // Negative values indicate there was an exception
@@ -522,8 +599,63 @@ bool ks_eq(ks_obj A, ks_obj B);
 // Return whether or not 'func' is callable as a function
 bool ks_is_callable(ks_obj func);
 
+
+// Get an attribute by name, i.e. 'obj.attr'
+// NOTE: Returns a new reference
+ks_obj ks_getattr(ks_obj obj, ks_obj attr);
+
+
 // Attempt to call 'func' on 'args', returning NULL if there was an error
+// NOTE: Returns a new reference
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
+
+// Attempt to call 'func.attr' on 'args', returning NULL if there was an error
+// NOTE: Returns a new reference
+ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args);
+
+
+
+/* STRING FORMATTING (see ./fmt.c) */
+
+// Perform C-style formatting, with various arguments
+// TODO: document format specifiers
+// NOTE: Returns a reference
+ks_str ks_fmt_c(const char* fmt, ...);
+
+// Perform variadic C-style formating, with a list of arguments
+// TODO: document format specifiers
+// NOTE: Returns a reference
+ks_str ks_fmt_vc(const char* fmt, va_list ap);
+
+
+
+/* KSCRIPT FUNCTION ERROR HANDLING */
+
+// Require an expression to be true, otherwise throw an error and return 'NULL'
+// NOTE: Should be used inside of a KS_FUNC(), because this will return NULL!
+#define KS_REQ(_expr, ...) {       \
+    if (!(_expr)) {                \
+        ks_error(__VA_ARGS__);     \
+        return NULL;               \
+    }                              \
+}
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS(_nargs, _correct) KS_REQ((_nargs) == (_correct), "Incorrect number of arguments, expected %i, but got %i", (int)(_correct), (int)(_nargs))
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS_MIN(_nargs, _min) KS_REQ((_nargs) >= (_min), "Incorrect number of arguments, expected at least %i, but got %i", (int)(_min), (int)(_nargs))
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS_MAX(_nargs, _max) KS_REQ((_nargs) <= (_max), "Incorrect number of arguments, expected at most %i, but got %i", (int)(_max), (int)(_nargs))
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS_RANGE(_nargs, _min, _max) KS_REQ((_nargs) >= (_min) && (_nargs) <= (_max), "Incorrect number of arguments, expected between %i and %i, but got %i", (int)(_min), (int)(_max), (int)(_nargs))
+
+
+// Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
+#define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
+
 
 
 

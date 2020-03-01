@@ -73,8 +73,13 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     fwrite(rstr->chr, 1, rstr->len, stdout);
     KSO_DECREF(rstr);
     */
-    vfprintf(stdout, fmt, args);
+    //vfprintf(stdout, fmt, args);
+    ks_str gen_str = ks_fmt_vc(fmt, args);
     va_end(args);
+
+    fprintf(stdout, "%s", gen_str->chr);
+
+    KS_DECREF(gen_str);
 
     // always end with a newline for this function
     fprintf(stdout, "\n");

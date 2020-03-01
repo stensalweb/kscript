@@ -57,12 +57,12 @@ static KS_TFUNC(str, mine) {
 
 // initialize string type
 void ks_type_str_init() {
-    KS_INIT_TYPE_OBJ(ks_type_str);
-
+    KS_INIT_TYPE_OBJ(ks_type_str, "str");
 
     // set properties
-    ks_dict_set_cn(ks_type_str->attr, (ks_dict_ent_c[]){
+    ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
         {"mine", (ks_obj)ks_new_cfunc(str_mine_)},
+        
         {NULL, NULL}
     });
 

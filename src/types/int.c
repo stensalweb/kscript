@@ -33,7 +33,7 @@ void ks_free_int(ks_int self) {
 
 // initialize int type
 void ks_type_int_init() {
-    KS_INIT_TYPE_OBJ(ks_type_int);
+    KS_INIT_TYPE_OBJ(ks_type_int, "int");
 
 }
 

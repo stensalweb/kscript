@@ -16,7 +16,7 @@ ks_bool KS_TRUE, KS_FALSE;
 
 // initialize bool type
 void ks_type_bool_init() {
-    KS_INIT_TYPE_OBJ(ks_type_bool);
+    KS_INIT_TYPE_OBJ(ks_type_bool, "bool");
 
     // initialize global singletons
     KS_TRUE = KS_ALLOC_OBJ(ks_bool);

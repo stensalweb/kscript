@@ -57,7 +57,6 @@ bool ks_str_builder_add_repr(ks_str_builder* self, ks_obj obj) {
 
 // add str(obj) to the string buffer
 bool ks_str_builder_add_str(ks_str_builder* self, ks_obj obj) {
-
     // attempt to get the repr
     ks_str to_str = ks_to_str(obj);
     if (!to_str) return false;

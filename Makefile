@@ -16,7 +16,7 @@
 # set the C compiler (?= means 'set if not already set')
 CC         ?= cc
 # set the compiler flags
-CFLAGS     ?= -g -std=c99 
+CFLAGS     ?= -O3 -std=c99 
 # set the installation prefix
 PREFIX     ?= /usr/local
 
@@ -28,7 +28,7 @@ KSM_STD    ?=
 
 # the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libks_src       := $(addprefix src/, init.c log.c mem.c obj.c builder.c) $(addprefix src/types/, type.c none.c bool.c int.c str.c dict.c cfunc.c)
+libks_src       := $(addprefix src/, init.c log.c mem.c obj.c builder.c fmt.c) $(addprefix src/types/, type.c none.c bool.c int.c str.c list.c dict.c cfunc.c)
 libks_src_h     := $(addprefix src/, ks.h)
 
 # the sources for the ks executable (so things can be ran from 
