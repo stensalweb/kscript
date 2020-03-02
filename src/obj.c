@@ -17,7 +17,7 @@ void ks_obj_free(ks_obj obj) {
 
     } else {
         // otherwise, call the function
-        ks_info("Freeing object %s", obj->type->__name__->chr);
+        //ks_info("Freeing object %s", obj->type->__name__->chr);
         if (!ks_call(obj->type->__free__, 1, &obj)) {
             // there was an error in the freeing function
 
@@ -34,58 +34,51 @@ ks_str ks_repr(ks_obj obj) {
         ks_str sobj = (ks_str)obj;
 
         // generate a string representation
-        ks_str_builder SB;
-        ks_str_builder_init(&SB);
+        ks_str_b SB;
+        ks_str_b_init(&SB);
 
-        ks_str_builder_add(&SB, 1, "'");
+        ks_str_b_add(&SB, 1, "'");
 
         int i;
         for (i = 0; i < sobj->len; ++i) {
             char c = sobj->chr[i];
-            /**/ if (c == '\\') ks_str_builder_add(&SB, 2, "\\\\");
-            else if (c == '\n') ks_str_builder_add(&SB, 2, "\\n");
-            else if (c == '\t') ks_str_builder_add(&SB, 2, "\\t");
+            /**/ if (c == '\\') ks_str_b_add(&SB, 2, "\\\\");
+            else if (c == '\n') ks_str_b_add(&SB, 2, "\\n");
+            else if (c == '\t') ks_str_b_add(&SB, 2, "\\t");
             else {
                 // just add character
-                ks_str_builder_add(&SB, 1, &c);
+                ks_str_b_add(&SB, 1, &c);
             }
         }
 
-        ks_str_builder_add(&SB, 1, "'");
+        ks_str_b_add(&SB, 1, "'");
 
-        ks_str ret = ks_str_builder_get(&SB);
-        ks_str_builder_free(&SB);
+        ks_str ret = ks_str_b_get(&SB);
+        ks_str_b_free(&SB);
         return ret;
     } else if (obj->type == ks_type_int) {
         // do standard formatting
         return ks_fmt_c("%l", ((ks_int)obj)->val);
-    } else {
+    } else if (obj->type->__repr__ != NULL) {
         // attempt to call type(obj).__repr__(obj)
-
+        return (ks_str)ks_call(obj->type->__repr__, 1, &obj);
+    } else {
+        // do a default formatting
+        return ks_fmt_c("<'%s' obj @ %p>", obj->type->__name__->chr, (void*)obj);
     }
-
-    // no known way to convert to a repr
-
-    printf("ERR\n");
-    return NULL;
 }
 
 // convert an object to a string
 ks_str ks_to_str(ks_obj obj) {
     if (obj->type == ks_type_str) {
         return (ks_str)KS_NEWREF(obj);
+    } else if (obj->type->__str__ != NULL) {
+        // attempt to call type(obj).__str__(obj)
+        return (ks_str)ks_call(obj->type->__str__, 1, &obj);
     } else {
-        // try and get the type's function for tostring
-        ks_obj T_str = obj->type->__str__;
-
-        if (T_str != NULL) {
-            // call type(obj).__str__(obj)
-            return (ks_str)ks_call(T_str, 1, &obj);
-        }
+        // do a default formatting
+        return ks_fmt_c("<'%s' obj @ %p>", obj->type->__name__->chr, (void*)obj);
     }
-
-    printf("ERR\n");
-    return NULL;
 }
 
 // calculate len(obj)
@@ -95,7 +88,7 @@ int64_t ks_len(ks_obj obj) {
     }
 
     // no len attribute; error
-    printf("NO LEN\n");
+    //printf("NO LEN\n");
     return -1;
 }
 
@@ -109,8 +102,7 @@ ks_hash_t ks_hash(ks_obj obj) {
         return (ks_hash_t)(v == 0 ? 1 : v);
     }
 
-    // no len attribute; error
-    printf("NO HASH\n");
+    // no hash, so return 0
     return 0;
 }
 
@@ -129,11 +121,9 @@ bool ks_eq(ks_obj A, ks_obj B) {
 
 // Return if it is callable
 bool ks_is_callable(ks_obj func) {
-
     if (func->type == ks_type_cfunc) {
         return true;
     }
-
 
     // there is no way to call it
     return false;

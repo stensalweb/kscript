@@ -24,6 +24,7 @@ bool ks_init() {
     ks_type_dict_init();
 
     ks_type_cfunc_init();
+    ks_type_code_init();
 
     // success
     return true;

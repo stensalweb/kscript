@@ -29,9 +29,13 @@ typedef struct {
     // true if we should always add the sign, even for positive numbers (default: false)
     bool do_sign;
 
+
+    // true if empty values for ints/floats should be zero padded (if not, they are blank) (default: false)
+    bool zero_pad;
+
 } bfmt_arg;
 
-#define BFMT_ARG_DEFAULT ((bfmt_arg){ .width = 0, .base = 10, .do_sign = false })
+#define BFMT_ARG_DEFAULT ((bfmt_arg){ .width = 0, .base = 10, .do_sign = false, .zero_pad = false })
 
 // internal buffer reversing on a buffer, reverses '0' through 'n-1' (inclusive)
 static void bfmt_rev(char* buf, int n) {
@@ -66,7 +70,7 @@ static int bfmt_i64(char* buf, int n, int64_t val, bfmt_arg arg) {
     } while (bp < n - 1 && val > 0);
 
     if (arg.width > 0) while (bp < n - 1 && bp < arg.width) {
-        buf[bp++] = '0';
+        buf[bp++] = arg.zero_pad ? '0' : ' ';
     }
 
 
@@ -114,10 +118,24 @@ static int bfmt_f64(char* buf, int n, double val, bfmt_arg arg) {
     return bp;
 }
 
+
+// Add a formatted string (formmated by ks_vfmt), and then appended to the string buffer
+void ks_str_b_add_fmt(ks_str_b* self, char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    ks_str ret = ks_fmt_vc(fmt, ap);
+    va_end(ap);
+
+    ks_str_b_add(self, ret->len, ret->chr);
+
+    KS_DECREF(ret);
+
+}
+
 // Perform a var-args style C formatting, like vprintf
 ks_str ks_fmt_vc(const char* fmt, va_list ap) {
-    ks_str_builder SB;
-    ks_str_builder_init(&SB);
+    ks_str_b SB;
+    ks_str_b_init(&SB);
 
     // current position in the formatting string
     char* p = (char*)fmt;
@@ -127,6 +145,9 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
 
     // temporary field for fixed size formats
     char tmp[256];
+
+    // temporary variable for looping
+    int j;
 
     // formatting arguments
     bfmt_arg barg;
@@ -140,7 +161,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         while (*p && *p != '%') p++;
 
         // now, add all those bytes to the string builder
-        ks_str_builder_add(&SB, (int)(p - s_p), s_p);
+        ks_str_b_add(&SB, (int)(p - s_p), s_p);
 
         // current character
         char c = *p;
@@ -175,10 +196,24 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             // get an integer from the varargs
             int v_int = va_arg(ap, int);
 
+            // parse out argument specifiers
+            barg.do_sign = strchr(field, '+');
+
+            for (j = 0; j < f_p; ++j) {
+                // attempt to search for a digit
+                if (isdigit(field[j])) {
+                    // if so, scan out the width
+                    if (field[j] == '0') barg.zero_pad = true;
+                    int x = atoll(field);
+                    barg.width = x;
+                    break;
+                }
+            }
+
             int amt = bfmt_i64(tmp, 255, v_int, barg);
             
             // add to the string builder
-            ks_str_builder_add(&SB, amt, tmp);
+            ks_str_b_add(&SB, amt, tmp);
 
             // advance past the specifier
             p += 1;
@@ -188,10 +223,52 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             // get the value from varargs
             int64_t v_long = va_arg(ap, int64_t);
 
+            // parse out argument specifiers
+            barg.do_sign = strchr(field, '+');
+
+            for (j = 0; j < f_p; ++j) {
+                // attempt to search for a digit
+                if (isdigit(field[j])) {
+                    // if so, scan out the width
+                    if (field[j] == '0') barg.zero_pad = true;
+                    int x = atoll(field);
+                    barg.width = x;
+                    break;
+                }
+            }
+
             int amt = bfmt_i64(tmp, 255, v_long, barg);
 
             // add to the string builder
-            ks_str_builder_add(&SB, amt, tmp);
+            ks_str_b_add(&SB, amt, tmp);
+
+            // advance past the specifier
+            p += 1;
+        } else if (strncmp(p, "x", 1) == 0) {
+            // %x - print a 32 bit integer as a hex value
+            // get an integer from the varargs
+            int v_int = va_arg(ap, int);
+
+            barg.base = 16;
+
+            // parse out argument specifiers
+            barg.do_sign = strchr(field, '+');
+
+            for (j = 0; j < f_p; ++j) {
+                // attempt to search for a digit
+                if (isdigit(field[j])) {
+                    // if so, scan out the width
+                    if (field[j] == '0') barg.zero_pad = true;
+                    int x = atoll(field);
+                    barg.width = x;
+                    break;
+                }
+            }
+
+            int amt = bfmt_i64(tmp, 255, v_int, barg);
+            
+            // add to the string builder
+            ks_str_b_add(&SB, amt, tmp);
 
             // advance past the specifier
             p += 1;
@@ -206,10 +283,10 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             int amt = bfmt_i64(tmp, 255, v_ptr, barg);
 
             // add hex prefix
-            ks_str_builder_add(&SB, 2, "0x");
+            ks_str_b_add(&SB, 2, "0x");
 
             // add to the string builder
-            ks_str_builder_add(&SB, amt, tmp);
+            ks_str_b_add(&SB, amt, tmp);
 
             // advance past the specifier
             p += 1;
@@ -223,7 +300,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             int amt = bfmt_f64(tmp, 255, v_lf, barg);
 
             // add to the string builder
-            ks_str_builder_add(&SB, amt, tmp);
+            ks_str_b_add(&SB, amt, tmp);
 
             // advance past the specifier
             p += strncmp(p, "lf", 2) == 0 ? 2 : 1;
@@ -235,7 +312,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             int sz = v_chr == NULL ? 0 : strlen(v_chr);
 
             // add to the string builder
-            ks_str_builder_add(&SB, sz, v_chr);
+            ks_str_b_add(&SB, sz, v_chr);
 
             // advance past the specifier
             p += 1;
@@ -246,7 +323,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             ks_obj v_obj = va_arg(ap, ks_obj);
 
             // add to the string builder
-            ks_str_builder_add_str(&SB, v_obj);
+            ks_str_b_add_str(&SB, v_obj);
 
             // advance past the specifier
             p += 1;
@@ -256,21 +333,21 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             ks_obj v_obj = va_arg(ap, ks_obj);
 
             // add to the string builder
-            ks_str_builder_add_repr(&SB, v_obj);
+            ks_str_b_add_repr(&SB, v_obj);
 
             // advance past the specifier
             p += 1;
         } else {
-            fprintf(stderr, "Unknown format specifier: '%%%c'\n", *p);
-            assert(false);
+            fprintf(stderr, "Unknown format specifier: '%%%c' (whole format string was: %s)\n", *p, fmt);
+            assert(false && "Unknown format specifier in 'ks_fmt_vc'");
         }
 
     }
 
 
     // actually generate out the string
-    ks_str ret = ks_str_builder_get(&SB);
-    ks_str_builder_free(&SB);
+    ks_str ret = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
 
     return ret;
 }

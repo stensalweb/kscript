@@ -21,9 +21,8 @@ static KS_TFUNC(none, free) {
     ks_none self = (ks_none)args[0];
     KS_REQ_TYPE(self, ks_type_none, "self");
 
-
-    // up the refcnt
-
+    // up the refcnt so it won't be freed for a while
+    self->refcnt = INT32_MAX;
 
     return KSO_NONE;
 };

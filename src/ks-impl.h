@@ -12,7 +12,6 @@
 #include "ks.h"
 
 
-
 /* INTERNAL TYPE INITIALIZATION FUNCTIONS */
 void ks_type_type_init();
 void ks_type_none_init();
@@ -22,7 +21,7 @@ void ks_type_str_init();
 void ks_type_list_init();
 void ks_type_dict_init();
 void ks_type_cfunc_init();
-
+void ks_type_code_init();
 
 // internal function to hash a length of bytes, using djb hash
 static inline ks_hash_t ks_hash_bytes(int len, uint8_t* data) {

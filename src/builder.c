@@ -7,19 +7,19 @@
 
 
 // initialize the string builder
-void ks_str_builder_init(ks_str_builder* self) {
+void ks_str_b_init(ks_str_b* self) {
     self->len = 0;
     self->data = NULL;
 }
 
 // Create a (new reference) of a string from the string builder at this point
-ks_str ks_str_builder_get(ks_str_builder* self) {
+ks_str ks_str_b_get(ks_str_b* self) {
     return ks_new_str_l(self->len, self->data);
 }
 
 
 // add bytes to the string builder
-void ks_str_builder_add(ks_str_builder* self, int len, char* data) {
+void ks_str_b_add(ks_str_b* self, int len, char* data) {
     // position to start writing the data
     int pos = self->len;
 
@@ -34,8 +34,12 @@ void ks_str_builder_add(ks_str_builder* self, int len, char* data) {
 }
 
 
+void ks_str_b_add_c(ks_str_b* self, char* cstr) {
+    ks_str_b_add(self, strlen(cstr), cstr);
+}
+
 // add repr(obj) to the string builder
-bool ks_str_builder_add_repr(ks_str_builder* self, ks_obj obj) {
+bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj) {
 
     // attempt to get the repr
     ks_str repr = ks_repr(obj);
@@ -45,7 +49,7 @@ bool ks_str_builder_add_repr(ks_str_builder* self, ks_obj obj) {
     assert(repr->type == ks_type_str);
 
     // we have a valid string, add it
-    ks_str_builder_add(self, repr->len, repr->chr);
+    ks_str_b_add(self, repr->len, repr->chr);
 
     // dispose of our ref
     KS_DECREF(repr);
@@ -56,7 +60,7 @@ bool ks_str_builder_add_repr(ks_str_builder* self, ks_obj obj) {
 
 
 // add str(obj) to the string buffer
-bool ks_str_builder_add_str(ks_str_builder* self, ks_obj obj) {
+bool ks_str_b_add_str(ks_str_b* self, ks_obj obj) {
     // attempt to get the repr
     ks_str to_str = ks_to_str(obj);
     if (!to_str) return false;
@@ -65,7 +69,7 @@ bool ks_str_builder_add_str(ks_str_builder* self, ks_obj obj) {
     assert(to_str->type == ks_type_str);
 
     // we have a valid string, add it
-    ks_str_builder_add(self, to_str->len, to_str->chr);
+    ks_str_b_add(self, to_str->len, to_str->chr);
 
     // dispose of our ref
     KS_DECREF(to_str);
@@ -76,7 +80,7 @@ bool ks_str_builder_add_str(ks_str_builder* self, ks_obj obj) {
 
 
 // Free the string builder, freeing all internal resources (but not the built strings)
-void ks_str_builder_free(ks_str_builder* self) {
+void ks_str_b_free(ks_str_b* self) {
     self->len = 0;
     ks_free(self->data);
 }

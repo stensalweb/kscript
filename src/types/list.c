@@ -75,27 +75,40 @@ static KS_TFUNC(list, str) {
     
     assert(self->type == ks_type_list);
 
-    ks_str_builder SB;
-    ks_str_builder_init(&SB);
+    ks_str_b SB;
+    ks_str_b_init(&SB);
 
-    ks_str_builder_add(&SB, 1, "[");
+    ks_str_b_add(&SB, 1, "[");
 
     int i;
     for (i = 0; i < self->len; ++i) {
-        if (i > 0 && i < self->len) ks_str_builder_add(&SB, 2, ", ");
+        if (i > 0 && i < self->len) ks_str_b_add(&SB, 2, ", ");
 
         // add the item
-        ks_str_builder_add_repr(&SB, self->elems[i]);
+        ks_str_b_add_repr(&SB, self->elems[i]);
     }
 
-    ks_str_builder_add(&SB, 1, "]");
+    ks_str_b_add(&SB, 1, "]");
 
-    ks_str ret = ks_str_builder_get(&SB);
+    ks_str ret = ks_str_b_get(&SB);
 
-    ks_str_builder_free(&SB);
+    ks_str_b_free(&SB);
 
     return (ks_obj)ret;
 };
+
+// list.__free__(self) -> frees resources
+static KS_TFUNC(list, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_type_list, "self");
+
+    // free resources by default
+    ks_free_list(self);
+
+    return KSO_NONE;
+};
+
 
 
 // initialize list type
@@ -105,6 +118,7 @@ void ks_type_list_init() {
     ks_type_set_cn(ks_type_list, (ks_dict_ent_c[]){
         {"__str__", (ks_obj)ks_new_cfunc(list_str_)},
         {"__repr__", (ks_obj)ks_new_cfunc(list_str_)},
+        {"__free__", (ks_obj)ks_new_cfunc(list_free_)},
         {NULL, NULL}   
     });
 }

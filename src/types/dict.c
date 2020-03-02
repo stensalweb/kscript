@@ -487,28 +487,28 @@ static KS_TFUNC(dict, str) {
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_type_dict, "self");
 
-    ks_str_builder SB;
-    ks_str_builder_init(&SB);
+    ks_str_b SB;
+    ks_str_b_init(&SB);
 
-    ks_str_builder_add(&SB, 1, "{");
+    ks_str_b_add(&SB, 1, "{");
 
     int i;
     for (i = 0; i < self->n_entries; ++i) {
         if (self->entries[i].hash != 0) {
-            if (i > 0 && i < self->n_entries) ks_str_builder_add(&SB, 2, ", ");
+            if (i > 0 && i < self->n_entries) ks_str_b_add(&SB, 2, ", ");
 
             // add the item
-            ks_str_builder_add_repr(&SB, self->entries[i].key);
-            ks_str_builder_add(&SB, 2, ": ");
-            ks_str_builder_add_repr(&SB, self->entries[i].val);
+            ks_str_b_add_repr(&SB, self->entries[i].key);
+            ks_str_b_add(&SB, 2, ": ");
+            ks_str_b_add_repr(&SB, self->entries[i].val);
         }
     }
 
-    ks_str_builder_add(&SB, 1, "}");
+    ks_str_b_add(&SB, 1, "}");
 
-    ks_str ret = ks_str_builder_get(&SB);
+    ks_str ret = ks_str_b_get(&SB);
 
-    ks_str_builder_free(&SB);
+    ks_str_b_free(&SB);
 
     return (ks_obj)ret;
 };
