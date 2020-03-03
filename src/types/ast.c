@@ -11,38 +11,38 @@
 KS_TYPE_DECLFWD(ks_type_ast);
 
 // construct a new AST representing a constant value
-ks_ast ks_new_ast_const(ks_obj val) {
+ks_ast ks_ast_new_const(ks_obj val) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
     self->kind = KS_AST_CONST;
-    self->children = ks_new_list(1, &val);
+    self->children = ks_list_new(1, &val);
 
     return self;
 }
 
 // construct a new AST representing a constant value
-ks_ast ks_new_ast_var(ks_str name) {
+ks_ast ks_ast_new_var(ks_str name) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
     self->kind = KS_AST_VAR;
-    self->children = ks_new_list(1, (ks_obj*)&name);
+    self->children = ks_list_new(1, (ks_obj*)&name);
 
     return self;
 }
 
 
 // construct a new AST representing a function call
-ks_ast ks_new_ast_call(ks_ast func, int n_args, ks_ast* args) {
+ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
     self->kind = KS_AST_CALL;
-    self->children = ks_new_list(1, (ks_obj*)&func);
+    self->children = ks_list_new(1, (ks_obj*)&func);
 
     // push args too
     ks_list_pushn(self->children, n_args, (ks_obj*)args);
@@ -51,13 +51,13 @@ ks_ast ks_new_ast_call(ks_ast func, int n_args, ks_ast* args) {
 }
 
 // construct a new AST representing a return statement
-ks_ast ks_new_ast_ret(ks_ast val) {
+ks_ast ks_ast_new_ret(ks_ast val) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
     self->kind = KS_AST_CALL;
-    self->children = ks_new_list(1, (ks_obj*)&val);
+    self->children = ks_list_new(1, (ks_obj*)&val);
 
     return self;
 }
@@ -93,7 +93,7 @@ void ks_type_ast_init() {
     KS_INIT_TYPE_OBJ(ks_type_ast, "ast");
 
     ks_type_set_cn(ks_type_ast, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_new_cfunc(ast_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new(ast_free_)},
         {NULL, NULL}   
     });
 }

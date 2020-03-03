@@ -12,7 +12,7 @@
 KS_TYPE_DECLFWD(ks_type_str);
 
 // create a kscript string from a C-style string with a length (not including NUL-terminator)
-ks_str ks_new_str_l(int len, char* chr) {
+ks_str ks_str_new_l(int len, char* chr) {
     ks_str self = (ks_str)ks_malloc(sizeof(struct ks_str) + len);
     KS_INIT_OBJ(self, ks_type_str);
 
@@ -30,8 +30,8 @@ ks_str ks_new_str_l(int len, char* chr) {
 }
 
 // create a kscript string from a C-style string
-ks_str ks_new_str(char* chr) {
-    return ks_new_str_l(chr == NULL ? 0 : strlen(chr), chr);
+ks_str ks_str_new(char* chr) {
+    return ks_str_new_l(chr == NULL ? 0 : strlen(chr), chr);
 }
 
 // Escape the string 'A', i.e. replace '\' -> '\\', and newlines to '\n'
@@ -115,7 +115,7 @@ void ks_type_str_init() {
 
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
-        {"mine", (ks_obj)ks_new_cfunc(str_mine_)},
+        {"mine", (ks_obj)ks_cfunc_new(str_mine_)},
         
         {NULL, NULL}
     });

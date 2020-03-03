@@ -12,14 +12,14 @@
 KS_TYPE_DECLFWD(ks_type_code);
 
 // create a kscript code given a constant array
-ks_code ks_new_code(ks_list v_const) {
+ks_code ks_code_new(ks_list v_const) {
 
     ks_code self = KS_ALLOC_OBJ(ks_code);
     KS_INIT_OBJ(self, ks_type_code);
     
     if (v_const == NULL) {
         // create a new constants array
-        v_const = ks_new_list(0, NULL);
+        v_const = ks_list_new(0, NULL);
         self->v_const = v_const;
     } else {
         // keep a reference to the constant array
@@ -103,25 +103,25 @@ void ksca_store_attr(ks_code self, ks_str name) KSCA_B_I32(KSB_STORE_ATTR, ks_co
 
 /* C-style funcs */
 void ksca_load_c(ks_code self, char* name) {
-    ks_str obj = ks_new_str(name);
+    ks_str obj = ks_str_new(name);
     ksca_load(self, obj);
     KS_DECREF(obj);
 }
 
 void ksca_load_attr_c(ks_code self, char* name) {
-    ks_str obj = ks_new_str(name);
+    ks_str obj = ks_str_new(name);
     ksca_load_attr(self, obj);
     KS_DECREF(obj);
 }
 
 void ksca_store_c(ks_code self, char* name) {
-    ks_str obj = ks_new_str(name);
+    ks_str obj = ks_str_new(name);
     ksca_store(self, obj);
     KS_DECREF(obj);
 }
 
 void ksca_store_attr_c(ks_code self, char* name) {
-    ks_str obj = ks_new_str(name);
+    ks_str obj = ks_str_new(name);
     ksca_store_attr(self, obj);
     KS_DECREF(obj);
 }
@@ -216,7 +216,7 @@ ks_code ks_code_fromfile(char* fname) {
     }
 
 
-    ks_code self = ks_new_code(NULL);
+    ks_code self = ks_code_new(NULL);
 
     // now, start parsing
 
@@ -248,7 +248,7 @@ ks_code ks_code_fromfile(char* fname) {
             //ks_info("Line: '%s'", cur_line);
             if (strncmp(cur_line, "str:", 4) == 0) {
                 // parse out string
-                ks_str s0 = ks_new_str(cur_line + 4);
+                ks_str s0 = ks_str_new(cur_line + 4);
                 // undo the string formatting
                 ks_str s1 = ks_str_unescape(s0);
                 KS_DECREF(s0);
@@ -262,7 +262,7 @@ ks_code ks_code_fromfile(char* fname) {
                     // error, incorrect format
                     continue;
                 }
-                ks_int i_val = ks_new_int((int64_t)val);
+                ks_int i_val = ks_int_new((int64_t)val);
                 ks_list_push(self->v_const, (ks_obj)i_val);
                 KS_DECREF(i_val);
             }
@@ -413,8 +413,8 @@ void ks_type_code_init() {
     KS_INIT_TYPE_OBJ(ks_type_code, "code");
 
     ks_type_set_cn(ks_type_code, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_new_cfunc(code_str_)},
-        {"__free__", (ks_obj)ks_new_cfunc(code_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new(code_str_)},
+        {"__free__", (ks_obj)ks_cfunc_new(code_free_)},
         {NULL, NULL}   
     });
 }

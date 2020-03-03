@@ -121,9 +121,8 @@ bool ks_eq(ks_obj A, ks_obj B) {
 
 // Return if it is callable
 bool ks_is_callable(ks_obj func) {
-    if (func->type == ks_type_cfunc) {
-        return true;
-    }
+    if (func->type == ks_type_cfunc) return true;
+    if (func->type == ks_type_type) return true;
 
     // callable here
     if (func->type->__call__ != NULL) {
@@ -159,7 +158,7 @@ ks_obj ks_getattr(ks_obj obj, ks_obj attr) {
 
 
         // now, create a partial function
-        ks_pfunc ret = ks_new_pfunc(type_attr);
+        ks_pfunc ret = ks_pfunc_new(type_attr);
         KS_DECREF(type_attr);
 
         // fill #0 as 'self' (aka obj)
@@ -178,7 +177,7 @@ ks_obj ks_getattr(ks_obj obj, ks_obj attr) {
 
 // Return obj.attr
 ks_obj ks_getattr_c(ks_obj obj, char* attr) {
-    ks_str attrstr = ks_new_str(attr);
+    ks_str attrstr = ks_str_new(attr);
     ks_obj ret = ks_getattr(obj, (ks_obj)attrstr);
     KS_DECREF(attrstr);
     return ret;
@@ -192,6 +191,58 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
     if (func->type == ks_type_cfunc) {
         // just call it
         return ((ks_cfunc)func)->func(n_args, args);
+    } else if (func->type == ks_type_type) {
+        // try and construct a value
+
+        // cast it
+        ks_type ft = (ks_type)func;
+
+        if (ft->__new__ != NULL) {
+            
+            // now check if the type uses an initializer
+            if (ft->__init__ != NULL) {
+                // uses an initializer, so just call __new__ with no arguments
+
+                ks_obj ret = ks_call(ft->__new__, 0, NULL);
+
+                // this is to handle derived classes; we always manually set the new type
+                ks_type old_type = ret->type;
+                ret->type = ft;
+                KS_INCREF(ret->type);
+                KS_DECREF(old_type);
+                
+                // now set up our newly created object as the first argument to the initializer
+                ks_obj* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
+
+                new_args[0] = ret;
+                // copy other arguments passed in
+                memcpy(&new_args[1], args, n_args);
+
+                // initialize it, don't care about return value
+                ks_obj dontcare = ks_call(ft->__init__, 1 + n_args, new_args);
+                KS_DECREF(dontcare);
+
+                ks_free(new_args);
+
+                // now return our created object
+                return ret;
+            } else {
+                // no initializer, so call '__new__' with all the arguments
+                ks_obj ret = ks_call(ft->__new__, n_args, args);
+
+                // this is to handle derived classes; we always manually set the new type
+                ks_type old_type = ret->type;
+                ret->type = ft;
+                KS_INCREF(ret->type);
+                KS_DECREF(old_type);
+                return ret;
+            }
+
+        } else {
+            // no constructor, return an error
+            return NULL;
+        }
+
     } else if (func->type->__call__ != NULL) {
         // call via (type(obj).__call__(obj, *args))
         // no way to call it, return an error
@@ -251,6 +302,34 @@ void* ks_throw(ks_obj obj) {
     // return NULL so people can return this and return NULL easily
     return NULL;
 }
+
+
+// throw an error type
+void* ks_throw_fmt(ks_type errtype, char* fmt, ...) {
+    // default error type
+    if (!errtype) errtype = ks_type_Error;
+
+    // construct the 'what' string
+    va_list ap;
+    va_start(ap, fmt);
+    ks_str what = ks_fmt_vc(fmt, ap);
+    va_end(ap);
+
+    if (!what) {
+        ks_error("Failed to format thrown error message in ks_throw_fmt()!");
+        return NULL;
+    }
+
+    ks_obj errobj = ks_call((ks_obj)errtype, 1, (ks_obj*)&what);
+    KS_DECREF(what);
+
+    // actually throw the object
+    ks_throw(errobj);
+    KS_DECREF(errobj);
+
+    return NULL;
+}
+
 
 
 // try and catch the object off

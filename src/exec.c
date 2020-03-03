@@ -22,14 +22,14 @@ ks_vm ks_vm_default = NULL;
 
 
 // construct new VM
-ks_vm ks_new_vm() {
+ks_vm ks_vm_new() {
     ks_vm self = KS_ALLOC_OBJ(ks_vm);
     KS_INIT_OBJ(self, ks_type_vm);
 
     // initialize to empty
-    self->globals = ks_new_dict(0, NULL);
+    self->globals = ks_dict_new(0, NULL);
 
-    self->stk = ks_new_list(0, NULL);
+    self->stk = ks_list_new(0, NULL);
 
     return self;
 }
@@ -38,7 +38,7 @@ void ks_type_vm_init() {
     KS_INIT_TYPE_OBJ(ks_type_vm, "vm");
 
     // set the default
-    ks_vm_default = ks_new_vm();
+    ks_vm_default = ks_vm_new();
 
     ks_dict_set_cn(ks_vm_default->globals, (ks_dict_ent_c[]){
         {"int", KS_NEWREF(ks_type_int)},
@@ -52,8 +52,8 @@ void ks_type_vm_init() {
 
 
     /*ks_type_set_cn(ks_type_code, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_new_cfunc(code_str_)},
-        {"__free__", (ks_obj)ks_new_cfunc(code_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new(code_str_)},
+        {"__free__", (ks_obj)ks_cfunc_new(code_free_)},
         {NULL, NULL}   
     });*/
 }

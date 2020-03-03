@@ -46,7 +46,7 @@ static KS_FUNC(print) {
 
 // initialize all the functions
 void ks_init_funcs() {
-    ks_F_print = ks_new_cfunc(print_);
+    ks_F_print = ks_cfunc_new(print_);
 }
 
 

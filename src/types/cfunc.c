@@ -12,7 +12,7 @@
 KS_TYPE_DECLFWD(ks_type_cfunc);
 
 // create a kscript int from a C-style int
-ks_cfunc ks_new_cfunc(ks_obj (*func)(int n_args, ks_obj* args)) {
+ks_cfunc ks_cfunc_new(ks_obj (*func)(int n_args, ks_obj* args)) {
     ks_cfunc self = KS_ALLOC_OBJ(ks_cfunc);
     KS_INIT_OBJ(self, ks_type_cfunc);
 

@@ -62,25 +62,26 @@ int main(int argc, char** argv) {
     // exception
     ks_obj exc = NULL;
 
-    ks_parser p = ks_new_parser(ks_new_str("print(123)"));
+    ks_parser p = ks_parser_new(ks_str_new("print(12)"));
     if (exc = ks_catch()) {
-        ks_error("caught: %R", exc);
+        ks_error("%T: %R", exc, exc);
+        return -1;
     }
 
     ks_ast prog = ks_parser_parse_file(p);
     if (exc = ks_catch()) {
-        ks_error("caught: %R", exc);
+        ks_error("%T: %R", exc, exc);
+        return -1;
     }
 
 
     ks_info("parser: %S, src: %R, toks: %i", p, p->src, p->tok_n);
 
-
-
+    ks_info("prog: %S", prog);
 
 /*
     // now, actually execute code
-    ks_code code = ks_new_code(NULL);
+    ks_code code = ks_code_new(NULL);
 
     ksca_load_c(code, "print");
     ksca_load_c(code, "print");

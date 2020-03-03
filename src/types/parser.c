@@ -27,13 +27,17 @@ static bool is_white(char c) {
     return c == ' ' || c == '\t' || c == '\n';
 }
 
+
+/* TOKENS */
+
+
 // tokenize a parser; only should be called at initialization
 static void* tokenize(ks_parser self) {
 
     // add a token to the parser, using defined local variables
     #define ADDTOK(_toktype) { \
         self->tok = ks_realloc(self->tok, sizeof(*self->tok) * ++self->tok_n); \
-        self->tok[self->tok_n - 1] = (ks_tok){ .parser = self, .pos = start_i, .len = i - start_i, .line = start_line, .col = start_col }; \
+        self->tok[self->tok_n - 1] = (ks_tok){ .parser = self, .type = _toktype, .pos = start_i, .len = i - start_i, .line = start_line, .col = start_col }; \
     }
 
     // advance a single character, updating variables as needed
@@ -92,15 +96,12 @@ static void* tokenize(ks_parser self) {
 
             if (self->src->chr[i] == '.') {
                 // we are parsing some sort of float
-                return ks_throw(ks_new_str("No floats allowed!"));
-
+                return ks_throw_fmt(NULL, "No float support yet!");
 
             } else {
                 // we are parsing an integer, so we're fininshed
                 ADDTOK(KS_TOK_INT);
             }
-
-
         }
         CASE_S(KS_TOK_DOT, ".")
         CASE_S(KS_TOK_COL, ":")
@@ -113,10 +114,8 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_RBRC, "}")
         else {
             // internal error
-            ks_throw((ks_obj)ks_new_str("Invalid Character!"));
-            return NULL;
+            return ks_throw_fmt(NULL, "Invalid Character: %c", c);
         }
-
 
         #undef CASE_S
     }
@@ -132,7 +131,7 @@ static void* tokenize(ks_parser self) {
 }
 
 // construct a new parser
-ks_parser ks_new_parser(ks_str src_code) {
+ks_parser ks_parser_new(ks_str src_code) {
     ks_parser self = KS_ALLOC_OBJ(ks_parser);
     KS_INIT_OBJ(self, ks_type_parser);
 
@@ -150,7 +149,6 @@ ks_parser ks_new_parser(ks_str src_code) {
         return NULL;
     }
 
-
     return self;
 }
 
@@ -159,11 +157,13 @@ ks_parser ks_new_parser(ks_str src_code) {
 // NOTE: Returns a new reference
 ks_ast ks_parser_parse_expr(ks_parser p) {
 
+    return NULL;
 }
 
 // Parse a single statement out of 'p'
 // NOTE: Returns a new reference
 ks_ast ks_parser_parse_stmt(ks_parser p) {
+    return NULL;
 
 }
 
@@ -171,7 +171,8 @@ ks_ast ks_parser_parse_stmt(ks_parser p) {
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
 ks_ast ks_parser_parse_file(ks_parser p) {
-    
+
+    return NULL;
 }
 
 
@@ -199,7 +200,7 @@ void ks_type_parser_init() {
     KS_INIT_TYPE_OBJ(ks_type_parser, "parser");
 
     ks_type_set_cn(ks_type_parser, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_new_cfunc(parser_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new(parser_free_)},
         {NULL, NULL}   
     });
 }

@@ -12,7 +12,7 @@
 KS_TYPE_DECLFWD(ks_type_pfunc);
 
 // create a kscript int from a C-style int
-ks_pfunc ks_new_pfunc(ks_obj func) {
+ks_pfunc ks_pfunc_new(ks_obj func) {
     // assume it is callable
     assert(ks_is_callable(func));
 
@@ -154,8 +154,8 @@ void ks_type_pfunc_init() {
     KS_INIT_TYPE_OBJ(ks_type_pfunc, "pfunc");
 
     ks_type_set_cn(ks_type_pfunc, (ks_dict_ent_c[]){
-        {"__call__", (ks_obj)ks_new_cfunc(pfunc_call_)},
-        {"__free__", (ks_obj)ks_new_cfunc(pfunc_free_)},
+        {"__call__", (ks_obj)ks_cfunc_new(pfunc_call_)},
+        {"__free__", (ks_obj)ks_cfunc_new(pfunc_free_)},
         {NULL, NULL}   
     });
 

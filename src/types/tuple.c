@@ -12,7 +12,7 @@
 KS_TYPE_DECLFWD(ks_type_tuple);
 
 // create a kscript int from a C-style int
-ks_tuple ks_new_tuple(int len, ks_obj* elems) {
+ks_tuple ks_tuple_new(int len, ks_obj* elems) {
     // allocate enough memory for the elements
     ks_tuple self = (ks_tuple)malloc(sizeof(*self) + sizeof(ks_obj) * len);
     KS_INIT_OBJ(self, ks_type_tuple);
@@ -50,7 +50,7 @@ static KS_TFUNC(tuple, str) {
     KS_REQ_TYPE(self, ks_type_tuple, "self");
 
     // handle special cases for tuples
-    if (self->len == 0) return (ks_obj)ks_new_str("(,)");
+    if (self->len == 0) return (ks_obj)ks_str_new("(,)");
     if (self->len == 1) return (ks_obj)ks_fmt_c("(%R,)", self->elems[0]);
     
     ks_str_b SB;
@@ -93,8 +93,8 @@ void ks_type_tuple_init() {
     KS_INIT_TYPE_OBJ(ks_type_tuple, "tuple");
 
     ks_type_set_cn(ks_type_tuple, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_new_cfunc(tuple_str_)},
-        {"__free__", (ks_obj)ks_new_cfunc(tuple_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new(tuple_str_)},
+        {"__free__", (ks_obj)ks_cfunc_new(tuple_free_)},
         {NULL, NULL}   
     });
 }

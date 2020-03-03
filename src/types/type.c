@@ -21,16 +21,16 @@ void ks_init_type(ks_type self, char* name) {
     KS_INIT_OBJ(self, ks_type_type);
 
     // initialize the attribute dictionary
-    self->attr = ks_new_dict(0, NULL);
+    self->attr = ks_dict_new(0, NULL);
     // initialize all other to empty
     // set some defaults
-    //self->__parents__ = ks_new_list(0, NULL);
-    //self->__name__ = ks_new_str(name);
-    ks_str name_str = ks_new_str(name);
+    //self->__parents__ = ks_list_new(0, NULL);
+    //self->__name__ = ks_str_new(name);
+    ks_str name_str = ks_str_new(name);
     ks_type_set_c(self, "__name__",(ks_obj)name_str);
     KS_DECREF(name_str);
 
-    ks_list parents_list = ks_new_list(0, NULL);
+    ks_list parents_list = ks_list_new(0, NULL);
     ks_type_set_c(self, "__parents__", (ks_obj)parents_list);
     KS_DECREF(parents_list);
 
@@ -58,7 +58,7 @@ ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj) {
     }
 
     // create a partial function
-    ks_pfunc ret = ks_new_pfunc(sa);
+    ks_pfunc ret = ks_pfunc_new(sa);
     KS_DECREF(sa);
 
     // fill in #0 as an argument
@@ -93,6 +93,10 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE_TYPE("__name__", __name__, ks_str, ks_type_str)
         ATTR_CASE_TYPE("__parents__", __parents__, ks_list, ks_type_list)
 
+        ATTR_CASE("__new__", __new__)
+        ATTR_CASE("__init__", __init__)
+
+
         ATTR_CASE("__str__", __str__)
         ATTR_CASE("__repr__", __repr__)
 
@@ -118,7 +122,7 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
 void ks_type_set_c(ks_type self, char* key, ks_obj val) {
 
     // create a temporary kscript object to attempt to set it
-    ks_str str_key = ks_new_str(key);
+    ks_str str_key = ks_str_new(key);
     ks_type_set(self, str_key, val);
     KS_DECREF(str_key);
 
@@ -171,8 +175,8 @@ void ks_type_type_init() {
     KS_INIT_TYPE_OBJ(ks_type_type, "type");
 
     ks_type_set_cn(ks_type_type, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_new_cfunc(type_str_)},
-        {"__repr__", (ks_obj)ks_new_cfunc(type_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new(type_str_)},
+        {"__repr__", (ks_obj)ks_cfunc_new(type_str_)},
         {NULL, NULL}   
     });
 }

@@ -57,7 +57,7 @@ static int next_prime(int x) {
 }
 
 // create a kscript dictionary from entries
-ks_dict ks_new_dict(int len, ks_obj* entries) {
+ks_dict ks_dict_new(int len, ks_obj* entries) {
     ks_dict self = KS_ALLOC_OBJ(ks_dict);
     KS_INIT_OBJ(self, ks_type_dict);
 
@@ -84,7 +84,7 @@ ks_dict ks_new_dict(int len, ks_obj* entries) {
 
 
 // construct a new dictionary from C-style entries
-ks_dict ks_new_dict_c(ks_dict_ent_c* ent_cs) {
+ks_dict ks_dict_new_c(ks_dict_ent_c* ent_cs) {
 
     ks_dict self = KS_ALLOC_OBJ(ks_dict);
     KS_INIT_OBJ(self, ks_type_dict);
@@ -105,7 +105,7 @@ ks_dict ks_new_dict_c(ks_dict_ent_c* ent_cs) {
 
     while (ent_cs->key != NULL) {
         // keep iterating t hrough entries
-        ks_str my_key = ks_new_str(ent_cs->key);
+        ks_str my_key = ks_str_new(ent_cs->key);
         ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cs->val);
 
         KS_DECREF(my_key);
@@ -120,7 +120,7 @@ ks_dict ks_new_dict_c(ks_dict_ent_c* ent_cs) {
 }
 
 // construct a new dictionary from C-style entries, but do not create new references for them
-ks_dict ks_new_dict_cn(ks_dict_ent_c* ent_cns) {
+ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns) {
 
     ks_dict self = KS_ALLOC_OBJ(ks_dict);
     KS_INIT_OBJ(self, ks_type_dict);
@@ -141,7 +141,7 @@ ks_dict ks_new_dict_cn(ks_dict_ent_c* ent_cns) {
 
     while (ent_cns->key != NULL) {
         // keep iterating t hrough entries
-        ks_str my_key = ks_new_str(ent_cns->key);
+        ks_str my_key = ks_str_new(ent_cns->key);
         ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cns->val);
 
         KS_DECREF(my_key);
@@ -162,7 +162,7 @@ ks_dict ks_new_dict_cn(ks_dict_ent_c* ent_cns) {
 int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns) {
     while (ent_cns->key != NULL) {
         // keep iterating t hrough entries
-        ks_str my_key = ks_new_str(ent_cns->key);
+        ks_str my_key = ks_str_new(ent_cns->key);
 
         ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cns->val);
 
@@ -360,7 +360,7 @@ ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
 
 // get from C style string
 ks_obj ks_dict_get_c(ks_dict self, char* key) {
-    ks_str key_str = ks_new_str(key);
+    ks_str key_str = ks_str_new(key);
     ks_obj ret = ks_dict_get(self, key_str->v_hash, (ks_obj)key_str);
     KS_DECREF(key_str);
     return ret;
@@ -537,8 +537,8 @@ void ks_type_dict_init() {
     KS_INIT_TYPE_OBJ(ks_type_dict, "dict");
 
     ks_type_set_cn(ks_type_dict, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_new_cfunc(dict_str_)},
-        {"__free__", (ks_obj)ks_new_cfunc(dict_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new(dict_str_)},
+        {"__free__", (ks_obj)ks_cfunc_new(dict_free_)},
         {NULL, NULL}   
     });
 

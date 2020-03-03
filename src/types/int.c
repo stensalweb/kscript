@@ -12,7 +12,7 @@
 KS_TYPE_DECLFWD(ks_type_int);
 
 // create a kscript int from a C-style int
-ks_int ks_new_int(int64_t val) {
+ks_int ks_int_new(int64_t val) {
     ks_int self = KS_ALLOC_OBJ(ks_int);
     KS_INIT_OBJ(self, ks_type_int);
 

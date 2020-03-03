@@ -190,7 +190,17 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         barg = BFMT_ARG_DEFAULT;
 
         // now, try and parse the field
-        if (strncmp(p, "i", 1) == 0) {
+        if (strncmp(p, "c", 1) == 0) {
+            // %c - print a 'char' in C
+
+            // add single character
+            char v_char = (char)va_arg(ap, int);
+
+            ks_str_b_add(&SB, 1, &v_char);
+
+            p += 1;
+
+        } else if (strncmp(p, "i", 1) == 0) {
             // %i - print a 32 bit 'int' in C
 
             // get an integer from the varargs
@@ -313,6 +323,18 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
 
             // add to the string builder
             ks_str_b_add(&SB, sz, v_chr);
+
+            // advance past the specifier
+            p += 1;
+
+
+        } else if (strncmp(p, "T", 1) == 0) {
+            // %T : print the type of an object
+        
+            ks_obj v_obj = va_arg(ap, ks_obj);
+
+            // add to the string builder
+            ks_str_b_add(&SB, v_obj->type->__name__->len, v_obj->type->__name__->chr);
 
             // advance past the specifier
             p += 1;

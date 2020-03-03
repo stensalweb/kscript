@@ -13,7 +13,7 @@
 KS_TYPE_DECLFWD(ks_type_list);
 
 // create a kscript int from a C-style int
-ks_list ks_new_list(int len, ks_obj* elems) {
+ks_list ks_list_new(int len, ks_obj* elems) {
     ks_list self = KS_ALLOC_OBJ(ks_list);
     KS_INIT_OBJ(self, ks_type_list);
 
@@ -134,9 +134,9 @@ void ks_type_list_init() {
     KS_INIT_TYPE_OBJ(ks_type_list, "list");
 
     ks_type_set_cn(ks_type_list, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_new_cfunc(list_str_)},
-        {"__repr__", (ks_obj)ks_new_cfunc(list_str_)},
-        {"__free__", (ks_obj)ks_new_cfunc(list_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new(list_str_)},
+        {"__repr__", (ks_obj)ks_cfunc_new(list_str_)},
+        {"__free__", (ks_obj)ks_cfunc_new(list_free_)},
         {NULL, NULL}   
     });
 }

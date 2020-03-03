@@ -260,7 +260,7 @@ typedef struct ks_dict* ks_dict;
 
 
 // Allocate memory for a new object type (by default, use `ks_malloc`)
-// For example: `KS_NEW_OBJ(ks_int)` will allocate a `ks_int`
+// For example: `KS_ALLOC_OBJ(ks_int)` will allocate a `ks_int`
 #define KS_ALLOC_OBJ(_typeName) ((_typeName)ks_malloc(sizeof(*(_typeName){NULL})))
 
 // Free an object's memory (non-recursively; just the actual object pointer)
@@ -350,6 +350,14 @@ struct ks_type {
     // type.__repr__(self) -> convert an item to a string representation
     ks_obj __repr__;
 
+    // type.__new__(self) -> construct a new object of a given type. This should normally take 0 arguments
+    //   and if '__init__' is not NULL, this should be called always with 0, then called __init__ with the resultant
+    //   object and the rest of the arguments
+    ks_obj __new__;
+
+    // type.__init__(self) -> initialize an object (i.e. the second part of the constructor)
+    ks_obj __init__;
+
     // type.__free__(self) -> free the memory/references used by the object
     ks_obj __free__;
 
@@ -421,7 +429,7 @@ struct ks_dict {
 // special data structure for easier to read initialization from C, essentially
 // each entry has a C-style string and a ks_obj that does not have an active reference in most cases
 // i.e.:
-// ks_dict_set_cn(dict, (ks_dict_ent_c[]){{"ExampleKey", (ks_obj)ks_new_int(43)}, {NULL, NULL}})
+// ks_dict_set_cn(dict, (ks_dict_ent_c[]){{"ExampleKey", (ks_obj)ks_int_new(43)}, {NULL, NULL}})
 typedef struct {
 
     // NUL-terminated key (NULL key means this is the last C-style entry for the dictionary)
@@ -620,6 +628,9 @@ struct ks_tok {
 
     // the parser the token came from
     ks_parser parser;
+
+    // the type of token, one of the KS_TOK_* enum values
+    int type;
 
     // absolute position & length in the string source code
     int pos, len;
@@ -879,18 +890,18 @@ int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
-ks_int ks_new_int(int64_t val);
+ks_int ks_int_new(int64_t val);
 
 
 /* STR */
 
 // Create a new kscript string from a C-style NUL-terminated string
 // NOTE: Returns a new reference
-ks_str ks_new_str(char* val);
+ks_str ks_str_new(char* val);
 
 // Create a new kscript string from a C-style length encoded string
 // NOTE: Returns a new reference
-ks_str ks_new_str_l(int len, char* chr);
+ks_str ks_str_new_l(int len, char* chr);
 
 // perform a string comparison on 2 strings
 int ks_str_cmp(ks_str A, ks_str B);
@@ -908,14 +919,14 @@ ks_str ks_str_unescape(ks_str A);
 
 // Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
 // NOTE: Returns a new reference
-ks_tuple ks_new_tuple(int len, ks_obj* elems);
+ks_tuple ks_tuple_new(int len, ks_obj* elems);
 
 
 /* LIST */
 
 // Create a new kscript list from an array of elements, or an empty list if `len==0`
 // NOTE: Returns a new reference
-ks_list ks_new_list(int len, ks_obj* elems);
+ks_list ks_list_new(int len, ks_obj* elems);
 
 // Push an object on to the end of the list, expanding the list
 void ks_list_push(ks_list self, ks_obj obj);
@@ -939,24 +950,24 @@ void ks_list_popu(ks_list self);
 
 // Create a new kscript dictionary from an array of entries (which should be 'len' number of key, val pairs)
 // Example:
-// ks_new_dict(3, (ks_obj[]){ key1, val1, key2, val2, key3, val3 })
+// ks_dict_new(3, (ks_obj[]){ key1, val1, key2, val2, key3, val3 })
 // NOTE: Returns a new reference
-ks_dict ks_new_dict(int len, ks_obj* entries);
+ks_dict ks_dict_new(int len, ks_obj* entries);
 
 // Create a new kscript dictionary from an array of C-style strings to values
 // For example:
-// ks_new_dict_cn((ks_dict_ent_cn[]){ {"Cade", myval}, {"Brown", otherval, {NULL, NULL}} });
+// ks_dict_new_cn((ks_dict_ent_cn[]){ {"Cade", myval}, {"Brown", otherval, {NULL, NULL}} });
 // Will create a dictionary, and not introduce any memory leaks
-// If you want to create values and transfer their references, see `ks_new_dict_cn` (n=no new references)
-ks_dict ks_new_dict_c(ks_dict_ent_c* ent_cns);
+// If you want to create values and transfer their references, see `ks_dict_new_cn` (n=no new references)
+ks_dict ks_dict_new_c(ks_dict_ent_c* ent_cns);
 
 // Create a new kscript dictionary from an array of C-style strings to values, which will not create new references to values
 // The last key is 'NULL'
 // For example:
-// ks_new_dict_cn((ks_dict_ent_cn[]){ {"Cade", ks_new_int(42)}, {"Brown", ks_new_str("asdfasdf"), {NULL, NULL}} });
+// ks_dict_new_cn((ks_dict_ent_cn[]){ {"Cade", ks_int_new(42)}, {"Brown", ks_str_new("asdfasdf"), {NULL, NULL}} });
 // Will create a dictionary, and not introduce any memory leaks
-// If you're using already created variables, use `ks_new_dict_c()`, or replace the keys with `KS_NEWREF(key)`
-ks_dict ks_new_dict_cn(ks_dict_ent_c* ent_cns);
+// If you're using already created variables, use `ks_dict_new_c()`, or replace the keys with `KS_NEWREF(key)`
+ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns);
 
 // Test whether the dictionary has a given key. `hash` is always `hash(key)`. If it is 0, then 
 //   attempt to calculate `hash(key)`. If it is 0, there is no error, but the dictionary is said to
@@ -995,18 +1006,18 @@ int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
 // Construct a new error from a string reason
 // NOTE: Returns a new reference
-ks_Error ks_new_Error(ks_str what);
+ks_Error ks_Error_new(ks_str what);
 
 // create a kscript error from a C style string
 // NOTE: Returns a new reference
-ks_Error ks_new_Error_c(char* what);
+ks_Error ks_Error_new_c(char* what);
 
 /* CODE */
 
 // Create a new kscript code object, with a given constant list. The constant list can be non-empty,
 //   in which case new constants will be allocated starting at the end. Cannot be NULL
 // NOTE: Returns a new reference
-ks_code ks_new_code(ks_list v_const);
+ks_code ks_code_new(ks_list v_const);
 
 // Output it to a binary encoded file, returning whether it was successful
 bool ks_code_tofile(ks_code self, char* fname);
@@ -1049,7 +1060,7 @@ void ksca_store_attr_c(ks_code self, char* name);
 
 // Create a new virtual machine
 // NOTE: Returns a new reference
-ks_vm ks_new_vm();
+ks_vm ks_vm_new();
 
 
 /* AST (Abstract Syntax Trees) */
@@ -1057,20 +1068,20 @@ ks_vm ks_new_vm();
 // Create an AST representing a constant value
 // Type should be none, bool, int, or str
 // NOTE: Returns a new reference
-ks_ast ks_new_ast_const(ks_obj val);
+ks_ast ks_ast_new_const(ks_obj val);
 
 // Create an AST representing a variable reference
 // Type should always be string
 // NOTE: Returns a new reference
-ks_ast ks_new_ast_var(ks_str name);
+ks_ast ks_ast_new_var(ks_str name);
 
 // Create an AST representing a function call
 // NOTE: Returns a new reference
-ks_ast ks_new_ast_call(ks_ast func, int n_args, ks_ast* args);
+ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
 
 // Create an AST representing a return statement
 // NOTE: Returns a new reference
-ks_ast ks_new_ast_ret(ks_ast val);
+ks_ast ks_ast_new_ret(ks_ast val);
 
 
 /* PARSER */
@@ -1078,7 +1089,7 @@ ks_ast ks_new_ast_ret(ks_ast val);
 // Create a new parser from some source code
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-ks_parser ks_new_parser(ks_str src_code);
+ks_parser ks_parser_new(ks_str src_code);
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
@@ -1099,7 +1110,7 @@ ks_ast ks_parser_parse_file(ks_parser p);
 
 // Create a new C-function wrapper
 // NOTE: Returns a new reference
-ks_cfunc ks_new_cfunc(ks_obj (*func)(int n_args, ks_obj* args));
+ks_cfunc ks_cfunc_new(ks_obj (*func)(int n_args, ks_obj* args));
 
 
 /* PFUNC */
@@ -1107,7 +1118,7 @@ ks_cfunc ks_new_cfunc(ks_obj (*func)(int n_args, ks_obj* args));
 // Create a new partial function wrapper
 // NOTE: 'func' must be callable
 // NOTE: Returns a new reference
-ks_pfunc ks_new_pfunc(ks_obj func);
+ks_pfunc ks_pfunc_new(ks_obj func);
 
 // Fill a given index with an argument
 // NOTE: if 'idx' is already filled, it will be replaced
@@ -1164,6 +1175,13 @@ ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args);
 // NOTE: Throws an error if there is already an object on the call stack
 // NOTE: Always returns NULL
 void* ks_throw(ks_obj obj);
+
+// Throw an error with a given format string, with an optional 'errtype' (which)
+//   should always be allowed to set the '.what' attribute on
+// NOTE: Throws an error if there is already an object on the call stack
+// NOTE: Always returns NULL
+void* ks_throw_fmt(ks_type errtype, char* fmt, ...);
+
 
 // Attempt to catch an object from the call stack
 // Returns 'NULL' if nothing has been thrown,
