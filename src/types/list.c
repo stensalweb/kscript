@@ -1,4 +1,5 @@
 /* types/list.c - implementation of a resizable list for kscript
+/* types/list.c - implementation of a resizable list for kscript
  *
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -54,10 +55,27 @@ void ks_list_push(ks_list self, ks_obj obj) {
 
 }
 
+// Push 'n' objects on to the end of the list, expanding the list
+void ks_list_pushn(ks_list self, int n, ks_obj* objs) {
+    ks_size_t idx = self->len;
+    self->len += n;
+
+    // expand
+    self->elems = ks_realloc(self->elems, sizeof(*self->elems) * self->len);
+
+    // push new references
+    int i;
+    for (i = 0; i < n; ++i) self->elems[idx + i] = KS_NEWREF(objs[i]);
+}
 
 // pop off an object
 ks_obj ks_list_pop(ks_list self) {
     return self->elems[--self->len];
+}
+
+void ks_list_popn(ks_list self, int n, ks_obj* dest) {
+    self->len -= n;
+    memcpy(dest, &self->elems[self->len], n * sizeof(ks_obj));
 }
 
 // pop off an object, without using the result, destroying the reference

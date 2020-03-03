@@ -358,7 +358,13 @@ ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
     return NULL;
 }
 
-
+// get from C style string
+ks_obj ks_dict_get_c(ks_dict self, char* key) {
+    ks_str key_str = ks_new_str(key);
+    ks_obj ret = ks_dict_get(self, key_str->v_hash, (ks_obj)key_str);
+    KS_DECREF(key_str);
+    return ret;
+}
 
 // set the given element
 int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {

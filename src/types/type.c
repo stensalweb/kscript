@@ -43,8 +43,30 @@ ks_obj ks_type_get(ks_type self, ks_str key) {
 
     // get from the internal dictionary
     return ks_dict_get(self->attr, hash, (ks_obj)key);
-
 }
+
+
+// return a memberfunction of self.attr(obj, *)
+ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj) {
+    ks_obj sa = ks_type_get(self, attr);
+    if (!sa) return NULL;
+
+    // ensure it is callable
+    if (!ks_is_callable(sa)) {
+        KS_DECREF(sa);
+        return NULL;
+    }
+
+    // create a partial function
+    ks_pfunc ret = ks_new_pfunc(sa);
+    KS_DECREF(sa);
+
+    // fill in #0 as an argument
+    ks_pfunc_fill(ret, 0, obj);
+
+    return (ks_obj)ret;
+}
+
 // set a given attribute
 void ks_type_set(ks_type self, ks_str key, ks_obj val) {
     assert(key->type == ks_type_str);
@@ -73,6 +95,11 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
 
         ATTR_CASE("__str__", __str__)
         ATTR_CASE("__repr__", __repr__)
+
+        ATTR_CASE("__getattr__", __getattr__)
+        ATTR_CASE("__setattr__", __setattr__)
+
+        ATTR_CASE("__call__", __call__)
         
         ATTR_CASE("__free__", __free__)
         

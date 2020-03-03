@@ -27,8 +27,6 @@ ks_code ks_new_code(ks_list v_const) {
         KS_INCREF(v_const);
     }
 
-
-
     // start with an empty bytecode
     self->bc_n = 0;
     self->bc = NULL;
@@ -90,10 +88,43 @@ void ksca_push   (ks_code self, ks_obj val) KSCA_B_I32(KSB_PUSH, ks_code_add_con
 void ksca_dup    (ks_code self) KSCA_B(KSB_DUP)
 void ksca_popu   (ks_code self) KSCA_B(KSB_POPU)
 
+void ksca_call   (ks_code self, int n_items) KSCA_B_I32(KSB_CALL, n_items)
 void ksca_ret    (ks_code self) KSCA_B(KSB_RET)
 void ksca_jmp    (ks_code self, int relamt) KSCA_B_I32(KSB_JMP, relamt)
 void ksca_jmpt   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPT, relamt)
 void ksca_jmpf   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPF, relamt)
+
+void ksca_load      (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD, ks_code_add_const(self, (ks_obj)name))
+void ksca_load_attr (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD_ATTR, ks_code_add_const(self, (ks_obj)name))
+void ksca_store     (ks_code self, ks_str name) KSCA_B_I32(KSB_STORE, ks_code_add_const(self, (ks_obj)name))
+void ksca_store_attr(ks_code self, ks_str name) KSCA_B_I32(KSB_STORE_ATTR, ks_code_add_const(self, (ks_obj)name))
+
+
+
+/* C-style funcs */
+void ksca_load_c(ks_code self, char* name) {
+    ks_str obj = ks_new_str(name);
+    ksca_load(self, obj);
+    KS_DECREF(obj);
+}
+
+void ksca_load_attr_c(ks_code self, char* name) {
+    ks_str obj = ks_new_str(name);
+    ksca_load_attr(self, obj);
+    KS_DECREF(obj);
+}
+
+void ksca_store_c(ks_code self, char* name) {
+    ks_str obj = ks_new_str(name);
+    ksca_store(self, obj);
+    KS_DECREF(obj);
+}
+
+void ksca_store_attr_c(ks_code self, char* name) {
+    ks_str obj = ks_new_str(name);
+    ksca_store_attr(self, obj);
+    KS_DECREF(obj);
+}
 
 
 
@@ -112,7 +143,7 @@ bool ks_code_tofile(ks_code self, char* fname) {
     fprintf(fp, "KSBC\n");
 
     // next, output the length of the constants array used 
-    fprintf(fp, "vcl: %i\n", (int)self->v_const->len);
+    fprintf(fp, "vcl:%i\n", (int)self->v_const->len);
 
     // now, output each line as a constant
     int i;
@@ -148,8 +179,9 @@ bool ks_code_tofile(ks_code self, char* fname) {
 
     // now, actually output the raw bytecode, first with the length and a newline
 
-    fprintf(fp, "bcn: %i\n", (int)self->bc_n);
+    fprintf(fp, "bcn:%i\n", (int)self->bc_n);
 
+    // now, the rest of the bytes are binary format, just the bytes of the bytecode
     fwrite(self->bc, 1, self->bc_n, fp);
 
     fclose(fp);
@@ -190,8 +222,8 @@ ks_code ks_code_fromfile(char* fname) {
 
     int vcl = 0;
 
-    if (fscanf(fp, "vcl: %i\n", &vcl) != 1) {
-        ks_warn("Failed  parse v_const length from file '%s' in 'ks_code_fromfile()'", fname);
+    if (fscanf(fp, "vcl:%i\n", &vcl) != 1) {
+        ks_warn("Failed to parse v_const length from file '%s' in 'ks_code_fromfile()'", fname);
         KS_DECREF(self);
         return NULL;
     }
@@ -242,6 +274,25 @@ ks_code ks_code_fromfile(char* fname) {
 
     // free temporary line buffer
     free(cur_line);
+
+
+    // now, parse the actual bytes
+    int bcn = 0;
+    if (fscanf(fp, "bcn:%i\n", &bcn) != 1) {
+        ks_warn("Failed to parse bcn length from file '%s' in 'ks_code_fromfile()'", fname);
+        KS_DECREF(self);
+        return NULL;
+    }
+
+    // allocate size
+    self->bc_n = bcn;
+    self->bc = ks_malloc(bcn);
+
+    if (bcn != fread(self->bc, 1, bcn, fp)) {
+        ks_warn("Failed to parse bc bytes (length %i) from file '%s' in 'ks_code_fromfile()'", bcn, fname);
+        KS_DECREF(self);
+        return NULL;
+    }
 
 
     fclose(fp);
@@ -297,6 +348,10 @@ static KS_TFUNC(code, str) {
             break;
 
 
+        case KSB_CALL:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "call %i", val);
+            break;
 
         case KSB_RET:
             ks_str_b_add_fmt(&SB, "ret");
@@ -318,6 +373,10 @@ static KS_TFUNC(code, str) {
             break;
 
 
+        case KSB_LOAD:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "load v_c[%i]  # %R", val, self->v_const->elems[val]);
+            break;
 
         default:
             ks_str_b_add_fmt(&SB, "<err>");

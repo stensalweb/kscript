@@ -125,6 +125,11 @@ bool ks_is_callable(ks_obj func) {
         return true;
     }
 
+    // callable here
+    if (func->type->__call__ != NULL) {
+        return true;
+    }
+
     // there is no way to call it
     return false;
 }
@@ -133,23 +138,79 @@ bool ks_is_callable(ks_obj func) {
 
 // Return obj.attr
 ks_obj ks_getattr(ks_obj obj, ks_obj attr) {
-    if (obj->type == ks_type_type) {
+    /*if (obj == ks_type_type) {
         return ks_type_get((ks_type)obj, (ks_str)attr);
-    } else {
-        // not found; try pfunc?
-        return NULL;
+    } else */
+    
+    if (obj->type->__getattr__ != NULL) {
+        // call type(obj).__getattr__(obj, attr)
+        return ks_call(obj->type->__getattr__, 2, (ks_obj[]){ obj, attr });
+    } else if (attr->type == ks_type_str) {
+        // it might be a member function
+        // try type(obj).attr as a function with 'obj' filled in as the first argument
+        ks_obj type_attr = ks_type_get(obj->type, (ks_str)attr);
+        if (!type_attr) return NULL;
+
+        // make sure it is a member function
+        if (!ks_is_callable(type_attr)) {
+            KS_DECREF(type_attr);
+            return NULL;
+        }
+
+
+        // now, create a partial function
+        ks_pfunc ret = ks_new_pfunc(type_attr);
+        KS_DECREF(type_attr);
+
+        // fill #0 as 'self' (aka obj)
+        ks_pfunc_fill(ret, 0, obj);
+
+        // return the member function
+        return (ks_obj)ret;
     }
+
+    printf("Noattr\n");
+
+    // nothing found
+    return NULL;
 
 }
 
+// Return obj.attr
+ks_obj ks_getattr_c(ks_obj obj, char* attr) {
+    ks_str attrstr = ks_new_str(attr);
+    ks_obj ret = ks_getattr(obj, (ks_obj)attrstr);
+    KS_DECREF(attrstr);
+    return ret;
+}
+
+
 // Return func(*args)
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
+    assert(ks_is_callable(func) && "ks_call() given a non-callable object!");
 
     if (func->type == ks_type_cfunc) {
         // just call it
         return ((ks_cfunc)func)->func(n_args, args);
-    } else {
+    } else if (func->type->__call__ != NULL) {
+        // call via (type(obj).__call__(obj, *args))
         // no way to call it, return an error
+        ks_obj* new_args = ks_malloc(sizeof(ks_obj) * (1 + n_args));
+
+        // set args to obj, *args
+        new_args[0] = func;
+        memcpy(&new_args[1], args, n_args);
+
+        // call the internal function
+        ks_obj ret = ks_call(func->type->__call__, 1 + n_args, new_args);
+
+        ks_free(new_args);
+
+        return ret;
+
+    } else {
+
+        // not callab,e return NULL
         return NULL;
     }
 
@@ -166,7 +227,37 @@ ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args) {
     KS_DECREF(func_attr);
 
     return ret;
-
 }
 
+
+// the current object being thrown, or NULL if there is no such object
+static ks_obj cur_thrown = NULL;
+
+// throw an object up the call stack, and return 'NULL'
+void* ks_throw(ks_obj obj) {
+    // ensure 
+    assert(cur_thrown == NULL && "There was already an object thrown and not caught, but someone threw something else!");
+
+    if (obj == NULL) {
+        // flush the throw status if NULL is passed
+        // reset the stack
+        if (cur_thrown) KS_DECREF(cur_thrown);
+        cur_thrown = NULL;
+    } else {
+        // add to the throw stack
+        cur_thrown = KS_NEWREF(obj);
+    }
+
+    // return NULL so people can return this and return NULL easily
+    return NULL;
+}
+
+
+// try and catch the object off
+ks_obj ks_catch() {
+    ks_obj ret = cur_thrown;
+    cur_thrown = NULL;
+    // return the active try/catch reference
+    return ret;
+}
 

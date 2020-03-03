@@ -18,10 +18,20 @@ void ks_type_none_init();
 void ks_type_bool_init();
 void ks_type_int_init();
 void ks_type_str_init();
+void ks_type_tuple_init();
 void ks_type_list_init();
 void ks_type_dict_init();
-void ks_type_cfunc_init();
+void ks_type_Error_init();
+
+void ks_type_vm_init();
 void ks_type_code_init();
+void ks_type_ast_init();
+void ks_type_parser_init();
+void ks_type_cfunc_init();
+void ks_type_pfunc_init();
+
+
+void ks_init_funcs();
 
 // internal function to hash a length of bytes, using djb hash
 static inline ks_hash_t ks_hash_bytes(int len, uint8_t* data) {

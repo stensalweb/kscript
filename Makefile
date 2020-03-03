@@ -28,8 +28,8 @@ KSM_STD    ?=
 
 # the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
-libks_src       := $(addprefix src/, init.c log.c mem.c util.c obj.c builder.c fmt.c exec.c) \
-				   $(addprefix src/types/, type.c none.c bool.c int.c str.c list.c dict.c cfunc.c code.c)
+libks_src       := $(addprefix src/, init.c log.c mem.c util.c obj.c builder.c fmt.c funcs.c exec.c) \
+				   $(addprefix src/types/, type.c none.c bool.c int.c str.c tuple.c list.c dict.c Error.c cfunc.c pfunc.c code.c ast.c parser.c)
 
 # the header files that if changed, should cause recompilation
 libks_src_h     := $(addprefix src/, ks.h ks-impl.h)
@@ -65,7 +65,7 @@ ks_exe    := ./bin/ks
 .PHONY: default init clean uninstall
 
 # by default, build the `ec` binary
-default: $(ks_exe) $(ksm_std_so)
+default: $(ksm_std_so) $(ks_exe)
 
 # initializes the build process, cleaning, and then creating the configuration header
 init: clean
@@ -99,7 +99,7 @@ $(libks_a): $(libks_o)
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
-$(ks_exe): $(ks_o) $(libks_so) $(MOD_std_so)
+$(ks_exe): $(libks_so) $(MOD_std_so) $(ks_o)
 	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(ks_o) -lks -lm -ldl -o $@
 
 # rule to build a standard module

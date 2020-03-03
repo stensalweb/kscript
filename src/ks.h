@@ -62,13 +62,13 @@ enum {
  *
  * The format/syntax is SIZE:[type desc], i.e. 4:[int thing it does]
  * 
- * All instructions are 1 byte, and they start with the op code (i.e. 'KSB_*')
+ * All instructions are at least 1 byte, and they start with the op code (i.e. 'KSB_*')
  * 
- * Some bytecodes have indexes that refer to the constants array, which is held in a code object
+ * Some bytecodes have indexes that refer to the constants array, which is held by the code object
  * 
  * Terminology:
  *   TOS: Top Of Stack, i.e. the item that is on top of the stack
- *   UOS: Under Of Stack, i.e. the item directly under the top of the stack
+ *   UTOS: Under Top Of Stack, i.e. the item directly under the top of the stack
  * 
  */
 
@@ -94,7 +94,16 @@ enum {
     // 1:[op]
     KSB_POPU,
 
+
     /** CONTROL FLOW, these opcodes change the control flow of the function **/
+
+    // Pop off 'n_items', and perform a function call with them
+    // The item on the bottom of the stack
+    // Example: if the stack is | A B C , then KSB_CALL(n_items=3) will result in calculating 'A(B, C)' 
+    //   and pushing that result back on the stack
+    // If there are not 'n_items' on the stack, internally abort
+    // 1:[op] 4:[int n_items]
+    KSB_CALL,
 
     // Pop off the TOS, and return that as the return value of the currently executing function,
     //   causing the top item of the stack frame to be popped off
@@ -127,7 +136,6 @@ enum {
     KSB_THROW,
 
 
-
     /** PRIMITIVE CONSTRUCTION, these opcodes create basic primitives from the stack **/
 
     // Pop off 'num_elems' from the stack, create a tuple from them, and then push that tuple
@@ -139,6 +147,38 @@ enum {
     //   back onto the stack
     // 1:[op] 4:[int num_elems, number of elements to take off the stack]
     KSB_LIST,
+
+    
+    /** VALUE LOOKUP **/
+
+    // Load a value indicated by 'v_const[idx]' (being the string name), and push it on the stack
+    // Raise an error if no such value was found
+    // 1:[op] 4:[int idx into 'v_const']
+    KSB_LOAD,
+
+    // Pop off the TOS, then calculate getattr(TOS, v_const[idx]). Then, push that attribute on
+    // Raise an error if no such attribute was found on the TOS
+    // Internally abort if there was no item on TOS
+    // 1:[op] 4:[int idx into 'v_const']
+    KSB_LOAD_ATTR,
+
+    // Store TOS into value 'v_const[idx]', creating it as a local if it was not found
+    // Internally abort if there was no item on TOS
+    // 1:[op] 4:[int idx into 'v_const']
+    KSB_STORE,
+
+    // Set an attribute to a value
+    // Pop off the set UTOS.<attr> = TOS, then removes both, and pushes back on TOS
+    // So stack goes from:
+    // | UTOS TOS  -> set UTOS.<attr>=TOS -> | TOS
+    // Internally abort if there was no item on TOS
+    // 1:[op] 4:[int idx into 'v_const' of 'attr'1]
+    KSB_STORE_ATTR,
+
+
+
+
+
 
 
 
@@ -303,6 +343,7 @@ struct ks_type {
     // type.__parents__ -> a list of parent classes from which this type derives from
     ks_list __parents__;
 
+
     // type.__str__(self) -> convert an item to a string
     ks_obj __str__;
 
@@ -311,6 +352,17 @@ struct ks_type {
 
     // type.__free__(self) -> free the memory/references used by the object
     ks_obj __free__;
+
+    // type.__call__(self, *args) -> call 'self' like a function, given arguments
+    ks_obj __call__;
+
+    // type.__getattr__(self, attr) -> get an attribute from an object
+    ks_obj __getattr__;
+
+    // type.__setattr__(self, attr, val) -> set an attribute on an object
+    ks_obj __setattr__;
+
+
 
 };
 
@@ -323,7 +375,7 @@ struct ks_tuple {
     // the address of the first item. The tuple is allocated with the items in the main buffer,
     // so this acts as the offset from the object pointer to the values
     // So, allocating a tuple is like: malloc(sizeof(struct ks_tuple) + len * sizeof(ks_obj))
-    ks_obj items[0];
+    ks_obj elems[0];
 
 };
 
@@ -457,7 +509,145 @@ typedef struct {
 }* ks_code;
 
 
-// ks_cfunc - a C-function wrapper which can be called
+
+// Different kinds of ASTs
+enum {
+    // Represents a constant, such as 'none', 'true', 'false', int, string
+    // value is 'children[0]'
+    KS_AST_CONST,
+
+    // Represents a variable reference
+    // name is 'children[0]'
+    KS_AST_VAR,
+
+    // Represents a function call, func(*args)
+    // func is 'children[0]'
+    // args are 'children[1:]
+    KS_AST_CALL,
+
+    // Represents a return statement (a return without a result should be filled
+    //   with a 'none' constant)
+    // result is 'children[0]'
+    KS_AST_RET
+};
+
+// ks_ast - an Abstract Syntax Tree, a high-level representation of a program
+typedef struct {
+    KS_OBJ_BASE
+
+    // the kind of AST it is
+    int kind;
+
+    // the array of children nodes. They are packed differently per kind, so see the definitino
+    //   for a kind first
+    ks_list children;
+
+}* ks_ast;
+
+
+// ks_parser - an integrated parser which can parse kscript & bytecode to
+//   ASTs & code objects
+typedef struct ks_tok ks_tok;
+
+// enumeration of different token types
+enum {
+
+    // an identifier (i.e. any valid variable name)
+    KS_TOK_IDENT = 0,
+
+    // an integer numerical literal (i.e. '123', '345', etc)
+    KS_TOK_INT,
+
+    // a string constant, wrapped in quotes (i.e. '"Abc\nDef"')
+    KS_TOK_STR,
+
+    // End-Of-File token, always the last token for a given file
+    KS_TOK_EOF,
+    
+
+    /** GRAMMAR CHARACTERS **/
+
+    // a single left parenthesis i.e. '('
+    KS_TOK_LPAR,
+    // a single right parenthesis i.e. ')'
+    KS_TOK_RPAR,
+
+    // a single left bracket i.e. '['
+    KS_TOK_LBRK,
+    // a single right bracket i.e. ']'
+    KS_TOK_RBRK,
+
+    // a single left brace i.e. '{'
+    KS_TOK_LBRC,
+    // a single right brace i.e. '}'
+    KS_TOK_RBRC,
+
+    // a single dot/period i.e. '.'
+    KS_TOK_DOT,
+    // a single colon i.e. ':'
+    KS_TOK_COL,
+    // a single colon i.e. ';'
+    KS_TOK_SEMI,
+
+};
+
+// ks_parser - an integrated parser which can parse kscript & bytecode to
+//   ASTs & code objects
+typedef struct {
+    KS_OBJ_BASE
+    
+    // the source code the parser is parsing on
+    ks_str src;
+
+    // number of tokens that were found
+    int tok_n;
+
+    // the array of tokens in the source code
+    ks_tok* tok;
+}* ks_parser;
+
+
+
+// ks_tok - kscript token from parser
+// These are not full 'objects', because that would require a lot of memory,
+//   objects, and pointers for parsers. Many files have upwards of 10k tokens,
+//   so allocating 10k objects & maintaining reference counts, etc would not
+//   be feasible or as efficient
+// Therefore, this structure does not hold a reference to 'parser',
+//   since it is a part of a parser at all times, and the integer members
+//   describe where in the source code the token is found
+struct ks_tok {
+
+    // the parser the token came from
+    ks_parser parser;
+
+    // absolute position & length in the string source code
+    int pos, len;
+
+    // the line & column at which it first appeared
+    int line, col;
+
+};
+
+
+// ks_vm - a virtual machine object, which can run kscript code & manage state
+typedef struct {
+    KS_OBJ_BASE
+
+    // the execution stack, which holds values
+    ks_list stk;
+
+    // global variables
+    ks_dict globals;
+
+}* ks_vm;
+
+
+// the default virtual machine to run code on
+extern ks_vm ks_vm_default;
+
+
+// ks_cfunc - a C-function wrapper which can be called the same as a kscript function
 typedef struct {
     KS_OBJ_BASE
 
@@ -468,7 +658,39 @@ typedef struct {
 
 
 
+// ks_pfunc - a partial function wrapper, which wraps a callable with some of the arguments prefilled
+// This is useful for member functions, for example, which have their first argument prefilled
+typedef struct {
+    KS_OBJ_BASE
 
+    // the base function that will be called, and have its arguments filled in
+    ks_obj func;
+
+    // the number of arguments to fill in
+    int n_fill;
+
+    // list of indices & values to prefill in the call to func
+    struct ks_pfunc_fill_arg {
+        // 0-based index of where to insert it
+        int idx;
+
+        // the actual value provided as a prefill for the argument
+        ks_obj arg;
+
+    }* fill;
+
+}* ks_pfunc;
+
+
+// ks_Error - base class for an error. 
+// NOTE: do not confuse this with 'ks_error' - that is a printing macro
+typedef struct {
+    KS_OBJ_BASE
+
+    // attribute dictionary
+    ks_dict attr;
+
+}* ks_Error;
 
 
 /* STRING BUILDING/UTILITY TYPES */
@@ -526,10 +748,19 @@ extern ks_type
     ks_type_list,
     ks_type_dict,
 
+    ks_type_Error,
+
+    ks_type_vm,
     ks_type_code,
     
     ks_type_cfunc
 
+;
+
+// these are the built-in functions
+
+extern ks_cfunc
+    ks_F_print
 ;
 
 
@@ -537,6 +768,26 @@ extern ks_type
 
 // Attempt to initialize the library. Return 'true' on success, 'false' otherwise
 bool ks_init();
+
+// Type to hold a kscript version
+typedef struct {
+    
+    // the semver <major>.<minor>.<patch> build
+    int major, minor, patch;
+
+    // the date of the compilation
+    //   which is the '__DATE__' macro when it was compiled
+    const char* date;
+
+    // the time of the compilation,
+    //   which is the '__TIME__' macro when it was compiled
+    const char* time;
+
+} ks_version_t;
+
+// Get the version of kscript
+// Do not free or modify this variable
+const ks_version_t* ks_version();
 
 // Return the time, in seconds, since the library started. It uses a fairly good wall clock,
 //   but is only meant for rough approximation. Using the std time module is best for most results
@@ -604,6 +855,11 @@ void ks_type_add_parent(ks_type self, ks_type parent);
 // NOTE: Returns a new referece
 ks_obj ks_type_get(ks_type self, ks_str key);
 
+// Get a member function (self.attr), with the first argument filled as 'obj'
+//   as the instance
+// NOTE: Returns a new referece
+ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj);
+
 // Set an attribute for the given type
 // 0 can be passed to 'hash', and it will be calculated
 void ks_type_set(ks_type self, ks_str key, ks_obj val);
@@ -664,9 +920,16 @@ ks_list ks_new_list(int len, ks_obj* elems);
 // Push an object on to the end of the list, expanding the list
 void ks_list_push(ks_list self, ks_obj obj);
 
+// Push 'n' objects on to the end of the list, expanding the list
+void ks_list_pushn(ks_list self, int n, ks_obj* objs);
+
 // Pop off an object from the end of the list
 // NOTE: Returns a reference
 ks_obj ks_list_pop(ks_list self);
+
+// Pop off 'n' items into 'dest'
+// NOTE: Returns a reference to each object
+void ks_list_popn(ks_list self, int n, ks_obj* dest);
 
 // Pop off an object from the end of the list, destroying the reference
 void ks_list_popu(ks_list self);
@@ -707,6 +970,11 @@ bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key);
 // NOTE: Returns a new reference
 ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key);
 
+// Get a value of the dictionary
+// NULL if it does not exist
+// NOTE: Returns a new reference
+ks_obj ks_dict_get_c(ks_dict self, char* key);
+
 // Set a dictionary entry for a key, to a value
 // If the entry already exists, dereference the old value, and replace it with the new value
 // result > 0 means that an item was replaced
@@ -722,6 +990,16 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
 // result < 0 means there was some internal problem (most likely the key was not hashable)
 int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
+
+/* ERROR */
+
+// Construct a new error from a string reason
+// NOTE: Returns a new reference
+ks_Error ks_new_Error(ks_str what);
+
+// create a kscript error from a C style string
+// NOTE: Returns a new reference
+ks_Error ks_new_Error_c(char* what);
 
 /* CODE */
 
@@ -742,18 +1020,79 @@ void ks_code_add(ks_code self, int len, ksb* data);
 // Add a constant to the internal constant list, return the index at which it was added (or already located)
 int ks_code_add_const(ks_code self, ks_obj val);
 
-
 /*** ADDING BYTECODES (see ks.h for bytecode definitions) ***/
-void ksca_noop   (ks_code self);
+void ksca_noop      (ks_code self);
 
-void ksca_push   (ks_code self, ks_obj val);
-void ksca_dup    (ks_code self);
-void ksca_popu   (ks_code self);
+void ksca_push      (ks_code self, ks_obj val);
+void ksca_dup       (ks_code self);
+void ksca_popu      (ks_code self);
 
-void ksca_ret    (ks_code self);
-void ksca_jmp    (ks_code self, int relamt);
-void ksca_jmpt   (ks_code self, int relamt);
-void ksca_jmpf   (ks_code self, int relamt);
+void ksca_call      (ks_code self, int n_items);
+void ksca_ret       (ks_code self);
+void ksca_jmp       (ks_code self, int relamt);
+void ksca_jmpt      (ks_code self, int relamt);
+void ksca_jmpf      (ks_code self, int relamt);
+
+void ksca_load      (ks_code self, ks_str name);
+void ksca_load_attr (ks_code self, ks_str name);
+void ksca_store     (ks_code self, ks_str name);
+void ksca_store_attr(ks_code self, ks_str name);
+
+// C-style versions
+void ksca_load_c      (ks_code self, char* name);
+void ksca_load_attr_c (ks_code self, char* name);
+void ksca_store_c     (ks_code self, char* name);
+void ksca_store_attr_c(ks_code self, char* name);
+
+
+/* VM (Virtual Machine) */
+
+// Create a new virtual machine
+// NOTE: Returns a new reference
+ks_vm ks_new_vm();
+
+
+/* AST (Abstract Syntax Trees) */
+
+// Create an AST representing a constant value
+// Type should be none, bool, int, or str
+// NOTE: Returns a new reference
+ks_ast ks_new_ast_const(ks_obj val);
+
+// Create an AST representing a variable reference
+// Type should always be string
+// NOTE: Returns a new reference
+ks_ast ks_new_ast_var(ks_str name);
+
+// Create an AST representing a function call
+// NOTE: Returns a new reference
+ks_ast ks_new_ast_call(ks_ast func, int n_args, ks_ast* args);
+
+// Create an AST representing a return statement
+// NOTE: Returns a new reference
+ks_ast ks_new_ast_ret(ks_ast val);
+
+
+/* PARSER */
+
+// Create a new parser from some source code
+// Or, return NULL if there was an error (and 'throw' the exception)
+// NOTE: Returns a new reference
+ks_parser ks_new_parser(ks_str src_code);
+
+// Parse a single expression out of 'p'
+// NOTE: Returns a new reference
+ks_ast ks_parser_parse_expr(ks_parser p);
+
+// Parse a single statement out of 'p'
+// NOTE: Returns a new reference
+ks_ast ks_parser_parse_stmt(ks_parser p);
+
+// Parse the entire file out of 'p', returning the AST of the program
+// Or, return NULL if there was an error (and 'throw' the exception)
+// NOTE: Returns a new reference
+ks_ast ks_parser_parse_file(ks_parser p);
+
 
 
 /* CFUNC */
@@ -761,6 +1100,19 @@ void ksca_jmpf   (ks_code self, int relamt);
 // Create a new C-function wrapper
 // NOTE: Returns a new reference
 ks_cfunc ks_new_cfunc(ks_obj (*func)(int n_args, ks_obj* args));
+
+
+/* PFUNC */
+
+// Create a new partial function wrapper
+// NOTE: 'func' must be callable
+// NOTE: Returns a new reference
+ks_pfunc ks_new_pfunc(ks_obj func);
+
+// Fill a given index with an argument
+// NOTE: if 'idx' is already filled, it will be replaced
+void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg);
+
 
 
 
@@ -796,6 +1148,10 @@ bool ks_is_callable(ks_obj func);
 // NOTE: Returns a new reference
 ks_obj ks_getattr(ks_obj obj, ks_obj attr);
 
+// Get an attribute by name, i.e. 'obj.attr'
+// NOTE: Returns a new reference
+ks_obj ks_getattr_c(ks_obj obj, char* attr);
+
 // Attempt to call 'func' on 'args', returning NULL if there was an error
 // NOTE: Returns a new reference
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
@@ -804,6 +1160,17 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
 // NOTE: Returns a new reference
 ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args);
 
+// Throw an object up the call stack
+// NOTE: Throws an error if there is already an object on the call stack
+// NOTE: Always returns NULL
+void* ks_throw(ks_obj obj);
+
+// Attempt to catch an object from the call stack
+// Returns 'NULL' if nothing has been thrown,
+// otherwise, return the object that was thrown, and take it off the thrown location
+// (so now other things can be thrown)
+// NOTE: Returns a new reference, if it was non-NULL
+ks_obj ks_catch();
 
 
 /* STRING FORMATTING (see ./fmt.c) */
@@ -822,7 +1189,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap);
 /* VM EXECUTION */
 
 // Execute code on the VM
-int vm_exec(ks_code code);
+int vm_exec(ks_vm vm, ks_code code);
 
 
 
