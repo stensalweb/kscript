@@ -13,7 +13,6 @@
 KS_TYPE_DECLFWD(ks_type_type);
 
 
-
 // initialize a type
 void ks_init_type(ks_type self, char* name) {
     // zero it out
@@ -24,8 +23,7 @@ void ks_init_type(ks_type self, char* name) {
     self->attr = ks_dict_new(0, NULL);
     // initialize all other to empty
     // set some defaults
-    //self->__parents__ = ks_list_new(0, NULL);
-    //self->__name__ = ks_str_new(name);
+
     ks_str name_str = ks_str_new(name);
     ks_type_set_c(self, "__name__",(ks_obj)name_str);
     KS_DECREF(name_str);

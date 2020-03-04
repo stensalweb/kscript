@@ -29,20 +29,6 @@ ks_tuple ks_tuple_new(int len, ks_obj* elems) {
     return self;
 }
 
-
-// free a kscript list
-void ks_free_tuple(ks_tuple self) {
-
-    // go through the buffers & delete references
-    int i;
-    for (i = 0; i < self->len; ++i) {
-        KS_DECREF(self->elems[i]);
-    }
-
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
-
 // tuple.__str__(self) -> convert to string
 static KS_TFUNC(tuple, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -81,7 +67,16 @@ static KS_TFUNC(tuple, free) {
     ks_tuple self = (ks_tuple)args[0];
     KS_REQ_TYPE(self, ks_type_tuple, "self");
 
-    ks_free_tuple(self);
+    // go through the buffer & delete references
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        KS_DECREF(self->elems[i]);
+    }
+
+    // no buffer free is needed because the tuple itself is allocated with its elements
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 
     return KSO_NONE;
 };

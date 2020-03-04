@@ -536,7 +536,11 @@ enum {
     // Represents a return statement (a return without a result should be filled
     //   with a 'none' constant)
     // result is 'children[0]'
-    KS_AST_RET
+    KS_AST_RET,
+
+    // Represents a block of other ASTs
+    // all children are in 'children'
+    KS_AST_BLOCK,
 };
 
 // ks_ast - an Abstract Syntax Tree, a high-level representation of a program
@@ -560,14 +564,25 @@ typedef struct ks_tok ks_tok;
 // enumeration of different token types
 enum {
 
+    // whether the token is a valid type
+    KS_TOK_NONE = 0,
+
     // an identifier (i.e. any valid variable name)
-    KS_TOK_IDENT = 0,
+    KS_TOK_IDENT,
 
     // an integer numerical literal (i.e. '123', '345', etc)
     KS_TOK_INT,
 
     // a string constant, wrapped in quotes (i.e. '"Abc\nDef"')
     KS_TOK_STR,
+
+    // a comment token, which typically starts with '#' and goes until the end
+    //   of the line
+    KS_TOK_COMMENT,
+
+    // a newline token, i.e. 
+    //
+    KS_TOK_NEWLINE,
 
     // End-Of-File token, always the last token for a given file
     KS_TOK_EOF,
@@ -607,13 +622,16 @@ typedef struct {
     // the source code the parser is parsing on
     ks_str src;
 
+    // the current token index into the 'tok' array
+    int toki;
+
     // number of tokens that were found
     int tok_n;
 
     // the array of tokens in the source code
     ks_tok* tok;
-}* ks_parser;
 
+}* ks_parser;
 
 
 // ks_tok - kscript token from parser
@@ -1083,6 +1101,10 @@ ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_ret(ks_ast val);
 
+// Create an AST representing a block of code
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_block(int num, ks_ast* elems);
+
 
 /* PARSER */
 
@@ -1093,16 +1115,16 @@ ks_parser ks_parser_new(ks_str src_code);
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_expr(ks_parser p);
+ks_ast ks_parser_parse_expr(ks_parser self);
 
 // Parse a single statement out of 'p'
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_stmt(ks_parser p);
+ks_ast ks_parser_parse_stmt(ks_parser self);
 
 // Parse the entire file out of 'p', returning the AST of the program
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_file(ks_parser p);
+ks_ast ks_parser_parse_file(ks_parser self);
 
 
 

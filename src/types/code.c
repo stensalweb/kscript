@@ -35,17 +35,6 @@ ks_code ks_code_new(ks_list v_const) {
 }
 
 
-// free a kscript code
-void ks_free_code(ks_code self) {
-
-    KS_DECREF(self->v_const);
-    ks_free(self->bc);
-
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
-
-
 // add bytes to the code
 void ks_code_add(ks_code self, int len, ksb* data) {
     // start index
@@ -401,8 +390,12 @@ static KS_TFUNC(code, free) {
     ks_code self = (ks_code)args[0];
     KS_REQ_TYPE(self, ks_type_code, "self");
     
-    // actually free the object
-    ks_free_code(self);
+    // free member variables
+    KS_DECREF(self->v_const);
+    ks_free(self->bc);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 
     return KSO_NONE;
 };

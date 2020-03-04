@@ -62,7 +62,10 @@ int main(int argc, char** argv) {
     // exception
     ks_obj exc = NULL;
 
-    ks_parser p = ks_parser_new(ks_str_new("print(12)"));
+    static ks_str src = NULL;
+    if (!src) src = ks_str_new("  print(123)");
+    
+    ks_parser p = ks_parser_new(src);
     if (exc = ks_catch()) {
         ks_error("%T: %R", exc, exc);
         return -1;

@@ -2,6 +2,8 @@
  *
  * Don't include this! Just include `ks.h` for the officially supported API
  * 
+ * This file may define things that conflict with other libraries naming schemes
+ * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
@@ -11,6 +13,12 @@
 // always include the main header
 #include "ks.h"
 
+// formatting colors
+#define BOLD   "\033[1m"
+#define RESET  "\033[0m"
+#define WHITE  "\033[37m"
+#define RED    "\033[31m"
+#define YELLOW "\033[33m"
 
 /* INTERNAL TYPE INITIALIZATION FUNCTIONS */
 void ks_type_type_init();

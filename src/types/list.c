@@ -31,21 +31,6 @@ ks_list ks_list_new(int len, ks_obj* elems) {
 }
 
 
-// free a kscript list
-void ks_free_list(ks_list self) {
-
-    // go through the buffers & delete references
-    int i;
-    for (i = 0; i < self->len; ++i) {
-        KS_DECREF(self->elems[i]);
-    }
-
-    ks_free(self->elems);
-
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
-
 // push on an object to the list (recording a reference)
 void ks_list_push(ks_list self, ks_obj obj) {
     ks_size_t idx = self->len++;
@@ -121,8 +106,16 @@ static KS_TFUNC(list, free) {
     ks_list self = (ks_list)args[0];
     KS_REQ_TYPE(self, ks_type_list, "self");
 
-    // free resources by default
-    ks_free_list(self);
+    // go through the buffer & delete references to elements
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        KS_DECREF(self->elems[i]);
+    }
+
+    ks_free(self->elems);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 
     return KSO_NONE;
 };

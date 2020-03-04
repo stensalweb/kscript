@@ -176,25 +176,6 @@ int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns) {
     }
 }
 
-
-// free a kscript dict
-void ks_free_dict(ks_dict self) {
-
-    int i;
-    for (i = 0; i < self->n_entries; ++i) {
-        // decrease any reference we held here
-        if (self->entries[i].key) KS_DECREF(self->entries[i].key);
-        if (self->entries[i].val) KS_DECREF(self->entries[i].val);
-    }
-
-    ks_free(self->buckets);
-    ks_free(self->entries);
-
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
-
-
 /* ACCESS UTILS */
 
 // resize a dictionary to have a new number of buckets
@@ -525,8 +506,20 @@ static KS_TFUNC(dict, free) {
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_type_dict, "self");
 
-    // call internal free function
-    ks_free_dict(self);
+    // free all entries
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        // decrease any reference we held here
+        if (self->entries[i].key) KS_DECREF(self->entries[i].key);
+        if (self->entries[i].val) KS_DECREF(self->entries[i].val);
+    }
+
+    // free buffers used
+    ks_free(self->buckets);
+    ks_free(self->entries);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 
     return KSO_NONE;
 };

@@ -56,24 +56,28 @@ ks_ast ks_ast_new_ret(ks_ast val) {
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
-    self->kind = KS_AST_CALL;
+    self->kind = KS_AST_RET;
     self->children = ks_list_new(1, (ks_obj*)&val);
 
     return self;
 }
 
 
-// free the resources & remove references
-void ks_free_ast(ks_ast self) {
+// construct a new AST representing a block
+ks_ast ks_ast_new_block(int num, ks_ast* elems) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
 
-    KS_DECREF(self->children);
+    // set specific variables
+    self->kind = KS_AST_BLOCK;
+    self->children = ks_list_new(num, (ks_obj*)elems);
 
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
+    return self;
 }
 
 
-/* member function */
+
+/* member functions */
 
 // ast.__free__(self) -> free an AST object
 static KS_TFUNC(ast, free) {
@@ -81,8 +85,11 @@ static KS_TFUNC(ast, free) {
     ks_ast self = (ks_ast)args[0];
     KS_REQ_TYPE(self, ks_type_ast, "self");
     
-    // actually free the object
-    ks_free_ast(self);
+    // recursively dereference the children
+    KS_DECREF(self->children);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 
     return KSO_NONE;
 };

@@ -30,10 +30,30 @@ void ks_free_cfunc(ks_cfunc self) {
 }
 
 
+/* member functions */
+
+// cfunc.__free__(self) -> free a cfunc
+static KS_TFUNC(cfunc, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_cfunc self = (ks_cfunc)args[0];
+    KS_REQ_TYPE(self, ks_type_cfunc, "self");
+    
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+};
+
 
 // initialize cfunc type
 void ks_type_cfunc_init() {
     KS_INIT_TYPE_OBJ(ks_type_cfunc, "cfunc");
+
+    ks_type_set_cn(ks_type_cfunc, (ks_dict_ent_c[]){
+        {"__free__", (ks_obj)ks_cfunc_new(cfunc_free_)},
+
+        {NULL, NULL}   
+    });
 
 }
 

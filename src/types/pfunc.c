@@ -72,24 +72,7 @@ void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg) {
 
 }
 
-// free a kscript cfunc
-void ks_free_pfunc(ks_pfunc self) {
-
-    int i;
-    for (i = 0; i < self->n_fill; ++i) {
-        KS_DECREF(self->fill[i].arg);
-    }
-
-    ks_free(self->fill);
-
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
-
-
-
 /* member functions */
-
 
 // pfunc.__call__(self, *args) -> call a pfunc with arguments
 static KS_TFUNC(pfunc, call) {
@@ -142,8 +125,17 @@ static KS_TFUNC(pfunc, free) {
     ks_pfunc self = (ks_pfunc)args[0];
     KS_REQ_TYPE(self, ks_type_pfunc, "self");
     
-    // actually free the object
-    ks_free_pfunc(self);
+    // free references to the prefilled arguments
+    int i;
+    for (i = 0; i < self->n_fill; ++i) {
+        KS_DECREF(self->fill[i].arg);
+    }
+
+    // free buffer
+    ks_free(self->fill);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
 
     return KSO_NONE;
 };

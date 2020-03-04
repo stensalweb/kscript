@@ -5,13 +5,6 @@
 
 #include "ks-impl.h"
 
-// formatting colors
-#define BOLD   "\033[1m"
-#define RESET  "\033[0m"
-#define WHITE  "\033[37m"
-#define RED    "\033[31m"
-#define YELLOW "\033[33m"
-
 // current logging level
 static int log_level = KS_LOG_INFO;
 

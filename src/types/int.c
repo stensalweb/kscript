@@ -23,17 +23,26 @@ ks_int ks_int_new(int64_t val) {
 }
 
 
-// free a kscript int
-void ks_free_int(ks_int self) {
+// int.__free__(self) -> free an int object
+static KS_TFUNC(int, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_code self = (ks_code)args[0];
+    KS_REQ_TYPE(self, ks_type_code, "self");
+
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
-}
 
+    return KSO_NONE;
+};
 
 
 // initialize int type
 void ks_type_int_init() {
     KS_INIT_TYPE_OBJ(ks_type_int, "int");
 
+    ks_type_set_cn(ks_type_int, (ks_dict_ent_c[]){
+        {"__free__", (ks_obj)ks_cfunc_new(int_free_)},
+        {NULL, NULL}   
+    });
 }
 

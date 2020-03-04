@@ -89,11 +89,6 @@ ks_str ks_str_unescape(ks_str A) {
     return ret;
 }
 
-// free a kscript string
-void ks_free_str(ks_int self) {
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
 
 int ks_str_cmp(ks_str A, ks_str B) {
     if (A->len != B->len) return A->len - B->len;
@@ -109,6 +104,22 @@ static KS_TFUNC(str, mine) {
 };
 
 
+
+// str.__free__(self) -> free a string object
+static KS_TFUNC(str, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+
+    // nothing else is needed because the string is allocated with enough bytes for all the characters    
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+};
+
+
+
 // initialize string type
 void ks_type_str_init() {
     KS_INIT_TYPE_OBJ(ks_type_str, "str");
@@ -116,6 +127,7 @@ void ks_type_str_init() {
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
         {"mine", (ks_obj)ks_cfunc_new(str_mine_)},
+        {"__free__", (ks_obj)ks_cfunc_new(str_free_)},
         
         {NULL, NULL}
     });

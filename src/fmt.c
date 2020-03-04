@@ -193,10 +193,17 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         if (strncmp(p, "c", 1) == 0) {
             // %c - print a 'char' in C
 
-            // add single character
-            char v_char = (char)va_arg(ap, int);
+            barg.width = 1;
 
-            ks_str_b_add(&SB, 1, &v_char);
+            // check if we want variable width
+            if (strchr(field, '*')) {
+                barg.width = va_arg(ap, int);
+            }
+
+            // read the character
+            char v_char = (char)va_arg(ap, int);
+            
+            for (j = 0; j < barg.width; ++j) ks_str_b_add(&SB, 1, &v_char);
 
             p += 1;
 
@@ -317,12 +324,27 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         } else if (strncmp(p, "s", 1) == 0) {
             // %s : print a C-style NUL-terminated string
 
+            // check if there is a dot
+            char* fs = strchr(field, '.');
+
+            // size is how many of the bytes to write out, starting at the beginning
+            int sz = -1;
+            
+            if (fs && fs[1] == '*') {
+                // read in a width
+                sz = va_arg(ap, int);
+            }
+
+            // read actual buffer
             char* v_chr = va_arg(ap, char*);
 
-            int sz = v_chr == NULL ? 0 : strlen(v_chr);
+
+            // add default of zero
+            if (sz < 0) sz = strlen(v_chr);
 
             // add to the string builder
             ks_str_b_add(&SB, sz, v_chr);
+
 
             // advance past the specifier
             p += 1;
