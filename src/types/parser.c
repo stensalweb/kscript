@@ -109,6 +109,98 @@ static void* syntax_error(ks_tok tok, char* fmt, ...) {
 
 /* TOKENS */
 
+#define _MIN(_a, _b) ((_a) < (_b) ? (_a) : (_b))
+#define _MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
+
+// combine A and B to form a larger meta token
+ks_tok ks_tok_combo(ks_tok A, ks_tok B) {
+    return (ks_tok) {
+        .parser = A.parser, .type = KS_TOK_COMBO,
+        .pos = _MIN(A.pos, B.pos), .len = _MAX(A.pos+A.len, B.pos+B.len) - _MIN(A.pos, B.pos),
+        .line = _MIN(A.line, B.line), .col = _MIN(A.col, B.col)
+    };
+}
+
+// generates an integer from the token, assuming it is an integer literal
+static int64_t tok_getint(ks_tok tok) {
+
+    if (tok.type != KS_TOK_INT) {
+        ks_warn("tok_getint() passed a non-integer token (type %i)", tok.type);
+        return 0;
+    }
+    static char tmp[100];
+    int len = tok.len;
+    if (len > 99) len = 99;
+    memcpy(tmp, tok.parser->src->chr + tok.pos, len);
+    tmp[len] = '\0';
+    return atoll(tmp);
+}
+
+// returns a string literal value of the token, but unescaped.
+// For example, 'Hello\nWorld' replaces the \\ and n with 
+// a literal newline, and removes the quotes around it
+static ks_str tok_getstr(ks_tok tok) {
+    ks_str start = ks_str_new("");
+
+    char* src = tok.parser->src->chr + tok.pos;
+
+    // skip '"'
+    int i;
+    for (i = 1; i < tok.len && src[i] != '"'; ) {
+        int j = 0;
+        // go for as many literals as possible
+        while (src[i + j] != '\0' && src[i + j] != '"' && src[i + j] != '\\') {
+            j++;
+        }
+
+        if (j > 0) {
+            // handle literal characters
+            ks_str new_str = ks_fmt_c("%*s%*s", start->len, start->chr, j, src+i);
+            KS_DECREF(start);
+            start = new_str;
+            i += j;
+        } else if (src[i] == '\\') {
+            // handle an escape code, \CODE
+
+            // by default, just handle a single character
+            char c = src[++i];
+            char lit = '\0';
+
+            // wheter or not there was a valid escape code
+            bool hasOne = true;
+
+            if (c == 'n') {
+                lit = '\n';
+            } else if (c == '\\') {
+                lit = '\\';
+            } else {
+                hasOne = false;
+            }
+
+            if (hasOne) {
+                ks_str new_str = ks_fmt_c("%*s%c", start->len, start->chr, lit);
+                KS_DECREF(start);
+                start = new_str;
+            } else {
+                ks_warn("Unknown escape code: '%c'", c);
+            }
+
+            // skip the escape code
+            i++;
+        } else {
+            // something weird happened, neither an escape code nor string literals occured,
+            //   so stop
+            break;
+        }
+
+    }
+
+    // just take off our temporary reference
+    start->refcnt--;
+
+    return start;
+}
+
 // tokenize a parser; only should be called at initialization
 static void* tokenize(ks_parser self) {
 
@@ -529,6 +621,14 @@ static syop
 ;
 
 
+#ifndef KS_DECREF_N
+#define KS_DECREF_N(_objs, _n) { \
+    int i, n = _n;               \
+    for (i = 0; i < n; ++i) {    \
+        KS_DECREF((_objs)[i]);   \
+    }                            \
+}
+#endif
 
 
 
@@ -553,7 +653,107 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
     } Ops = {0, NULL};
 
 
+
+    // pushes an item onto the stack
+    #define Spush(_stk, _val) { int _idx = (_stk).len++; (_stk).base = ks_realloc((_stk).base, sizeof(*(_stk).base) * _stk.len); (_stk).base[_idx] = (_val); }
+    // pops off an item from the stack, yielding the value
+    #define Spop(_stk) (_stk).base[--(_stk).len]
+    // yields the top value of the stack
+    #define Stop(_stk) (_stk).base[(_stk).len - 1]
+    // pops off an unused object from the stack (just use this one on Out, not Ops)
+    #define Spopu(_stk) { kso _obj = Spop(_stk); KS_INCREF(_obj); KS_DECREF(_obj); }
+    // gets `idx`'th item of `_stk`
+    #define Sget(_stk, _idx) (_stk).base[_idx]
+
+    #define PEXPR_ERR(...) { }
+
+
+    // current & last tokens
+    ks_tok ctok = { .type = KS_TOK_NONE }, ltok = { .type = KS_TOK_NONE };
+
+    while (VALID()) {
+
+        // skip things that are irrelevant to expressions
+        SKIP_IRR_E();
+
+        // try and end it
+        if (!VALID()) goto kppe_end;
+
+        ctok = CTOK();
+
+        // check if we should stop parsing due to being at the end
+        if (ctok.type == KS_TOK_EOF || ctok.type == KS_TOK_NEWLINE || 
+            ctok.type == KS_TOK_SEMI || 
+            ctok.type == KS_TOK_LBRC || ctok.type == KS_TOK_RBRC) goto kppe_end;
+
+        if (ctok.type == KS_TOK_INT) {
+            // push an integer onto the value stack
+
+            // convert token to actual int value
+            ks_int new_int = ks_int_new(tok_getint(ctok));
+
+            // transform it into an AST
+            ks_ast new_ast = ks_ast_new_const((ks_obj)new_int);
+            KS_DECREF(new_int);
+
+            // push it on the output stack
+            Spush(Out, new_ast);
+
+        } else if (ctok.type == KS_TOK_STR) {
+            // push a string onto the value stack
+
+            // convert token to actual string value
+            ks_str new_str = tok_getstr(ctok);
+            if (!new_str) goto kppe_err;
+
+            // transform it into an AST
+            ks_ast new_ast = ks_ast_new_const((ks_obj)new_str);
+            KS_DECREF(new_str);
+
+            // push it on the output stack
+            Spush(Out, new_ast);
+
+        } else if (ctok.type == KS_TOK_IDENT) {
+            // push a variable reference
+
+            // TODO: handle keywords
+
+            // convert token to actual string value
+            ks_str var_s = ks_str_new_l(self->src->chr + ctok.pos, ctok.len);
+            if (!var_s) goto kppe_err;
+
+
+            // transform it into an AST
+            ks_ast new_ast = ks_ast_new_var(var_s);
+            KS_DECREF(var_s);
+
+            // push it on the output stack
+            Spush(Out, new_ast);
+
+        } else {
+            // unknown token
+            syntax_error(ctok, "Unexpected token");
+            goto kppe_err;
+        }
+
+
+        // advance to next token
+        ltok = CTOK();
+        ADV_1();
+
+    }
+    
+
+    kppe_end:
+    // successful end label
+
+
+
     return syntax_error(CTOK(), "Expressions not working!");
+
+    kppe_err:
+    // ending error label
+
     return NULL;
 }
 

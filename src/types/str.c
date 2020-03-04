@@ -12,7 +12,7 @@
 KS_TYPE_DECLFWD(ks_type_str);
 
 // create a kscript string from a C-style string with a length (not including NUL-terminator)
-ks_str ks_str_new_l(int len, char* chr) {
+ks_str ks_str_new_l(char* chr, int len) {
     ks_str self = (ks_str)ks_malloc(sizeof(struct ks_str) + len);
     KS_INIT_OBJ(self, ks_type_str);
 
@@ -21,6 +21,7 @@ ks_str ks_str_new_l(int len, char* chr) {
 
     // copy in all the data
     memcpy(self->chr, chr, len);
+
     self->chr[len] = '\0';
 
     // calculate the hash for the string when it gets created
@@ -31,7 +32,7 @@ ks_str ks_str_new_l(int len, char* chr) {
 
 // create a kscript string from a C-style string
 ks_str ks_str_new(char* chr) {
-    return ks_str_new_l(chr == NULL ? 0 : strlen(chr), chr);
+    return ks_str_new_l(chr, chr == NULL ? 0 : strlen(chr));
 }
 
 // Escape the string 'A', i.e. replace '\' -> '\\', and newlines to '\n'

@@ -518,104 +518,6 @@ typedef struct {
 
 
 
-// Different kinds of ASTs
-enum {
-    // Represents a constant, such as 'none', 'true', 'false', int, string
-    // value is 'children[0]'
-    KS_AST_CONST,
-
-    // Represents a variable reference
-    // name is 'children[0]'
-    KS_AST_VAR,
-
-    // Represents a function call, func(*args)
-    // func is 'children[0]'
-    // args are 'children[1:]
-    KS_AST_CALL,
-
-    // Represents a return statement (a return without a result should be filled
-    //   with a 'none' constant)
-    // result is 'children[0]'
-    KS_AST_RET,
-
-    // Represents a block of other ASTs
-    // all children are in 'children'
-    KS_AST_BLOCK,
-
-
-    /** BINARY OPERATORS **/
-
-    // binary '+'
-    KS_AST_BOP_ADD,
-    // binary '-'
-    KS_AST_BOP_SUB,
-    // binary '*'
-    KS_AST_BOP_MUL,
-    // binary '/'
-    KS_AST_BOP_DIV,
-    // binary '%'
-    KS_AST_BOP_MOD,
-    // binary '**'
-    KS_AST_BOP_POW,
-
-    // binary '<'
-    KS_AST_BOP_LT,
-    // binary '<='
-    KS_AST_BOP_LE,
-    // binary '>'
-    KS_AST_BOP_GT,
-    // binary '>='
-    KS_AST_BOP_GE,
-    // binary '=='
-    KS_AST_BOP_EQ,
-    // binary '!='
-    KS_AST_BOP_NE,
-
-    // binary '=' (special case, only assignable things area allowed on the left side)
-    KS_AST_BOP_ASSIGN,
-
-
-    /** UNARY OPERATORS **/
-
-    // unary '-'
-    KS_AST_UOP_NEG,
-    // unary '~'
-    KS_AST_UOP_SQIG,
-
-
-};
-
-// the first AST kind that is a binary operator
-#define KS_AST_BOP__FIRST KS_AST_BOP_ADD
-
-// the last AST kind that is a binary operator
-#define KS_AST_BOP__LAST KS_AST_BOP_ASSIGN
-
-
-// the first AST kind that is a unary operator
-#define KS_AST_UOP__FIRST KS_AST_UOP_NEG
-
-// the last AST kind that is a unary operator
-#define KS_AST_UOP__LAST KS_AST_UOP_SQIG
-
-
-
-
-
-
-// ks_ast - an Abstract Syntax Tree, a high-level representation of a program
-typedef struct {
-    KS_OBJ_BASE
-
-    // the kind of AST it is
-    int kind;
-
-    // the array of children nodes. They are packed differently per kind, so see the definitino
-    //   for a kind first
-    ks_list children;
-
-}* ks_ast;
-
 
 // ks_parser - an integrated parser which can parse kscript & bytecode to
 //   ASTs & code objects
@@ -626,6 +528,9 @@ enum {
 
     // whether the token is a valid type
     KS_TOK_NONE = 0,
+
+    // Represents a combination of multiple tokens of different types
+    KS_TOK_COMBO,
 
     // an identifier (i.e. any valid variable name)
     KS_TOK_IDENT,
@@ -717,6 +622,105 @@ struct ks_tok {
     int line, col;
 
 };
+
+
+// Different kinds of ASTs
+enum {
+    // Represents a constant, such as 'none', 'true', 'false', int, string
+    // value is 'children[0]'
+    KS_AST_CONST,
+
+    // Represents a variable reference
+    // name is 'children[0]'
+    KS_AST_VAR,
+
+    // Represents a function call, func(*args)
+    // func is 'children[0]'
+    // args are 'children[1:]
+    KS_AST_CALL,
+
+    // Represents a return statement (a return without a result should be filled
+    //   with a 'none' constant)
+    // result is 'children[0]'
+    KS_AST_RET,
+
+    // Represents a block of other ASTs
+    // all children are in 'children'
+    KS_AST_BLOCK,
+
+
+    /** BINARY OPERATORS **/
+
+    // binary '+'
+    KS_AST_BOP_ADD,
+    // binary '-'
+    KS_AST_BOP_SUB,
+    // binary '*'
+    KS_AST_BOP_MUL,
+    // binary '/'
+    KS_AST_BOP_DIV,
+    // binary '%'
+    KS_AST_BOP_MOD,
+    // binary '**'
+    KS_AST_BOP_POW,
+
+    // binary '<'
+    KS_AST_BOP_LT,
+    // binary '<='
+    KS_AST_BOP_LE,
+    // binary '>'
+    KS_AST_BOP_GT,
+    // binary '>='
+    KS_AST_BOP_GE,
+    // binary '=='
+    KS_AST_BOP_EQ,
+    // binary '!='
+    KS_AST_BOP_NE,
+
+    // binary '=' (special case, only assignable things area allowed on the left side)
+    KS_AST_BOP_ASSIGN,
+
+
+    /** UNARY OPERATORS **/
+
+    // unary '-'
+    KS_AST_UOP_NEG,
+    // unary '~'
+    KS_AST_UOP_SQIG,
+
+
+};
+
+// the first AST kind that is a binary operator
+#define KS_AST_BOP__FIRST KS_AST_BOP_ADD
+
+// the last AST kind that is a binary operator
+#define KS_AST_BOP__LAST KS_AST_BOP_ASSIGN
+
+// the first AST kind that is a unary operator
+#define KS_AST_UOP__FIRST KS_AST_UOP_NEG
+
+// the last AST kind that is a unary operator
+#define KS_AST_UOP__LAST KS_AST_UOP_SQIG
+
+
+
+// ks_ast - an Abstract Syntax Tree, a high-level representation of a program
+typedef struct {
+    KS_OBJ_BASE
+
+    // the kind of AST it is
+    int kind;
+
+    // the array of children nodes. They are packed differently per kind, so see the definitino
+    //   for a kind first
+    ks_list children;
+
+    // tokens for the AST, representing where it is in the source code
+    ks_tok tok, tok_expr;
+
+}* ks_ast;
+
 
 
 // ks_vm - a virtual machine object, which can run kscript code & manage state
@@ -979,7 +983,7 @@ ks_str ks_str_new(char* val);
 
 // Create a new kscript string from a C-style length encoded string
 // NOTE: Returns a new reference
-ks_str ks_str_new_l(int len, char* chr);
+ks_str ks_str_new_l(char* chr, int len);
 
 // perform a string comparison on 2 strings
 int ks_str_cmp(ks_str A, ks_str B);
@@ -1164,6 +1168,16 @@ ks_ast ks_ast_new_ret(ks_ast val);
 // Create an AST representing a block of code
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_block(int num, ks_ast* elems);
+
+// Create a new AST represernting a binary operation on 2 objects
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
+
+// Create a new AST represernting a unary operation
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_uop(int uop_type, ks_ast V);
+
+
 
 
 /* PARSER */

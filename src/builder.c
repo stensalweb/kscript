@@ -14,7 +14,7 @@ void ks_str_b_init(ks_str_b* self) {
 
 // Create a (new reference) of a string from the string builder at this point
 ks_str ks_str_b_get(ks_str_b* self) {
-    return ks_str_new_l(self->len, self->data);
+    return ks_str_new_l(self->data, self->len);
 }
 
 

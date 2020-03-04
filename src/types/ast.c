@@ -74,6 +74,34 @@ ks_ast ks_ast_new_block(int num, ks_ast* elems) {
 
     return self;
 }
+// Create a new AST represernting a binary operation on 2 objects
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
+    assert(KS_AST_BOP__FIRST <= bop_type && bop_type <= KS_AST_BOP__LAST);
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = bop_type;
+    self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)L, (ks_obj)R });
+
+    return self;
+}
+
+// Create a new AST represernting a unary operation
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_uop(int uop_type, ks_ast V) {
+    assert(KS_AST_UOP__FIRST <= uop_type && uop_type <= KS_AST_UOP__LAST);
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = uop_type;
+    self->children = ks_list_new(1, (ks_obj*)&V);
+
+    return self;
+}
+
 
 
 
