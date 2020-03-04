@@ -571,6 +571,9 @@ enum {
     // binary '!='
     KS_AST_BOP_NE,
 
+    // binary '=' (special case, only assignable things area allowed on the left side)
+    KS_AST_BOP_ASSIGN,
+
 
     /** UNARY OPERATORS **/
 
@@ -586,7 +589,7 @@ enum {
 #define KS_AST_BOP__FIRST KS_AST_BOP_ADD
 
 // the last AST kind that is a binary operator
-#define KS_AST_BOP__LAST KS_AST_BOP_NE
+#define KS_AST_BOP__LAST KS_AST_BOP_ASSIGN
 
 
 // the first AST kind that is a unary operator
