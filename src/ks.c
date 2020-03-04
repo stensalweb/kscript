@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     ks_obj exc = NULL;
 
     static ks_str src = NULL;
-    if (!src) src = ks_str_new("  print(123)");
+    if (!src) src = ks_str_new("print('Test')");
     
     ks_parser p = ks_parser_new(src);
     if (exc = ks_catch()) {
@@ -71,31 +71,29 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    ks_info("parser: %S, src: %R, toks: %i", p, p->src, p->tok_n);
+
     ks_ast prog = ks_parser_parse_file(p);
     if (exc = ks_catch()) {
         ks_error("%T: %R", exc, exc);
         return -1;
     }
 
-
-    ks_info("parser: %S, src: %R, toks: %i", p, p->src, p->tok_n);
-
     ks_info("prog: %S", prog);
 
-/*
-    // now, actually execute code
-    ks_code code = ks_code_new(NULL);
+    ks_code myc = ks_codegen(prog);
+    if (exc = ks_catch()) {
+        ks_error("%T: %R", exc, exc);
+        return -1;
+    }
 
-    ksca_load_c(code, "print");
-    ksca_load_c(code, "print");
-    ksca_call(code, 2);
-    ksca_ret(code);
 
-    ks_info("CODE: %S", code);
+    ks_info("code: %S", myc);
 
-    vm_exec(ks_vm_default, code);
 
-    */
+    // execute it
+    ks_obj ret = vm_exec(ks_vm_default, myc);
+    ks_info("ret: %S", ret);
 
     return 0;
 }

@@ -41,6 +41,18 @@ void ks_str_b_add_c(ks_str_b* self, char* cstr) {
 // add repr(obj) to the string builder
 bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj) {
 
+    // try some builtins
+    if (self == KSO_NONE) {
+        ks_str_b_add_c(self, "none");
+        return true;
+    } else if (self == KSO_TRUE) {
+        ks_str_b_add_c(self, "true");
+        return true;
+    } else if (self == KSO_TRUE) {
+        ks_str_b_add_c(self, "false");
+        return true;
+    }
+
     // attempt to get the repr
     ks_str repr = ks_repr(obj);
     if (!repr) return false;
@@ -61,6 +73,19 @@ bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj) {
 
 // add str(obj) to the string buffer
 bool ks_str_b_add_str(ks_str_b* self, ks_obj obj) {
+
+    // try some builtins
+    if (obj == KSO_NONE) {
+        ks_str_b_add_c(self, "none");
+        return true;
+    } else if (obj == KSO_TRUE) {
+        ks_str_b_add_c(self, "true");
+        return true;
+    } else if (obj == KSO_TRUE) {
+        ks_str_b_add_c(self, "false");
+        return true;
+    }
+
     // attempt to get the repr
     ks_str to_str = ks_to_str(obj);
     if (!to_str) return false;

@@ -376,6 +376,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         
             ks_obj v_obj = va_arg(ap, ks_obj);
 
+
             // add to the string builder
             ks_str_b_add_repr(&SB, v_obj);
 

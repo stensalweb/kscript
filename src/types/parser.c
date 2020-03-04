@@ -121,6 +121,17 @@ ks_tok ks_tok_combo(ks_tok A, ks_tok B) {
     };
 }
 
+// return whether a given token type is a valid yielding type
+static bool tok_isval(int type) {
+    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_INT || type == KS_TOK_STR || type == KS_TOK_RBRK;
+}
+
+// return whether a given token type is a valid operator
+static bool tok_isop(int type) {
+    return false;
+}
+
+
 // generates an integer from the token, assuming it is an integer literal
 static int64_t tok_getint(ks_tok tok) {
 
@@ -140,65 +151,11 @@ static int64_t tok_getint(ks_tok tok) {
 // For example, 'Hello\nWorld' replaces the \\ and n with 
 // a literal newline, and removes the quotes around it
 static ks_str tok_getstr(ks_tok tok) {
-    ks_str start = ks_str_new("");
+    ks_str inside_quotes = ks_str_new_l(tok.parser->src->chr + tok.pos + 1, tok.len - 2);
 
-    char* src = tok.parser->src->chr + tok.pos;
-
-    // skip '"'
-    int i;
-    for (i = 1; i < tok.len && src[i] != '"'; ) {
-        int j = 0;
-        // go for as many literals as possible
-        while (src[i + j] != '\0' && src[i + j] != '"' && src[i + j] != '\\') {
-            j++;
-        }
-
-        if (j > 0) {
-            // handle literal characters
-            ks_str new_str = ks_fmt_c("%*s%*s", start->len, start->chr, j, src+i);
-            KS_DECREF(start);
-            start = new_str;
-            i += j;
-        } else if (src[i] == '\\') {
-            // handle an escape code, \CODE
-
-            // by default, just handle a single character
-            char c = src[++i];
-            char lit = '\0';
-
-            // wheter or not there was a valid escape code
-            bool hasOne = true;
-
-            if (c == 'n') {
-                lit = '\n';
-            } else if (c == '\\') {
-                lit = '\\';
-            } else {
-                hasOne = false;
-            }
-
-            if (hasOne) {
-                ks_str new_str = ks_fmt_c("%*s%c", start->len, start->chr, lit);
-                KS_DECREF(start);
-                start = new_str;
-            } else {
-                ks_warn("Unknown escape code: '%c'", c);
-            }
-
-            // skip the escape code
-            i++;
-        } else {
-            // something weird happened, neither an escape code nor string literals occured,
-            //   so stop
-            break;
-        }
-
-    }
-
-    // just take off our temporary reference
-    start->refcnt--;
-
-    return start;
+    ks_str res = ks_str_unescape(inside_quotes);
+    KS_DECREF(inside_quotes);
+    return res;
 }
 
 // tokenize a parser; only should be called at initialization
@@ -272,10 +229,40 @@ static void* tokenize(ks_parser self) {
                 // we are parsing an integer, so we're fininshed
                 ADDTOK(KS_TOK_INT);
             }
+        } else if (c == '\'' || c == '"') {
+            char s_c = c;
+
+            ADV();
+            while (self->src->chr[i] && self->src->chr[i] != s_c && self->src->chr[i] != '\n') {
+                if (self->src->chr[i] == '\\') {
+                    // escape code; skip it
+                    ADV();
+                }
+                ADV();
+            }
+
+
+            if (self->src->chr[i] != s_c) {
+
+                ks_tok badtok = (ks_tok){ 
+                    .parser = self, .type = KS_TOK_NONE, 
+                    .pos = start_i, .len = i - start_i, 
+                    .line = start_line, .col = start_col 
+                };
+                return syntax_error(badtok, "Didn't find ending quote for string literal");
+            }
+
+            ADV();
+
+            // add the token
+            ADDTOK(KS_TOK_STR);
+
         }
+        
         CASE_S(KS_TOK_NEWLINE, "\n")
 
         CASE_S(KS_TOK_DOT, ".")
+        CASE_S(KS_TOK_COMMA, ",")
         CASE_S(KS_TOK_COL, ":")
         CASE_S(KS_TOK_SEMI, ";")
 
@@ -285,6 +272,18 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_RBRK, "]")
         CASE_S(KS_TOK_LBRC, "{")
         CASE_S(KS_TOK_RBRC, "}")
+
+        // operators
+        CASE_S(KS_TOK_OP, "+") CASE_S(KS_TOK_OP, "-")
+        CASE_S(KS_TOK_OP, "*") CASE_S(KS_TOK_OP, "/")
+        CASE_S(KS_TOK_OP, "%") CASE_S(KS_TOK_OP, "**")
+        
+        CASE_S(KS_TOK_OP, "<") CASE_S(KS_TOK_OP, "<=")
+        CASE_S(KS_TOK_OP, ">") CASE_S(KS_TOK_OP, ">=")
+        CASE_S(KS_TOK_OP, "==") CASE_S(KS_TOK_OP, "!=")
+
+        CASE_S(KS_TOK_OP, "=")
+
         else {
             // unexpected character
 
@@ -343,6 +342,11 @@ ks_parser ks_parser_new(ks_str src_code) {
 
 
 /* PARSING UTILITY MACROS */
+
+// yield whether a token equals a string constant too
+// NOTE: Assumes the parser is named 'self'
+
+#define TOK_EQ(_tok, _str) (_tok.len == (sizeof(_str) - 1) && (0 == strncmp(self->src->chr + _tok.pos, _str, (sizeof(_str) - 1))))
 
 
 // Get a boolean expression telling whether the parser is in a valid parsing state
@@ -620,7 +624,6 @@ static syop
 
 ;
 
-
 #ifndef KS_DECREF_N
 #define KS_DECREF_N(_objs, _n) { \
     int i, n = _n;               \
@@ -629,8 +632,6 @@ static syop
     }                            \
 }
 #endif
-
-
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
@@ -652,8 +653,6 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
         syop* base;
     } Ops = {0, NULL};
 
-
-
     // pushes an item onto the stack
     #define Spush(_stk, _val) { int _idx = (_stk).len++; (_stk).base = ks_realloc((_stk).base, sizeof(*(_stk).base) * _stk.len); (_stk).base[_idx] = (_val); }
     // pops off an item from the stack, yielding the value
@@ -665,11 +664,41 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
     // gets `idx`'th item of `_stk`
     #define Sget(_stk, _idx) (_stk).base[_idx]
 
-    #define PEXPR_ERR(...) { }
+    // raise an error
+    #define KPPE_ERR(...) {  syntax_error(__VA_ARGS__); goto kppe_err; }
 
+
+    // pops an operator from `Ops`, takes arguments from `Out`, and then replaces that output in `Out`
+    #define POP_OP() { \
+        syop top = Stop(Ops); \
+        if (top.type == SYT_FUNC) { \
+            /* basically: start at the top of the stack, scanning down for our NULL we added to the output 
+            to signify the start of the function call */ \
+            int osp = Out.len - 1; \
+            while (osp >= 0 && Sget(Out, osp) != NULL) osp--; \
+            int n_args = Out.len - osp - 1; \
+            Sget(Out, osp) = Sget(Out, osp - 1); /* effectively swaps the NULL and the actual function call */ \
+            /* now, they are contiguous in memory */ \
+            ks_ast new_call = ks_ast_new_call(Sget(Out, osp), n_args, (ks_ast*)&Sget(Out, osp+1)); \
+            KS_DECREF_N(&Sget(Out, osp), n_args+1); \
+            new_call->tok = top.tok; \
+            new_call->tok_expr = ks_tok_combo(((ks_ast)new_call->children->elems[0])->tok_expr, ctok); \
+            Out.len -= n_args + 2; \
+            Spush(Out, new_call);\
+        } else { \
+            KPPE_ERR(ctok, "Internal Operator Error (%i)", top.type); \
+        } \
+        Spop(Ops); \
+    }
 
     // current & last tokens
     ks_tok ctok = { .type = KS_TOK_NONE }, ltok = { .type = KS_TOK_NONE };
+
+    ks_tok start_tok = CTOK();
+
+    // number of (left paren) - (right paren) or left - right brackets
+    int n_pars = 0, n_brks = 0;
+
 
     while (VALID()) {
 
@@ -702,13 +731,17 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
         } else if (ctok.type == KS_TOK_STR) {
             // push a string onto the value stack
 
+
             // convert token to actual string value
             ks_str new_str = tok_getstr(ctok);
+
             if (!new_str) goto kppe_err;
 
             // transform it into an AST
             ks_ast new_ast = ks_ast_new_const((ks_obj)new_str);
             KS_DECREF(new_str);
+
+
 
             // push it on the output stack
             Spush(Out, new_ast);
@@ -720,8 +753,6 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
             // convert token to actual string value
             ks_str var_s = ks_str_new_l(self->src->chr + ctok.pos, ctok.len);
-            if (!var_s) goto kppe_err;
-
 
             // transform it into an AST
             ks_ast new_ast = ks_ast_new_var(var_s);
@@ -730,10 +761,211 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             // push it on the output stack
             Spush(Out, new_ast);
 
+        } else if (ctok.type == KS_TOK_OP) {
+
+            // operator was pushed, 
+            // TODO: handle keywords
+
+            // try and find the current operator, store it here
+            syop used = { .type = SYT_NONE };
+
+            // if case for an operator
+            #define KPE_OPCASE(_tok, _opstr, _opval) if (TOK_EQ(_tok, _opstr)) { used = _opval; goto kpe_op_resolve; }
+
+            // TODO: implement unary operators
+            if (ltok.type == KS_TOK_NONE || tok_isop(ltok.type) || ltok.type == KS_TOK_COMMA || ltok.type == KS_TOK_LPAR || ltok.type == KS_TOK_LBRK || ltok.type == KS_TOK_LBRC) {
+                // this is a unary prefix operator
+
+                KPE_OPCASE(ctok, "-", syu_neg)
+                KPE_OPCASE(ctok, "~", syu_sqig)
+
+                KPPE_ERR(ctok, "Unexpected operator");
+
+            } else {
+                // either a binary operator, or a unary postfix operator
+
+                if (tok_isval(ltok.type)) {
+                    // since the last token was a value, this must either be a unary postfix or a binary infix
+                    KPE_OPCASE(ctok, "+",  syb_add)
+                    KPE_OPCASE(ctok, "-",  syb_sub)
+                    KPE_OPCASE(ctok, "*",  syb_mul)
+                    KPE_OPCASE(ctok, "/",  syb_div)
+                    KPE_OPCASE(ctok, "%",  syb_mod)
+                    KPE_OPCASE(ctok, "**", syb_pow)
+                    KPE_OPCASE(ctok, "<",  syb_lt)
+                    KPE_OPCASE(ctok, "<=", syb_le)
+                    KPE_OPCASE(ctok, ">",  syb_gt)
+                    KPE_OPCASE(ctok, ">=", syb_ge)
+                    KPE_OPCASE(ctok, "==", syb_eq)
+                    KPE_OPCASE(ctok, "!=", syb_ne)
+                    KPE_OPCASE(ctok, "=",  syb_assign)
+                } else {
+                    KPPE_ERR(ctok, "Unexpected operator");
+                }
+            }
+
+            kpe_op_resolve: ;
+
+            if (used.type == SYT_NONE) {
+                // it was not found
+                KPPE_ERR(ctok, "Unexpected operator");
+            }
+
+            // set the metadata
+            used.tok = ctok;
+
+            // the precedence threshold for operators to match
+            int prec_thresh = used.prec + ((used.assoc == SYA_BOP_LEFT) ? 0 : 1);
+
+            // now, we have a valid operator, so clear the stack of anything with higher precedence than it
+            // (+ some rules about equal precedence)
+            while (Ops.len > 0) {
+
+                // never go past parethesis or brackets, because those have the lowest precedence
+                syop top_op = Stop(Ops);
+
+                // check for '('-based operators, which we should never process here
+                if (top_op.type == SYT_LPAR || top_op.type == SYT_FUNC) break;
+
+                // check for '['-based operators, which we should never process here
+                if (top_op.type == SYT_SUBSCRIPT || top_op.type == SYT_LBRACK) break;
+
+                // check for the correct precedence threshold.
+                // NOTE: since the stack is well ordered, we can go ahead and break here
+                if (top_op.prec < prec_thresh) break;
+
+                // if we havent broken out already, go ahead and pop off the top operator
+                POP_OP();
+
+            }
+
+            // always push it to the op stack, after the stack has been resolved
+            Spush(Ops, used);
+
+
+
+        } else if (ctok.type == KS_TOK_COMMA) {
+            // this is to prevent commas outside of operators outside of brackets
+            //if (n_pars < 1 && n_bracks < 1) PEXPR_ERR(ctok, "Unexpected `,`, must have a comma within a group")
+
+            // let someone above us handle the comma
+            if (n_pars < 1 && n_brks < 1) goto kppe_end;
+            
+            // check and make sure no double commas
+            if (ltok.type == KS_TOK_COMMA) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax; expected a value between these commas");
+
+            if (!(tok_isval(ltok.type) || ltok.type == KS_TOK_LPAR)) KPPE_ERR(ctok, "SyntaxError; did not expect this here");
+
+            // just reduce the top of the stack until we get to a '(' or '['
+            while (Ops.len > 0) {
+                // look at the top of the operator stack
+                syop top_op = Stop(Ops);
+                // stop on any '(' operator
+                if (top_op.type == SYT_FUNC || top_op.type == SYT_LPAR) break;
+                // stop on any '[' operator
+                if (top_op.type == SYT_SUBSCRIPT || top_op.type == SYT_LBRACK) break;
+
+                // else, it was just some operator, so pop it
+                POP_OP();
+            }
+
+            // set the flag for the operator on top, so it knew it had a comma in it
+            if (Ops.len > 0) Stop(Ops).had_comma = true;
+
+        } else if (ctok.type == KS_TOK_LPAR) {
+            n_pars++;
+            
+            // add a spacer to the output stack
+            Spush(Out, NULL);
+
+            if (tok_isval(ltok.type))  {
+                // if the previous item parsed was a value, then this is a function call
+                Spush(Ops, SYOP(SYT_FUNC, ctok));
+            } else {
+                // otherwise, this is a normal expression group, OR a tuple creation
+                // add an operator denoting this
+                Spush(Ops, SYOP(SYT_LPAR, ctok));
+            }
+
+        } else if (ctok.type == KS_TOK_RPAR) {
+            n_pars--;
+
+            // make sure its balanced
+            if (n_pars < 0) KPPE_ERR(ctok, "Invalid Syntax; extra ')', remove it");
+
+            // check and make sure its valid
+            if (!(tok_isval(ltok.type) || ltok.type == KS_TOK_COMMA || ltok.type == KS_TOK_LPAR)) KPPE_ERR(ctok, "Invalid Syntax; did not expect ')' here")
+
+            // which one was actually it actually was for
+            syop used = {.type = SYT_NONE};
+
+            // a right parenthesis should clear the stack, to the nearest function call
+            // or group
+            while (Ops.len > 0) {
+                syop top_op = Stop(Ops);
+                POP_OP();
+                // stop once we hit one that started with '('
+                if (top_op.type == SYT_FUNC || top_op.type == SYT_LPAR) { used = top_op; break; }
+            }
+
+            if (used.type == SYT_FUNC) {
+                // it has already been handled by `POP_OP()`, so we're done
+            } else if (used.type == SYT_LPAR) {
+                // it was either a normal group: `(3+4*(5+1))`
+                // or, a tuple: `(1, 2, )`, `(,)`
+
+                // first, scan down until we hit a spacer
+                int osp = Out.len - 1;
+                while (osp > 0 && Sget(Out, osp) != NULL) osp--;
+
+                if (osp >= 0) {
+                    // we a found NULL before hitting the bottom of the stack
+
+                    // calculate how many items it took
+                    int n_items = Out.len - osp - 1;
+
+                    // if they entered `()`, give a syntax error.
+                    // the correct 
+                    if (n_items == 0 && !used.had_comma) KPPE_ERR(ks_tok_combo(used.tok, ctok), "Invalid Syntax; given an empty group. To create an empty tuple, use a comma: `(,)`");
+
+                    // TODO: Also check for beginnings of empty tuples that become full tuples later in parsing.
+                    // EXAMPLE: `(,3)`==`(3,)`, but this should be a syntax error
+                    
+                    // the new AST value we are parsing out
+                    ks_ast new_val = NULL;
+
+                    if (n_items != 1 || used.had_comma) {
+                        // there's definitely a tuple here, so create it
+                        KPPE_ERR(ctok, "Tuple not supported!");
+                        //new_val = ks_ast_new_tuple(&Sget(Out, osp+1), n_items);
+                        KS_DECREF_N((ks_obj*)&Sget(Out, osp+1), n_items);
+                        new_val->tok = used.tok;
+                        // join the first and last
+                        new_val->tok_expr = ks_tok_combo(new_val->tok, ctok);
+                        
+                    } else {
+                        // else, just yield the value as a math operation
+                        new_val = Sget(Out, osp+1);
+                    }
+
+                    // remove all values
+                    Out.len -= n_items;
+
+                    // take off the seperator (NULL)
+                    Spop(Out);
+
+                    // make sure we were given a valid value
+                    if (new_val != NULL) {
+                        Spush(Out, new_val);
+                    } else {
+                        KPPE_ERR(ctok, "Invalid Syntax")
+                    }
+                }
+            }
+
         } else {
             // unknown token
-            syntax_error(ctok, "Unexpected token");
-            goto kppe_err;
+            KPPE_ERR(ctok, "Unexpected token");
         }
 
 
@@ -747,12 +979,27 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
     kppe_end:
     // successful end label
 
+    if (Out.len == 1) {
+        ks_ast ret = Sget(Out, 0);
+        ks_free(Out.base);
+        ks_free(Ops.base);
+        return ret;
+    } else {
+        // empty expression
+        //PEXPR_ERR(ctok, "Invalid expression");
+
+        syntax_error(start_tok, "Invalid Expression");
+        goto kppe_err;
+    }
 
 
     return syntax_error(CTOK(), "Expressions not working!");
 
     kppe_err:
     // ending error label
+
+    ks_free(Out.base);
+    ks_free(Ops.base);
 
     return NULL;
 }

@@ -549,6 +549,9 @@ enum {
     //
     KS_TOK_NEWLINE,
 
+    // an operator, i.e. '+', '-', '==', etc
+    KS_TOK_OP,
+
     // End-Of-File token, always the last token for a given file
     KS_TOK_EOF,
     
@@ -574,6 +577,8 @@ enum {
     KS_TOK_DOT,
     // a single colon i.e. ':'
     KS_TOK_COL,
+    // a single comma i.e. ','
+    KS_TOK_COMMA,
     // a single colon i.e. ';'
     KS_TOK_SEMI,
 
@@ -845,6 +850,8 @@ extern ks_type
 
     ks_type_vm,
     ks_type_code,
+    ks_type_ast,
+    ks_type_parser,
     
     ks_type_cfunc
 
@@ -1178,6 +1185,12 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
 ks_ast ks_ast_new_uop(int uop_type, ks_ast V);
 
 
+/* CODE GENERATION */
+
+// Generate corresponding bytecode for a given AST
+// NOTE: Returns a new reference
+// See `codegen.c` for more info
+ks_code ks_codegen(ks_ast self);
 
 
 /* PARSER */
@@ -1303,7 +1316,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap);
 /* VM EXECUTION */
 
 // Execute code on the VM
-int vm_exec(ks_vm vm, ks_code code);
+ks_obj vm_exec(ks_vm vm, ks_code code);
 
 
 

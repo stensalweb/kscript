@@ -108,7 +108,7 @@ void ks_type_vm_init() {
 ks_vm ks_vm_default;
 
 // internal execution algorithm
-int vm_exec(ks_vm vm, ks_code code) {
+ks_obj vm_exec(ks_vm vm, ks_code code) {
 
     // start program counter at the beginning
     ksb* pc = code->bc;
@@ -155,7 +155,6 @@ int vm_exec(ks_vm vm, ks_code code) {
 
         VMED_CASE_START(KSB_NOOP)
             VMED_CONSUME(ksb, op);
-            printf("Noop\n");
 
         VMED_CASE_END
 
@@ -164,21 +163,19 @@ int vm_exec(ks_vm vm, ks_code code) {
         VMED_CASE_START(KSB_PUSH)
             VMED_CONSUME(ksb_i32, op_i32);
 
-            printf("Push\n");
+            ks_list_push(vm->stk, code->v_const->elems[op_i32.arg]);
 
         VMED_CASE_END
 
         VMED_CASE_START(KSB_DUP)
             VMED_CONSUME(ksb, op);
 
-            printf("Dup\n");
-
         VMED_CASE_END
 
         VMED_CASE_START(KSB_POPU)
             VMED_CONSUME(ksb, op);
 
-            printf("Popu\n");
+            ks_list_popu(vm->stk);
 
         VMED_CASE_END
 
@@ -205,17 +202,13 @@ int vm_exec(ks_vm vm, ks_code code) {
         VMED_CASE_START(KSB_RET)
             VMED_CONSUME(ksb, op);
 
-            printf("Ret\n");
-
-            // TODO: handle stack
-            return 0;
+            // return TOS
+            return ks_list_pop(vm->stk);
 
         VMED_CASE_END
 
         VMED_CASE_START(KSB_JMP)
             VMED_CONSUME(ksb_i32, op_i32);
-
-            printf("Jmp\n");
 
             // increment program counter
             //pc += op_i32.arg;
@@ -224,8 +217,6 @@ int vm_exec(ks_vm vm, ks_code code) {
 
         VMED_CASE_START(KSB_JMPT)
             VMED_CONSUME(ksb_i32, op_i32);
-
-            printf("Jmpt\n");
 
             // increment program counter
             //pc += op_i32.arg;
@@ -260,14 +251,10 @@ int vm_exec(ks_vm vm, ks_code code) {
             KS_DECREF(val);
 
 
-
-
             // increment program counter
             //pc += op_i32.arg;
 
         VMED_CASE_END
-
-
 
 
 
@@ -278,6 +265,7 @@ int vm_exec(ks_vm vm, ks_code code) {
         ksb op = *pc;
     }*/
 
+    return NULL;
 
 }
 

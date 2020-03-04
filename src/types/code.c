@@ -325,7 +325,7 @@ static KS_TFUNC(code, str) {
         
         case KSB_PUSH:
             i += 4;
-            ks_str_b_add_fmt(&SB, "push vc[%i]", val);
+            ks_str_b_add_fmt(&SB, "push vc[%i]  # %R", val, self->v_const->elems[val]);
             break;
 
         case KSB_DUP:
@@ -364,7 +364,7 @@ static KS_TFUNC(code, str) {
 
         case KSB_LOAD:
             i += 4;
-            ks_str_b_add_fmt(&SB, "load v_c[%i]  # %R", val, self->v_const->elems[val]);
+            ks_str_b_add_fmt(&SB, "load vc[%i]  # %R", val, self->v_const->elems[val]);
             break;
 
         default:
