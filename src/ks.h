@@ -541,7 +541,64 @@ enum {
     // Represents a block of other ASTs
     // all children are in 'children'
     KS_AST_BLOCK,
+
+
+    /** BINARY OPERATORS **/
+
+    // binary '+'
+    KS_AST_BOP_ADD,
+    // binary '-'
+    KS_AST_BOP_SUB,
+    // binary '*'
+    KS_AST_BOP_MUL,
+    // binary '/'
+    KS_AST_BOP_DIV,
+    // binary '%'
+    KS_AST_BOP_MOD,
+    // binary '**'
+    KS_AST_BOP_POW,
+
+    // binary '<'
+    KS_AST_BOP_LT,
+    // binary '<='
+    KS_AST_BOP_LE,
+    // binary '>'
+    KS_AST_BOP_GT,
+    // binary '>='
+    KS_AST_BOP_GE,
+    // binary '=='
+    KS_AST_BOP_EQ,
+    // binary '!='
+    KS_AST_BOP_NE,
+
+
+    /** UNARY OPERATORS **/
+
+    // unary '-'
+    KS_AST_UOP_NEG,
+    // unary '~'
+    KS_AST_UOP_SQIG,
+
+
 };
+
+// the first AST kind that is a binary operator
+#define KS_AST_BOP__FIRST KS_AST_BOP_ADD
+
+// the last AST kind that is a binary operator
+#define KS_AST_BOP__LAST KS_AST_BOP_NE
+
+
+// the first AST kind that is a unary operator
+#define KS_AST_UOP__FIRST KS_AST_UOP_NEG
+
+// the last AST kind that is a unary operator
+#define KS_AST_UOP__LAST KS_AST_UOP_SQIG
+
+
+
+
+
 
 // ks_ast - an Abstract Syntax Tree, a high-level representation of a program
 typedef struct {

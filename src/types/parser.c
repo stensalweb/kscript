@@ -283,10 +283,277 @@ ks_parser ks_parser_new(ks_str src_code) {
     } \
 }
 
+
+/* expression parsing:
+
+Essentially, the shunting yard algorithm is used, which aims to maintain a stack desrcibing the current expression.
+For more info, see here: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+
+I will denote stacks with a line starting with a `|`, so:
+| 1, 2, 3,
+Means the stack has 3 items, and a 3 is on top
+
+There is an operator (Ops) stack and an output (Out) stack. The operator stack just holds which operators were encountered,
+whereas the output stack has ASTs (abstract syntax trees). For example, if we have the stacks:
+| 1, 2, 3
+| +
+
+And we were to 'reduce' it normally, we would get:
+| 1, 5
+|
+
+We popped off the operator, and applied it to the stack. But, we want to record the addition as a syntax tree, so we turn the 
+constants 2 and 3 into a tree node, which gives us:
+| 1, (2+3)
+|
+Now, imagine we are to add a * operator:
+| 1, (2+3)
+| *
+This would reduce to:
+| (1*(2+3))
+|
+
+For basic expressions just including operators and constants, this algorithm is very simple. It begins becoming more complicated given
+more and more kinds of expressions. So, this is just used to parse expressions. Statements such as function definitions, if/while/for blocks,
+{} blocks, etc are handled by higher level functions (which are explained down lower in the file)
+
+To build these stacks is quite simple: whenever encountering a value (int, string, variable), just push another node on the stack
+If it is an operator, first reduce the stack (as I have shown above) for all operators that are greater precedence [1], so that now the operator
+stack knows that this new operator being bushes is the higest precedence.
+
+Before describing the internals, I will go ahead and list the precedences:
+
+PEMDAS is the base reference, but of course is not complete: Here is their order by lowest to highest
+
+= (assignment)
+<,>,==,<=,>=,!= (comparison operators)
++,- (AS in PEMDAS)
+*,/,% (MD in PEMDAS (and modulo is the same))
+** (exponentiation)
+
+And, of course, parenthesis are highest of all, as are function calls, `[]` expressions, etc. Any kind of operator that has a start (i.e. '(')
+and an end (i.e. ')') will share the highest precedence. Can you think of why they couldn't have different precedences? Well, if they did,
+you could have (weird) expressions such as `x = [(])`, which is obviously wrong. So, whenever a ')' is encountered, it better not be in the middle
+of a `[]` expression, and vice versa, a `[]` expression should never be inside and outside a parenthesis `()` group
+
+You can think of precedence as:
+
+  * The lowest precedence operators apply last (so, with `A=2+3`, since the `+` has higher prec. than the `=` operator, the addition is carried
+      out first, then the assignment)
+
+
+So, at any point, when adding an operator, the higher prec. operators [1] are first removed, since they have to happen before the lower one being added
+
+In this way, these stacks are well-ordered by precedence
+
+I just want to say that Dijkstra is, of course, a genius. And I would love to thank him personally for this algorithm. It's quite beautiful.
+
+EXAMPLES:
+
+#1 
+for example take the string:
+`f(1, 2+3)`
+
+Looking at this, we can tell it is correctly formed. Check lower in the file for details on error checking (specifically, in the shunting yard loop of code)
+
+To parse this, start reading left to right, beginning with empty stacks:
+|
+|
+
+First, we have a value `f`:
+| f
+|
+Then, we encounter a `(`. Since this is directly after a value, that means it is a function call.
+Push on a NULL (I will use `:` for these examples) to the value stack 
+(I call this a 'seperator', and it will be useful for nested function calls, as we need to know what the function is)
+And push a FUNC operator to the ops.:
+| f :
+| FUNC
+Now, push the 1
+| f : 1
+| FUNC
+Once we hit the comma, we should reduce the operator stack to the last function call. Since the top of the stack is already a FUNC, nothing is done
+Now, push the 2:
+| f : 1 2
+| FUNC
+Now, we've hit the last token, a ')'. We don't automatically know if its the end of an expression or function call, so we scan down the operator
+stack until we find a FUNC or LPAR. oh look, the top is a function, so look no further!
+
+Now that we know we're computing a function call, we scan down the stack for our seperator (see why its useful now?)
+Notice the format we have for a function call: we will have (FUNCTION), a seperator, and then the rest are the arguments.
+So, in this case, we pop off until we get to the seperator, skip the seperator, and then grab the function.
+
+We have the function call parsed:
+
+
+#2
+TODO, I will try and add more expression parsing examples in the future
+
+
+NOTES:
+  [1]: Technically, this isn't always true. The stack should also be cleared left-associative operators with equal precedence, and there are
+         more error checks done to make the input is correctly formed
+
+*/
+
+// shunting yard operator structure
+typedef struct syop {
+
+    // what type of operator is it?
+    enum {
+        // err/empty type
+        SYT_NONE = 0,
+
+        // unary operator, like -A, ~A
+        SYT_UOP,
+
+        // a binary operator, like A+B, A-B
+        SYT_BOP,
+
+
+        /* psuedo-operators */
+        // just a left parenthesis (not a function call)
+        SYT_LPAR,
+
+        // a function call (including the left parenthesis)
+        SYT_FUNC,
+
+        // just a left bracket (not a subscript operation )
+        SYT_LBRACK,
+
+        // a subscript operation, i.e. `a[b]`
+        SYT_SUBSCRIPT,
+
+        SYT__END
+
+    } type;
+
+    // what is the precedence of the operator
+    enum {
+
+        SYP_NONE = 0,
+
+
+        // assignment i.e. A=B, should always be highest other than that
+        SYP_ASSIGN,
+
+        // comparison operators, like <,>,==
+        SYP_CMP,
+
+        // +,-, in PEMDAS order
+        SYP_ADDSUB,
+
+        // *,/ (and %), second highest in PEMDAS
+        SYP_MULDIV,
+
+        // ^ exponetentiation, highest in PEMDAS
+        SYP_POW,
+
+        // unary operators should override most operators except power
+        SYP_UNARY,
+
+        SYP__END
+
+    } prec;
+
+    // what is the associativity of the operator. left means A+B+C==(A+B)+C, right means A+B+C=A+(B+C)
+    enum {
+
+        SYA_NONE = 0,
+
+        // binary operator, left associative
+        // this handles most cases, like +,-,*,/,...
+        SYA_BOP_LEFT,
+
+        // binary operator, right associative
+        // some things are a bit weird, like exponentiation; they are associative from the right
+        // essentially, this is the power, as well as the assignment operator
+        SYA_BOP_RIGHT,
+
+        // unary prefix operator, like ++x, --x
+        SYA_UOP_PRE,
+
+        // unary postfix operator, like x++, x--
+        SYA_UOP_POST,
+
+
+        SYA__END
+
+    } assoc;
+    
+    // KS_AST_* enum values
+    int bop_type, uop_type;
+
+    // the token the operator came from
+    ks_tok tok;
+
+    // true if there was a comma associated (useful for parsing singlet tuples)
+    bool had_comma;
+
+} syop;
+
+// construct a basic syop
+#define SYOP(_type, _tok) ((syop){.type = _type, .tok = _tok, .had_comma = false})
+
+// construct a binary operator
+#define SYBOP(_prec, _assoc, _bop_type) ((syop){ .type = SYT_BOP, .prec = _prec, .assoc = _assoc, .bop_type = _bop_type })
+
+// construct a fully-loaded sy-operator
+#define SYOP_FULL(_type, _prec, _assoc) ((syop){ .type = _type, .prec = _prec, .assoc = _assoc })
+
+// construct a unary operator
+#define SYUOP(_assoc, _uop_type) ((syop){ .type = SYT_UOP, .prec = SYP_UNARY, .assoc = _assoc, .uop_type = _uop_type })
+
+
+/* operator definitions */
+static syop
+    // binary operators
+    syb_add = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_ADD), syb_sub = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_SUB),
+    syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV),
+    syb_mod = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MOD), syb_pow = SYBOP(SYP_POW, SYA_BOP_RIGHT, KS_AST_BOP_POW),
+    syb_lt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LT), syb_le = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LE), 
+    syb_gt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GT), syb_ge = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GE), 
+    syb_eq = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_EQ), syb_ne = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_NE),
+
+    // special case
+    syb_assign = SYBOP(SYP_ASSIGN, SYA_BOP_RIGHT, KS_AST_BOP_ASSIGN)
+;
+
+/* unary operators */
+
+static syop
+    syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG),
+    syu_sqig = SYUOP(SYA_UOP_PRE, KS_AST_UOP_SQIG)
+    
+
+;
+
+
+
+
+
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
 ks_ast ks_parser_parse_expr(ks_parser self) {
 
+    // the output stack, for values
+    struct {
+        // current length of the stack
+        int len;
+        // the pointer to the elements
+        ks_ast* base;
+    } Out = {0, NULL};
+
+    // the operator stack
+    struct {
+        // current length of the stack
+        int len;
+        // the pointer to the elements
+        syop* base;
+    } Ops = {0, NULL};
+
+
+    return syntax_error(CTOK(), "Expressions not working!");
     return NULL;
 }
 
@@ -340,8 +607,11 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             goto kpps_err;
         }
 
-
         return blk;
+    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
+
+        // parse expression
+        return ks_parser_parse_expr(self);
     }
 
 
