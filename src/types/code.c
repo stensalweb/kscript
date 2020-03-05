@@ -262,7 +262,7 @@ ks_code ks_code_fromfile(char* fname) {
     }
 
     // free temporary line buffer
-    free(cur_line);
+    ks_free(cur_line);
 
 
     // now, parse the actual bytes

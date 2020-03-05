@@ -32,7 +32,7 @@ static KS_TFUNC(bool, str) {
 
 
     // select which one
-    ks_obj ret = self == KS_TRUE ? s_true : s_false;
+    ks_str ret = self == KS_TRUE ? s_true : s_false;
     return KS_NEWREF(ret);
 };
 

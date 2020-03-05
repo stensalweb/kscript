@@ -1,18 +1,27 @@
 /* obj.c - implementation of generic functionality on objects, 
  *   like string conversion, calling, hashing, etc
  *
+ * Defines standard operations
+ * 
+ * 
+ * TODO: Move all these to functions, which should be natively C-functions,
+ *   that way C API will just call those C-functions ->func attribute,
+ *   and behaviour will always be consistent
+ * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
 #include "ks-impl.h"
 
-// free the object
+// free a given object
 void ks_obj_free(ks_obj obj) {
     assert(obj->refcnt <= 0);
 
 
     if (obj->type->__free__ == NULL) {
-        // just free memory; assume nothing else
+        // just free memory & dereference the type,
+        // assume nothing else as it wasn't provided
+        KS_UNINIT_OBJ(obj);
         ks_free(obj);
 
     } else {
@@ -20,7 +29,6 @@ void ks_obj_free(ks_obj obj) {
         //ks_info("Freeing object %s", obj->type->__name__->chr);
         if (!ks_call(obj->type->__free__, 1, &obj)) {
             // there was an error in the freeing function
-
             ks_warn("Error freeing object %p", obj);
         }
     }

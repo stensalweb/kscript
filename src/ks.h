@@ -1,6 +1,17 @@
 /* ks.h - main header for the kscript library
  *
+ * kscript is a language/environment that is meant to be highly dynamic, cross platform,
+ *   easy to use, and featureful. The standard library includes strings, dictionaries, list
+ *   datastructures, image/audio/video utilities, math utilities, graphics utilities, etc
  * 
+ * Every object in kscript is castable as a `ks_obj`, which stores the only
+ *   essential parts of the object (type & reference count)
+ * 
+ * You can use the standard utility functions `ks_getattr(obj, attr)`, `ks_call(func, n_args, args)`, etc
+ *   to perform the same as the kscript builtins, or directly call their C-api functions
+ * 
+ * For example, the builtin print function is `ks_F_print`, so you can call:
+ *   ks_obj res = ks_F_print->func(1, &obj);
  * 
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -9,12 +20,12 @@
 #ifndef KS_H__
 #define KS_H__
 
+// C std
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-
 #include <string.h>
 #include <assert.h>
 
@@ -135,6 +146,18 @@ enum {
     // 1:[op]
     KSB_THROW,
 
+    // Enter a 'try' block, which will cause the code to jump to +relamt if an exception is thrown
+    // NOTE: The relative amount is from the point which the TRY_START instruction is encountered;
+    //   not where the exception was thrown
+    // 1:[op] 4:[int relamt]
+    KSB_TRY_START,
+
+    // Exit a 'try' block
+    // NOTE: This should be emitted at the end of the try block, but NOT in the exception block (as
+    //   that will exit the try block when something is thrown)
+    // 1:[op]
+    KSB_TRY_END,
+
 
     /** PRIMITIVE CONSTRUCTION, these opcodes create basic primitives from the stack **/
 
@@ -147,6 +170,12 @@ enum {
     //   back onto the stack
     // 1:[op] 4:[int num_elems, number of elements to take off the stack]
     KSB_LIST,
+
+    // Pop off 'num_elems'*2 from the stack, treat them as a bunch of keys & values (interleaved),
+    //   and construct a dictionary from them. Then, push the dict back on the stack
+    // 1:[op] 4:[int num_elems, aka num entries]
+    KSB_DICT,
+
 
     
     /** VALUE LOOKUP **/
@@ -176,8 +205,47 @@ enum {
     KSB_STORE_ATTR,
 
 
+    /** OPERATORS **/
+
+    /***  UNARY ***/
+    // All of these operators replace the TOS with the operator applied to it
+
+    // the '-' operator (i.e. -a)
+    KSB_UOP_NEG,
+    // the '~' operator (i.e. ~a)
+    KSB_UOP_SQIG,
 
 
+    /*** BINARY ***/
+    // All of these operators pop 2 items off, attempt to do the operation on them using
+    //   member functions, and then push that result back on
+    // Will throw an error if not supported
+
+    // the '+' operator
+    KSB_BOP_ADD,
+    // the '-' operator
+    KSB_BOP_SUB,
+    // the '*' operator
+    KSB_BOP_MUL,
+    // the '/' operator
+    KSB_BOP_DIV,
+    // the '%' operator
+    KSB_BOP_MOD,
+    // the '**' operator
+    KSB_BOP_POW,
+
+    // the '<' operator
+    KSB_BOP_LT,
+    // the '<=' operator
+    KSB_BOP_LE,
+    // the '>' operator
+    KSB_BOP_GT,
+    // the '>=' operator
+    KSB_BOP_GE,
+    // the '==' operator
+    KSB_BOP_EQ,
+    // the '!=' operator
+    KSB_BOP_NE,
 
 
 
@@ -186,10 +254,9 @@ enum {
 
 
 
-/* TYPES */
+/* TYPES/STRUCTURE DEFS */
 
-
-// make sure these are aligned to a single byte
+// make sure these are aligned to a single byte, because they are bytecodes
 #pragma pack(push, 1)
 
 // ksb - a single bytecode, i.e. sizeof(ksb) == 1
@@ -214,31 +281,79 @@ typedef struct {
 typedef uint64_t ks_size_t;
 
 // ks_hash_t - type representing a hash of an object. 
-// NOTE: hashes should never be '0', that means the hash is uninitialized or invalid
+// NOTE: hashes should never be '0', that means the hash is uninitialized or invalid,
+//   so manually 'nudge' the value to '1' or '-1' if that happens to come from a legimitate hash function
 typedef uint64_t ks_hash_t;
 
 
 // ks_obj - the most generic kscript object, which any other objects are castable to
+// This contains a 'type' & a 'refcnt' variable (in the KS_OBJ_BASE macro), which tell the type object as
+//   well as a count of active references to the object. One should not modify these, and instead use the macros
+//   KS_INCREF(obj) & KS_DECREF(obj) respectively
+// Once the reference count drops to 0, that means the object is effectively a 'dangling pointer', and thus can
+//   be freed.
+// Objects should always stay as pointers, so they aren't type-erased. Dereferencing
+//   an object could be bad, so don't do it! Use -> operations
 typedef struct ks_obj* ks_obj;
 
 // ks_str - a string object in kscript
+// These are immutable, and thus a new string should be constructed on any operation
+// However, this poses a big problem: string concatenation becomes O(n^2). To solve this,
+//   I've implemented a string builder struct `ks_str_b`, which can be used to build up a string in O(n)
+//   time, and then generate a string once. This can, of course, be used in any C-extension, etc
+//   Or, from within kscript as `"".join([strs...])`
+// See more on string operations in `types/str.c`
 typedef struct ks_str* ks_str;
 
-// ks_type - an object representing a type in kscript. Every object has a type, which you can check with `obj->type`
+// ks_type - an object representing a type in kscript. Every object has a type, which you can check with `obj->type`,
+// SEE: types/type.c
 typedef struct ks_type* ks_type;
+
+// ks_tuple - an object representing a tuple or collection of objects, which is immutable
+// SEE: types/tuple.c
+typedef struct ks_tuple* ks_tuple;
 
 // ks_list - an object representing an ordered list (i.e. array) of objects in kscript. note that this only holds references
 //   to the objects; objects are not duplicated for the list
+// SEE: types/list.c
 typedef struct ks_list* ks_list;
-
-// ks_tuple - an object representing a tuple or collection of objects, which is immutable
-typedef struct ks_tuple* ks_tuple;
 
 // ks_dict - an object representing a generic object mapping, where an object of (most) types can be a key, and any type can be
 //   a value
 // Internally, a hash table implementation is used, similar to Python's
+// SEE: types/dict.c
 typedef struct ks_dict* ks_dict;
 
+
+
+
+/* UTILITY MACROS */
+
+// Require an expression to be true, otherwise throw an error and return 'NULL'
+// This is similar to an assert(), but instead of crashing, it will throw an exception
+// TODO: Actually throw it
+// NOTE: Should be used inside of a KS_FUNC(), because this will return NULL!
+#define KS_REQ(_expr, ...) {       \
+    if (!(_expr)) {                \
+        ks_error(__VA_ARGS__);     \
+        return NULL;               \
+    }                              \
+}
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS(_nargs, _correct) KS_REQ((_nargs) == (_correct), "Incorrect number of arguments, expected %i, but got %i", (int)(_correct), (int)(_nargs))
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS_MIN(_nargs, _min) KS_REQ((_nargs) >= (_min), "Incorrect number of arguments, expected at least %i, but got %i", (int)(_min), (int)(_nargs))
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS_MAX(_nargs, _max) KS_REQ((_nargs) <= (_max), "Incorrect number of arguments, expected at most %i, but got %i", (int)(_max), (int)(_nargs))
+
+// Require that the number of args is a specific amount
+#define KS_REQ_N_ARGS_RANGE(_nargs, _min, _max) KS_REQ((_nargs) >= (_min) && (_nargs) <= (_max), "Incorrect number of arguments, expected between %i and %i, but got %i", (int)(_min), (int)(_max), (int)(_nargs))
+
+// Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
+#define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
 
 
 // Put this macro at the beginning of the definition of any kscript object, i.e.:
@@ -247,20 +362,23 @@ typedef struct ks_dict* ks_dict;
 //   int num;
 //   ...
 // }
-// This will make it a valid kscript object type
+// This will make it a valid kscript object type, and make pointers to your object type
+//   be validly casted to `ks_obj`
 #define KS_OBJ_BASE int64_t refcnt; ks_type type;
 
 // Record a reference to a given object (i.e. increment the reference count)
+// EX: KS_INCREF(obj)
 #define KS_INCREF(_obj) { ++((ks_obj)_obj)->refcnt; }
 
 // Un-record a reference to a given object (i.e. decrement the reference count)
 // NOTE: If the reference count reaches 0 (i.e. the object has became unreachable), this frees
 //   the object
-#define KS_DECREF(_obj) { if (--((ks_obj)_obj)->refcnt <= 0) { ks_obj_free(((ks_obj)_obj)); } }
+// EX: KS_DECREF(obj)
+#define KS_DECREF(_obj) { ks_obj fobj = (ks_obj)(_obj); if (--fobj->refcnt <= 0) { ks_obj_free(fobj); } }
 
-
-// Allocate memory for a new object type (by default, use `ks_malloc`)
+// Allocate memory for a new object type (uses `ks_malloc`)
 // For example: `KS_ALLOC_OBJ(ks_int)` will allocate a `ks_int`
+// Use the type that is a pointer to the actual type, as it will construct the size of a dereferenced type
 #define KS_ALLOC_OBJ(_typeName) ((_typeName)ks_malloc(sizeof(*(_typeName){NULL})))
 
 // Free an object's memory (non-recursively; just the actual object pointer)
@@ -269,7 +387,8 @@ typedef struct ks_dict* ks_dict;
 
 // Initialize an object of a given type, essentially setting its type as well as
 // Setting its reference count to '1' (since it should be created with a reference)
-// NOTE: This also increments the reference count of '_typeType'
+// NOTE: This also increments the reference count of '_typeType', since objects of
+//   a given type hold a reference to that type
 #define KS_INIT_OBJ(_obj, _typeType) { \
     ks_obj obj = (ks_obj)(_obj); \
     ks_type typeType = (_typeType); \
@@ -284,17 +403,16 @@ typedef struct ks_dict* ks_dict;
     ks_init_type(_typeObj, _name); \
 }
 
-// Uninitialize an object, i.e. unrecord a reference to the type it has
-#define KS_UNINIT_OBJ(_obj) { \
+// Uninitialize an object, i.e. unrecord the reference it has to it's type
+#define KS_UNINIT_OBJ(_obj) {    \
     ks_obj obj = (ks_obj)(_obj); \
-    KS_DECREF(obj->type); \
+    KS_DECREF(obj->type);        \
 }
 
 // This will declare a ks_type variable of name `_type`, and an internal structure of `_type`_s
 // EXAMPLE: KS_TYPE_DECLFWD(ks_type_int) defines `ks_type_int_s` and `ks_type_int`, but `ks_type_int`
 //   is a static address; not allocated. So, the type is not generated at runtime, but rather is constant
 #define KS_TYPE_DECLFWD(_type) struct ks_type _type##_s; ks_type _type = &_type##_s;
-
 
 // This will define a function with '_name'+_, as a kscript C-extension function
 // i.e.: KS_FUNC(add) will define a function called `add_`
@@ -304,7 +422,14 @@ typedef struct ks_dict* ks_dict;
 // i.e.: KS_TFUNC(int, add) will define a function called `int_add_`
 #define KS_TFUNC(_type, _name) ks_obj _type##_##_name##_(int n_args, ks_obj* args)
 
-
+// ks_obj - the most generic kscript object, which any other objects are castable to
+// This contains a 'type' & a 'refcnt' variable (in the KS_OBJ_BASE macro), which tell the type object as
+//   well as a count of active references to the object. One should not modify these, and instead use the macros
+//   KS_INCREF(obj) & KS_DECREF(obj) respectively
+// Once the reference count drops to 0, that means the object is effectively a 'dangling pointer', and thus can
+//   be freed.
+// Objects should always stay as pointers, so they aren't type-erased. Dereferencing
+//   an object could be bad, so don't do it! Use -> operations
 struct ks_obj {
     KS_OBJ_BASE
 };
@@ -320,6 +445,7 @@ static inline ks_obj ks_newref(ks_obj obj) {
 // NOTE: This also downcasts to 'ks_obj'
 #define KS_NEWREF(_obj) ks_newref((ks_obj)(_obj))
 
+
 struct ks_type {
     KS_OBJ_BASE
 
@@ -333,7 +459,7 @@ struct ks_type {
      *   'getattr(type, "__str__")'
      * 
      * The main reason for these attributes are speed of common operations, which this will allow us to skip a dict
-     *   lookup, and instead just check
+     *   lookup, and instead just check whether the member function is non-null
      * 
      */
 
@@ -369,8 +495,6 @@ struct ks_type {
 
     // type.__setattr__(self, attr, val) -> set an attribute on an object
     ks_obj __setattr__;
-
-
 
 };
 
@@ -430,6 +554,9 @@ struct ks_dict {
 // each entry has a C-style string and a ks_obj that does not have an active reference in most cases
 // i.e.:
 // ks_dict_set_cn(dict, (ks_dict_ent_c[]){{"ExampleKey", (ks_obj)ks_int_new(43)}, {NULL, NULL}})
+// creates a dictionary with NO REFERENCE LEAKS
+// Normally, setting a 'new' object (like from ks_int_new()) requires the callee to call KS_DECREF after
+//   the function has ran, but functions using this 'consume' the reference
 typedef struct {
 
     // NUL-terminated key (NULL key means this is the last C-style entry for the dictionary)
@@ -970,7 +1097,14 @@ void ks_type_set_c(ks_type self, char* key, ks_obj val);
 // Sets a list of C-entries (without creating new references)
 // result == 0 means no problems
 // result < 0 means there was some internal problem (most likely the key was not hashable)
-// So, do NOT remove additional references from 'ent_cns'
+// NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
+//   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
+// EXAMPLE:
+// ks_type_set_cn(ks_type_int, (ks_dict_ent_c[]){
+//   {"__str__", (ks_obj)ks_cfunc_new(mystr)},
+//   {"mine", KS_NEWREF(myotherval)},
+//   {NULL, NULL} // end should look like this   
+// })
 int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 
 
@@ -1002,6 +1136,19 @@ ks_str ks_str_escape(ks_str A);
 // Undo the string escaping, i.e. replaces '\n' with a newline
 // NOTE: Returns a new reference
 ks_str ks_str_unescape(ks_str A);
+
+/* STRING FORMATTING (see ./fmt.c) */
+
+// Perform C-style formatting, with various arguments
+// TODO: document format specifiers
+// NOTE: Returns a reference
+ks_str ks_fmt_c(const char* fmt, ...);
+
+// Perform variadic C-style formating, with a list of arguments
+// TODO: document format specifiers
+// NOTE: Returns a reference
+ks_str ks_fmt_vc(const char* fmt, va_list ap);
+
 
 
 /* TUPLE */
@@ -1043,19 +1190,13 @@ void ks_list_popu(ks_list self);
 // NOTE: Returns a new reference
 ks_dict ks_dict_new(int len, ks_obj* entries);
 
-// Create a new kscript dictionary from an array of C-style strings to values
-// For example:
-// ks_dict_new_cn((ks_dict_ent_cn[]){ {"Cade", myval}, {"Brown", otherval, {NULL, NULL}} });
-// Will create a dictionary, and not introduce any memory leaks
-// If you want to create values and transfer their references, see `ks_dict_new_cn` (n=no new references)
-ks_dict ks_dict_new_c(ks_dict_ent_c* ent_cns);
-
 // Create a new kscript dictionary from an array of C-style strings to values, which will not create new references to values
 // The last key is 'NULL'
 // For example:
 // ks_dict_new_cn((ks_dict_ent_cn[]){ {"Cade", ks_int_new(42)}, {"Brown", ks_str_new("asdfasdf"), {NULL, NULL}} });
 // Will create a dictionary, and not introduce any memory leaks
-// If you're using already created variables, use `ks_dict_new_c()`, or replace the keys with `KS_NEWREF(key)`
+// NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
+//   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
 ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns);
 
 // Test whether the dictionary has a given key. `hash` is always `hash(key)`. If it is 0, then 
@@ -1088,6 +1229,8 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
 // Sets a list of C-entries (without creating new references)
 // result == 0 means no problems
 // result < 0 means there was some internal problem (most likely the key was not hashable)
+// NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
+//   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
 int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
 
@@ -1214,7 +1357,6 @@ ks_ast ks_parser_parse_stmt(ks_parser self);
 ks_ast ks_parser_parse_file(ks_parser self);
 
 
-
 /* CFUNC */
 
 // Create a new C-function wrapper
@@ -1236,7 +1378,13 @@ void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg);
 
 
 
+
+
+
+
 /* OBJECT INTERFACE (see ./obj.c) */
+// NOTE: This should be replaced by a bunch of standard 'cfunc' objects that
+//   can be called
 
 // Get the string representation of an object, or NULL if there was an error
 // NOTE: Returns a new reference
@@ -1280,6 +1428,11 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
 // NOTE: Returns a new reference
 ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args);
 
+
+
+
+/* EXCEPTION HANDLING */
+
 // Throw an object up the call stack
 // NOTE: Throws an error if there is already an object on the call stack
 // NOTE: Always returns NULL
@@ -1291,7 +1444,6 @@ void* ks_throw(ks_obj obj);
 // NOTE: Always returns NULL
 void* ks_throw_fmt(ks_type errtype, char* fmt, ...);
 
-
 // Attempt to catch an object from the call stack
 // Returns 'NULL' if nothing has been thrown,
 // otherwise, return the object that was thrown, and take it off the thrown location
@@ -1300,58 +1452,24 @@ void* ks_throw_fmt(ks_type errtype, char* fmt, ...);
 ks_obj ks_catch();
 
 
-/* STRING FORMATTING (see ./fmt.c) */
-
-// Perform C-style formatting, with various arguments
-// TODO: document format specifiers
-// NOTE: Returns a reference
-ks_str ks_fmt_c(const char* fmt, ...);
-
-// Perform variadic C-style formating, with a list of arguments
-// TODO: document format specifiers
-// NOTE: Returns a reference
-ks_str ks_fmt_vc(const char* fmt, va_list ap);
-
-
 /* VM EXECUTION */
 
 // Execute code on the VM
 ks_obj vm_exec(ks_vm vm, ks_code code);
 
 
-
-/* MISC. UTILS */
+/* MISC. UTILS/FUNCTIONS */
 
 // Implementation of GNU getline function, reading an entire line from a FILE pointer
+// Always ks_free(line) after done with this function, as this function reallocates buffers
+//   to fit a line
+// 'n' is not the line length, but the internal buffer size
+// Example:
+// char* line = NULL;
+// size_t bufsize = 0;
+// int len = ks_getline(&line, &len, fp);
+// ks_free(line);
 int ks_getline(char** lineptr, size_t* n, FILE* fp);
-
-/* KSCRIPT FUNCTION ERROR HANDLING */
-
-// Require an expression to be true, otherwise throw an error and return 'NULL'
-// NOTE: Should be used inside of a KS_FUNC(), because this will return NULL!
-#define KS_REQ(_expr, ...) {       \
-    if (!(_expr)) {                \
-        ks_error(__VA_ARGS__);     \
-        return NULL;               \
-    }                              \
-}
-
-// Require that the number of args is a specific amount
-#define KS_REQ_N_ARGS(_nargs, _correct) KS_REQ((_nargs) == (_correct), "Incorrect number of arguments, expected %i, but got %i", (int)(_correct), (int)(_nargs))
-
-// Require that the number of args is a specific amount
-#define KS_REQ_N_ARGS_MIN(_nargs, _min) KS_REQ((_nargs) >= (_min), "Incorrect number of arguments, expected at least %i, but got %i", (int)(_min), (int)(_nargs))
-
-// Require that the number of args is a specific amount
-#define KS_REQ_N_ARGS_MAX(_nargs, _max) KS_REQ((_nargs) <= (_max), "Incorrect number of arguments, expected at most %i, but got %i", (int)(_max), (int)(_nargs))
-
-// Require that the number of args is a specific amount
-#define KS_REQ_N_ARGS_RANGE(_nargs, _min, _max) KS_REQ((_nargs) >= (_min) && (_nargs) <= (_max), "Incorrect number of arguments, expected between %i and %i, but got %i", (int)(_min), (int)(_max), (int)(_nargs))
-
-
-// Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
-#define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
-
 
 
 

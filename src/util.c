@@ -20,7 +20,7 @@ int ks_getline(char** lineptr, size_t* n, FILE* fp) {
     } else if (*lineptr == NULL || *n <= 1) {
         // Minimum length for strings is 2 bytes
         *n = 128;
-        if (!(*lineptr = malloc(*n))) {
+        if (!(*lineptr = ks_malloc(*n))) {
             return -1;
         }
     }
@@ -34,7 +34,7 @@ int ks_getline(char** lineptr, size_t* n, FILE* fp) {
         offset = position - *lineptr;
 
         if( offset >= *n ) {
-            buffer_tmp = realloc(*lineptr, *n += block);
+            buffer_tmp = ks_realloc(*lineptr, *n += block);
             
             /* Do not free. Return *lineptr. */
             if (!buffer_tmp) {

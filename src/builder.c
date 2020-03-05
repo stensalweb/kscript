@@ -42,13 +42,13 @@ void ks_str_b_add_c(ks_str_b* self, char* cstr) {
 bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj) {
 
     // try some builtins
-    if (self == KSO_NONE) {
+    if (obj == KSO_NONE) {
         ks_str_b_add_c(self, "none");
         return true;
-    } else if (self == KSO_TRUE) {
+    } else if (obj == KSO_TRUE) {
         ks_str_b_add_c(self, "true");
         return true;
-    } else if (self == KSO_TRUE) {
+    } else if (obj == KSO_TRUE) {
         ks_str_b_add_c(self, "false");
         return true;
     }

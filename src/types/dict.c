@@ -83,42 +83,6 @@ ks_dict ks_dict_new(int len, ks_obj* entries) {
 }
 
 
-// construct a new dictionary from C-style entries
-ks_dict ks_dict_new_c(ks_dict_ent_c* ent_cs) {
-
-    ks_dict self = KS_ALLOC_OBJ(ks_dict);
-    KS_INIT_OBJ(self, ks_type_dict);
-
-    // always start with no entries
-    self->n_entries = 0;
-    self->entries = NULL;
-
-    // calculate a good size of buckets for the length
-    self->n_buckets = 5;
-    self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
-    
-    // now, set all buckets to empty
-    int i;
-    for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = BUCKET_EMPTY;
-
-    // now, set the (key, val) pairs of 'entries' into the dictionary
-
-    while (ent_cs->key != NULL) {
-        // keep iterating t hrough entries
-        ks_str my_key = ks_str_new(ent_cs->key);
-        ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cs->val);
-
-        KS_DECREF(my_key);
-
-        // next entry
-        ent_cs++;
-    }
-
-
-    return self;
-
-}
-
 // construct a new dictionary from C-style entries, but do not create new references for them
 ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns) {
 
@@ -152,7 +116,6 @@ ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns) {
         // next entry
         ent_cns++;
     }
-
 
     return self;
 
