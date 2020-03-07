@@ -290,6 +290,8 @@ ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
             }
         }
 
+        // try again
+        tries++;
 
         // probing function
         bi = bi_orig + tries;
@@ -335,10 +337,12 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
 
     do {
 
+
         // get the entry index (ei), which is an index into self->entries
         int ei = self->buckets[bi];
 
         if (ei == BUCKET_EMPTY) {
+
             // we have found an empty bucket before a corresponding entry, so we can safely replace it
             ei = self->n_entries++;
             self->entries = ks_realloc(self->entries, sizeof(*self->entries) * self->n_entries);
@@ -364,6 +368,8 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
                 return 1;
             }
         }
+
+        tries++;
 
 
         // probing function

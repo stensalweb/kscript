@@ -176,6 +176,7 @@ ks_obj ks_getattr(ks_obj obj, ks_obj attr) {
         return (ks_obj)ret;
     }
 
+
     printf("Noattr\n");
 
     // nothing found
@@ -191,89 +192,6 @@ ks_obj ks_getattr_c(ks_obj obj, char* attr) {
     return ret;
 }
 
-
-// Return func(*args)
-ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
-    assert(ks_is_callable(func) && "ks_call() given a non-callable object!");
-
-    if (func->type == ks_type_cfunc) {
-        // just call it
-        return ((ks_cfunc)func)->func(n_args, args);
-    } else if (func->type == ks_type_type) {
-        // try and construct a value
-
-        // cast it
-        ks_type ft = (ks_type)func;
-
-        if (ft->__new__ != NULL) {
-            
-            // now check if the type uses an initializer
-            if (ft->__init__ != NULL) {
-                // uses an initializer, so just call __new__ with no arguments
-
-                ks_obj ret = ks_call(ft->__new__, 0, NULL);
-
-                // this is to handle derived classes; we always manually set the new type
-                ks_type old_type = ret->type;
-                ret->type = ft;
-                KS_INCREF(ret->type);
-                KS_DECREF(old_type);
-                
-                // now set up our newly created object as the first argument to the initializer
-                ks_obj* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
-
-                new_args[0] = ret;
-                // copy other arguments passed in
-                memcpy(&new_args[1], args, n_args);
-
-                // initialize it, don't care about return value
-                ks_obj dontcare = ks_call(ft->__init__, 1 + n_args, new_args);
-                KS_DECREF(dontcare);
-
-                ks_free(new_args);
-
-                // now return our created object
-                return ret;
-            } else {
-                // no initializer, so call '__new__' with all the arguments
-                ks_obj ret = ks_call(ft->__new__, n_args, args);
-
-                // this is to handle derived classes; we always manually set the new type
-                ks_type old_type = ret->type;
-                ret->type = ft;
-                KS_INCREF(ret->type);
-                KS_DECREF(old_type);
-                return ret;
-            }
-
-        } else {
-            // no constructor, return an error
-            return NULL;
-        }
-
-    } else if (func->type->__call__ != NULL) {
-        // call via (type(obj).__call__(obj, *args))
-        // no way to call it, return an error
-        ks_obj* new_args = ks_malloc(sizeof(ks_obj) * (1 + n_args));
-
-        // set args to obj, *args
-        new_args[0] = func;
-        memcpy(&new_args[1], args, n_args);
-
-        // call the internal function
-        ks_obj ret = ks_call(func->type->__call__, 1 + n_args, new_args);
-
-        ks_free(new_args);
-
-        return ret;
-
-    } else {
-
-        // not callab,e return NULL
-        return NULL;
-    }
-
-}
 
 // return func.attr(*args)
 ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args) {

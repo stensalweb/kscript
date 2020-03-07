@@ -17,6 +17,7 @@ ks_ast ks_ast_new_const(ks_obj val) {
 
     // set specific variables
     self->kind = KS_AST_CONST;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, &val);
 
     return self;
@@ -29,11 +30,25 @@ ks_ast ks_ast_new_var(ks_str name) {
 
     // set specific variables
     self->kind = KS_AST_VAR;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, (ks_obj*)&name);
 
     return self;
 }
 
+// Create an AST representing an attribute reference
+// Type should always be string
+ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_ATTR;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)obj, (ks_obj)attr });
+
+    return self;
+}
 
 // construct a new AST representing a function call
 ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args) {
@@ -42,6 +57,7 @@ ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args) {
 
     // set specific variables
     self->kind = KS_AST_CALL;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, (ks_obj*)&func);
 
     // push args too
@@ -57,6 +73,7 @@ ks_ast ks_ast_new_ret(ks_ast val) {
 
     // set specific variables
     self->kind = KS_AST_RET;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, (ks_obj*)&val);
 
     return self;
@@ -70,6 +87,7 @@ ks_ast ks_ast_new_block(int num, ks_ast* elems) {
 
     // set specific variables
     self->kind = KS_AST_BLOCK;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(num, (ks_obj*)elems);
 
     return self;
@@ -83,6 +101,7 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
 
     // set specific variables
     self->kind = bop_type;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)L, (ks_obj)R });
 
     return self;
@@ -97,6 +116,7 @@ ks_ast ks_ast_new_uop(int uop_type, ks_ast V) {
 
     // set specific variables
     self->kind = uop_type;
+    self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, (ks_obj*)&V);
 
     return self;

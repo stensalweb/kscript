@@ -62,8 +62,7 @@ int main(int argc, char** argv) {
     // exception
     ks_obj exc = NULL;
 
-    static ks_str src = NULL;
-    if (!src) src = ks_str_new("print('Test')");
+    ks_str src = ks_str_new("x = 5");
     
     ks_parser p = ks_parser_new(src);
     if (exc = ks_catch()) {
@@ -93,7 +92,7 @@ int main(int argc, char** argv) {
 
     // execute it
     ks_obj ret = vm_exec(ks_vm_default, myc);
-    ks_info("ret: %S", ret);
+    //ks_info("ret: %S", ret);
 
     return 0;
 }

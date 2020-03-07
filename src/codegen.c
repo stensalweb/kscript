@@ -18,8 +18,6 @@ typedef struct {
 } em_state;
 
 
-
-
 // give a code error
 static void* code_error(ks_tok tok, char* fmt, ...) {
 
@@ -33,7 +31,7 @@ static void* code_error(ks_tok tok, char* fmt, ...) {
     ks_str_b_init(&SB);
 
     ks_str_b_add_str(&SB, (ks_obj)what);
-
+    
     if (tok.parser != NULL && tok.len >= 0) {
         // we have a valid token
         int i = tok.pos;
@@ -52,6 +50,7 @@ static void* code_error(ks_tok tok, char* fmt, ...) {
             }
             i--;
         }
+
 
 
         if (i < 0) i++;
@@ -105,32 +104,98 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // push on a variable reference (which shoud be the 0th item)
         ksca_load(to, (ks_str)self->children->elems[0]);
         st->stk_len++;
+
     } else if (self->kind == KS_AST_CONST) {
         // push on a constant
         ksca_push(to, self->children->elems[0]);
         st->stk_len++;
 
+    } else if (self->kind == KS_AST_ATTR) {
+        int start_len = st->stk_len;
+
+        // first, emit the object we are taking the attribute of
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+        // make sure everything was good
+        assert(start_len + 1 == st->stk_len && "Attribute object node was not emitted correctly!");
+
+        // now,  attribute calculate it
+        ksca_load_attr(to, (ks_str)self->children->elems[1]);
+
+        // don't increase the stack length, since it will just replace TOS
+
+
     } else if (self->kind == KS_AST_CALL) {
         // do a function call
-
         int start_len = st->stk_len;
+
         // first, calculate the function
         if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
-        
+
+        // ensure the function emitted one 
+        assert(start_len + 1 == st->stk_len && "Function node was not emitted correctly!");
+
         // then, calculate the objects
         int i;
         for (i = 1; i < self->children->len; ++i) {
             if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
         }
 
+        // ensure correct number of arguments were emitted
+        assert(start_len + self->children->len == st->stk_len && "Function arguments was not emitted correctly!");
+
         // now, call 'n' items
         ksca_call(to, self->children->len);
 
         // this will consume this many
         st->stk_len -= self->children->len;
+        
+        // but push on the result
+        st->stk_len++;
 
         // internal error if this is not true
-        assert(start_len == st->stk_len);
+        assert(st->stk_len == start_len + 1 && "Function output was not emitted correctly!");
+    } else if (self->kind == KS_AST_BOP_ASSIGN) {
+        // assignment operator is a special case
+        ks_ast L = (ks_ast)self->children->elems[0], R = (ks_ast)self->children->elems[1];
+
+        if (L->kind == KS_AST_VAR) {
+            // assign to a variable via a 'store'
+
+            // first, calculate the result
+            if (!ast_emit(R, st, to)) return false;
+
+            // then store it to the given name
+            ksca_store(to, (ks_str)L->children->elems[0]);
+            code_error(ks_tok_combo(L->tok_expr, self->tok), "Cannot assign to LHS! Must be a variable!");
+
+        } else {
+
+            printf("self: %i\n", L->tok.pos);
+
+
+            code_error(L->tok, "Cannot assign to LHS! Must be a variable!");
+            return false;
+        }
+
+
+    } else if (KS_AST_BOP__FIRST <= self->kind && self->kind <= KS_AST_BOP__LAST) {
+        // handle general binary operators
+        ks_ast L = (ks_ast)self->children->elems[0], R = (ks_ast)self->children->elems[1];
+        int start_len = st->stk_len;
+        // have stack like | L R
+        if (!ast_emit(L, st, to) || !ast_emit(R, st, to)) return false;
+
+        assert(st->stk_len == start_len + 2 && "Binary operator did not emit 2 operands!");
+
+        // actually do binary operation, translate
+        ksca_bop(to, (self->kind - KS_AST_BOP__FIRST) + KSB_BOP_ADD);
+
+
+        // both arguments are consumed
+        st->stk_len -= 2;
+        // one result is poppped back on
+        st->stk_len++;
 
 
     } else if (self->kind == KS_AST_BLOCK) {
@@ -143,12 +208,18 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             if (!ast_emit((ks_ast)self->children->elems[i], st, to)) {
                 return false;
             }
+
+            // Ensure nothing 'dipped' below the starting stack length for the block
+            assert(st->stk_len >= start_len && "Block's children did not emit correctly (they dipped below)");
+
+            // ensure it ends at the same place it starts (blocks do not yield a value)
+            while (st->stk_len > start_len) {
+                ksca_popu(to);
+                st->stk_len--;
+            }
+
         }
-        // ensure it ends at the same place it starts (blocks do not yield a value)
-        while (st->stk_len > start_len) {
-            ksca_popu(to);
-            st->stk_len--;
-        }
+
 
     } else {
         code_error(self->tok, "Unknown AST Type! (type:%i)", self->kind);

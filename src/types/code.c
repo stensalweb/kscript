@@ -89,6 +89,8 @@ void ksca_store     (ks_code self, ks_str name) KSCA_B_I32(KSB_STORE, ks_code_ad
 void ksca_store_attr(ks_code self, ks_str name) KSCA_B_I32(KSB_STORE_ATTR, ks_code_add_const(self, (ks_obj)name))
 
 
+void ksca_bop       (ks_code self, int ksb_bop_type) KSCA_B(ksb_bop_type)
+
 
 /* C-style funcs */
 void ksca_load_c(ks_code self, char* name) {
@@ -325,7 +327,7 @@ static KS_TFUNC(code, str) {
         
         case KSB_PUSH:
             i += 4;
-            ks_str_b_add_fmt(&SB, "push vc[%i]  # %R", val, self->v_const->elems[val]);
+            ks_str_b_add_fmt(&SB, "push %R  # idx: %i", self->v_const->elems[val], val); // i peed.com
             break;
 
         case KSB_DUP:
@@ -361,11 +363,34 @@ static KS_TFUNC(code, str) {
             ks_str_b_add_fmt(&SB, "jmpf %+i  # to %i", val, i + val);
             break;
 
-
         case KSB_LOAD:
             i += 4;
-            ks_str_b_add_fmt(&SB, "load vc[%i]  # %R", val, self->v_const->elems[val]);
+            ks_str_b_add_fmt(&SB, "load %R  # idx: %i", self->v_const->elems[val], val);
             break;
+
+        #define OP_CASE(_op, _str) case _op: ks_str_b_add_fmt(&SB, "bop " _str); break;
+
+        OP_CASE(KSB_BOP_ADD, "+")
+        OP_CASE(KSB_BOP_SUB, "-")
+        OP_CASE(KSB_BOP_MUL, "*")
+        OP_CASE(KSB_BOP_DIV, "/")
+        OP_CASE(KSB_BOP_MOD, "%%")
+        OP_CASE(KSB_BOP_POW, "**")
+
+        OP_CASE(KSB_BOP_LT, "<")
+        OP_CASE(KSB_BOP_LE, "<=")
+        OP_CASE(KSB_BOP_GT, ">")
+        OP_CASE(KSB_BOP_GE, ">=")
+        OP_CASE(KSB_BOP_EQ, "==")
+        OP_CASE(KSB_BOP_NE, "!=")
+
+
+
+        case KSB_STORE:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "store %R  # idx: %i", self->v_const->elems[val], val);
+            break;
+
 
         default:
             ks_str_b_add_fmt(&SB, "<err>");

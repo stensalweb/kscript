@@ -685,6 +685,15 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             new_call->tok_expr = ks_tok_combo(((ks_ast)new_call->children->elems[0])->tok_expr, ctok); \
             Out.len -= n_args + 2; \
             Spush(Out, new_call);\
+        } else if (top.type == SYT_BOP) { \
+            ks_ast R = Spop(Out); \
+            ks_ast L = Spop(Out); \
+            ks_ast new_bop = ks_ast_new_bop(top.bop_type, L, R); \
+            new_bop->tok = top.tok; new_bop->tok_expr = ks_tok_combo(L->tok_expr, R->tok_expr); \
+            KS_DECREF(L); KS_DECREF(R); \
+            Spush(Out, new_bop); \
+        } else if (top.type == SYT_LPAR) { \
+            /* skip it */ \
         } else { \
             KPPE_ERR(ctok, "Internal Operator Error (%i)", top.type); \
         } \
@@ -725,6 +734,8 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             ks_ast new_ast = ks_ast_new_const((ks_obj)new_int);
             KS_DECREF(new_int);
 
+            new_ast->tok = new_ast->tok_expr = ctok;
+
             // push it on the output stack
             Spush(Out, new_ast);
 
@@ -741,7 +752,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             ks_ast new_ast = ks_ast_new_const((ks_obj)new_str);
             KS_DECREF(new_str);
 
-
+            new_ast->tok = new_ast->tok_expr = ctok;
 
             // push it on the output stack
             Spush(Out, new_ast);
@@ -758,8 +769,37 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             ks_ast new_ast = ks_ast_new_var(var_s);
             KS_DECREF(var_s);
 
+            new_ast->tok = new_ast->tok_expr = ctok;
+            
             // push it on the output stack
             Spush(Out, new_ast);
+        } else if (ctok.type == KS_TOK_DOT) {
+            // the last token must be a value type, because you need one to take an attribute of
+            if (!tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax")
+
+            // save the dot token reference
+            ks_tok dot_tok = ctok;
+            // now advance past it
+            ADV_1();
+            // update the current token to what the attribute will be of
+            ctok = CTOK();
+
+            // the only valid attribute is an identifier, i.e. `x.1` does not make sense
+            if (ctok.type != KS_TOK_IDENT) KPPE_ERR(ctok, "Attribute after a '.' must be a valid identifier")
+
+            // take off the last
+            ks_ast last = Spop(Out);
+            // replace it with its attribute
+            ks_str attr_name_s = ks_str_new_l(self->src->chr + ctok.pos, ctok.len);
+            ks_ast new_attr = ks_ast_new_attr(last, attr_name_s);
+            KS_DECREF(last);
+            KS_DECREF(attr_name_s);
+
+            // set up the new tokens
+            new_attr->tok = dot_tok;
+            new_attr->tok_expr = ks_tok_combo(last->tok_expr, ctok);
+
+            Spush(Out, new_attr);
 
         } else if (ctok.type == KS_TOK_OP) {
 
@@ -978,6 +1018,15 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
     kppe_end:
     // successful end label
+    if (n_pars > 0) {
+        syntax_error(ltok, "Missing ending parenthesis after here");
+        goto kppe_err;
+    }
+
+    // pop off operators
+    while (Ops.len > 0) {
+        POP_OP();
+    }
 
     if (Out.len == 1) {
         ks_ast ret = Sget(Out, 0);

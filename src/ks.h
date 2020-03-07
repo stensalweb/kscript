@@ -355,6 +355,17 @@ typedef struct ks_dict* ks_dict;
 // Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
 #define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
 
+// Throw an operator undefined error and return NULL
+#define KS_ERR_BOP_UNDEF(_str, _L, _R) { \
+    ks_throw_fmt(ks_type_Error, "operator '%s' not defined for '%T' and '%T'", _str, _L, _R); \
+    return NULL; \
+}
+
+// throw an attribute error
+#define KS_ERR_ATTR(_obj, _attr) { \
+    ks_throw_fmt(ks_type_Error, "'%T' object has no attr %R", _obj, _attr); \
+    return NULL; \
+}
 
 // Put this macro at the beginning of the definition of any kscript object, i.e.:
 // struct my_obj {
@@ -495,6 +506,34 @@ struct ks_type {
 
     // type.__setattr__(self, attr, val) -> set an attribute on an object
     ks_obj __setattr__;
+
+    /* operators */
+
+    // type.__add__(A, B) -> return A + B
+    ks_obj __add__;
+    // type.__sub__(A, B) -> return A - B
+    ks_obj __sub__;
+    // type.__mul__(A, B) -> return A * B
+    ks_obj __mul__;
+    // type.__div__(A, B) -> return A / B
+    ks_obj __div__;
+    // type.__mod__(A, B) -> return A % B
+    ks_obj __mod__;
+    // type.__pow__(A, B) -> return A ** B
+    ks_obj __pow__;
+
+    // type.__lt__(A, B) -> return A < B
+    ks_obj __lt__;
+    // type.__le__(A, B) -> return A <= B
+    ks_obj __le__;
+    // type.__gt__(A, B) -> return A > B
+    ks_obj __gt__;
+    // type.__ge__(A, B) -> return A >= B
+    ks_obj __ge__;
+    // type.__eq__(A, B) -> return A == B
+    ks_obj __eq__;
+    // type.__ne__(A, B) -> return A != B
+    ks_obj __ne__;
 
 };
 
@@ -766,6 +805,10 @@ enum {
     // name is 'children[0]'
     KS_AST_VAR,
 
+    // Represents an attribute reference, 'children[0].(children[1])'
+    // the value is 'children[0]' (AST), but the attribute is a string, in 'children[1]'
+    KS_AST_ATTR,
+
     // Represents a function call, func(*args)
     // func is 'children[0]'
     // args are 'children[1:]
@@ -959,7 +1002,7 @@ bool ks_str_b_add_str(ks_str_b* self, ks_obj obj);
 // Free the string builder, freeing all internal resources (but not the built strings)
 void ks_str_b_free(ks_str_b* self);
 
-/* meta-types */
+/* BUILTIN TYPES (see 'types/' directory) */
 
 // these are the built-in types
 extern ks_type 
@@ -984,10 +1027,27 @@ extern ks_type
 
 ;
 
-// these are the built-in functions
+
+/* BUILTIN FUNCTIONS (see ./funcs.c) */
 
 extern ks_cfunc
-    ks_F_print
+    ks_F_repr,
+    ks_F_hash,
+    ks_F_print,
+
+    // operators
+
+    ks_F_add,
+    ks_F_sub,
+    ks_F_mul,
+    ks_F_div,
+    ks_F_mod,
+    ks_F_pow,
+
+    ks_F_getattr,
+    ks_F_setattr
+
+
 ;
 
 
@@ -1281,6 +1341,9 @@ void ksca_load_attr (ks_code self, ks_str name);
 void ksca_store     (ks_code self, ks_str name);
 void ksca_store_attr(ks_code self, ks_str name);
 
+void ksca_bop       (ks_code self, int ksb_bop_type);
+
+
 // C-style versions
 void ksca_load_c      (ks_code self, char* name);
 void ksca_load_attr_c (ks_code self, char* name);
@@ -1306,6 +1369,12 @@ ks_ast ks_ast_new_const(ks_obj val);
 // Type should always be string
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_var(ks_str name);
+
+
+// Create an AST representing an attribute reference
+// Type should always be string
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr);
 
 // Create an AST representing a function call
 // NOTE: Returns a new reference
@@ -1356,6 +1425,9 @@ ks_ast ks_parser_parse_stmt(ks_parser self);
 // NOTE: Returns a new reference
 ks_ast ks_parser_parse_file(ks_parser self);
 
+
+// combine A and B to form a larger meta token
+ks_tok ks_tok_combo(ks_tok A, ks_tok B);
 
 /* CFUNC */
 

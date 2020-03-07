@@ -94,7 +94,6 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__new__", __new__)
         ATTR_CASE("__init__", __init__)
 
-
         ATTR_CASE("__str__", __str__)
         ATTR_CASE("__repr__", __repr__)
 
@@ -104,7 +103,24 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__call__", __call__)
         
         ATTR_CASE("__free__", __free__)
-        
+
+
+        ATTR_CASE("__add__", __add__)
+        ATTR_CASE("__sub__", __sub__)
+        ATTR_CASE("__mul__", __mul__)
+        ATTR_CASE("__div__", __div__)
+        ATTR_CASE("__mod__", __mod__)
+        ATTR_CASE("__pow__", __pow__)
+
+
+        ATTR_CASE("__lt__", __lt__)
+        ATTR_CASE("__le__", __le__)
+        ATTR_CASE("__gt__", __gt__)
+        ATTR_CASE("__ge__", __ge__)
+        ATTR_CASE("__eq__", __eq__)
+        ATTR_CASE("__ne__", __ne__)
+
+
         else {
             // some unknown builtin, or just a varible with 2 underscores
         }

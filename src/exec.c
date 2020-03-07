@@ -45,6 +45,8 @@ void ks_type_vm_init() {
         {"str", KS_NEWREF(ks_type_str)},
         {"list", KS_NEWREF(ks_type_list)},
 
+        {"hash", KS_NEWREF(ks_F_hash)},
+        {"repr", KS_NEWREF(ks_F_repr)},
         {"print", KS_NEWREF(ks_F_print)},
 
         {NULL, NULL}
@@ -191,6 +193,7 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
             ks_obj ret = ks_call(args[0], op_i32.arg - 1, &args[1]);
             if (!ret) {
                 // err
+                goto EXC;
             }
             
             ks_list_push(vm->stk, ret);
@@ -256,10 +259,76 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
 
         VMED_CASE_END
 
+        VMED_CASE_START(KSB_STORE)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            ks_str name = (ks_str)code->v_const->elems[op_i32.arg];
+            VME_ASSERT(name->type == ks_type_str && "store [name] : 'name' must be a string");
+
+            // get top
+            ks_obj val = vm->stk->elems[vm->stk->len - 1];
+
+            // set it in the globals
+            // TODO: add local variables too
+            ks_dict_set(vm->globals, name->v_hash, (ks_obj)name, val);
+
+            // increment program counter
+            //pc += op_i32.arg;
+
+        VMED_CASE_END
+
+
+
+        VMED_CASE_START(KSB_LOAD_ATTR)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            ks_str attr = (ks_str)code->v_const->elems[op_i32.arg];
+            VME_ASSERT(attr->type == ks_type_str && "load_attr [name] : 'name' must be a string");
+
+            ks_obj obj = ks_list_pop(vm->stk);
+
+            ks_obj val = ks_F_getattr->func(2, (ks_obj[]){ obj, (ks_obj)attr });
+            if (!val) goto EXC;
+
+            ks_list_push(vm->stk, val);
+            KS_DECREF(obj);
+
+            // increment program counter
+            //pc += op_i32.arg;
+
+        VMED_CASE_END
+
+
+        // template for a binary operator case
+        // 3rd argument is the 'extra code' to be ran to possibly shortcut it
+        #define T_BOP_CASE(_bop,  _str, _func, ...) { \
+            VMED_CASE_START(_bop) \
+                VMED_CONSUME(ksb, op); \
+                ks_obj R = ks_list_pop(vm->stk); \
+                ks_obj L = ks_list_pop(vm->stk); \
+                { __VA_ARGS__ } \
+                ks_obj ret = (_func->func)(2, (ks_obj[]){L, R}); \
+                if (!ret) goto EXC; \
+                ks_list_push(vm->stk, ret); \
+                KS_DECREF(L); KS_DECREF(R); KS_DECREF(ret); \
+            VMED_CASE_END \
+        }
+
+        // implement all the operators
+        T_BOP_CASE(KSB_BOP_ADD, "+", ks_F_add, {});
+        T_BOP_CASE(KSB_BOP_SUB, "-", ks_F_sub, {});
+        T_BOP_CASE(KSB_BOP_MUL, "*", ks_F_mul, {});
+        T_BOP_CASE(KSB_BOP_DIV, "/", ks_F_div, {});
 
 
     VMED_END
 
+
+    EXC: ;
+    // handle exception here
+    ks_obj exc = ks_catch();
+
+    ks_error("EXC: %S", exc);
 
     /*while (true) {
         ksb op = *pc;

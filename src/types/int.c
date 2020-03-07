@@ -53,6 +53,62 @@ static KS_TFUNC(int, free) {
 };
 
 
+
+// int.__add__(self) -> add 2 integers
+static KS_TFUNC(int, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        return (ks_obj)ks_int_new(((ks_int)L)->val + ((ks_int)R)->val);
+    }
+
+    KS_ERR_BOP_UNDEF("+", L, R);
+};
+
+
+// int.__sub__(self) -> subtract 2 integers
+static KS_TFUNC(int, sub) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        return (ks_obj)ks_int_new(((ks_int)L)->val - ((ks_int)R)->val);
+    }
+
+    KS_ERR_BOP_UNDEF("-", L, R);
+};
+
+// int.__mul__(self) -> multiply 2 integers
+static KS_TFUNC(int, mul) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        return (ks_obj)ks_int_new(((ks_int)L)->val * ((ks_int)R)->val);
+    }
+
+    KS_ERR_BOP_UNDEF("*", L, R);
+};
+
+
+// int.__div__(self) -> divide 2 integers
+static KS_TFUNC(int, div) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        return (ks_obj)ks_int_new(((ks_int)L)->val / ((ks_int)R)->val);
+    }
+
+    KS_ERR_BOP_UNDEF("/", L, R);
+};
+
+
+
+
+
+
 // initialize int type
 void ks_type_int_init() {
     KS_INIT_TYPE_OBJ(ks_type_int, "int");
@@ -62,6 +118,12 @@ void ks_type_int_init() {
         {"__repr__", (ks_obj)ks_cfunc_new(int_str_)},
         
         {"__free__", (ks_obj)ks_cfunc_new(int_free_)},
+ 
+        {"__add__", (ks_obj)ks_cfunc_new(int_add_)},
+        {"__sub__", (ks_obj)ks_cfunc_new(int_sub_)},
+        {"__mul__", (ks_obj)ks_cfunc_new(int_mul_)},
+        {"__div__", (ks_obj)ks_cfunc_new(int_div_)},
+ 
         {NULL, NULL}   
     });
 }
