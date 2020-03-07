@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     // exception
     ks_obj exc = NULL;
 
-    ks_str src = ks_str_new("x = 5");
+    ks_str src = ks_str_new("print (str.__dict__, try)");
     
     ks_parser p = ks_parser_new(src);
     if (exc = ks_catch()) {
@@ -85,7 +85,6 @@ int main(int argc, char** argv) {
         ks_error("%T: %R", exc, exc);
         return -1;
     }
-
 
     ks_info("code: %S", myc);
 

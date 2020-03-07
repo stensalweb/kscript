@@ -345,8 +345,7 @@ ks_parser ks_parser_new(ks_str src_code) {
 
 // yield whether a token equals a string constant too
 // NOTE: Assumes the parser is named 'self'
-
-#define TOK_EQ(_tok, _str) (_tok.len == (sizeof(_str) - 1) && (0 == strncmp(self->src->chr + _tok.pos, _str, (sizeof(_str) - 1))))
+#define TOK_EQ(_tok, _str) (_tok.len == (sizeof(_str) - 1) && (0 == strncmp(_tok.parser->src->chr + _tok.pos, _str, (sizeof(_str) - 1))))
 
 
 // Get a boolean expression telling whether the parser is in a valid parsing state
@@ -379,6 +378,16 @@ ks_parser ks_parser_new(ks_str src_code) {
     } \
 }
 
+
+// return true if it is a keyword
+static bool tok_iskw(ks_tok tok) {
+    return 
+        TOK_EQ(tok, "if") || TOK_EQ(tok, "else") || TOK_EQ(tok, "elif") || 
+        TOK_EQ(tok, "for") || 
+        TOK_EQ(tok, "try") || TOK_EQ(tok, "catch") ||
+        TOK_EQ(tok, "true") || TOK_EQ(tok, "false")
+    ;
+}
 
 /* expression parsing:
 
@@ -726,6 +735,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         if (ctok.type == KS_TOK_INT) {
             // push an integer onto the value stack
+            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax"); 
 
             // convert token to actual int value
             ks_int new_int = ks_int_new(tok_getint(ctok));
@@ -741,7 +751,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         } else if (ctok.type == KS_TOK_STR) {
             // push a string onto the value stack
-
+            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax"); 
 
             // convert token to actual string value
             ks_str new_str = tok_getstr(ctok);
@@ -759,6 +769,9 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         } else if (ctok.type == KS_TOK_IDENT) {
             // push a variable reference
+            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax"); 
+
+            if (tok_iskw(ctok)) KPPE_ERR(ctok, "Unexpected Keyword!");
 
             // TODO: handle keywords
 

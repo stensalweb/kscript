@@ -167,7 +167,21 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
             // then store it to the given name
             ksca_store(to, (ks_str)L->children->elems[0]);
-            code_error(ks_tok_combo(L->tok_expr, self->tok), "Cannot assign to LHS! Must be a variable!");
+
+        } else if (L->kind == KS_AST_ATTR) {
+            // do a setattr call
+
+            // compute the base object that is being set
+            if (!ast_emit(L->children->elems[0], st, to)) return false;
+
+            // then calculate the value
+            if (!ast_emit(R, st, to)) return false;
+
+            // then store it to the given name
+            ksca_store_attr(to, (ks_str)L->children->elems[1]);
+
+            // the total number shrinks by 1
+            st->stk_len--;
 
         } else {
 

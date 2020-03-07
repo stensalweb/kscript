@@ -368,6 +368,21 @@ static KS_TFUNC(code, str) {
             ks_str_b_add_fmt(&SB, "load %R  # idx: %i", self->v_const->elems[val], val);
             break;
 
+        case KSB_STORE:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "store %R  # idx: %i", self->v_const->elems[val], val);
+            break;
+
+        case KSB_LOAD_ATTR:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "load_attr %R  # idx: %i", self->v_const->elems[val], val);
+            break;
+
+        case KSB_STORE_ATTR:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "load_attr %R  # idx: %i", self->v_const->elems[val], val);
+            break;
+
         #define OP_CASE(_op, _str) case _op: ks_str_b_add_fmt(&SB, "bop " _str); break;
 
         OP_CASE(KSB_BOP_ADD, "+")
@@ -383,13 +398,6 @@ static KS_TFUNC(code, str) {
         OP_CASE(KSB_BOP_GE, ">=")
         OP_CASE(KSB_BOP_EQ, "==")
         OP_CASE(KSB_BOP_NE, "!=")
-
-
-
-        case KSB_STORE:
-            i += 4;
-            ks_str_b_add_fmt(&SB, "store %R  # idx: %i", self->v_const->elems[val], val);
-            break;
 
 
         default:

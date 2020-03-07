@@ -299,6 +299,34 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         VMED_CASE_END
 
 
+        VMED_CASE_START(KSB_STORE_ATTR)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            ks_str attr = (ks_str)code->v_const->elems[op_i32.arg];
+            VME_ASSERT(attr->type == ks_type_str && "store_attr [name] : 'name' must be a string");
+
+            assert(vm->stk->len >= 2 && "store_attr : Not enough items on stack!");
+
+
+            ks_obj val = ks_list_pop(vm->stk);
+            ks_obj obj = ks_list_pop(vm->stk);
+
+            ks_obj ret = ks_F_setattr->func(3, (ks_obj[]){ obj, (ks_obj)attr, val });
+            if (!ret) goto EXC;
+
+
+            // ignore it
+            KS_DECREF(ret);
+
+            ks_list_push(vm->stk, val);
+            KS_DECREF(obj);
+
+            // increment program counter
+            //pc += op_i32.arg;
+
+        VMED_CASE_END
+
+
         // template for a binary operator case
         // 3rd argument is the 'extra code' to be ran to possibly shortcut it
         #define T_BOP_CASE(_bop,  _str, _func, ...) { \

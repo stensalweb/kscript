@@ -127,7 +127,6 @@ void ks_type_str_init() {
 
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
-        {"mine", (ks_obj)ks_cfunc_new(str_mine_)},
         {"__free__", (ks_obj)ks_cfunc_new(str_free_)},
         
         {NULL, NULL}

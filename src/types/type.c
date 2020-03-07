@@ -39,6 +39,9 @@ ks_obj ks_type_get(ks_type self, ks_str key) {
     ks_hash_t hash = key->v_hash;
     assert(hash != 0);
 
+    // special case to avoid circular references
+    if (key->len == 8 && strncmp(key->chr, "__dict__", 8) == 0) return KS_NEWREF(self->attr);
+
     // get from the internal dictionary
     return ks_dict_get(self->attr, hash, (ks_obj)key);
 }
@@ -173,6 +176,8 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
 }
 
 
+/* member functions */
+
 // type.__str__(self) -> convert to string
 static KS_TFUNC(type, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -182,6 +187,33 @@ static KS_TFUNC(type, str) {
     return KS_NEWREF(self->__name__);
 };
 
+// type.__getattr__(self, attr) -> get an attribute
+static KS_TFUNC(type, getattr) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_type self = (ks_type)args[0];
+    KS_REQ_TYPE(self, ks_type_type, "self");
+    ks_str attr = (ks_str)args[1];
+    KS_REQ_TYPE(attr, ks_type_str, "attr");
+
+    ks_obj ret = ks_type_get(self, attr);
+    if (!ret) KS_ERR_ATTR(self, attr);
+
+    return ret;
+};
+
+// type.__setattr__(self, attr, val) -> set an attribute
+static KS_TFUNC(type, setattr) {
+    KS_REQ_N_ARGS(n_args, 3);
+    ks_type self = (ks_type)args[0];
+    KS_REQ_TYPE(self, ks_type_type, "self");
+    ks_str attr = (ks_str)args[1];
+    KS_REQ_TYPE(attr, ks_type_str, "attr");
+    ks_obj val = args[2];
+
+    ks_type_set(self, attr, val);
+
+    return KSO_NONE;
+};
 
 
 // initialize type type
@@ -191,6 +223,10 @@ void ks_type_type_init() {
     ks_type_set_cn(ks_type_type, (ks_dict_ent_c[]){
         {"__str__", (ks_obj)ks_cfunc_new(type_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(type_str_)},
+
+        {"__getattr__", (ks_obj)ks_cfunc_new(type_getattr_)},
+        {"__setattr__", (ks_obj)ks_cfunc_new(type_setattr_)},
+
         {NULL, NULL}   
     });
 }
