@@ -1,8 +1,9 @@
 
-A = true
-B = 1
-C = 2
 
-if A, B
-else, C
-
+try {
+    throw 5
+    print ('success')
+} catch e {
+    print ('caught')
+    throw 3
+}

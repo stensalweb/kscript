@@ -109,13 +109,37 @@ void ks_type_vm_init() {
 // the default VM
 ks_vm ks_vm_default;
 
+// a structure describing an item in the exception handler call stack
+typedef struct {
+
+    // where to go if an exception is raised
+    ksb* to_pc;
+
+} exc_call_stk_item;
+
+// the current position in the exc_call_stk array
+static int exc_call_stk_p = -1;
+static exc_call_stk_item exc_call_stk[4096];
+
+
 // internal execution algorithm
 ks_obj vm_exec(ks_vm vm, ks_code code) {
+
+    // tell that we are entering the call stack
+    ks_list_push(ks_call_stk, (ks_obj)code->name_hr);
 
     // start program counter at the beginning
     ksb* pc = code->bc;
 
+    // what will be returned
+    ks_obj ret_val = NULL;
+
+
+
     ksb op;
+
+    // where did we start on the exception call stack?
+    int start_ecs = exc_call_stk_p;
 
     // temporary variables
     int i, j;
@@ -151,6 +175,10 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
     };
 
     #endif
+
+
+    // label to dispatch from
+    dispatch: ;
 
     // inner dispatch loop for consuming bytecode
     VMED_START
@@ -206,7 +234,21 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
             VMED_CONSUME(ksb, op);
 
             // return TOS
-            return ks_list_pop(vm->stk);
+            ret_val = ks_list_pop(vm->stk);
+            goto RET;
+
+        VMED_CASE_END
+
+
+        VMED_CASE_START(KSB_THROW)
+            VMED_CONSUME(ksb, op);
+
+            // throw it
+            ks_obj exc_obj = ks_list_pop(vm->stk);
+            ks_throw(exc_obj);
+
+            // handle it
+            goto EXC;
 
         VMED_CASE_END
 
@@ -238,7 +280,6 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
 
         VMED_CASE_END
 
-
         VMED_CASE_START(KSB_JMPF)
             VMED_CONSUME(ksb_i32, op_i32);
 
@@ -260,6 +301,35 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         VMED_CASE_END
 
 
+        VMED_CASE_START(KSB_TRY_START)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            VME_ASSERT(exc_call_stk_p < 4095 && "EXC Call Stack Exceeded!");
+
+            // add the handler address
+            exc_call_stk[++exc_call_stk_p] = (exc_call_stk_item){ .to_pc = pc + op_i32.arg };
+
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_TRY_END)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            VME_ASSERT(exc_call_stk_p >= 0 && "Input Bytecode Malformed; deleting exc call stack item where none exists!");
+
+            // handle try block end
+            // TODO
+
+            exc_call_stk_p--;
+
+            // now, perform an unconditional jump
+            pc += op_i32.arg;
+
+
+        VMED_CASE_END
+
+
+
         /* VALUE LOOKUP */
 
         VMED_CASE_START(KSB_LOAD)
@@ -270,7 +340,9 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
 
             ks_obj val = ks_dict_get(vm->globals, name->v_hash, (ks_obj)name);
             if (!val) {
-                printf("ERRname\n");
+                // throw an exception
+                ks_throw_fmt(ks_type_Error, "Use of undeclared variable '%S'", name);
+                goto EXC;
             }
             ks_list_push(vm->stk, val);
             KS_DECREF(val);
@@ -389,13 +461,32 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
     // handle exception here
     ks_obj exc = ks_catch();
 
-    ks_error("EXC: %S", exc);
+    if (exc_call_stk_p > start_ecs) {
+        // we have a handler ready, so push it on the stack & return
+        ks_list_push(vm->stk, exc);
+        KS_DECREF(exc);
+        pc = exc_call_stk[exc_call_stk_p--].to_pc;
+        goto dispatch;
+    } else {
+        // error, so rethrow it and return
+        ks_error("%T: %S", exc, exc);
+
+        ks_printf("In: %S\n", ks_call_stk);
+    }
+
+    ret_val = NULL;
+    goto RET;
+
+
+    RET: ;
 
     /*while (true) {
         ksb op = *pc;
     }*/
 
-    return NULL;
+    ks_list_popu(ks_call_stk);
+
+    return ret_val;
 
 }
 

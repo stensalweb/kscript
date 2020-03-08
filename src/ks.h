@@ -152,10 +152,10 @@ enum {
     // 1:[op] 4:[int relamt]
     KSB_TRY_START,
 
-    // Exit a 'try' block
+    // Exit a 'try' block, jumping unconditionally 'relamt'
     // NOTE: This should be emitted at the end of the try block, but NOT in the exception block (as
     //   that will exit the try block when something is thrown)
-    // 1:[op]
+    // 1:[op] 4:[int relamt]
     KSB_TRY_END,
 
 
@@ -676,6 +676,9 @@ typedef struct {
     // A reference to a list of constants, which are indexed by integers in the bytecode
     ks_list v_const;
 
+    // human readable name for the code object
+    ks_str name_hr;
+
     // number of bytes currently in the bytecode (bc)
     int bc_n;
 
@@ -825,6 +828,12 @@ enum {
     // result is 'children[0]'
     KS_AST_RET,
 
+
+    // Represents a throw statement
+    // expression is 'children[0]'
+    KS_AST_THROW,
+
+
     // Represents a block of other ASTs
     // all children are in 'children'
     KS_AST_BLOCK,
@@ -937,6 +946,8 @@ typedef struct {
     // tokens for the AST, representing where it is in the source code
     ks_tok tok, tok_expr;
 
+
+
 }* ks_ast;
 
 
@@ -961,6 +972,9 @@ extern ks_vm ks_vm_default;
 // ks_cfunc - a C-function wrapper which can be called the same as a kscript function
 typedef struct {
     KS_OBJ_BASE
+
+    // human readable name (default: <cfunc @ ADDR>)
+    ks_str name_hr;
 
     // the actual C function which can be called
     ks_obj (*func)(int n_args, ks_obj* args);
@@ -1153,6 +1167,10 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_warn(...)  ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 // prints a error message, assuming the current log level allows for it
 #define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+
+// print variadically
+void ks_printf(const char* fmt, ...);
 
 
 /* MEMORY MANAGEMENT */
@@ -1382,9 +1400,13 @@ void ksca_popu      (ks_code self);
 
 void ksca_call      (ks_code self, int n_items);
 void ksca_ret       (ks_code self);
+void ksca_throw     (ks_code self);
 void ksca_jmp       (ks_code self, int relamt);
 void ksca_jmpt      (ks_code self, int relamt);
 void ksca_jmpf      (ks_code self, int relamt);
+
+void ksca_try_start (ks_code self, int relamt);
+void ksca_try_end   (ks_code self, int relamt);
 
 void ksca_load      (ks_code self, ks_str name);
 void ksca_load_attr (ks_code self, ks_str name);
@@ -1433,11 +1455,14 @@ ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_ret(ks_ast val);
 
+// Create an AST representing a throw statement
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_throw(ks_ast expr);
+
+
 // Create an AST representing a block of code
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_block(int num, ks_ast* elems);
-
-
 
 // Create an AST representing an 'if' construct
 // 'else_body' may be NULL, in which case it is constructed without an 'else' body
@@ -1452,7 +1477,7 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body);
 
 // Create an AST representing a 'try' block
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_try(ks_ast cond, ks_ast try_body, ks_ast catch_body);
+ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body);
 
 // Create an AST representing a function definition
 // NOTE: Returns a new reference
@@ -1546,6 +1571,8 @@ bool ks_is_callable(ks_obj func);
 // NOTE: Returns a new reference
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
 
+// the call stack of currently executing items
+extern ks_list ks_call_stk;
 
 /* EXCEPTION HANDLING */
 

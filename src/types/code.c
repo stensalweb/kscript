@@ -27,6 +27,8 @@ ks_code ks_code_new(ks_list v_const) {
         KS_INCREF(v_const);
     }
 
+    self->name_hr = ks_fmt_c("<code @ %p>", self);
+
     // start with an empty bytecode
     self->bc_n = 0;
     self->bc = NULL;
@@ -79,9 +81,14 @@ void ksca_popu   (ks_code self) KSCA_B(KSB_POPU)
 
 void ksca_call   (ks_code self, int n_items) KSCA_B_I32(KSB_CALL, n_items)
 void ksca_ret    (ks_code self) KSCA_B(KSB_RET)
+void ksca_throw  (ks_code self) KSCA_B(KSB_THROW)
 void ksca_jmp    (ks_code self, int relamt) KSCA_B_I32(KSB_JMP, relamt)
 void ksca_jmpt   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPT, relamt)
 void ksca_jmpf   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPF, relamt)
+
+void ksca_try_start (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_START, relamt)
+void ksca_try_end   (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_END, relamt)
+
 
 void ksca_load      (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD, ks_code_add_const(self, (ks_obj)name))
 void ksca_load_attr (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD_ATTR, ks_code_add_const(self, (ks_obj)name))
@@ -315,6 +322,7 @@ static KS_TFUNC(code, str) {
         ks_str_b_add_fmt(&SB, "%04i ", i);
 
         ksb op = self->bc[i++];
+        bool haderr = false;
 
         // just always read it if there is no possible buffer overrun, otherwise 0
         int val = (i + 4 >= self->bc_n) ? 0 : *(int *)(self->bc + i);
@@ -347,7 +355,13 @@ static KS_TFUNC(code, str) {
         case KSB_RET:
             ks_str_b_add_fmt(&SB, "ret");
             break;
-        
+
+        case KSB_THROW:
+            ks_str_b_add_fmt(&SB, "throw");
+            break;
+
+
+
         case KSB_JMP:
             i += 4;
             ks_str_b_add_fmt(&SB, "jmp %+i  # to %i", val, i + val);
@@ -362,6 +376,17 @@ static KS_TFUNC(code, str) {
             i += 4;
             ks_str_b_add_fmt(&SB, "jmpf %+i  # to %i", val, i + val);
             break;
+        case KSB_TRY_START:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "try_start %+i  # to %i", val, i + val);
+            break;
+        case KSB_TRY_END:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "try_end %+i  # to %i", val, i + val);
+            break;
+
+
+
 
         case KSB_LOAD:
             i += 4;
@@ -402,11 +427,13 @@ static KS_TFUNC(code, str) {
 
         default:
             ks_str_b_add_fmt(&SB, "<err>");
+            haderr = true;
             break;
         }
 
         ks_str_b_add_c(&SB, "\n");
 
+        if (haderr) break;
     }
 
 

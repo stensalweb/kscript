@@ -79,6 +79,19 @@ ks_ast ks_ast_new_ret(ks_ast val) {
     return self;
 }
 
+// construct a new AST representing a throw statement
+ks_ast ks_ast_new_throw(ks_ast val) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_THROW;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(1, (ks_obj*)&val);
+
+    return self;
+}
+
 
 // construct a new AST representing a block
 ks_ast ks_ast_new_block(int num, ks_ast* elems) {
@@ -129,14 +142,14 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body) {
 
 // Create an AST representing a 'try' block
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_try(ks_ast cond, ks_ast try_body, ks_ast catch_body) {
+ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
-    self->kind = KS_AST_WHILE;
+    self->kind = KS_AST_TRY;
     self->tok = self->tok_expr = (ks_tok){NULL};
-    self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)cond, (ks_obj)try_body });
+    self->children = ks_list_new(1, (ks_obj[]){ (ks_obj)try_body });
     if (catch_body) ks_list_push(self->children, (ks_obj)catch_body);
 
     return self;
@@ -149,7 +162,7 @@ ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body) {
     KS_INIT_OBJ(self, ks_type_ast);
 
     // set specific variables
-    self->kind = KS_AST_WHILE;
+    self->kind = KS_AST_FUNC;
     self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(3, (ks_obj[]){ (ks_obj)name, (ks_obj)params, (ks_obj)body });
 

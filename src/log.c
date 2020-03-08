@@ -35,6 +35,25 @@ void ks_log_level_set(int new_level) {
 // keep true if is logging
 static bool is_logging = false;
 
+
+// print variadically
+void ks_printf(const char* fmt, ...) {
+
+    // call the vfprintf
+    va_list args;
+    va_start(args, fmt);
+
+    ks_str gen_str = ks_fmt_vc(fmt, args);
+    va_end(args);
+
+    fprintf(stdout, "%s", gen_str->chr);
+
+    KS_DECREF(gen_str);
+
+    // flush the output
+    fflush(stdout);
+}
+
 // logs with a levl. use the macros `ks_info`, etc
 void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     if (level < log_level) {

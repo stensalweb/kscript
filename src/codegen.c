@@ -68,15 +68,18 @@ static void* code_error(ks_tok tok, char* fmt, ...) {
         // line length
         int ll = i - lsi;
 
+        // the start of the line
+        char* sl = src + lsi;
+
         // now, add additional metadata about the error, including in-source markup
         ks_str_b_add_fmt(&SB, "\n%.*s" RED BOLD "%.*s" RESET "%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
-            tok.pos - lsi, src + lsi,
-            tok.len, src + tok.pos,
-            ll - tok.len - tok.pos, src + tok.pos + tok.len,
+            tok.col, sl,
+            tok.len, sl + tok.col,
+            ll - tok.col - tok.len, sl + tok.col + tok.len,
             tok.col, ' ',
             tok.len - 1, '~',
             tok.line + 1, tok.col + 1,
-            tok.parser->src
+            tok.parser->src_name
         );
     }
 
@@ -101,6 +104,14 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
     assert(self->type == ks_type_ast);
     // capture the starting length
     int start_len = st->stk_len;
+
+    // Reset the stack to a relative position after where it started
+    #define RESET_STK(_rel) {                        \
+        while (st->stk_len > start_len + (_rel)) {   \
+            ksca_popu(to);                           \
+            st->stk_len--;                           \
+        }                                            \
+    }
 
     if (self->kind == KS_AST_VAR) {
         
@@ -171,6 +182,25 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         // internal error if this is not true
         assert(st->stk_len == start_len + 1 && "Function output was not emitted correctly!");
+
+    } else if (self->kind == KS_AST_THROW) {
+
+        // do a throw
+
+        // first, calculate the function
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+        // ensure the function emitted one 
+        assert(start_len + 1 == st->stk_len && "'throw' expr was not emitted correctly!");
+
+        // throw the value
+        ksca_throw(to);
+
+        // the stack gets rewound, so don't touch this here
+        RESET_STK(0);
+
+
+
     } else if (self->kind == KS_AST_BOP_ASSIGN) {
         // assignment operator is a special case
         ks_ast L = (ks_ast)self->children->elems[0], R = (ks_ast)self->children->elems[1];
@@ -201,7 +231,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         } else {
 
-            printf("self: %i\n", L->tok.pos);
+            //printf("self: %i\n", L->tok.pos);
 
 
             code_error(L->tok, "Cannot assign to LHS! Must be a variable!");
@@ -239,10 +269,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             assert(st->stk_len >= start_len && "Block's children did not emit correctly (they dipped below)");
 
             // ensure it ends at the same place it starts (blocks do not yield a value)
-            while (st->stk_len > start_len) {
-                ksca_popu(to);
-                st->stk_len--;
-            }
+            RESET_STK(0);
 
         }
     } else if (self->kind == KS_AST_IF) {
@@ -270,12 +297,8 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         // now, generate the main body
         if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
+        RESET_STK(0);
 
-        // take off excesses
-        while (st->stk_len > start_len) {
-            ksca_popu(to);
-            st->stk_len--;
-        }
 
         // now, handle 'else' if it iexists
         if (else_blk) {
@@ -294,11 +317,8 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
             // generate the 'else' block
             if (!ast_emit(else_blk, st, to)) return false;
-            // take off excesses
-            while (st->stk_len > start_len) {
-                ksca_popu(to);
-                st->stk_len--;
-            }
+            RESET_STK(0);
+
 
             // now, fill in both the conditional jump and the inner if jump
 
@@ -363,11 +383,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
             // generate the body
             if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
-            // take off excesses
-            while (st->stk_len > start_len) {
-                ksca_popu(to);
-                st->stk_len--;
-            }
+            RESET_STK(0);
 
             // now, generate another expression to tell if we should jump back
             if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
@@ -410,11 +426,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             // now, emit the other block
             // now, generate another expression to tell if we should jump back
             if (!ast_emit(else_blk, st, to)) return false;
-            // take off excesses
-            while (st->stk_len > start_len) {
-                ksca_popu(to);
-                st->stk_len--;
-            }
+            RESET_STK(0);
 
             // now link the body's jump
             ksb_i32* bj_ap = (ksb_i32*)(&to->bc[bj_ai]);
@@ -429,11 +441,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
             // generate the body
             if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
-            // take off excesses
-            while (st->stk_len > start_len) {
-                ksca_popu(to);
-                st->stk_len--;
-            }
+            RESET_STK(0);
             
             // now, generate another expression to tell if we should jump back
             if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
@@ -463,7 +471,60 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             wj_p->arg = (int)(bj_a - wj_a);
 
         }
+    } else if (self->kind == KS_AST_TRY) {
+        // execute a try catch block
 
+        ks_ast b_try = (ks_ast)self->children->elems[0], b_catch = (ks_ast)self->children->elems[1];
+
+
+        // position the instruction is at
+        int tj_i = to->bc_n;
+
+        // first, pop on a new catch block
+        ksca_try_start(to, -1);
+
+        // position jumping from
+        int tj_a = to->bc_n;
+
+        // now, generate the body
+        if (!ast_emit(b_try, st, to)) return false;
+        RESET_STK(0);
+
+        
+        int ej_i = to->bc_n;
+
+        // end the try, and jump to the location afterwards
+        ksca_try_end(to, -1);
+
+        int ej_a = to->bc_n;
+
+
+        // there will be an item on the stack, pushed by the exception handler, so keep track of that here:
+        st->stk_len++;
+
+        // TODO: add an assignment, right now just reset it
+        RESET_STK(0);
+
+        // now, start generating the 'catch' body
+        if (!ast_emit(b_catch, st, to)) return false;
+        RESET_STK(0);
+        
+
+        // after catch location
+        int after_catch = to->bc_n;
+
+        // now, fill in the jumps
+
+        ksb_i32* tj_p = (ksb_i32*)(&to->bc[tj_i]);
+
+        // the try jump needs to jump to where the exception handler starts
+        tj_p->arg = (int)(ej_a - tj_a);
+
+
+        ksb_i32* ej_p = (ksb_i32*)(&to->bc[ej_i]);
+
+        // the end jump needs to jump to after the entire thing
+        ej_p->arg = (int)(after_catch - ej_a);
 
 
     } else {

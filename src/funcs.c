@@ -31,6 +31,10 @@ ks_cfunc
 
 ;
 
+
+// the call stack, where it is currently located
+ks_list ks_call_stk = NULL;
+
 /* call(func, *args) -> obj
  *
  * Try and call 'func(*args)' and return the result
@@ -49,7 +53,16 @@ ks_cfunc
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
     if (func->type == ks_type_cfunc) {
-        return ((ks_cfunc)func)->func(n_args, args);
+        ks_cfunc cff = (ks_cfunc)func;
+
+        ks_str cs_info = cff->name_hr;
+        ks_list_push(ks_call_stk, (ks_obj)cs_info);
+
+        ks_obj ret = cff->func(n_args, args);
+
+        ks_list_popu(ks_call_stk);
+
+        return ret;
     } else if (func->type == ks_type_type) {
         // try and construct a value by calling the constructor
 
@@ -406,6 +419,9 @@ T_KS_FUNC_BOP(ne, "!=", __ne__)
 
 // initialize all the functions
 void ks_init_funcs() {
+
+    ks_call_stk = ks_list_new(0, NULL);
+
     ks_F_repr = ks_cfunc_new(repr_);
     ks_F_hash = ks_cfunc_new(hash_);
     ks_F_print = ks_cfunc_new(print_);
@@ -426,6 +442,9 @@ void ks_init_funcs() {
 
     ks_F_getattr = ks_cfunc_new(getattr_);
     ks_F_setattr = ks_cfunc_new(setattr_);
+
+
+
 
 }
 

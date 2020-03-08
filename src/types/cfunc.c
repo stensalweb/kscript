@@ -18,6 +18,7 @@ ks_cfunc ks_cfunc_new(ks_obj (*func)(int n_args, ks_obj* args)) {
 
     // initialize type-specific things
     self->func = func;
+    self->name_hr = ks_fmt_c("<cfunc @ %p>", self);
 
     return self;
 }

@@ -412,7 +412,7 @@ static bool tok_iskw(ks_tok tok) {
         TOK_EQ(tok, "if") || TOK_EQ(tok, "else") || TOK_EQ(tok, "elif") || 
         TOK_EQ(tok, "while") || 
         TOK_EQ(tok, "for") || 
-        TOK_EQ(tok, "try") || TOK_EQ(tok, "catch") ||
+        TOK_EQ(tok, "try") || TOK_EQ(tok, "catch") || TOK_EQ(tok, "throw") ||
         TOK_EQ(tok, "true") || TOK_EQ(tok, "false")
     ;
 }
@@ -1164,6 +1164,22 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         ADV_1();
 
         return blk;
+    } else if (TOK_EQ(ctok, "throw")) {
+        // throw <expr>
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        // parse out the expression being thrown
+        ks_ast expr = ks_parser_parse_expr(self);
+        if (!expr) goto kpps_err;
+
+        ks_ast ret = ks_ast_new_throw(expr);
+        KS_DECREF(expr);
+
+        ret->tok = ret->tok_expr = start_tok;
+
+        return ret;
 
     } else if (TOK_EQ(ctok, "if")) {
 
@@ -1228,6 +1244,8 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         KS_DECREF(cond);
         KS_DECREF(body);
         if (else_blk) KS_DECREF(else_blk);
+
+        res->tok = res->tok_expr = start_tok;
 
         return res;
 
@@ -1294,10 +1312,78 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         KS_DECREF(body);
         if (else_blk) KS_DECREF(else_blk);
 
+        res->tok = res->tok_expr = start_tok;
 
         // return the constructed result
         return res;
 
+    } else if (TOK_EQ(ctok, "try")) {
+
+        // try { BODY } catch { ELSE }
+        // parse out a while
+        ADV_1();
+
+        SKIP_IRR_S();
+
+        // the body of the if block
+        ks_ast body = NULL;
+
+        // the 'else' section, which can be NULL if there is none
+        ks_ast catch_blk = NULL;
+
+        SKIP_IRR_S();
+
+        if (CTOK().type == KS_TOK_EOF) {
+            syntax_error(start_tok, "Unexpected EOF");
+            goto kpps_err;
+        } else if (CTOK().type == KS_TOK_COMMA) {
+            // skip the comma, its just for shortness
+            ADV_1();
+        }
+
+        // attempt to parse the body
+        body = ks_parser_parse_stmt(self);
+        if (!body) {
+            goto kpps_err;
+        }
+
+        SKIP_IRR_S();
+
+        if (TOK_EQ(CTOK(), "catch")) {
+            ADV_1();
+            // parse another statement
+            if (CTOK().type == KS_TOK_COMMA) {
+                // skip it so inline statements can be used
+                ADV_1();
+            }
+            SKIP_IRR_S();
+
+            catch_blk = ks_parser_parse_stmt(self);
+            if (!catch_blk) {
+                KS_DECREF(body);
+                goto kpps_err;
+            }
+
+            ks_ast res = ks_ast_new_try(body, catch_blk);
+
+            res->tok = res->tok_expr = start_tok;
+
+            // they are now contained in 'res'
+            KS_DECREF(body);
+            if (catch_blk) KS_DECREF(catch_blk);
+
+
+
+            // return the constructed result
+            return res;
+
+
+        } else {
+            KS_DECREF(body);
+            syntax_error(start_tok, "'try' without 'catch'!");
+            goto kpps_err;
+
+        }
 
     } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
 

@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
         ks_str src = ks_str_new(csrc);
         ks_free(csrc);
-        ks_str src_name = ks_str_new(fname);
+        ks_str src_name = ks_str_new((char*)fname);
 
         ks_parser p = ks_parser_new(src, src_name);
         KS_DECREF(src_name);
@@ -96,6 +96,7 @@ int main(int argc, char** argv) {
             return -1;
         }
 
+
         ks_code myc = ks_codegen(prog);
         if (exc = ks_catch()) {
             ks_error("%T: %R", exc, exc);
@@ -106,7 +107,6 @@ int main(int argc, char** argv) {
 
         // execute it
         ks_obj ret = vm_exec(ks_vm_default, myc);
-
         if (exc = ks_catch()) {
             ks_error("%T: %R", exc, exc);
             return -1;
