@@ -35,59 +35,6 @@ void ks_obj_free(ks_obj obj) {
 
 }
 
-// return the reprsentation of the object
-ks_str ks_repr(ks_obj obj) {
-    if (obj->type == ks_type_str) {
-
-        ks_str sobj = (ks_str)obj;
-
-        // generate a string representation
-        ks_str_b SB;
-        ks_str_b_init(&SB);
-
-        ks_str_b_add(&SB, 1, "'");
-
-        int i;
-        for (i = 0; i < sobj->len; ++i) {
-            char c = sobj->chr[i];
-            /**/ if (c == '\\') ks_str_b_add(&SB, 2, "\\\\");
-            else if (c == '\n') ks_str_b_add(&SB, 2, "\\n");
-            else if (c == '\t') ks_str_b_add(&SB, 2, "\\t");
-            else {
-                // just add character
-                ks_str_b_add(&SB, 1, &c);
-            }
-        }
-
-        ks_str_b_add(&SB, 1, "'");
-
-        ks_str ret = ks_str_b_get(&SB);
-        ks_str_b_free(&SB);
-        return ret;
-    } else if (obj->type == ks_type_int) {
-        // do standard formatting
-        return ks_fmt_c("%l", ((ks_int)obj)->val);
-    } else if (obj->type->__repr__ != NULL) {
-        // attempt to call type(obj).__repr__(obj)
-        return (ks_str)ks_call(obj->type->__repr__, 1, &obj);
-    } else {
-        // do a default formatting
-        return ks_fmt_c("<'%s' obj @ %p>", obj->type->__name__->chr, (void*)obj);
-    }
-}
-
-// convert an object to a string
-ks_str ks_to_str(ks_obj obj) {
-    if (obj->type == ks_type_str) {
-        return (ks_str)KS_NEWREF(obj);
-    } else if (obj->type->__str__ != NULL) {
-        // attempt to call type(obj).__str__(obj)
-        return (ks_str)ks_call(obj->type->__str__, 1, &obj);
-    } else {
-        // do a default formatting
-        return ks_fmt_c("<'%s' obj @ %p>", obj->type->__name__->chr, (void*)obj);
-    }
-}
 
 // calculate len(obj)
 int64_t ks_len(ks_obj obj) {
@@ -141,70 +88,6 @@ bool ks_is_callable(ks_obj func) {
     return false;
 }
 
-
-
-// Return obj.attr
-ks_obj ks_getattr(ks_obj obj, ks_obj attr) {
-    /*if (obj == ks_type_type) {
-        return ks_type_get((ks_type)obj, (ks_str)attr);
-    } else */
-    
-    if (obj->type->__getattr__ != NULL) {
-        // call type(obj).__getattr__(obj, attr)
-        return ks_call(obj->type->__getattr__, 2, (ks_obj[]){ obj, attr });
-    } else if (attr->type == ks_type_str) {
-        // it might be a member function
-        // try type(obj).attr as a function with 'obj' filled in as the first argument
-        ks_obj type_attr = ks_type_get(obj->type, (ks_str)attr);
-        if (!type_attr) return NULL;
-
-        // make sure it is a member function
-        if (!ks_is_callable(type_attr)) {
-            KS_DECREF(type_attr);
-            return NULL;
-        }
-
-
-        // now, create a partial function
-        ks_pfunc ret = ks_pfunc_new(type_attr);
-        KS_DECREF(type_attr);
-
-        // fill #0 as 'self' (aka obj)
-        ks_pfunc_fill(ret, 0, obj);
-
-        // return the member function
-        return (ks_obj)ret;
-    }
-
-
-    printf("Noattr\n");
-
-    // nothing found
-    return NULL;
-
-}
-
-// Return obj.attr
-ks_obj ks_getattr_c(ks_obj obj, char* attr) {
-    ks_str attrstr = ks_str_new(attr);
-    ks_obj ret = ks_getattr(obj, (ks_obj)attrstr);
-    KS_DECREF(attrstr);
-    return ret;
-}
-
-
-// return func.attr(*args)
-ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args) {
-
-    ks_obj func_attr = ks_getattr(func, attr);
-    if (!func_attr) return NULL;
-
-    // call function
-    ks_obj ret = ks_call(func_attr, n_args, args);
-    KS_DECREF(func_attr);
-
-    return ret;
-}
 
 
 // the current object being thrown, or NULL if there is no such object

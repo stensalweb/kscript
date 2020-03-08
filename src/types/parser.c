@@ -72,23 +72,33 @@ static void* syntax_error(ks_tok tok, char* fmt, ...) {
         int lsi = i;
 
         while (c = src[i]) {
-            if (c == '\n' || c == '\0') break;
+            if (c == '\n') break;
             i++;
         }
-
 
         // line length
         int ll = i - lsi;
 
-        // now, add additional metadata about the error, including in-source markup
-        ks_str_b_add_fmt(&SB, "\n%.*s" RED BOLD "%.*s" RESET "%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
-            tok.pos - lsi, src + lsi,
-            tok.len, src + tok.pos,
-            ll - tok.len - tok.pos, src + tok.pos + tok.len,
+        // the start of the line
+        char* sl = src + lsi;
+
+        //printf("LINE: %.*s\n", ll, src + lsi);
+        /*ks_str_b_add_fmt(&SB, "\n%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
+            ll, sl,
             tok.col, ' ',
             tok.len - 1, '~',
             tok.line + 1, tok.col + 1,
-            tok.parser->src
+            tok.parser->src_name
+        );*/
+        // now, add additional metadata about the error, including in-source markup
+        ks_str_b_add_fmt(&SB, "\n%.*s" RED BOLD "%.*s" RESET "%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
+            tok.col, sl,
+            tok.len, sl + tok.col,
+            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            tok.col, ' ',
+            tok.len - 1, '~',
+            tok.line + 1, tok.col + 1,
+            tok.parser->src_name
         );
     }
 
@@ -190,7 +200,7 @@ static void* tokenize(ks_parser self) {
     for (i = 0; i < self->src->len; ) {
 
         // skip whitespace
-        while (self->src->chr[i] && is_white(self->src->chr[i])) ADV();
+        while (self->src->chr[i] && (self->src->chr[i] == ' ' || self->src->chr[i] == '\t')) ADV();
 
         // done
         if (i >= self->src->len) break;
@@ -201,8 +211,6 @@ static void* tokenize(ks_parser self) {
 
         char c = self->src->chr[i];
 
-        // case for a string literal mapping directly to a type
-        #define CASE_S(_type, _str) else if (strncmp(&self->src->chr[i], _str, sizeof(_str) - 1) == 0) { ADVn(sizeof(_str) - 1); ADDTOK(_type); }
 
         // handle the basics
         if (is_ident_s(c)) {
@@ -256,9 +264,26 @@ static void* tokenize(ks_parser self) {
 
             // add the token
             ADDTOK(KS_TOK_STR);
+        } else if (c == '#') {
+            ADV();
+
+            // go until a newline
+            while (self->src->chr[i] && self->src->chr[i] != '\n') {
+                ADV();
+            }
+
+            ADDTOK(KS_TOK_COMMENT);
+
+            // skip newline
+            if (self->src->chr[i] != '\n') {
+                ADV();
+            }
 
         }
         
+        // case for a string literal mapping directly to a type
+        #define CASE_S(_type, _str) else if (strncmp(&self->src->chr[i], _str, sizeof(_str) - 1) == 0) { ADVn(sizeof(_str) - 1); ADDTOK(_type); }
+
         CASE_S(KS_TOK_NEWLINE, "\n")
 
         CASE_S(KS_TOK_DOT, ".")
@@ -318,13 +343,15 @@ static void* tokenize(ks_parser self) {
 }
 
 // construct a new parser
-ks_parser ks_parser_new(ks_str src_code) {
+ks_parser ks_parser_new(ks_str src_code, ks_str src_name) {
     ks_parser self = KS_ALLOC_OBJ(ks_parser);
     KS_INIT_OBJ(self, ks_type_parser);
 
     // set specific variables
     self->src = src_code;
     KS_INCREF(src_code);
+    self->src_name = src_name;
+    KS_INCREF(src_name);
 
     // start with empty token array
     self->toki = 0;
@@ -373,7 +400,7 @@ ks_parser ks_parser_new(ks_str src_code) {
 // NOTE: Assumes the parser is named 'self'
 #define SKIP_IRR_S() {  \
     ks_tok _ctok; \
-    while (VALID() && ((_ctok = CTOK()).type == KS_TOK_NEWLINE || _ctok.type == KS_TOK_COMMENT || _ctok.type == KS_TOK_SEMI)) { \
+    while (VALID() && ((_ctok = CTOK()).type == KS_TOK_COMMENT || _ctok.type == KS_TOK_SEMI || _ctok.type == KS_TOK_NEWLINE)) { \
         ADV_1(); \
     } \
 }
@@ -383,6 +410,7 @@ ks_parser ks_parser_new(ks_str src_code) {
 static bool tok_iskw(ks_tok tok) {
     return 
         TOK_EQ(tok, "if") || TOK_EQ(tok, "else") || TOK_EQ(tok, "elif") || 
+        TOK_EQ(tok, "while") || 
         TOK_EQ(tok, "for") || 
         TOK_EQ(tok, "try") || TOK_EQ(tok, "catch") ||
         TOK_EQ(tok, "true") || TOK_EQ(tok, "false")
@@ -725,17 +753,17 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         // try and end it
         if (!VALID()) goto kppe_end;
-
         ctok = CTOK();
 
         // check if we should stop parsing due to being at the end
-        if (ctok.type == KS_TOK_EOF || ctok.type == KS_TOK_NEWLINE || 
+        if (ctok.type == KS_TOK_EOF || 
+            ctok.type == KS_TOK_NEWLINE || 
             ctok.type == KS_TOK_SEMI || 
             ctok.type == KS_TOK_LBRC || ctok.type == KS_TOK_RBRC) goto kppe_end;
 
         if (ctok.type == KS_TOK_INT) {
             // push an integer onto the value stack
-            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax"); 
+            if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
             // convert token to actual int value
             ks_int new_int = ks_int_new(tok_getint(ctok));
@@ -751,7 +779,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         } else if (ctok.type == KS_TOK_STR) {
             // push a string onto the value stack
-            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax"); 
+            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax, 2 value types not expected like this"); 
 
             // convert token to actual string value
             ks_str new_str = tok_getstr(ctok);
@@ -769,9 +797,13 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         } else if (ctok.type == KS_TOK_IDENT) {
             // push a variable reference
-            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax"); 
 
-            if (tok_iskw(ctok)) KPPE_ERR(ctok, "Unexpected Keyword!");
+            if (tok_iskw(ctok) && !(TOK_EQ(ctok, "true") || TOK_EQ(ctok, "false") || TOK_EQ(ctok, "none"))) {
+                goto kppe_end;
+            //    KPPE_ERR(ctok, "Unexpected Keyword!");
+            }
+
+            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax, 2 value types not expected like this"); 
 
             // TODO: handle keywords
 
@@ -1085,7 +1117,13 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
     // capture starting token
     ks_tok start_tok = ctok;
 
+
+    // skip irrelevant characters
+    SKIP_IRR_S();
+
+
     if (ctok.type == KS_TOK_LBRC) {
+
         // { STMT... }
         // parse a block of other statements out
         ADV_1();
@@ -1105,10 +1143,16 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
                 goto kpps_err;
             }
 
+            // append to result
+            ks_list_push(blk->children, (ks_obj)stmt);
+            KS_DECREF(stmt);
+
             // take off irrelevant
             SKIP_IRR_S();
-
         }
+
+        SKIP_IRR_S();
+
         // error; we got to the end without getting a '}'
         if (CTOK().type != KS_TOK_RBRC) {
             KS_DECREF(blk);
@@ -1116,7 +1160,145 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             goto kpps_err;
         }
 
+        // skip it
+        ADV_1();
+
         return blk;
+
+    } else if (TOK_EQ(ctok, "if")) {
+
+        // if COND { BODY } ?[else { ... }]
+        // parse out an if 
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        // parse out the conditional
+        ks_ast cond = ks_parser_parse_expr(self);
+        if (!cond) goto kpps_err;
+
+        // the body of the if block
+        ks_ast body = NULL;
+
+        // the 'else' section, which can be NULL if there is none
+        ks_ast else_blk = NULL;
+
+        SKIP_IRR_S();
+
+        if (CTOK().type == KS_TOK_EOF) {
+            KS_DECREF(cond);
+            syntax_error(start_tok, "Unexpected EOF");
+            goto kpps_err;
+        } else if (CTOK().type == KS_TOK_COMMA) {
+            // skip the comma, its just for shortness
+            ADV_1();
+        }
+        
+
+        // attempt to parse the body
+        body = ks_parser_parse_stmt(self);
+        if (!body) {
+            KS_DECREF(cond);
+            goto kpps_err;
+        }
+
+        SKIP_IRR_S();
+
+        if (TOK_EQ(CTOK(), "else")) {
+            ADV_1();
+            // parse another statement
+            if (CTOK().type == KS_TOK_COMMA) {
+                // skip it so inline statements can be used
+                ADV_1();
+            }
+            SKIP_IRR_S();
+
+            else_blk = ks_parser_parse_stmt(self);
+            if (!else_blk) {
+                KS_DECREF(cond);
+                KS_DECREF(body);
+                goto kpps_err;
+            }
+
+        }
+
+        ks_ast res = ks_ast_new_if(cond, body, else_blk);
+
+        // they are now contained in 'res'
+        KS_DECREF(cond);
+        KS_DECREF(body);
+        if (else_blk) KS_DECREF(else_blk);
+
+        return res;
+
+    } else if (TOK_EQ(ctok, "while")) {
+
+        // while COND { BODY } ?[else { ... }]
+        // parse out a while
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        // parse out the conditional
+        ks_ast cond = ks_parser_parse_expr(self);
+        if (!cond) goto kpps_err;
+
+
+        // the body of the if block
+        ks_ast body = NULL;
+
+        // the 'else' section, which can be NULL if there is none
+        ks_ast else_blk = NULL;
+
+        SKIP_IRR_S();
+
+        if (CTOK().type == KS_TOK_EOF) {
+            KS_DECREF(cond);
+            syntax_error(start_tok, "Unexpected EOF");
+            goto kpps_err;
+        } else if (CTOK().type == KS_TOK_COMMA) {
+            // skip the comma, its just for shortness
+            ADV_1();
+        }
+
+        // attempt to parse the body
+        body = ks_parser_parse_stmt(self);
+        if (!body) {
+            KS_DECREF(cond);
+            goto kpps_err;
+        }
+
+        SKIP_IRR_S();
+
+        if (TOK_EQ(CTOK(), "else")) {
+            ADV_1();
+            // parse another statement
+            if (CTOK().type == KS_TOK_COMMA) {
+                // skip it so inline statements can be used
+                ADV_1();
+            }
+            SKIP_IRR_S();
+
+            else_blk = ks_parser_parse_stmt(self);
+            if (!else_blk) {
+                KS_DECREF(cond);
+                KS_DECREF(body);
+                goto kpps_err;
+            }
+
+        }
+        ks_ast res = ks_ast_new_while(cond, body, else_blk);
+
+        // they are now contained in 'res'
+        KS_DECREF(cond);
+        KS_DECREF(body);
+        if (else_blk) KS_DECREF(else_blk);
+
+
+        // return the constructed result
+        return res;
+
+
     } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
 
         // parse expression

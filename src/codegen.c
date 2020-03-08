@@ -99,10 +99,28 @@ static void* code_error(ks_tok tok, char* fmt, ...) {
 static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
     assert(self->type == ks_type_ast);
+    // capture the starting length
+    int start_len = st->stk_len;
 
     if (self->kind == KS_AST_VAR) {
-        // push on a variable reference (which shoud be the 0th item)
-        ksca_load(to, (ks_str)self->children->elems[0]);
+        
+        // variable name
+        ks_str vname = (ks_str)self->children->elems[0];
+
+        // check for builtins
+        if (strcmp(vname->chr, "true") == 0) {
+            ksca_push(to, KSO_TRUE);
+        } else if (strcmp(vname->chr, "false") == 0) {
+            ksca_push(to, KSO_FALSE);
+        } else if (strcmp(vname->chr, "none") == 0) {
+            ksca_push(to, KSO_NONE);
+
+        } else {
+            // generic variable, not a builtin
+            ksca_load(to, vname);
+        }
+
+        // record the new item on the stack
         st->stk_len++;
 
     } else if (self->kind == KS_AST_CONST) {
@@ -111,7 +129,6 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         st->stk_len++;
 
     } else if (self->kind == KS_AST_ATTR) {
-        int start_len = st->stk_len;
 
         // first, emit the object we are taking the attribute of
         if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
@@ -127,7 +144,6 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
     } else if (self->kind == KS_AST_CALL) {
         // do a function call
-        int start_len = st->stk_len;
 
         // first, calculate the function
         if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
@@ -172,7 +188,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             // do a setattr call
 
             // compute the base object that is being set
-            if (!ast_emit(L->children->elems[0], st, to)) return false;
+            if (!ast_emit((ks_ast)L->children->elems[0], st, to)) return false;
 
             // then calculate the value
             if (!ast_emit(R, st, to)) return false;
@@ -196,7 +212,6 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
     } else if (KS_AST_BOP__FIRST <= self->kind && self->kind <= KS_AST_BOP__LAST) {
         // handle general binary operators
         ks_ast L = (ks_ast)self->children->elems[0], R = (ks_ast)self->children->elems[1];
-        int start_len = st->stk_len;
         // have stack like | L R
         if (!ast_emit(L, st, to) || !ast_emit(R, st, to)) return false;
 
@@ -214,14 +229,11 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
     } else if (self->kind == KS_AST_BLOCK) {
         // emit all the children as ASTs
-        int start_len = st->stk_len;
 
         int i;
         // try emitting all children
         for (i = 0; i < self->children->len; ++i) {
-            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) {
-                return false;
-            }
+            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
 
             // Ensure nothing 'dipped' below the starting stack length for the block
             assert(st->stk_len >= start_len && "Block's children did not emit correctly (they dipped below)");
@@ -233,6 +245,225 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             }
 
         }
+    } else if (self->kind == KS_AST_IF) {
+
+        // first, generate the conditional
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+        assert(st->stk_len == start_len + 1 && "'if' conditional did not produce a value!");
+
+        // else block (or NULL if it doesnt exist)
+        ks_ast else_blk = (ks_ast)(self->children->len > 2 ? self->children->elems[2] : NULL);
+
+
+        // now, insert a conditional jump, and fill it in later
+        // where to store jump information
+        int cj_i = to->bc_n;
+
+        // temporary value
+        // this should pop off the starting length
+        ksca_jmpf(to, -1);
+        st->stk_len--;
+
+        // record the location it will be jumping from
+        int cj_a = to->bc_n;
+
+        // now, generate the main body
+        if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
+
+        // take off excesses
+        while (st->stk_len > start_len) {
+            ksca_popu(to);
+            st->stk_len--;
+        }
+
+        // now, handle 'else' if it iexists
+        if (else_blk) {
+
+            // if there's an else, the 'if' block should jump to after it, so create
+            //   an unconditional jump
+
+            // record the position it is encoded
+            int ij_i = to->bc_n;
+
+            // this does not affect stack, and will be filled in later
+            ksca_jmp(to, -1);
+
+            // where it will be jumping from
+            int ij_a = to->bc_n;
+
+            // generate the 'else' block
+            if (!ast_emit(else_blk, st, to)) return false;
+            // take off excesses
+            while (st->stk_len > start_len) {
+                ksca_popu(to);
+                st->stk_len--;
+            }
+
+            // now, fill in both the conditional jump and the inner if jump
+
+            // capture the 'afterward' position
+            int after_i = to->bc_n;
+
+            ksb_i32* cj_p = (ksb_i32*)(&to->bc[cj_i]);
+
+            // store local offset
+            cj_p->arg = (int32_t)(ij_a - cj_a);
+
+            // fill in the inner jump
+
+            ksb_i32* ij_p = (ksb_i32*)(&to->bc[ij_i]);
+
+            // store local offset
+            ij_p->arg = (int32_t)(after_i - ij_a);
+
+
+        } else {
+            // no else block, so just fill in the original jump
+
+            // capture the 'afterward' position
+            int after_i = to->bc_n;
+
+            ksb_i32* cj_p = (ksb_i32*)(&to->bc[cj_i]);
+
+            // store local offset
+            cj_p->arg = (int32_t)(after_i - cj_a);
+
+        }
+    } else if (self->kind == KS_AST_WHILE) {
+        // generate a while loop
+
+        // the start of the while loop (where it must jump back to later)
+        int ws_i = to->bc_n;
+
+        // first, generate the conditional
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+        assert(st->stk_len == start_len + 1 && "'while' conditional did not produce a value!");
+
+
+        // get position of the jump
+        int wj_i = to->bc_n;
+
+        // fill it in later
+        ksca_jmpf(to, -1);
+        st->stk_len--;
+
+        // get position it is jumping from
+        int wj_a = to->bc_n;
+
+
+        // else block (or NULL if it doesnt exist)
+        ks_ast else_blk = (ks_ast)(self->children->len > 2 ? self->children->elems[2] : NULL);
+
+        if (else_blk) {
+            // in this case, we want to redirect the first one to the 'else' block, but the other ones to afterwards,
+            //   since the loop had ran
+
+
+            // generate the body
+            if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
+            // take off excesses
+            while (st->stk_len > start_len) {
+                ksca_popu(to);
+                st->stk_len--;
+            }
+
+            // now, generate another expression to tell if we should jump back
+            if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+
+            // have a jump from the body back to the start of the body
+
+            // get position of the jump
+            int bj_i = to->bc_n;
+
+            // fill it in later
+            ksca_jmpt(to, -1);
+            st->stk_len--;
+
+            // get position it is jumping from
+            int bj_a = to->bc_n;
+
+            // create another jump
+            int bj_ai = bj_a;
+
+            // if it was false, end up linking  to after the else block, since it would have
+            //   ran at least once
+            ksca_jmp(to, -1);
+
+            int bj_aa = to->bc_n;
+
+            // now link the body's jump
+            ksb_i32* bj_p = (ksb_i32*)(&to->bc[bj_i]);
+
+            // set it to the difference
+            bj_p->arg = (int)(wj_a - bj_a);
+
+
+            // now, set the original jump to jump after all this
+            ksb_i32* wj_p = (ksb_i32*)(&to->bc[wj_i]);
+
+            // set the relative amount to right before the else block
+            wj_p->arg = (int)(to->bc_n - wj_a);
+
+            // now, emit the other block
+            // now, generate another expression to tell if we should jump back
+            if (!ast_emit(else_blk, st, to)) return false;
+            // take off excesses
+            while (st->stk_len > start_len) {
+                ksca_popu(to);
+                st->stk_len--;
+            }
+
+            // now link the body's jump
+            ksb_i32* bj_ap = (ksb_i32*)(&to->bc[bj_ai]);
+
+            // set it to the difference
+            bj_ap->arg = (int)(to->bc_n - bj_aa);
+
+
+
+        } else {
+            // no else block, standard routine
+
+            // generate the body
+            if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
+            // take off excesses
+            while (st->stk_len > start_len) {
+                ksca_popu(to);
+                st->stk_len--;
+            }
+            
+            // now, generate another expression to tell if we should jump back
+            if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+
+            // have a jump from the body back up to after the original conditional
+
+            // get position of the jump
+            int bj_i = to->bc_n;
+
+            // fill it in later
+            ksca_jmpt(to, -1);
+            st->stk_len--;
+
+            // get position it is jumping from
+            int bj_a = to->bc_n;
+
+            ksb_i32* bj_p = (ksb_i32*)(&to->bc[bj_i]);
+
+            // set it to the difference
+            bj_p->arg = (int)(wj_a - bj_a);
+
+
+            // now, set the original jump to jump after all this
+            ksb_i32* wj_p = (ksb_i32*)(&to->bc[wj_i]);
+
+            wj_p->arg = (int)(bj_a - wj_a);
+
+        }
+
 
 
     } else {

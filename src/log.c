@@ -6,7 +6,7 @@
 #include "ks-impl.h"
 
 // current logging level
-static int log_level = KS_LOG_INFO;
+static int log_level = KS_LOG_WARN;
 
 // printed names for the levels (including colors)
 static const char* _level_strs[] = {

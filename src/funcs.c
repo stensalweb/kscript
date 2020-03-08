@@ -20,8 +20,15 @@ ks_cfunc
     ks_F_mul = NULL,
     ks_F_div = NULL,
     ks_F_mod = NULL,
-    ks_F_pow = NULL
+    ks_F_pow = NULL,
     
+    ks_F_lt = NULL,
+    ks_F_le = NULL,
+    ks_F_gt = NULL,
+    ks_F_ge = NULL,
+    ks_F_eq = NULL,
+    ks_F_ne = NULL
+
 ;
 
 /* call(func, *args) -> obj
@@ -332,6 +339,68 @@ T_KS_FUNC_BOP(mul, "*", __mul__)
 T_KS_FUNC_BOP(div, "/", __div__)
 
 
+/* __mod__(L, R) -> obj
+ *
+ * Attempt to calculate 'L%R'
+ * 
+ */
+T_KS_FUNC_BOP(mod, "%", __mod__)
+
+/* __pow__(L, R) -> obj
+ *
+ * Attempt to calculate 'L**R'
+ * 
+ */
+T_KS_FUNC_BOP(pow, "**", __pow__)
+
+
+
+
+
+/* __lt__(L, R) -> obj
+ *
+ * Attempt to calculate 'L<R'
+ * 
+ */
+T_KS_FUNC_BOP(lt, "<", __lt__)
+
+/* __le__(L, R) -> obj
+ *
+ * Attempt to calculate 'L<=R'
+ * 
+ */
+T_KS_FUNC_BOP(le, "<=", __le__)
+
+/* __gt__(L, R) -> obj
+ *
+ * Attempt to calculate 'L>R'
+ * 
+ */
+T_KS_FUNC_BOP(gt, ">", __gt__)
+
+/* __ge__(L, R) -> obj
+ *
+ * Attempt to calculate 'L>=R'
+ * 
+ */
+T_KS_FUNC_BOP(ge, ">=", __ge__)
+
+/* __eq__(L, R) -> obj
+ *
+ * Attempt to calculate 'L==R'
+ * 
+ */
+T_KS_FUNC_BOP(eq, "==", __eq__)
+
+/* __ne__(L, R) -> obj
+ *
+ * Attempt to calculate 'L!=R'
+ * 
+ */
+T_KS_FUNC_BOP(ne, "!=", __ne__)
+
+
+
 
 
 
@@ -345,6 +414,15 @@ void ks_init_funcs() {
     ks_F_sub = ks_cfunc_new(sub_);
     ks_F_mul = ks_cfunc_new(mul_);
     ks_F_div = ks_cfunc_new(div_);
+    ks_F_mod = ks_cfunc_new(mod_);
+    ks_F_pow = ks_cfunc_new(pow_);
+
+    ks_F_lt = ks_cfunc_new(lt_);
+    ks_F_le = ks_cfunc_new(le_);
+    ks_F_gt = ks_cfunc_new(gt_);
+    ks_F_ge = ks_cfunc_new(ge_);
+    ks_F_eq = ks_cfunc_new(eq_);
+    ks_F_ne = ks_cfunc_new(ne_);
 
     ks_F_getattr = ks_cfunc_new(getattr_);
     ks_F_setattr = ks_cfunc_new(setattr_);

@@ -636,6 +636,9 @@ extern ks_bool KS_TRUE, KS_FALSE;
 #define KSO_TRUE ((ks_obj)KS_TRUE)
 #define KSO_FALSE ((ks_obj)KS_FALSE)
 
+// convert to a boolean
+#define KSO_BOOL(_val) ((_val) ? KSO_TRUE : KSO_FALSE)
+
 
 // ks_int - type representing an integer value (signed, 64 bit) in kscript
 typedef struct {
@@ -758,6 +761,9 @@ typedef struct {
     // the source code the parser is parsing on
     ks_str src;
 
+    // the name of the source (human readable)
+    ks_str src_name;
+
     // the current token index into the 'tok' array
     int toki;
 
@@ -822,6 +828,43 @@ enum {
     // Represents a block of other ASTs
     // all children are in 'children'
     KS_AST_BLOCK,
+
+    /** CONTROL STRUCTURES **/
+
+    // represents a conditional block, which can have a variable number of children
+    // 'children[0]' is the primary conditional, children[1] os the body of the if
+    // If there is a 3rd child, then it is the 'else' block
+    // 'else if' is the same as having the entire child be an else section, so that
+    //   is what is done
+    // 
+    // EX:
+    // if (COND1) { BODY1 }
+    // elif (COND2) { BODY2 }
+    // else { BODY3 }
+    // Will decompose into:
+    // if [COND1, BODY1, [if COND2, BODY2, BODY3]
+    KS_AST_IF,
+
+    // represents a while loop, with continued iteration
+    // 'children[0]' is the main condition, 'children[1]' is the body
+    // And if there exists 'children[2]', that is the 'else' body
+    // The 'else' body is only executed if the FIRST call of the condition is false
+    // So:
+    // while (x > 3) { ... } else { throw 'Incorrect x' }
+    // Is the same (effectively) as:
+    // if (x <= 3) { throw 'Incorrect x' }
+    // while (x > 3) { ... }
+    KS_AST_WHILE,
+
+    // represents a 'try' block, which will try a given expression
+    // children[0] is the code inside the try block, and 'children[1]' is the code in the 'catch' block
+    KS_AST_TRY,
+
+    // represents a 'func' definition, with a given name, parameter name list, and body
+    // 'children[0]' is the function name (cast to ks_str)
+    // 'children[1]' is the list of parameter names (cast to ks_list)
+    // 'children[3]' is the body of the function, containing the code for the function
+    KS_AST_FUNC,
 
 
     /** BINARY OPERATORS **/
@@ -1043,6 +1086,13 @@ extern ks_cfunc
     ks_F_div,
     ks_F_mod,
     ks_F_pow,
+
+    ks_F_lt,
+    ks_F_le,
+    ks_F_gt,
+    ks_F_ge,
+    ks_F_eq,
+    ks_F_ne,
 
     ks_F_getattr,
     ks_F_setattr
@@ -1370,7 +1420,6 @@ ks_ast ks_ast_new_const(ks_obj val);
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_var(ks_str name);
 
-
 // Create an AST representing an attribute reference
 // Type should always be string
 // NOTE: Returns a new reference
@@ -1387,6 +1436,29 @@ ks_ast ks_ast_new_ret(ks_ast val);
 // Create an AST representing a block of code
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_block(int num, ks_ast* elems);
+
+
+
+// Create an AST representing an 'if' construct
+// 'else_body' may be NULL, in which case it is constructed without an 'else' body
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast if_body, ks_ast else_body);
+
+// Create an AST representing an 'while' construct
+// 'else_body' may be NULL, in which case it is constructed without an 'else' body
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body);
+
+
+// Create an AST representing a 'try' block
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_try(ks_ast cond, ks_ast try_body, ks_ast catch_body);
+
+// Create an AST representing a function definition
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body);
+
+
 
 // Create a new AST represernting a binary operation on 2 objects
 // NOTE: Returns a new reference
@@ -1410,7 +1482,7 @@ ks_code ks_codegen(ks_ast self);
 // Create a new parser from some source code
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-ks_parser ks_parser_new(ks_str src_code);
+ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
@@ -1448,23 +1520,9 @@ ks_pfunc ks_pfunc_new(ks_obj func);
 void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg);
 
 
-
-
-
-
-
-
 /* OBJECT INTERFACE (see ./obj.c) */
 // NOTE: This should be replaced by a bunch of standard 'cfunc' objects that
 //   can be called
-
-// Get the string representation of an object, or NULL if there was an error
-// NOTE: Returns a new reference
-ks_str ks_repr(ks_obj obj);
-
-// Convert the given object to a string, or NULL if there was an error
-// NOTE: Returns a new reference
-ks_str ks_to_str(ks_obj obj);
 
 // Free an object, by either calling its deconstructor or freeing the memory
 void ks_obj_free(ks_obj obj);
@@ -1484,23 +1542,9 @@ bool ks_eq(ks_obj A, ks_obj B);
 // Return whether or not 'func' is callable as a function
 bool ks_is_callable(ks_obj func);
 
-// Get an attribute by name, i.e. 'obj.attr'
-// NOTE: Returns a new reference
-ks_obj ks_getattr(ks_obj obj, ks_obj attr);
-
-// Get an attribute by name, i.e. 'obj.attr'
-// NOTE: Returns a new reference
-ks_obj ks_getattr_c(ks_obj obj, char* attr);
-
 // Attempt to call 'func' on 'args', returning NULL if there was an error
 // NOTE: Returns a new reference
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
-
-// Attempt to call 'func.attr' on 'args', returning NULL if there was an error
-// NOTE: Returns a new reference
-ks_obj ks_call_attr(ks_obj func, ks_obj attr, int n_args, ks_obj* args);
-
-
 
 
 /* EXCEPTION HANDLING */

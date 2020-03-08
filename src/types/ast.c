@@ -92,6 +92,72 @@ ks_ast ks_ast_new_block(int num, ks_ast* elems) {
 
     return self;
 }
+
+
+// Create an AST representing an 'if' construct
+// 'else_body' may be NULL, in which case it is constructed without an 'else' body
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_if(ks_ast cond, ks_ast if_body, ks_ast else_body) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_IF;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)cond, (ks_obj)if_body });
+    if (else_body) ks_list_push(self->children, (ks_obj)else_body);
+
+    return self;
+}
+
+// Create an AST representing an 'while' construct
+// 'else_body' may be NULL, in which case it is constructed without an 'else' body
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_WHILE;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)cond, (ks_obj)while_body });
+    if (else_body) ks_list_push(self->children, (ks_obj)else_body);
+
+    return self;
+}
+
+
+// Create an AST representing a 'try' block
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_try(ks_ast cond, ks_ast try_body, ks_ast catch_body) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_WHILE;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)cond, (ks_obj)try_body });
+    if (catch_body) ks_list_push(self->children, (ks_obj)catch_body);
+
+    return self;
+}
+
+// Create an AST representing a function definition
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_WHILE;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(3, (ks_obj[]){ (ks_obj)name, (ks_obj)params, (ks_obj)body });
+
+    return self;
+}
+
+
+
 // Create a new AST represernting a binary operation on 2 objects
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {

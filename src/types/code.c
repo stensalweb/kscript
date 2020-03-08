@@ -355,7 +355,7 @@ static KS_TFUNC(code, str) {
         
         case KSB_JMPT:
             i += 4;
-            ks_str_b_add_fmt(&SB, "jmtp %+i  # to %i", val, i + val);
+            ks_str_b_add_fmt(&SB, "jmpt %+i  # to %i", val, i + val);
             break;
                 
         case KSB_JMPF:

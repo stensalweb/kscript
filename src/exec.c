@@ -214,15 +214,27 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
             VMED_CONSUME(ksb_i32, op_i32);
 
             // increment program counter
-            //pc += op_i32.arg;
+            pc += op_i32.arg;
 
         VMED_CASE_END
 
         VMED_CASE_START(KSB_JMPT)
             VMED_CONSUME(ksb_i32, op_i32);
 
-            // increment program counter
-            //pc += op_i32.arg;
+            // take the top item off
+            ks_obj cond = ks_list_pop(vm->stk);
+
+            if (cond == KSO_TRUE) {
+                // do jump
+                pc += op_i32.arg;
+            } else if (cond == KSO_FALSE) {
+                // don't jump
+
+            } else {
+                // we need to calculate it, default to true
+                pc += op_i32.arg;
+                KS_DECREF(cond);
+            }
 
         VMED_CASE_END
 
@@ -230,10 +242,20 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         VMED_CASE_START(KSB_JMPF)
             VMED_CONSUME(ksb_i32, op_i32);
 
-            printf("Jmpf\n");
+            // take the top item off
+            ks_obj cond = ks_list_pop(vm->stk);
 
-            // increment program counter
-            //pc += op_i32.arg;
+            if (cond == KSO_TRUE) {
+                // don't jump
+            } else if (cond == KSO_FALSE) {
+                // do jump
+                pc += op_i32.arg;
+            } else {
+                // we need to calculate it, default to true
+                pc += op_i32.arg;
+                KS_DECREF(cond);
+            }
+
 
         VMED_CASE_END
 
@@ -347,6 +369,17 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         T_BOP_CASE(KSB_BOP_SUB, "-", ks_F_sub, {});
         T_BOP_CASE(KSB_BOP_MUL, "*", ks_F_mul, {});
         T_BOP_CASE(KSB_BOP_DIV, "/", ks_F_div, {});
+        T_BOP_CASE(KSB_BOP_MOD, "%", ks_F_mod, {});
+        T_BOP_CASE(KSB_BOP_POW, "**", ks_F_pow, {});
+
+
+        T_BOP_CASE(KSB_BOP_LT, "<", ks_F_lt, {});
+        T_BOP_CASE(KSB_BOP_LE, "<=", ks_F_le, {});
+        T_BOP_CASE(KSB_BOP_GT, ">", ks_F_gt, {});
+        T_BOP_CASE(KSB_BOP_GE, ">=", ks_F_ge, {});
+        T_BOP_CASE(KSB_BOP_EQ, "==", ks_F_eq, {});
+        T_BOP_CASE(KSB_BOP_NE, "!=", ks_F_ne, {});
+
 
 
     VMED_END

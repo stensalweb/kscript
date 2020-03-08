@@ -1,5 +1,8 @@
 
+A = true
+B = 1
+C = 2
 
-print ([1][2])
+if A, B
+else, C
 
-print ("AFTER")

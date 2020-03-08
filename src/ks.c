@@ -8,6 +8,8 @@
 // for getopt
 #include <unistd.h>
 #include <getopt.h>
+#include <errno.h>
+
 
 int main(int argc, char** argv) {
 
@@ -45,12 +47,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // these are all extraneous arguments, ignore for now
-    // In the future, allow a world file
-    while (optind < argc) {
-        fprintf(stderr, "arg: '%s'\n", argv[optind]);
-        optind++;
-    }
 
     // now, try & initialize the library
     if (!ks_init()) {
@@ -62,36 +58,70 @@ int main(int argc, char** argv) {
     // exception
     ks_obj exc = NULL;
 
-    ks_str src = ks_str_new("print (str.__dict__, try)");
-    
-    ks_parser p = ks_parser_new(src);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
+    if (optind == argc - 1) {
+
+        // there was 1 files given
+
+        const char* fname = argv[optind];
+
+
+        FILE* fp = fopen(fname, "r");
+        if (!fp) {
+            ks_error("Failed to open file '%s': %s", fname, strerror(errno));
+            return -1;
+        }
+
+        fseek(fp, 0, SEEK_END);
+        int len = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        char* csrc = ks_malloc(len + 1);
+        fread(csrc, 1, len, fp);
+        csrc[len] = '\0';
+
+        ks_str src = ks_str_new(csrc);
+        ks_free(csrc);
+        ks_str src_name = ks_str_new(fname);
+
+        ks_parser p = ks_parser_new(src, src_name);
+        KS_DECREF(src_name);
+        if (exc = ks_catch()) {
+            ks_error("%T: %R", exc, exc);
+            return -1;
+        }
+
+        ks_ast prog = ks_parser_parse_file(p);
+        if (exc = ks_catch()) {
+            ks_error("%T: %R", exc, exc);
+            return -1;
+        }
+
+        ks_code myc = ks_codegen(prog);
+        if (exc = ks_catch()) {
+            ks_error("%T: %R", exc, exc);
+            return -1;
+        }
+
+        ks_debug("CODE: %S", myc);
+
+        // execute it
+        ks_obj ret = vm_exec(ks_vm_default, myc);
+
+        if (exc = ks_catch()) {
+            ks_error("%T: %R", exc, exc);
+            return -1;
+        }
+
+    } else if (optind >= argc) {
+        // no arguments left
+        ks_error("%s: Too many files given to run!", argv[0]);
+        return -1;
+    } else {
+        // no arguments left
+        ks_error("%s: No files or expressions given to run!", argv[0]);
         return -1;
     }
 
-    ks_info("parser: %S, src: %R, toks: %i", p, p->src, p->tok_n);
-
-    ks_ast prog = ks_parser_parse_file(p);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return -1;
-    }
-
-    ks_info("prog: %S", prog);
-
-    ks_code myc = ks_codegen(prog);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return -1;
-    }
-
-    ks_info("code: %S", myc);
-
-
-    // execute it
-    ks_obj ret = vm_exec(ks_vm_default, myc);
-    //ks_info("ret: %S", ret);
 
     return 0;
 }

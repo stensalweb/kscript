@@ -97,14 +97,22 @@ int ks_str_cmp(ks_str A, ks_str B) {
 }
 
 
-static KS_TFUNC(str, mine) {
+// str.__new__(obj) -> convert any object to a string
+static KS_TFUNC(str, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj obj = args[0];
 
-    printf("TEST\n");
+    if (obj->type == ks_type_str) {
+        return KS_NEWREF(obj);
+    } else if (obj->type->__str__ != NULL) {
+        return ks_call(obj->type->__str__, n_args, args);
+    } else {
+        // do a default format
+        return (ks_obj)ks_fmt_c("<'%T' obj @ %p>", obj, obj);
+        //return ks_throw_fmt(ks_type_Error, "'%T' object is not convertable to string!", obj);
+    }
 
-    return KSO_NONE;
 };
-
-
 
 // str.__free__(self) -> free a string object
 static KS_TFUNC(str, free) {
@@ -120,6 +128,14 @@ static KS_TFUNC(str, free) {
 };
 
 
+// str.__repr__(self) -> get the string representation
+static KS_TFUNC(str, repr) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+
+    return (ks_obj)ks_fmt_c("'%S'", self);
+};
 
 // initialize string type
 void ks_type_str_init() {
@@ -127,8 +143,11 @@ void ks_type_str_init() {
 
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
+        {"__new__", (ks_obj)ks_cfunc_new(str_new_)},
         {"__free__", (ks_obj)ks_cfunc_new(str_free_)},
-        
+
+        {"__repr__", (ks_obj)ks_cfunc_new(str_repr_)},
+
         {NULL, NULL}
     });
 

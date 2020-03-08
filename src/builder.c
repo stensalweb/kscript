@@ -54,7 +54,7 @@ bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj) {
     }
 
     // attempt to get the repr
-    ks_str repr = ks_repr(obj);
+    ks_str repr = (ks_str)ks_F_repr->func(1, &obj);
     if (!repr) return false;
 
     // ensure the type was a string
@@ -87,7 +87,7 @@ bool ks_str_b_add_str(ks_str_b* self, ks_obj obj) {
     }
 
     // attempt to get the repr
-    ks_str to_str = ks_to_str(obj);
+    ks_str to_str = (ks_str)ks_call(ks_type_str->__new__, 1, &obj);
     if (!to_str) return false;
 
     // ensure the type was a string

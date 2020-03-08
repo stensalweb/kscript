@@ -3,7 +3,7 @@
 # Collatz Conjecture (https://en.wikipedia.org/wiki/Collatz_conjecture) example,
 #   iterate until we haven't hit a cycle
 
-i = 5
+i = 63728127
 
 while i != 1 {
     print (i)
@@ -13,9 +13,10 @@ while i != 1 {
     else, i = 3 * i + 1
 }
 
+
 # example showing how to use a 'for' loop to iterate through a list
-for i in [1, 2, 3] {
-    print ("elem:", i)
-}
+#for i in [1, 2, 3] {
+#    print ("elem:", i)
+#}
 
 

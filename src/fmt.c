@@ -11,7 +11,7 @@
 // return true if 'c' is a valid part of the field specifier, which means
 //   it is not alpha character
 static bool ks_is_field(char c) {
-    return c && !isalpha(c);
+    return c && !isalpha(c) && c != '%';
 }
 
 
@@ -166,6 +166,7 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         // current character
         char c = *p;
 
+
         // ensure we have not hit the end
         if (!c) break;
 
@@ -190,7 +191,11 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
         barg = BFMT_ARG_DEFAULT;
 
         // now, try and parse the field
-        if (strncmp(p, "c", 1) == 0) {
+        if (strncmp(p, "%", 1) == 0) {
+            ks_str_b_add(&SB, 1, "%");
+
+            p += 1;
+        } else if (strncmp(p, "c", 1) == 0) {
             // %c - print a 'char' in C
 
             barg.width = 1;
