@@ -669,27 +669,6 @@ struct ks_str {
 
 };
 
-// ks_code - a bytecode object, which holds instructions to be executed
-typedef struct {
-    KS_OBJ_BASE
-
-    // A reference to a list of constants, which are indexed by integers in the bytecode
-    ks_list v_const;
-
-    // human readable name for the code object
-    ks_str name_hr;
-
-    // number of bytes currently in the bytecode (bc)
-    int bc_n;
-
-    // a pointer to the actual bytecode, starting at index 0, through (bc_n-1)
-    ksb* bc;
-
-
-}* ks_code;
-
-
-
 
 // ks_parser - an integrated parser which can parse kscript & bytecode to
 //   ASTs & code objects
@@ -802,6 +781,40 @@ struct ks_tok {
     int line, col;
 
 };
+
+// ks_code - a bytecode object, which holds instructions to be executed
+typedef struct {
+    KS_OBJ_BASE
+
+    // A reference to a list of constants, which are indexed by integers in the bytecode
+    ks_list v_const;
+
+    // human readable name for the code object
+    ks_str name_hr;
+
+    // number of bytes currently in the bytecode (bc)
+    int bc_n;
+
+    // a pointer to the actual bytecode, starting at index 0, through (bc_n-1)
+    ksb* bc;
+
+
+    // the number of meta-tokens, describing the input
+    int meta_n;
+
+    // array of meta-data tokens, which tell where the bytecode is located in the source code
+    struct ks_code_meta {
+
+        // the point at which this token is the relevant one
+        int bc_n;
+
+        // the token (a reference is held to tok.parser)
+        ks_tok tok;
+
+    }* meta;
+
+
+}* ks_code;
 
 
 // Different kinds of ASTs
@@ -945,7 +958,6 @@ typedef struct {
 
     // tokens for the AST, representing where it is in the source code
     ks_tok tok, tok_expr;
-
 
 
 }* ks_ast;
@@ -1292,6 +1304,9 @@ ks_tuple ks_tuple_new(int len, ks_obj* elems);
 // NOTE: Returns a new reference
 ks_list ks_list_new(int len, ks_obj* elems);
 
+// Clear a list, emptying the contents
+void ks_list_clear(ks_list self);
+
 // Push an object on to the end of the list, expanding the list
 void ks_list_push(ks_list self, ks_obj obj);
 
@@ -1390,6 +1405,9 @@ void ks_code_add(ks_code self, int len, ksb* data);
 
 // Add a constant to the internal constant list, return the index at which it was added (or already located)
 int ks_code_add_const(ks_code self, ks_obj val);
+
+// add a meta token (and hold a reference to the parser)
+void ks_code_add_meta(ks_code self, ks_tok tok);
 
 /*** ADDING BYTECODES (see ks.h for bytecode definitions) ***/
 void ksca_noop      (ks_code self);
@@ -1526,6 +1544,9 @@ ks_ast ks_parser_parse_file(ks_parser self);
 // combine A and B to form a larger meta token
 ks_tok ks_tok_combo(ks_tok A, ks_tok B);
 
+// convert token to a string with mark
+ks_str ks_tok_expstr(ks_tok tok);
+
 /* CFUNC */
 
 // Create a new C-function wrapper
@@ -1594,6 +1615,8 @@ void* ks_throw_fmt(ks_type errtype, char* fmt, ...);
 // NOTE: Returns a new reference, if it was non-NULL
 ks_obj ks_catch();
 
+// catches excetion, also setting stack info
+ks_obj ks_catch2(ks_list stk_info);
 
 /* VM EXECUTION */
 

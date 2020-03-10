@@ -93,6 +93,8 @@ bool ks_is_callable(ks_obj func) {
 // the current object being thrown, or NULL if there is no such object
 static ks_obj cur_thrown = NULL;
 
+static ks_list cur_thrown_stk = NULL;
+
 // throw an object up the call stack, and return 'NULL'
 void* ks_throw(ks_obj obj) {
     // ensure 
@@ -107,6 +109,16 @@ void* ks_throw(ks_obj obj) {
         // add to the throw stack
         cur_thrown = KS_NEWREF(obj);
     }
+
+    if (!cur_thrown_stk) {
+        // initialize it
+        cur_thrown_stk = ks_list_new(0, NULL);
+    }
+
+
+    // copy it to the stack
+    ks_list_clear(cur_thrown_stk);
+    ks_list_pushn(cur_thrown_stk, ks_call_stk->len, ks_call_stk->elems);
 
     // return NULL so people can return this and return NULL easily
     return NULL;
@@ -148,4 +160,21 @@ ks_obj ks_catch() {
     // return the active try/catch reference
     return ret;
 }
+
+
+
+// try and catch the object off
+ks_obj ks_catch2(ks_list stk_info) {
+    ks_obj ret = cur_thrown;
+    cur_thrown = NULL;
+    // copy this
+    ks_list_clear(stk_info);
+
+    if (ret) {
+        ks_list_pushn(stk_info, cur_thrown_stk->len, cur_thrown_stk->elems);
+    }
+    // return the active try/catch reference
+    return ret;
+}
+
 

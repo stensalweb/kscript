@@ -227,7 +227,7 @@ KS_FUNC(getattr) {
         return (kso)mem_func;
     } else {
         // it was not found, and an error should have been added
-        return NULL;
+        return ks_throw_fmt();
     }
 
 

@@ -33,7 +33,26 @@ ks_code ks_code_new(ks_list v_const) {
     self->bc_n = 0;
     self->bc = NULL;
 
+    // and no meta
+    self->meta_n = 0;
+    self->meta = NULL;
+
     return self;
+}
+
+// add a meta token (and hold a reference to the parser)
+void ks_code_add_meta(ks_code self, ks_tok tok) {
+    int idx = self->meta_n++;
+    self->meta = ks_realloc(self->meta, sizeof(*self->meta) * self->meta_n);
+    
+    self->meta[idx] = (struct ks_code_meta) {
+        .bc_n = self->bc_n,
+        .tok = tok
+    };
+
+    // hold reference
+    if (tok.parser) KS_INCREF(tok.parser);
+
 }
 
 

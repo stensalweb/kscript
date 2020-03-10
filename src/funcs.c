@@ -140,13 +140,14 @@ static KS_FUNC(getattr) {
     ks_obj obj = args[0], attr = args[1];
 
     if (obj->type->__getattr__ != NULL) {
+
         // call type(obj).__getattr__(obj, attr)
         return ks_call(obj->type->__getattr__, 2, (ks_obj[]){ obj, attr });
     } else if (attr->type == ks_type_str) {
         // it might be a member function
         // try type(obj).attr as a function with 'obj' filled in as the first argument
         ks_obj type_attr = ks_type_get(obj->type, (ks_str)attr);
-        if (!type_attr) return NULL;
+        if (!type_attr) KS_ERR_ATTR(obj, attr);
 
         // make sure it is a member function
         if (!ks_is_callable(type_attr)) {
@@ -164,6 +165,7 @@ static KS_FUNC(getattr) {
         // return the member function
         return (ks_obj)ret;
     }
+
 
     // error
     KS_ERR_ATTR(obj, attr);

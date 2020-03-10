@@ -29,6 +29,77 @@ static bool is_white(char c) {
     return c == ' ' || c == '\t' || c == '\n';
 }
 
+
+// generate a string from a token, marked up
+ks_str ks_tok_expstr(ks_tok tok) {
+
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    if (tok.parser != NULL && tok.len >= 0) {
+        // we have a valid token
+        int i = tok.pos;
+        int lineno = tok.line;
+        char c;
+
+        char* src = tok.parser->src->chr;
+
+        // rewind to the start of the line
+        while (i >= 0) {
+            c = src[i];
+
+            if (c == '\n') {
+                i++;
+                break;
+            }
+            i--;
+        }
+
+
+        if (i < 0) i++;
+        if (src[i] == '\n') i++;
+
+        // line start index
+        int lsi = i;
+
+        while (c = src[i]) {
+            if (c == '\n') break;
+            i++;
+        }
+
+        // line length
+        int ll = i - lsi;
+
+        // the start of the line
+        char* sl = src + lsi;
+
+        //printf("LINE: %.*s\n", ll, src + lsi);
+        /*ks_str_b_add_fmt(&SB, "\n%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
+            ll, sl,
+            tok.col, ' ',
+            tok.len - 1, '~',
+            tok.line + 1, tok.col + 1,
+            tok.parser->src_name
+        );*/
+        // now, add additional metadata about the error, including in-source markup
+        ks_str_b_add_fmt(&SB, "\n%.*s" RED BOLD "%.*s" RESET "%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
+            tok.col, sl,
+            tok.len, sl + tok.col,
+            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            tok.col, ' ',
+            tok.len - 1, '~',
+            tok.line + 1, tok.col + 1,
+            tok.parser->src_name
+        );
+    }
+
+    ks_str full_what = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+
+    return full_what;
+}
+
+
 /* UTIL FUNCTIONS */
 
 // give a syntax error at a given token
@@ -841,7 +912,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             KS_DECREF(attr_name_s);
 
             // set up the new tokens
-            new_attr->tok = dot_tok;
+            new_attr->tok = ks_tok_combo(dot_tok, ctok);
             new_attr->tok_expr = ks_tok_combo(last->tok_expr, ctok);
 
             Spush(Out, new_attr);
@@ -1031,6 +1102,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
                     } else {
                         // else, just yield the value as a math operation
                         new_val = Sget(Out, osp+1);
+                        new_val->tok_expr = ks_tok_combo(used.tok, ctok);
                     }
 
                     // remove all values

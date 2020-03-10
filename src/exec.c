@@ -135,6 +135,9 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
     ks_obj ret_val = NULL;
 
 
+    // starting length
+    int start_stk_len = vm->stk->len;
+
 
     ksb op;
 
@@ -458,8 +461,45 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
 
 
     EXC: ;
+    ks_list call_stk = ks_list_new(0, NULL);
     // handle exception here
-    ks_obj exc = ks_catch();
+    ks_obj exc = ks_catch2(call_stk);
+
+    // get current offset into btecode
+    int offset = (int)(pc - code->bc);
+
+    int fi = -1;
+    for (i = 0; i < code->meta_n; ++i) {
+        if (offset <= code->meta[i].bc_n) {
+            fi = i;
+            break;
+        }
+    }
+
+    if (fi >= 0) {
+        // if we found meta
+
+        // replace top with more detailed information
+        ks_list_popu(call_stk);
+        ks_str o_str = ks_tok_expstr(code->meta[fi].tok);
+        ks_str new_str = ks_fmt_c("%R%S\n", code, o_str);
+        KS_DECREF(o_str);
+        ks_list_push(call_stk, (ks_obj)new_str);
+        KS_DECREF(new_str);
+
+    } else {
+        // nothing found
+
+    }
+
+    /*int i;
+    for (i = 0; i < call_stk->len; ++i) {
+        ks_obj csi = call_stk->elems[i];
+
+        if (csi->type == ks_type_code) {
+            // replace the item with a more in depth one
+        }
+    }*/
 
     if (exc_call_stk_p > start_ecs) {
         // we have a handler ready, so push it on the stack & return
@@ -471,18 +511,23 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         // error, so rethrow it and return
         ks_error("%T: %S", exc, exc);
 
-        ks_printf("In: %S\n", ks_call_stk);
+        // print in reverse order
+        ks_printf("Call Stack:\n");
+
+        for (i = 0; i < call_stk->len; ++i) {
+            ks_printf("%i: %S", i, call_stk->elems[i]);
+        }
     }
 
     ret_val = NULL;
     goto RET;
 
-
     RET: ;
 
-    /*while (true) {
-        ksb op = *pc;
-    }*/
+    // rewind stack, just in case
+    while (vm->stk->len > start_stk_len) {
+        ks_list_popu(vm->stk);
+    }
 
     ks_list_popu(ks_call_stk);
 

@@ -29,7 +29,13 @@ ks_list ks_list_new(int len, ks_obj* elems) {
 
     return self;
 }
-
+void ks_list_clear(ks_list self) {
+    // decref all elements and remove length
+    while (self->len > 0) {
+        KS_DECREF(self->elems[self->len - 1]);
+        self->len--;
+    }
+}
 
 // push on an object to the list (recording a reference)
 void ks_list_push(ks_list self, ks_obj obj) {

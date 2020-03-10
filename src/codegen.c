@@ -112,7 +112,6 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             st->stk_len--;                           \
         }                                            \
     }
-
     if (self->kind == KS_AST_VAR) {
         
         // variable name
@@ -125,16 +124,23 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             ksca_push(to, KSO_FALSE);
         } else if (strcmp(vname->chr, "none") == 0) {
             ksca_push(to, KSO_NONE);
-
         } else {
             // generic variable, not a builtin
             ksca_load(to, vname);
         }
 
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+
         // record the new item on the stack
         st->stk_len++;
 
     } else if (self->kind == KS_AST_CONST) {
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
         // push on a constant
         ksca_push(to, self->children->elems[0]);
         st->stk_len++;
@@ -149,6 +155,9 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         // now,  attribute calculate it
         ksca_load_attr(to, (ks_str)self->children->elems[1]);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
 
         // don't increase the stack length, since it will just replace TOS
 
@@ -174,6 +183,9 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // now, call 'n' items
         ksca_call(to, self->children->len);
 
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
         // this will consume this many
         st->stk_len -= self->children->len;
         
@@ -196,9 +208,11 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // throw the value
         ksca_throw(to);
 
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
         // the stack gets rewound, so don't touch this here
         RESET_STK(0);
-
 
 
     } else if (self->kind == KS_AST_BOP_ASSIGN) {
@@ -214,6 +228,10 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             // then store it to the given name
             ksca_store(to, (ks_str)L->children->elems[0]);
 
+            // add meta data
+            ks_code_add_meta(to, self->tok_expr);
+
+
         } else if (L->kind == KS_AST_ATTR) {
             // do a setattr call
 
@@ -226,13 +244,15 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             // then store it to the given name
             ksca_store_attr(to, (ks_str)L->children->elems[1]);
 
+            // add meta data
+            ks_code_add_meta(to, self->tok_expr);
+
             // the total number shrinks by 1
             st->stk_len--;
 
         } else {
 
             //printf("self: %i\n", L->tok.pos);
-
 
             code_error(L->tok, "Cannot assign to LHS! Must be a variable!");
             return false;
@@ -247,9 +267,13 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         assert(st->stk_len == start_len + 2 && "Binary operator did not emit 2 operands!");
 
+
         // actually do binary operation, translate
         ksca_bop(to, (self->kind - KS_AST_BOP__FIRST) + KSB_BOP_ADD);
 
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+        
 
         // both arguments are consumed
         st->stk_len -= 2;
