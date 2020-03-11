@@ -14,7 +14,7 @@
 
 // only enable trace calls if the build enabled memory tracing
 #ifdef KS_MEM_TRACE
-#define memtrace(...) ks_trace("[mem] " __VA_ARGS__)
+#define memtrace(...) if (ks_log_level() == KS_LOG_TRACE) fprintf(stderr, "[ks_mem] " __VA_ARGS__);
 #else
 #define memtrace(...)
 #endif
@@ -54,7 +54,7 @@ void* ks_malloc(ks_size_t sz) {
     struct ks_ibuf* buf = malloc(sizeof(struct ks_ibuf) + sz);
 
     if (!buf) {
-        ks_error("ks_malloc(%llu) failed!", sz);
+        ks_error("ks_malloc(%llu) failed!\n", sz);
         return NULL;
     }
 
@@ -65,7 +65,7 @@ void* ks_malloc(ks_size_t sz) {
     void* usr_ptr = (void*)&buf->data;
 
     // trace out the result
-    memtrace("ks_malloc(%llu) -> %p", sz, usr_ptr);
+    memtrace("ks_malloc(%llu) -> %p\n", sz, usr_ptr);
 
     return usr_ptr;
 
@@ -98,7 +98,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
         if (new_buf == NULL) {
             // realloc failed
 
-            ks_error("ks_realloc(%p, %llu) failed!", ptr, new_sz);
+            ks_error("ks_realloc(%p, %llu) failed!\n", ptr, new_sz);
 
             // free our buffer we started with
             free(buf);
@@ -115,7 +115,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
         void* usr_ptr = (void*)&new_buf->data;
 
         // memory trace it out
-        ks_trace("ks_realloc(%p, %llu) -> %p", ptr, new_sz, usr_ptr);
+        memtrace("ks_realloc(%p, %llu) -> %p\n", ptr, new_sz, usr_ptr);
 
         // return backl what the user sees
         return usr_ptr;
@@ -127,7 +127,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
 void ks_free(void* ptr) {
     if (ptr == NULL) return;
 
-    memtrace("ks_free(%p)", ptr);
+    memtrace("ks_free(%p)\n", ptr);
 
     // go 'underneath' the buffer to our internal datastructure
     struct ks_ibuf* buf = (struct ks_ibuf*)ptr - 1;

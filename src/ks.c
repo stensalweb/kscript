@@ -122,6 +122,8 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    ks_debug("mem_max: %l", (int64_t)ks_mem_max());
+
 
     return 0;
 }

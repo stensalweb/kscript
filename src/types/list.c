@@ -128,6 +128,28 @@ static KS_TFUNC(list, free) {
 
 
 
+// list.__getitem__(self, idx) -> get the item in a list
+static KS_TFUNC(list, getitem) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_type_list, "self");
+    ks_int idx = (ks_int)args[1];
+    KS_REQ_TYPE(idx, ks_type_int, "idx");
+
+    int64_t idxi = idx->val;
+
+    // ensure negative indices are wrapped once
+    if (idxi < 0) idxi += self->len;
+
+    // do bounds check
+    if (idxi < 0 || idxi >= self->len) KS_ERR_KEY(self, idx);
+
+    // return the item specified
+    return KS_NEWREF(self->elems[idxi]);
+};
+
+
+
 // initialize list type
 void ks_type_list_init() {
     KS_INIT_TYPE_OBJ(ks_type_list, "list");
@@ -136,6 +158,9 @@ void ks_type_list_init() {
         {"__str__", (ks_obj)ks_cfunc_new(list_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(list_str_)},
         {"__free__", (ks_obj)ks_cfunc_new(list_free_)},
+
+        {"__getitem__", (ks_obj)ks_cfunc_new2(list_getitem_, "list.__getitem__(self, idx)")},
+
         {NULL, NULL}   
     });
 }

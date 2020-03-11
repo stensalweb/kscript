@@ -126,7 +126,7 @@ static exc_call_stk_item exc_call_stk[4096];
 ks_obj vm_exec(ks_vm vm, ks_code code) {
 
     // tell that we are entering the call stack
-    ks_list_push(ks_call_stk, (ks_obj)code->name_hr);
+    ks_list_push(ks_call_stk, (ks_obj)code);
 
     // start program counter at the beginning
     ksb* pc = code->bc;
@@ -138,6 +138,13 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
     // starting length
     int start_stk_len = vm->stk->len;
 
+    // number of args
+    int args_n = 0;
+
+    // arguments
+    ks_obj* args = NULL;
+
+    #define ENSURE_ARGS(_n) { if ((_n) >= args_n) { args_n = (_n); args = ks_realloc(args, sizeof(*args) * args_n); } }
 
     ksb op;
 
@@ -212,13 +219,78 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
 
         VMED_CASE_END
 
+        VMED_CASE_START(KSB_GETITEM)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // first, consume an array to call
+
+            // load args
+            ENSURE_ARGS(op_i32.arg);
+            ks_list_popn(vm->stk, op_i32.arg, args);
+
+            // now call
+            ks_obj ret = ks_F_getitem->func(op_i32.arg, args);
+            if (!ret) {
+                for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
+                goto EXC;
+            }
+    
+            for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
+
+            ks_list_push(vm->stk, ret);
+            KS_DECREF(ret);
+
+        VMED_CASE_END
+
+
+
+
+        VMED_CASE_START(KSB_LIST)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            VME_ASSERT(vm->stk->len >= op_i32.arg && "'list' instruction required more arguments than existed!");
+
+            // construct the list
+            ks_list new_list = ks_list_new(op_i32.arg, &vm->stk->elems[vm->stk->len - op_i32.arg]);
+
+            // remove from the stack
+            for (i = 0; i < op_i32.arg; ++i) {
+                ks_list_popu(vm->stk);
+            }
+
+            // push it back on
+            ks_list_push(vm->stk, (ks_obj)new_list);
+            KS_DECREF(new_list);
+
+        VMED_CASE_END
+
+
+        VMED_CASE_START(KSB_TUPLE)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            VME_ASSERT(vm->stk->len >= op_i32.arg && "'tuple' instruction required more arguments than existed!");
+
+            // construct the tuple
+            ks_tuple new_tuple = ks_tuple_new(op_i32.arg, &vm->stk->elems[vm->stk->len - op_i32.arg]);
+
+            // remove from the stack
+            for (i = 0; i < op_i32.arg; ++i) {
+                ks_list_popu(vm->stk);
+            }
+
+            // push it back on
+            ks_list_push(vm->stk, (ks_obj)new_tuple);
+            KS_DECREF(new_tuple);
+
+        VMED_CASE_END
 
         /* CONTROL FLOW */
 
         VMED_CASE_START(KSB_CALL)
             VMED_CONSUME(ksb_i32, op_i32);
 
-            ks_obj args[8];
+            // load args
+            ENSURE_ARGS(op_i32.arg);
             ks_list_popn(vm->stk, op_i32.arg, args);
 
             ks_obj ret = ks_call(args[0], op_i32.arg - 1, &args[1]);
@@ -456,6 +528,24 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         T_BOP_CASE(KSB_BOP_NE, "!=", ks_F_ne, {});
 
 
+        // template for a unary operator case
+        // 3rd argument is the 'extra code' to be ran to possibly shortcut it
+        #define T_UOP_CASE(_uop,  _str, _func, ...) { \
+            VMED_CASE_START(_uop) \
+                VMED_CONSUME(ksb, op); \
+                ks_obj V = ks_list_pop(vm->stk); \
+                { __VA_ARGS__ } \
+                ks_obj ret = (_func->func)(1, &V); \
+                if (!ret) goto EXC; \
+                ks_list_push(vm->stk, ret); \
+                KS_DECREF(V); KS_DECREF(ret); \
+            VMED_CASE_END \
+        }
+
+        T_UOP_CASE(KSB_UOP_NEG, "-", ks_F_neg, {})
+        T_UOP_CASE(KSB_UOP_SQIG, "~", ks_F_sqig, {})
+
+
 
     VMED_END
 
@@ -475,22 +565,36 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
             break;
         }
     }
-
     if (fi >= 0) {
         // if we found meta
+        int ffi = -1;
+        for (i = 0; i < call_stk->len; ++i) {
+            if (call_stk->elems[i] == (ks_obj)code && ffi < 0) {
+                // set information
+                //ks_list_popu(call_stk);
+                KS_DECREF(call_stk->elems[i]);
+                ks_str o_str = ks_tok_expstr(code->meta[fi].tok);
+                ks_str new_str = ks_fmt_c("%R:%S\n", code, o_str);
+                KS_DECREF(o_str);
+                call_stk->elems[i] = (ks_obj)new_str;
+                ffi = i;
+                //ks_list_push(call_stk, (ks_obj)new_str);
+                //KS_DECREF(new_str);
+            } else if (call_stk->elems[i]->type == ks_type_cfunc) {
+                ks_cfunc cff = (ks_cfunc)call_stk->elems[i];
+                ks_str new_str = ks_fmt_c("%R: %S", cff, cff->name_hr);
+                call_stk->elems[i] = (ks_obj)new_str;
+                KS_DECREF(cff);
+            }
+        }
 
-        // replace top with more detailed information
-        ks_list_popu(call_stk);
-        ks_str o_str = ks_tok_expstr(code->meta[fi].tok);
-        ks_str new_str = ks_fmt_c("%R%S\n", code, o_str);
-        KS_DECREF(o_str);
-        ks_list_push(call_stk, (ks_obj)new_str);
-        KS_DECREF(new_str);
+        // replace top with more detai
 
     } else {
         // nothing found
 
     }
+
 
     /*int i;
     for (i = 0; i < call_stk->len; ++i) {
@@ -514,8 +618,8 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
         // print in reverse order
         ks_printf("Call Stack:\n");
 
-        for (i = 0; i < call_stk->len; ++i) {
-            ks_printf("%i: %S", i, call_stk->elems[i]);
+        for (i = call_stk->len - 1; i >= 0; i--) {
+            ks_printf("In #%i: %S\n", i, call_stk->elems[i]);
         }
     }
 
@@ -530,6 +634,8 @@ ks_obj vm_exec(ks_vm vm, ks_code code) {
     }
 
     ks_list_popu(ks_call_stk);
+
+    ks_free(args);
 
     return ret_val;
 

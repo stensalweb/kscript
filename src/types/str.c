@@ -137,6 +137,18 @@ static KS_TFUNC(str, repr) {
     return (ks_obj)ks_fmt_c("'%S'", self);
 };
 
+
+
+// str.__add__(L, R) -> return the sum of 2 objects, by summing them
+static KS_TFUNC(str, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    // just append their string conversions
+    return (ks_obj)ks_fmt_c("%S%S", L, R);
+};
+
+
 // initialize string type
 void ks_type_str_init() {
     KS_INIT_TYPE_OBJ(ks_type_str, "str");
@@ -147,6 +159,8 @@ void ks_type_str_init() {
         {"__free__", (ks_obj)ks_cfunc_new(str_free_)},
 
         {"__repr__", (ks_obj)ks_cfunc_new(str_repr_)},
+
+        {"__add__", (ks_obj)ks_cfunc_new(str_add_)},
 
         {NULL, NULL}
     });

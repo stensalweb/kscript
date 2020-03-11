@@ -15,6 +15,9 @@ ks_cfunc
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
 
+    ks_F_getitem = NULL,
+    ks_F_setitem = NULL,
+
     ks_F_add = NULL,
     ks_F_sub = NULL,
     ks_F_mul = NULL,
@@ -27,7 +30,10 @@ ks_cfunc
     ks_F_gt = NULL,
     ks_F_ge = NULL,
     ks_F_eq = NULL,
-    ks_F_ne = NULL
+    ks_F_ne = NULL,
+
+    ks_F_neg = NULL,
+    ks_F_sqig = NULL
 
 ;
 
@@ -51,15 +57,11 @@ ks_list ks_call_stk = NULL;
  * 
  */
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
-
     if (func->type == ks_type_cfunc) {
         ks_cfunc cff = (ks_cfunc)func;
 
-        ks_str cs_info = cff->name_hr;
-        ks_list_push(ks_call_stk, (ks_obj)cs_info);
-
+        ks_list_push(ks_call_stk, func);
         ks_obj ret = cff->func(n_args, args);
-
         ks_list_popu(ks_call_stk);
 
         return ret;
@@ -98,7 +100,6 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
                 // free temporary results
                 ks_free(new_args);
 
-                // now return our created object
                 return ret;
             } else {
                 // no initializer, so call '__new__' with all the arguments
@@ -109,6 +110,7 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
                 ret->type = ft;
                 KS_INCREF(ret->type);
                 KS_DECREF(old_type);
+
                 return ret;
             }
         }
@@ -117,15 +119,17 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
         ks_obj* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
         *new_args = func;
         memcpy(&new_args[1], args, n_args);
-        ks_obj ret = ks_call(func->type->__call__, 1 + n_args, new_args);
-        ks_free(new_args);
 
+        ks_obj ret = ks_call(func->type->__call__, 1 + n_args, new_args);
+
+        ks_free(new_args);
         return ret;
 
     }
 
     // if nothing was returned
-    return (ks_obj)ks_throw_fmt(ks_type_Error, "'%T' object was not callable!", func);
+    ks_throw_fmt(ks_type_Error, "'%T' object was not callable!", func);
+    return NULL;
 }
 
 
@@ -166,7 +170,6 @@ static KS_FUNC(getattr) {
         return (ks_obj)ret;
     }
 
-
     // error
     KS_ERR_ATTR(obj, attr);
 }
@@ -190,6 +193,53 @@ static KS_FUNC(setattr) {
     // error
     KS_ERR_ATTR(obj, attr);
 }
+
+
+
+/* getitem(obj, *args) -> obj
+ *
+ * Try an get a value in 'obj'
+ *
+ */
+static KS_FUNC(getitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+
+    ks_obj obj = args[0];
+
+    if (obj->type->__getitem__ != NULL) {
+
+        // call type(obj).__getitem__(*args)
+        return ks_call(obj->type->__getitem__, n_args, args);
+    }
+
+    // error
+    KS_ERR_KEY_N(obj, n_args - 1, args + 1);
+}
+
+
+
+
+
+/* setitem(obj, *args, val) -> obj
+ *
+ * Try an set a value in 'obj'
+ *
+ */
+static KS_FUNC(setitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 2);
+
+    ks_obj obj = args[0];
+
+    if (obj->type->__setitem__ != NULL) {
+
+        // call type(obj).__setitem__(*args)
+        return ks_call(obj->type->__setitem__, n_args, args);
+    }
+
+    // error
+    KS_ERR_KEY_N(obj, n_args - 2, args + 1);
+}
+
 
 
 
@@ -416,6 +466,30 @@ T_KS_FUNC_BOP(ne, "!=", __ne__)
 
 
 
+// template for defining a unary operator function
+#define T_KS_FUNC_UOP(_name, _str, _fname)                 \
+static KS_FUNC(_name) {                                    \
+    KS_REQ_N_ARGS(n_args, 1);                              \
+    if (args[0]->type->_fname != NULL)                    \
+        return ks_call(args[0]->type->_fname, 1, args);   \
+    KS_ERR_UOP_UNDEF(_str, args[0]);              \
+}
+
+
+/* __neg__(V) -> obj
+ *
+ * Attempt to calculate '-V'
+ * 
+ */
+T_KS_FUNC_UOP(neg, "-", __neg__)
+
+/* __sqig__(V) -> obj
+ *
+ * Attempt to calculate '~V'
+ * 
+ */
+T_KS_FUNC_UOP(sqig, "~", __sqig__)
+
 
 
 
@@ -442,8 +516,14 @@ void ks_init_funcs() {
     ks_F_eq = ks_cfunc_new(eq_);
     ks_F_ne = ks_cfunc_new(ne_);
 
+    ks_F_neg = ks_cfunc_new(neg_);
+    ks_F_sqig = ks_cfunc_new(sqig_);
+
     ks_F_getattr = ks_cfunc_new(getattr_);
     ks_F_setattr = ks_cfunc_new(setattr_);
+
+    ks_F_getitem = ks_cfunc_new(getitem_);
+    ks_F_setitem = ks_cfunc_new(setitem_);
 
 
 

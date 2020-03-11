@@ -735,12 +735,12 @@ ks_ast ks_parse_expr(ks_parser self) {
             while (osp >= 0 && Sget(Out, osp) != NULL) osp--; \
             int n_args = Out.len - osp - 1; \
             /* now, they are contiguous in memory */ \
-            ks_ast new_list = ks_ast_new_list(&Sget(Out, osp+1), n_args); \
+            ks_ast new_list = ks_ast_new_list(n_args, &Sget(Out, osp+1)); \
             KSO_DECREF_N((kso*)&Sget(Out, osp+1), n_args); \
             new_list->tok = top.tok; \
             new_list->tok_expr = ks_tok_combo(top.tok, ctok); \
             Out.len -= n_args + 1; \
-            Spush(Out, new_list);\
+            Spush(Out, new_list); \
         } else { \
             PEXPR_ERR(ctok, "Internal Operator Error (%i)", top.type); \
         } \

@@ -227,6 +227,34 @@ static KS_TFUNC(int, ne) {
 
 
 
+// int.__neg__(V) -> negative int
+static KS_TFUNC(int, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj V = args[0];
+
+    if (V->type == ks_type_int) {
+        return (ks_obj)ks_int_new(-((ks_int)V)->val);
+    }
+
+    KS_ERR_UOP_UNDEF("-", V);
+};
+
+
+
+
+// int.__sqig__(V) -> sqig int
+static KS_TFUNC(int, sqig) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj V = args[0];
+
+    if (V->type == ks_type_int) {
+        return (ks_obj)ks_int_new(~((ks_int)V)->val);
+    }
+
+    KS_ERR_UOP_UNDEF("~", V);
+};
+
+
 // initialize int type
 void ks_type_int_init() {
     KS_INIT_TYPE_OBJ(ks_type_int, "int");
@@ -250,11 +278,10 @@ void ks_type_int_init() {
         {"__ge__", (ks_obj)ks_cfunc_new(int_ge_)},
         {"__eq__", (ks_obj)ks_cfunc_new(int_eq_)},
         {"__ne__", (ks_obj)ks_cfunc_new(int_ne_)},
+
+        {"__neg__", (ks_obj)ks_cfunc_new(int_neg_)},
+        {"__sqig__", (ks_obj)ks_cfunc_new(int_sqig_)},
  
-
-
-
-
         {NULL, NULL}   
     });
 }

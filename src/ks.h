@@ -205,6 +205,15 @@ enum {
     KSB_STORE_ATTR,
 
 
+    // Get an item via a subscript, i.e. obj[args]
+    // 1:[op] 4:[int n_items : number of items (including object itself)]
+    KSB_GETITEM,
+
+    // Set an item via a subscript, i.e. obj[args] = val
+    // 1:[op] 4:[int n_items : number of items (including object itself and value)]
+    KSB_SETITEM,
+
+
     /** OPERATORS **/
 
     /***  UNARY ***/
@@ -361,11 +370,39 @@ typedef struct ks_dict* ks_dict;
     return NULL; \
 }
 
+// Throw an operator undefined error and return NULL
+#define KS_ERR_UOP_UNDEF(_str, _V) { \
+    ks_throw_fmt(ks_type_Error, "operator '%s' not defined for '%T'", _str, _V); \
+    return NULL; \
+}
+
 // throw an attribute error
 #define KS_ERR_ATTR(_obj, _attr) { \
     ks_throw_fmt(ks_type_Error, "'%T' object has no attr %R", _obj, _attr); \
     return NULL; \
 }
+
+
+// throw an item key error
+#define KS_ERR_KEY(_obj, _key) { \
+    ks_throw_fmt(ks_type_Error, "'%T' object did not contain the key %*R", _obj, _key); \
+    return NULL; \
+}
+
+// throw an item key error for multiple key values
+#define KS_ERR_KEY_N(_obj, _nkeys, _keys) { \
+    int _nk = _nkeys; \
+    ks_obj* _ky = (ks_obj*)(_keys); \
+    ks_str_b SB; ks_str_b_init(&SB); \
+    int i; \
+    for (i = 0; i < _nk; ++i) ks_str_b_add_fmt(&SB, "%s%R", i > 0 ? " " : "", _ky[i]); \
+    ks_str sbs = ks_str_b_get(&SB); \
+    ks_str_b_free(&SB); \
+    ks_throw_fmt(ks_type_Error, "'%T' object did not contain the key %S", _obj, sbs); \
+    KS_DECREF(sbs); \
+    return NULL; \
+}
+
 
 // Put this macro at the beginning of the definition of any kscript object, i.e.:
 // struct my_obj {
@@ -507,6 +544,13 @@ struct ks_type {
     // type.__setattr__(self, attr, val) -> set an attribute on an object
     ks_obj __setattr__;
 
+    // type.__getitem__(self, key) -> get a value from an object
+    ks_obj __getitem__;
+
+    // type.__setitem__(self, key, val) -> set a value on an object
+    ks_obj __setitem__;
+
+
     /* operators */
 
     // type.__add__(A, B) -> return A + B
@@ -534,6 +578,12 @@ struct ks_type {
     ks_obj __eq__;
     // type.__ne__(A, B) -> return A != B
     ks_obj __ne__;
+
+    // type.__neg__(A) -> return -A
+    ks_obj __neg__;
+
+    // type.__sqig__(A) -> return ~A
+    ks_obj __sqig__;
 
 };
 
@@ -827,14 +877,27 @@ enum {
     // name is 'children[0]'
     KS_AST_VAR,
 
+    // Represents a list constructor, like [1, 2, 3]
+    // elements are in children
+    KS_AST_LIST,
+
+    // Represents a tuple constructor, like (1, 2, 3)
+    // elements are in children
+    KS_AST_TUPLE,
+
     // Represents an attribute reference, 'children[0].(children[1])'
     // the value is 'children[0]' (AST), but the attribute is a string, in 'children[1]'
     KS_AST_ATTR,
 
     // Represents a function call, func(*args)
     // func is 'children[0]'
-    // args are 'children[1:]
+    // args are 'children[1:]'
     KS_AST_CALL,
+    
+    // represents a subscript call, i.e. obj[*args]
+    // obj is 'children[0]'
+    // args are 'children[1:]
+    KS_AST_SUBSCRIPT,
 
     // Represents a return statement (a return without a result should be filled
     //   with a 'none' constant)
@@ -1120,8 +1183,14 @@ extern ks_cfunc
     ks_F_eq,
     ks_F_ne,
 
+    ks_F_neg,
+    ks_F_sqig,
+
     ks_F_getattr,
-    ks_F_setattr
+    ks_F_setattr,
+
+    ks_F_getitem,
+    ks_F_setitem
 
 
 ;
@@ -1416,6 +1485,12 @@ void ksca_push      (ks_code self, ks_obj val);
 void ksca_dup       (ks_code self);
 void ksca_popu      (ks_code self);
 
+void ksca_list      (ks_code self, int n_items);
+void ksca_tuple     (ks_code self, int n_items);
+
+void ksca_getitem   (ks_code self, int n_items);
+void ksca_setitem   (ks_code self, int n_items);
+
 void ksca_call      (ks_code self, int n_items);
 void ksca_ret       (ks_code self);
 void ksca_throw     (ks_code self);
@@ -1432,6 +1507,7 @@ void ksca_store     (ks_code self, ks_str name);
 void ksca_store_attr(ks_code self, ks_str name);
 
 void ksca_bop       (ks_code self, int ksb_bop_type);
+void ksca_uop       (ks_code self, int ksb_uop_type);
 
 
 // C-style versions
@@ -1460,6 +1536,16 @@ ks_ast ks_ast_new_const(ks_obj val);
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_var(ks_str name);
 
+// Create an AST representing a list constructor
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_list(int n_items, ks_ast* items);
+
+// Create an AST representing a list constructor
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
+
+
+
 // Create an AST representing an attribute reference
 // Type should always be string
 // NOTE: Returns a new reference
@@ -1468,6 +1554,10 @@ ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr);
 // Create an AST representing a function call
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
+
+// Create an AST representing a subscript
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_subscript(ks_ast obj, int n_args, ks_ast* args);
 
 // Create an AST representing a return statement
 // NOTE: Returns a new reference
@@ -1495,7 +1585,7 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body);
 
 // Create an AST representing a 'try' block
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body);
+ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name);
 
 // Create an AST representing a function definition
 // NOTE: Returns a new reference
@@ -1552,6 +1642,10 @@ ks_str ks_tok_expstr(ks_tok tok);
 // Create a new C-function wrapper
 // NOTE: Returns a new reference
 ks_cfunc ks_cfunc_new(ks_obj (*func)(int n_args, ks_obj* args));
+
+// Create a new C-function wrapper with a given signature
+// NOTE: Returns a new reference
+ks_cfunc ks_cfunc_new2(ks_obj (*func)(int n_args, ks_obj* args), char* hrname);
 
 
 /* PFUNC */

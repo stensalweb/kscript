@@ -209,7 +209,7 @@ static bool tok_isval(int type) {
 
 // return whether a given token type is a valid operator
 static bool tok_isop(int type) {
-    return false;
+    return type == KS_TOK_OP;
 }
 
 
@@ -369,10 +369,12 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_LBRC, "{")
         CASE_S(KS_TOK_RBRC, "}")
 
+        CASE_S(KS_TOK_OP, "**")
+
         // operators
         CASE_S(KS_TOK_OP, "+") CASE_S(KS_TOK_OP, "-")
         CASE_S(KS_TOK_OP, "*") CASE_S(KS_TOK_OP, "/")
-        CASE_S(KS_TOK_OP, "%") CASE_S(KS_TOK_OP, "**")
+        CASE_S(KS_TOK_OP, "%") 
         
         CASE_S(KS_TOK_OP, "<") CASE_S(KS_TOK_OP, "<=")
         CASE_S(KS_TOK_OP, ">") CASE_S(KS_TOK_OP, ">=")
@@ -800,8 +802,40 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             new_bop->tok = top.tok; new_bop->tok_expr = ks_tok_combo(L->tok_expr, R->tok_expr); \
             KS_DECREF(L); KS_DECREF(R); \
             Spush(Out, new_bop); \
+        } else if (top.type == SYT_UOP) { \
+            ks_ast V = Spop(Out); \
+            ks_ast new_uop = ks_ast_new_uop(top.uop_type, V); \
+            new_uop->tok = top.tok; new_uop->tok_expr = ks_tok_combo(top.tok, V->tok_expr); \
+            KS_DECREF(V); \
+            Spush(Out, new_uop); \
+        } else if (top.type == SYT_SUBSCRIPT) { \
+            /* basically: start at the top of the stack, scanning down for our NULL we added to the output 
+            to signify the start of the object */ \
+            int osp = Out.len - 1; \
+            while (osp >= 0 && Sget(Out, osp) != NULL) osp--; \
+            int n_args = Out.len - osp - 1; \
+            Sget(Out, osp) = Sget(Out, osp - 1); /* effectively swaps the NULL and the actual function call */ \
+            /* now, they are contiguous in memory */ \
+            ks_ast new_subs = ks_ast_new_subscript(Sget(Out, osp), n_args, &Sget(Out, osp+1)); \
+            KS_DECREF_N((ks_obj*)&Sget(Out, osp), n_args+1); \
+            new_subs->tok = top.tok; \
+            new_subs->tok_expr = ks_tok_combo(((ks_ast)new_subs->children->elems[0])->tok_expr, ctok); \
+            Out.len -= n_args + 2; \
+            Spush(Out, new_subs); \
         } else if (top.type == SYT_LPAR) { \
             /* skip it */ \
+        } else if (top.type == SYT_LBRACK) { \
+            /* we've encountered a list literal, scan down and find how many objects */ \
+            int osp = Out.len - 1; \
+            while (osp >= 0 && Sget(Out, osp) != NULL) osp--; \
+            int n_args = Out.len - osp - 1; \
+            /* now, they are contiguous in memory */ \
+            ks_ast new_list = ks_ast_new_list(n_args, (ks_ast*)&Sget(Out, osp+1)); \
+            KS_DECREF_N((ks_obj*)&Sget(Out, osp+1), n_args); \
+            new_list->tok = top.tok; \
+            new_list->tok_expr = ks_tok_combo(top.tok, ctok); \
+            Out.len -= n_args + 1; \
+            Spush(Out, new_list); \
         } else { \
             KPPE_ERR(ctok, "Internal Operator Error (%i)", top.type); \
         } \
@@ -813,7 +847,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
     ks_tok start_tok = CTOK();
 
-    // number of (left paren) - (right paren) or left - right brackets
+    // number of (left paren) - (right paren) and left - right brackets
     int n_pars = 0, n_brks = 0;
 
 
@@ -828,9 +862,21 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         // check if we should stop parsing due to being at the end
         if (ctok.type == KS_TOK_EOF || 
-            ctok.type == KS_TOK_NEWLINE || 
             ctok.type == KS_TOK_SEMI || 
             ctok.type == KS_TOK_LBRC || ctok.type == KS_TOK_RBRC) goto kppe_end;
+
+            
+        // only stop on newline if there are not outstanding parens or brks
+        else if (ctok.type == KS_TOK_NEWLINE) {
+            if (n_pars == 0 && n_brks == 0) {
+                // no outstanding calls, so do this
+                goto kppe_end;
+            } else {
+                // otherwise, skip it
+                ADV_1();
+                continue;
+            }
+        }
 
         if (ctok.type == KS_TOK_INT) {
             // push an integer onto the value stack
@@ -870,8 +916,8 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             // push a variable reference
 
             if (tok_iskw(ctok) && !(TOK_EQ(ctok, "true") || TOK_EQ(ctok, "false") || TOK_EQ(ctok, "none"))) {
+                KPPE_ERR(ctok, "Unexpected Keyword!");
                 goto kppe_end;
-            //    KPPE_ERR(ctok, "Unexpected Keyword!");
             }
 
             if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax, 2 value types not expected like this"); 
@@ -1028,6 +1074,47 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             // set the flag for the operator on top, so it knew it had a comma in it
             if (Ops.len > 0) Stop(Ops).had_comma = true;
 
+        } else if (ctok.type == KS_TOK_LBRK) {
+            n_brks++;
+
+            // we add a NULL to the output as a spacer
+            Spush(Out, NULL);
+                
+
+            if (tok_isval(ltok.type))  {
+                // add a subscript operation, since it is like `val[`
+                Spush(Ops, SYOP(SYT_SUBSCRIPT, ctok));
+            } else {
+                // just add a `[` which will ultimately become a list start
+                Spush(Ops, SYOP(SYT_LBRACK, ctok));
+            }
+
+
+        } else if (ctok.type == KS_TOK_RBRK) {
+            n_brks--;
+
+            // make sure there's been an `[` for this `]`
+            if (n_brks < 0) KPPE_ERR(ctok, "Invalid Syntax; extra ']', remove it")
+
+            // which one was actually it actually was for
+            syop used = {.type = SYT_NONE};
+
+
+            // a right bracket should clear the stack, to the nearest subscript, or list literal,
+            // and then that too
+            while (Ops.len > 0) {
+                syop top_op = Stop(Ops);
+
+                POP_OP();
+                // stop on these operators
+                if (top_op.type == SYT_SUBSCRIPT || top_op.type == SYT_LBRACK) { used = top_op; break; }
+            }
+
+            if (used.type == SYT_NONE) {
+                // then this means neither was found, which means there was some error
+                KPPE_ERR(ctok, "Invalid Syntax; wrong place for ']'")
+            }
+
         } else if (ctok.type == KS_TOK_LPAR) {
             n_pars++;
             
@@ -1092,8 +1179,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
                     if (n_items != 1 || used.had_comma) {
                         // there's definitely a tuple here, so create it
-                        KPPE_ERR(ctok, "Tuple not supported!");
-                        //new_val = ks_ast_new_tuple(&Sget(Out, osp+1), n_items);
+                        new_val = ks_ast_new_tuple(n_items, &Sget(Out, osp+1));
                         KS_DECREF_N((ks_obj*)&Sget(Out, osp+1), n_items);
                         new_val->tok = used.tok;
                         // join the first and last
@@ -1139,7 +1225,10 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
         syntax_error(ltok, "Missing ending parenthesis after here");
         goto kppe_err;
     }
-
+    if (n_brks > 0) {
+        syntax_error(ltok, "Missing ending brackets after here");
+        goto kppe_err;
+    }
     // pop off operators
     while (Ops.len > 0) {
         POP_OP();
@@ -1249,7 +1338,9 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         ks_ast ret = ks_ast_new_throw(expr);
         KS_DECREF(expr);
 
-        ret->tok = ret->tok_expr = start_tok;
+        ret->tok = start_tok;
+
+        ret->tok_expr = ks_tok_combo(start_tok, expr->tok_expr);
 
         return ret;
 
@@ -1419,15 +1510,53 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             goto kpps_err;
         }
 
-        SKIP_IRR_S();
+        SKIP_IRR_E();
+
+        if (CTOK().type == KS_TOK_EOF) {
+            syntax_error(CTOK(), "Unexpected EOF");
+            goto kpps_err;
+        } else if (CTOK().type == KS_TOK_COMMA) {
+            // skip the comma, its just for shortness
+            ADV_1();
+            SKIP_IRR_E();
+
+        } else {
+            SKIP_IRR_S();
+
+        }
 
         if (TOK_EQ(CTOK(), "catch")) {
             ADV_1();
+
+            // check if we have an assignment
+            SKIP_IRR_E();
+
+            // the name to catch into
+            ks_str catch_name = NULL;
+
             // parse another statement
             if (CTOK().type == KS_TOK_COMMA) {
                 // skip it so inline statements can be used
                 ADV_1();
+            } else if (CTOK().type == KS_TOK_IDENT) {
+                // otherwise, parse out the name of the error and/or errtype
+                catch_name = ks_str_new_l(CTOK().parser->src->chr + CTOK().pos, CTOK().len);
+
+                ADV_1();
+
+                SKIP_IRR_E();
+                if (CTOK().type == KS_TOK_COMMA) {
+                    // skip it so inline statements can be used
+                    ADV_1();
+                    SKIP_IRR_E();
+                }
+
+            } else {
+                syntax_error(CTOK(), "Unexpected token");
+                goto kpps_err;
             }
+
+
             SKIP_IRR_S();
 
             catch_blk = ks_parser_parse_stmt(self);
@@ -1436,13 +1565,14 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
                 goto kpps_err;
             }
 
-            ks_ast res = ks_ast_new_try(body, catch_blk);
+            ks_ast res = ks_ast_new_try(body, catch_blk, catch_name);
 
             res->tok = res->tok_expr = start_tok;
 
             // they are now contained in 'res'
             KS_DECREF(body);
             if (catch_blk) KS_DECREF(catch_blk);
+            if (catch_name) KS_DECREF(catch_name);
 
 
 

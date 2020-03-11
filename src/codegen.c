@@ -132,18 +132,57 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // add meta data
         ks_code_add_meta(to, self->tok_expr);
 
-
         // record the new item on the stack
         st->stk_len++;
 
+
     } else if (self->kind == KS_AST_CONST) {
+
+        // push on a constant
+        ksca_push(to, self->children->elems[0]);
 
         // add meta data
         ks_code_add_meta(to, self->tok_expr);
 
-        // push on a constant
-        ksca_push(to, self->children->elems[0]);
         st->stk_len++;
+
+
+    } else if (self->kind == KS_AST_LIST) {
+
+        // first, calculcate children
+        int i;
+        for (i = 0; i < self->children->len; ++i) {
+            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+        }
+
+        assert(start_len + self->children->len == st->stk_len && "'list' children did not produce values!");
+
+        ksca_list(to, self->children->len);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // it will take all the children off, but push on a single value
+        st->stk_len += 1 - self->children->len;
+
+    } else if (self->kind == KS_AST_TUPLE) {
+
+        // first, calculcate children
+        int i;
+        for (i = 0; i < self->children->len; ++i) {
+            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+        }
+
+        assert(start_len + self->children->len == st->stk_len && "'tuple' children did not produce values!");
+
+        ksca_tuple(to, self->children->len);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // it will take all the children off, but push on a single value
+        st->stk_len += 1 - self->children->len;
+
 
     } else if (self->kind == KS_AST_ATTR) {
 
@@ -160,7 +199,25 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         ks_code_add_meta(to, self->tok_expr);
 
         // don't increase the stack length, since it will just replace TOS
+    } else if (self->kind == KS_AST_SUBSCRIPT) {
 
+        // first, generate al the kids
+        int i;
+        for (i = 0; i < self->children->len; ++i) {
+            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+        }
+
+        // ensure correct number of arguments were emitted
+        assert(start_len + self->children->len == st->stk_len && "Subscript arguments was not emitted correctly!");
+
+        // emit a getitem
+        ksca_getitem(to, self->children->len);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+
+        st->stk_len += 1 - self->children->len;
 
     } else if (self->kind == KS_AST_CALL) {
         // do a function call
@@ -279,6 +336,22 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         st->stk_len -= 2;
         // one result is poppped back on
         st->stk_len++;
+
+    } else if (KS_AST_UOP__FIRST <= self->kind && self->kind <= KS_AST_UOP__LAST) {
+        // unary operator
+        ks_ast V = (ks_ast)self->children->elems[0];
+
+        // try and emit it
+        if (!ast_emit(V, st, to)) return false;
+
+        assert(st->stk_len == start_len + 1 && "Unary operator did not emit 1 operand!");
+
+        ksca_uop(to, (self->kind - KS_AST_UOP__FIRST) + KSB_UOP_NEG);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // stack is not changed, since it is effectively replaced
 
 
     } else if (self->kind == KS_AST_BLOCK) {
@@ -498,8 +571,9 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
     } else if (self->kind == KS_AST_TRY) {
         // execute a try catch block
 
-        ks_ast b_try = (ks_ast)self->children->elems[0], b_catch = (ks_ast)self->children->elems[1];
-
+        ks_ast b_try = (ks_ast)self->children->elems[0], 
+               b_catch = (ks_ast)self->children->elems[1];
+        ks_str b_catch_name = (ks_str)(self->children->len > 2 ? self->children->elems[2] : NULL);
 
         // position the instruction is at
         int tj_i = to->bc_n;
@@ -527,6 +601,13 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         st->stk_len++;
 
         // TODO: add an assignment, right now just reset it
+
+        if (b_catch_name) {
+            // add an assignment
+            ksca_store(to, b_catch_name);
+        }
+
+
         RESET_STK(0);
 
         // now, start generating the 'catch' body

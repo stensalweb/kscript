@@ -26,7 +26,6 @@ void ks_obj_free(ks_obj obj) {
 
     } else {
         // otherwise, call the function
-        //ks_info("Freeing object %s", obj->type->__name__->chr);
         if (!ks_call(obj->type->__free__, 1, &obj)) {
             // there was an error in the freeing function
             ks_warn("Error freeing object %p", obj);

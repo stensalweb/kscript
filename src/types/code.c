@@ -98,6 +98,12 @@ void ksca_push   (ks_code self, ks_obj val) KSCA_B_I32(KSB_PUSH, ks_code_add_con
 void ksca_dup    (ks_code self) KSCA_B(KSB_DUP)
 void ksca_popu   (ks_code self) KSCA_B(KSB_POPU)
 
+void ksca_getitem   (ks_code self, int n_items) KSCA_B_I32(KSB_GETITEM, n_items)
+void ksca_setitem   (ks_code self, int n_items) KSCA_B_I32(KSB_SETITEM, n_items)
+
+void ksca_list      (ks_code self, int n_items) KSCA_B_I32(KSB_LIST, n_items)
+void ksca_tuple     (ks_code self, int n_items) KSCA_B_I32(KSB_TUPLE, n_items)
+
 void ksca_call   (ks_code self, int n_items) KSCA_B_I32(KSB_CALL, n_items)
 void ksca_ret    (ks_code self) KSCA_B(KSB_RET)
 void ksca_throw  (ks_code self) KSCA_B(KSB_THROW)
@@ -108,7 +114,6 @@ void ksca_jmpf   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPF, relamt)
 void ksca_try_start (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_START, relamt)
 void ksca_try_end   (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_END, relamt)
 
-
 void ksca_load      (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD, ks_code_add_const(self, (ks_obj)name))
 void ksca_load_attr (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD_ATTR, ks_code_add_const(self, (ks_obj)name))
 void ksca_store     (ks_code self, ks_str name) KSCA_B_I32(KSB_STORE, ks_code_add_const(self, (ks_obj)name))
@@ -116,6 +121,7 @@ void ksca_store_attr(ks_code self, ks_str name) KSCA_B_I32(KSB_STORE_ATTR, ks_co
 
 
 void ksca_bop       (ks_code self, int ksb_bop_type) KSCA_B(ksb_bop_type)
+void ksca_uop       (ks_code self, int ksb_uop_type) KSCA_B(ksb_uop_type)
 
 
 /* C-style funcs */
@@ -365,6 +371,25 @@ static KS_TFUNC(code, str) {
             ks_str_b_add_fmt(&SB, "popu");
             break;
 
+        case KSB_LIST:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "list %i", val);
+            break;
+
+        case KSB_TUPLE:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "tuple %i", val);
+            break;
+
+        case KSB_GETITEM:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "getitem %i", val);
+            break;
+
+        case KSB_SETITEM:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "setitem %i", val);
+            break;
 
         case KSB_CALL:
             i += 4;
@@ -442,6 +467,14 @@ static KS_TFUNC(code, str) {
         OP_CASE(KSB_BOP_GE, ">=")
         OP_CASE(KSB_BOP_EQ, "==")
         OP_CASE(KSB_BOP_NE, "!=")
+        
+        #define UOP_CASE(_op, _str) case _op: ks_str_b_add_fmt(&SB, "bop " _str); break;
+
+        OP_CASE(KSB_UOP_NEG, "-")
+        OP_CASE(KSB_UOP_SQIG, "~")
+
+
+
 
 
         default:

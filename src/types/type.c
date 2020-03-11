@@ -103,6 +103,9 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__getattr__", __getattr__)
         ATTR_CASE("__setattr__", __setattr__)
 
+        ATTR_CASE("__getitem__", __getitem__)
+        ATTR_CASE("__setitem__", __setitem__)
+
         ATTR_CASE("__call__", __call__)
         
         ATTR_CASE("__free__", __free__)
@@ -120,6 +123,9 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__ge__", __ge__)
         ATTR_CASE("__eq__", __eq__)
         ATTR_CASE("__ne__", __ne__)
+
+        ATTR_CASE("__neg__", __neg__)
+        ATTR_CASE("__sqig__", __sqig__)
 
 
         else {

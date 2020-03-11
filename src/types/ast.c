@@ -36,6 +36,35 @@ ks_ast ks_ast_new_var(ks_str name) {
     return self;
 }
 
+
+// Create an AST representing a list constructor
+ks_ast ks_ast_new_list(int n_items, ks_ast* items) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_LIST;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(n_items, (ks_obj*)items);
+
+    return self;
+}
+
+
+// Create an AST representing a list constructor
+ks_ast ks_ast_new_tuple(int n_items, ks_ast* items) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_TUPLE;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(n_items, (ks_obj*)items);
+
+    return self;
+}
+
+
 // Create an AST representing an attribute reference
 // Type should always be string
 ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr) {
@@ -59,6 +88,22 @@ ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args) {
     self->kind = KS_AST_CALL;
     self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, (ks_obj*)&func);
+
+    // push args too
+    ks_list_pushn(self->children, n_args, (ks_obj*)args);
+
+    return self;
+}
+
+// Create an AST representing a subscript
+ks_ast ks_ast_new_subscript(ks_ast obj, int n_args, ks_ast* args) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_SUBSCRIPT;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(1, (ks_obj*)&obj);
 
     // push args too
     ks_list_pushn(self->children, n_args, (ks_obj*)args);
@@ -142,7 +187,7 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body) {
 
 // Create an AST representing a 'try' block
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body) {
+ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 
@@ -150,7 +195,11 @@ ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body) {
     self->kind = KS_AST_TRY;
     self->tok = self->tok_expr = (ks_tok){NULL};
     self->children = ks_list_new(1, (ks_obj[]){ (ks_obj)try_body });
-    if (catch_body) ks_list_push(self->children, (ks_obj)catch_body);
+    if (catch_body) {
+        ks_list_push(self->children, (ks_obj)catch_body);
+        if (catch_name) ks_list_push(self->children, (ks_obj)catch_name);
+
+    }
 
     return self;
 }
