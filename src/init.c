@@ -35,11 +35,16 @@ ks_dict ks_globals = NULL;
 bool ks_init() {
     gettimeofday(&ks_start_time, NULL);
 
+    ks_mem_init();
+
+    ks_log_init();
+
     // initialize the builtin types
     ks_type_type_init();
     ks_type_none_init();
     ks_type_bool_init();
     ks_type_int_init();
+    ks_type_float_init();
     ks_type_str_init();
     ks_type_tuple_init();
     ks_type_list_init();
@@ -57,6 +62,7 @@ bool ks_init() {
     ks_init_funcs();
 
 
+
 //    ks_type_vm_init();
 
 
@@ -69,6 +75,7 @@ bool ks_init() {
 
         {"bool",       KS_NEWREF(ks_type_bool)},
         {"int",        KS_NEWREF(ks_type_int)},
+        {"float",      KS_NEWREF(ks_type_float)},
         
         {"str",        KS_NEWREF(ks_type_str)},
         {"list",       KS_NEWREF(ks_type_list)},
@@ -80,12 +87,19 @@ bool ks_init() {
 
         {"thread",     KS_NEWREF(ks_type_thread)},
 
-
         /* functions */
 
         {"hash",       KS_NEWREF(ks_F_hash)},
         {"repr",       KS_NEWREF(ks_F_repr)},
         {"print",      KS_NEWREF(ks_F_print)},
+        {"len",        KS_NEWREF(ks_F_len)},
+        {"typeof",     KS_NEWREF(ks_F_typeof)},
+
+        /* math constants */
+
+        {"PI",         (ks_obj)ks_float_new(3.141592653589793238462643383279502884)},
+        {"E",          (ks_obj)ks_float_new(2.7182818284590452353602874713526625)},
+        {"PHI",        (ks_obj)ks_float_new(1.6180339887498948482045868343656381177)},
 
 
         // end

@@ -9,8 +9,9 @@
 
 
 // forward declare it
-KS_TYPE_DECLFWD(ks_type_thread);
 KS_TYPE_DECLFWD(ks_type_stack_frame);
+KS_TYPE_DECLFWD(ks_type_mutex);
+KS_TYPE_DECLFWD(ks_type_thread);
 
 /** MISC THREAD TYPES **/
 
@@ -81,6 +82,76 @@ static KS_TFUNC(stack_frame, str) {
 };
 
 
+/* MUTEX */
+
+// Construct a new, unlocked, mutex
+// NOTE: This returns a new reference
+ks_mutex ks_mutex_new() {
+    ks_mutex self = KS_ALLOC_OBJ(ks_mutex);
+    KS_INIT_OBJ(self, ks_type_mutex);
+
+    // create pthread's mutex
+    pthread_mutex_init(&self->_mut, NULL);
+
+    return self;
+}
+
+// Lock a mutex
+void ks_mutex_lock(ks_mutex self) {
+    pthread_mutex_lock(&self->_mut);
+}
+
+// Unlock a mutex
+void ks_mutex_unlock(ks_mutex self) {
+    pthread_mutex_unlock(&self->_mut);
+}
+
+/* member functions */
+
+
+
+static KS_TFUNC(mutex, lock) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_mutex self = (ks_mutex)args[0];
+    KS_REQ_TYPE(self, ks_type_mutex, "self");
+
+    // lock itself
+    ks_mutex_lock(self);
+
+    // always return true (success)
+    return KSO_TRUE;
+
+}
+
+static KS_TFUNC(mutex, unlock) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_mutex self = (ks_mutex)args[0];
+    KS_REQ_TYPE(self, ks_type_mutex, "self");
+
+    // unlock itself
+    ks_mutex_unlock(self);
+
+    // always return true (success)
+    return KSO_TRUE;
+
+}
+
+static KS_TFUNC(mutex, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_mutex self = (ks_mutex)args[0];
+    KS_REQ_TYPE(self, ks_type_mutex, "self");
+
+    // free mutex resource
+    pthread_mutex_destroy(&self->_mut);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+
+}
+
+
 
 /* ACTUAL THREAD TYPE */
 
@@ -107,8 +178,9 @@ ks_thread ks_thread_new(char* name) {
     ks_thread self = KS_ALLOC_OBJ(ks_thread);
     KS_INIT_OBJ(self, ks_type_thread);
 
-    pthread_mutex_init(&self->_mut, NULL);
-    pthread_mutex_lock(&self->_mut);
+    self->mut = ks_mutex_new();
+    ks_mutex_lock(self->mut);
+
 
     if (name) {
         self->name = ks_str_new(name);
@@ -126,7 +198,7 @@ ks_thread ks_thread_new(char* name) {
     pthread_create(&self->_pth, NULL, thread_init, self);
 
     // done with initialization
-    pthread_mutex_unlock(&self->_mut);
+    ks_mutex_unlock(self->mut);
 
     return self;
 }
@@ -143,12 +215,15 @@ ks_thread ks_thread_cur() {
 // Lock a thread
 // NOTE: Use ks_thread_unlock(self) once the lock is through
 void ks_thread_lock(ks_thread self) {
-    pthread_mutex_lock(&self->_mut);
+    if (!self) self = main_thread;
+    ks_mutex_lock(self->mut);
 }
 
 // Unlock a thread locked with 'ks_thread_lock(self)'
 void ks_thread_unlock(ks_thread self) {
-    pthread_mutex_unlock(&self->_mut);
+    if (!self) self = main_thread;
+    ks_mutex_unlock(self->mut);
+
 }
 
 
@@ -172,13 +247,16 @@ static KS_TFUNC(thread, free) {
     ks_thread self = (ks_thread)args[0];
     KS_REQ_TYPE(self, ks_type_thread, "self");
 
+    ks_debug("thread <%p> done!", self);
 
     // ensure that has completed
     pthread_join(self->_pth, NULL);
 
+    // dereference vars
+    KS_DECREF(self->mut);
+
 
     KS_DECREF(self->stk);
-
     ks_free(self->stack_frames);
 
     KS_UNINIT_OBJ(self);
@@ -204,22 +282,31 @@ static KS_TFUNC(thread, this) {
 
 // initialize thread type
 void ks_type_thread_init() {
-    KS_INIT_TYPE_OBJ(ks_type_thread, "thread");
     KS_INIT_TYPE_OBJ(ks_type_stack_frame, "stack_frame");
+    KS_INIT_TYPE_OBJ(ks_type_mutex, "mutex");
+    KS_INIT_TYPE_OBJ(ks_type_thread, "thread");
+
+
+    ks_type_set_cn(ks_type_stack_frame, (ks_dict_ent_c[]){
+        {"__str__", (ks_obj)ks_cfunc_new(stack_frame_str_)},
+        {"__free__", (ks_obj)ks_cfunc_new(stack_frame_free_)},
+        {NULL, NULL}   
+    });
+
+    ks_type_set_cn(ks_type_mutex, (ks_dict_ent_c[]){
+        {"lock", (ks_obj)ks_cfunc_new(mutex_lock_)},
+        {"unlock", (ks_obj)ks_cfunc_new(mutex_unlock_)},
+
+        {"__free__", (ks_obj)ks_cfunc_new(mutex_free_)},
+        {NULL, NULL}   
+    });
 
     ks_type_set_cn(ks_type_thread, (ks_dict_ent_c[]){
         {"__str__", (ks_obj)ks_cfunc_new(thread_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(thread_str_)},
         {"__this__", (ks_obj)ks_cfunc_new(thread_this_)},
         {"__free__", (ks_obj)ks_cfunc_new(thread_free_)},
-
         
-        {NULL, NULL}   
-    });
-
-    ks_type_set_cn(ks_type_stack_frame, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new(stack_frame_str_)},
-        {"__free__", (ks_obj)ks_cfunc_new(stack_frame_free_)},
         {NULL, NULL}   
     });
 

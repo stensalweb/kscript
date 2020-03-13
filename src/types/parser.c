@@ -204,7 +204,7 @@ ks_tok ks_tok_combo(ks_tok A, ks_tok B) {
 
 // return whether a given token type is a valid yielding type
 static bool tok_isval(int type) {
-    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_INT || type == KS_TOK_STR || type == KS_TOK_RBRK;
+    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_INT || type == KS_TOK_FLOAT || type == KS_TOK_STR || type == KS_TOK_RBRK;
 }
 
 // return whether a given token type is a valid operator
@@ -227,6 +227,21 @@ static int64_t tok_getint(ks_tok tok) {
     tmp[len] = '\0';
     return atoll(tmp);
 }
+
+// generates a float rom the token, assuming it is an integer literal
+static double tok_getfloat(ks_tok tok) {
+    if (tok.type != KS_TOK_FLOAT) {
+        ks_warn("tok_getfloat() passed a non-float token (type %i)", tok.type);
+        return 0;
+    }
+    static char tmp[100];
+    int len = tok.len;
+    if (len > 99) len = 99;
+    memcpy(tmp, tok.parser->src->chr + tok.pos, len);
+    tmp[len] = '\0';
+    return atof(tmp);
+}
+
 
 // returns a string literal value of the token, but unescaped.
 // For example, 'Hello\nWorld' replaces the \\ and n with 
@@ -302,7 +317,16 @@ static void* tokenize(ks_parser self) {
 
             if (self->src->chr[i] == '.') {
                 // we are parsing some sort of float
-                return ks_throw_fmt(NULL, "No float support yet!");
+                //return ks_throw_fmt(NULL, "No float support yet!");
+                i++;
+
+                // any more digits ?
+                while (isdigit(self->src->chr[i])) {
+                    ADV();
+                }
+
+                ADDTOK(KS_TOK_FLOAT);
+
 
             } else {
                 // we are parsing an integer, so we're fininshed
@@ -380,6 +404,7 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_OP, ">") CASE_S(KS_TOK_OP, ">=")
         CASE_S(KS_TOK_OP, "==") CASE_S(KS_TOK_OP, "!=")
 
+        CASE_S(KS_TOK_OP, "~")
         CASE_S(KS_TOK_OP, "=")
 
         else {
@@ -893,7 +918,21 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
             // push it on the output stack
             Spush(Out, new_ast);
+        } else if (ctok.type == KS_TOK_FLOAT) {
+            // push an integer onto the value stack
+            if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
+            // convert token to actual int value
+            ks_float new_float = ks_float_new(tok_getfloat(ctok));
+
+            // transform it into an AST
+            ks_ast new_ast = ks_ast_new_const((ks_obj)new_float);
+            KS_DECREF(new_float);
+
+            new_ast->tok = new_ast->tok_expr = ctok;
+
+            // push it on the output stack
+            Spush(Out, new_ast);
         } else if (ctok.type == KS_TOK_STR) {
             // push a string onto the value stack
             if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax, 2 value types not expected like this"); 

@@ -100,6 +100,8 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__str__", __str__)
         ATTR_CASE("__repr__", __repr__)
 
+        ATTR_CASE("__len__", __len__)
+
         ATTR_CASE("__getattr__", __getattr__)
         ATTR_CASE("__setattr__", __setattr__)
 

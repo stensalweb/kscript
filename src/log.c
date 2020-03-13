@@ -35,9 +35,18 @@ void ks_log_level_set(int new_level) {
 // keep true if is logging
 static bool is_logging = false;
 
+static ks_mutex mut = NULL;
+
+void ks_log_init() {
+    mut = ks_mutex_new();
+}
+
 
 // print variadically
 void ks_printf(const char* fmt, ...) {
+    //if (is_logging) return;
+    //is_logging = true;
+    ks_mutex_lock(mut);
 
     // call the vfprintf
     va_list args;
@@ -46,25 +55,27 @@ void ks_printf(const char* fmt, ...) {
     ks_str gen_str = ks_fmt_vc(fmt, args);
     va_end(args);
 
-    fprintf(stdout, "%s", gen_str->chr);
+    fprintf(stderr, "%s", gen_str->chr);
 
     KS_DECREF(gen_str);
 
     // flush the output
-    fflush(stdout);
+    fflush(stderr);
+
+    ks_mutex_unlock(mut);
+
+    //is_logging = false;
 }
+
 
 // logs with a levl. use the macros `ks_info`, etc
 void ks_log(int level, const char *file, int line, const char* fmt, ...) {
-    if (level < log_level) {
+    if (level < log_level || is_logging) {
         // not important
         return;
     }
-
-    // check for recursion
-    if (is_logging) return;
-
     is_logging = true;
+    ks_mutex_lock(mut);
 
     // TODO: perhaps roll my own printf? similar to what I did for ks_str_new_cfmt()
     // by my tests, it performed about 9x-10x faster than using snprintf, even with small, simple arguments
@@ -73,7 +84,7 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     // for now, just generate the string, print it, then free it
 
     // print a header
-    fprintf(stdout, BOLD "%s" RESET ": ", _level_strs[level]);
+    fprintf(stderr, BOLD "%s" RESET ": ", _level_strs[level]);
 
     // call the vfprintf
     va_list args;
@@ -82,23 +93,19 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...) {
     // use advanced formatting
     /*
     ks_str rstr = ks_str_new_vcfmt(fmt, args);
-    fwrite(rstr->chr, 1, rstr->len, stdout);
+    fwrite(rstr->chr, 1, rstr->len, stderr);
     KSO_DECREF(rstr);
     */
-    //vfprintf(stdout, fmt, args);
+    //vfprintf(stderr, fmt, args);
     ks_str gen_str = ks_fmt_vc(fmt, args);
     va_end(args);
 
-    fprintf(stdout, "%s", gen_str->chr);
-
+    fprintf(stderr, "%s\n", gen_str->chr);
     KS_DECREF(gen_str);
 
-    // always end with a newline for this function
-    fprintf(stdout, "\n");
-
     // flush the output
-    fflush(stdout);
-
+    fflush(stderr);
     is_logging = false;
 
+    ks_mutex_unlock(mut);
 }

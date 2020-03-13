@@ -128,6 +128,15 @@ static KS_TFUNC(str, free) {
 };
 
 
+// str.__len__(self) -> get the length
+static KS_TFUNC(str, len) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+
+    return (ks_obj)ks_int_new(self->len);
+};
+
 // str.__repr__(self) -> get the string representation
 static KS_TFUNC(str, repr) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -136,8 +145,6 @@ static KS_TFUNC(str, repr) {
 
     return (ks_obj)ks_fmt_c("'%S'", self);
 };
-
-
 
 // str.__add__(L, R) -> return the sum of 2 objects, by summing them
 static KS_TFUNC(str, add) {
@@ -157,6 +164,8 @@ void ks_type_str_init() {
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
         {"__new__", (ks_obj)ks_cfunc_new(str_new_)},
         {"__free__", (ks_obj)ks_cfunc_new(str_free_)},
+
+        {"__len__", (ks_obj)ks_cfunc_new(str_len_)},
 
         {"__repr__", (ks_obj)ks_cfunc_new(str_repr_)},
 

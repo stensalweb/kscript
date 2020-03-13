@@ -11,6 +11,8 @@ ks_cfunc
     ks_F_hash = NULL,
     ks_F_repr = NULL,
     ks_F_print = NULL,
+    ks_F_len = NULL,
+    ks_F_typeof = NULL,
 
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -131,6 +133,42 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
     ks_throw_fmt(ks_type_Error, "'%T' object was not callable!", func);
     return NULL;
 }
+
+
+/* len(obj) -> int
+ *
+ * Get the length for an object
+ *
+ */
+static KS_FUNC(len) {
+    KS_REQ_N_ARGS(n_args, 1);
+
+    ks_obj obj = args[0];
+
+    if (obj->type->__len__ != NULL) {
+
+        // call type(obj).__getattr__(obj, attr)
+        return ks_call(obj->type->__len__, 1, &obj);
+    }
+
+    // error
+    //KS_ERR_ATTR(obj, attr);
+    ks_throw_fmt(ks_type_Error, "'%T' object had no '__len__' method!", obj);
+    return NULL;
+}
+
+/* typeof(obj) -> type
+ *
+ * Get the type of an object
+ *
+ */
+static KS_FUNC(typeof) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj obj = args[0];
+
+    return KS_NEWREF(obj->type);
+}
+
 
 
 /* getattr(obj, attr) -> obj
@@ -501,6 +539,8 @@ void ks_init_funcs() {
     ks_F_repr = ks_cfunc_new(repr_);
     ks_F_hash = ks_cfunc_new(hash_);
     ks_F_print = ks_cfunc_new(print_);
+    ks_F_len = ks_cfunc_new(len_);
+    ks_F_typeof = ks_cfunc_new(typeof_);
 
     ks_F_add = ks_cfunc_new(add_);
     ks_F_sub = ks_cfunc_new(sub_);

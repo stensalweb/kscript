@@ -368,6 +368,13 @@ typedef struct ks_dict* ks_dict;
 // Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
 #define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
 
+
+// throw a type conversion error
+#define KS_ERR_CONV(_obj, _totype) { \
+    ks_throw_fmt(ks_type_Error, "'%T' object could not be converted to %S", _obj, _totype); \
+    return NULL; \
+}
+
 // Throw an operator undefined error and return NULL
 #define KS_ERR_BOP_UNDEF(_str, _L, _R) { \
     ks_throw_fmt(ks_type_Error, "operator '%s' not defined for '%T' and '%T'", _str, _L, _R); \
@@ -385,7 +392,6 @@ typedef struct ks_dict* ks_dict;
     ks_throw_fmt(ks_type_Error, "'%T' object has no attr %R", _obj, _attr); \
     return NULL; \
 }
-
 
 // throw an item key error
 #define KS_ERR_KEY(_obj, _key) { \
@@ -520,6 +526,12 @@ struct ks_type {
 
     // type.__parents__ -> a list of parent classes from which this type derives from
     ks_list __parents__;
+
+
+
+
+    // type.__len__(self) -> get the length of an item
+    ks_obj __len__;
 
 
     // type.__str__(self) -> convert an item to a string
@@ -703,6 +715,17 @@ typedef struct {
 
 }* ks_int;
 
+
+// ks_float - type representing a floating point real number
+typedef struct {
+    KS_OBJ_BASE
+
+    // the actual float value
+    double val;
+
+}* ks_float;
+
+
 // ks_str - type representing a string of characters. Internally, the buffer is length encoded & NUL-terminated
 //   and the hash is computed at creation time
 struct ks_str {
@@ -742,6 +765,9 @@ enum {
 
     // an integer numerical literal (i.e. '123', '345', etc)
     KS_TOK_INT,
+
+    // an floating-point numerical literal (i.e. '123.0', '345.', etc)
+    KS_TOK_FLOAT,
 
     // a string constant, wrapped in quotes (i.e. '"Abc\nDef"')
     KS_TOK_STR,
@@ -1098,7 +1124,28 @@ typedef struct {
 
 
 // create a new stack frame
+// NOTE: This returns a new reference
 ks_stack_frame ks_stack_frame_new(ks_obj func);
+
+// ks_mutex - a mutual exclusion type, which can be locked over threads
+typedef struct {
+    KS_OBJ_BASE
+
+    /* internal pthread object */
+
+    pthread_mutex_t _mut;
+
+}* ks_mutex;
+
+// Construct a new, unlocked, mutex
+// NOTE: This returns a new reference
+ks_mutex ks_mutex_new();
+
+// Lock a mutex
+void ks_mutex_lock(ks_mutex self);
+
+// Unlock a mutex
+void ks_mutex_unlock(ks_mutex self);
 
 
 // ks_thread - a thread that is currently executing code
@@ -1110,14 +1157,15 @@ typedef struct {
     // the underlying pthread object
     pthread_t _pth;
 
-    // mutex for locking access to a thread
-    pthread_mutex_t _mut;
 
 
     /* general variables about the thread */
 
     // readable name for the thread, or just the address
     ks_str name;
+
+    // mutex object
+    ks_mutex mut;
 
 
     /* execution variables */
@@ -1212,6 +1260,7 @@ extern ks_type
     ks_type_none,
     ks_type_bool,
     ks_type_int,
+    ks_type_float,
     ks_type_str,
     ks_type_tuple,
     ks_type_list,
@@ -1220,6 +1269,7 @@ extern ks_type
     ks_type_Error,
 
     ks_type_stack_frame,
+    ks_type_mutex,
     ks_type_thread,
 
     ks_type_code,
@@ -1237,6 +1287,8 @@ extern ks_cfunc
     ks_F_repr,
     ks_F_hash,
     ks_F_print,
+    ks_F_len,
+    ks_F_typeof,
 
     // operators
 
@@ -1397,6 +1449,16 @@ int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
 ks_int ks_int_new(int64_t val);
+
+
+
+/* FLOAT */
+
+// Create a new kscript int from a C-style integer value
+// NOTE: Returns a new reference
+ks_float ks_float_new(double val);
+
+
 
 
 /* STR */

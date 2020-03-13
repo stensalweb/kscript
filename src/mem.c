@@ -14,13 +14,16 @@
 
 // only enable trace calls if the build enabled memory tracing
 #ifdef KS_MEM_TRACE
-#define memtrace(...) if (ks_log_level() == KS_LOG_TRACE) fprintf(stderr, "[ks_mem] " __VA_ARGS__);
+#define memtrace(...) if (ks_log_level() == KS_LOG_TRACE) { fprintf(stderr, "[ks_mem] " __VA_ARGS__); }
 #else
 #define memtrace(...)
 #endif
 
 // keep track of the current & maximum amount of memory that has been allocated by kscript
 static ks_size_t cur_mem = 0, max_mem = 0;
+
+// mutex requiored for memory operations
+static ks_mutex mut = NULL;
 
 // record a change in the given memory
 static void add_mem(int64_t amt) {
@@ -37,6 +40,14 @@ int64_t ks_mem_max() {
     return max_mem;
 }
 
+// initialize the memory system
+void ks_mem_init() {
+    mut = NULL;
+    ks_mutex _mut = ks_mutex_new();
+
+    mut = _mut;
+}
+
 
 // ks_ibuf - internal buffer datastructure used for storing meta-data about the allocated buffer
 struct ks_ibuf {
@@ -50,11 +61,13 @@ struct ks_ibuf {
 void* ks_malloc(ks_size_t sz) {
     if (sz == 0) return NULL;
 
+    if (mut) ks_mutex_lock(mut);
+
     // attempt to allocate a buffer
     struct ks_ibuf* buf = malloc(sizeof(struct ks_ibuf) + sz);
 
     if (!buf) {
-        ks_error("ks_malloc(%zu) failed!\n", sz);
+        fprintf(stderr, "ks_malloc(%zu) failed!\n", sz);
         return NULL;
     }
 
@@ -66,6 +79,9 @@ void* ks_malloc(ks_size_t sz) {
 
     // trace out the result
     memtrace("ks_malloc(%zu) -> %p\n", sz, usr_ptr);
+
+
+    if (mut) ks_mutex_unlock(mut);
 
     return usr_ptr;
 
@@ -79,6 +95,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
     if (new_sz <= 0) return ptr;
     if (ptr == NULL) return ks_malloc(new_sz);
 
+    if (mut) ks_mutex_lock(mut);
 
     // go 'underneath' the buffer to our internal datastructure
     struct ks_ibuf* buf = (struct ks_ibuf*)ptr - 1;
@@ -88,6 +105,8 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
 
 
     if (buf->size >= new_sz) {
+        if (mut) ks_mutex_unlock(mut);
+
         // no need for reallocation, it holds enough memory already
         return ptr;
     } else {
@@ -98,7 +117,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
         if (new_buf == NULL) {
             // realloc failed
 
-            ks_error("ks_realloc(%p, %zu) failed!\n", ptr, new_sz);
+            fprintf(stderr, "ks_realloc(%p, %zu) failed!\n", ptr, new_sz);
 
             // free our buffer we started with
             free(buf);
@@ -117,6 +136,8 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
         // memory trace it out
         memtrace("ks_realloc(%p, %zu) -> %p\n", ptr, new_sz, usr_ptr);
 
+        if (mut) ks_mutex_unlock(mut);
+
         // return backl what the user sees
         return usr_ptr;
     }
@@ -126,6 +147,8 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
 // attempt to free 'ptr'
 void ks_free(void* ptr) {
     if (ptr == NULL) return;
+
+    if (mut) ks_mutex_lock(mut);
 
     memtrace("ks_free(%p)\n", ptr);
 
@@ -141,8 +164,6 @@ void ks_free(void* ptr) {
     // actually free the memory
     free(buf);
 
+    if (mut) ks_mutex_unlock(mut);
 }
-
-
-
 

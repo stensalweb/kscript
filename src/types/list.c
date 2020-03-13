@@ -127,6 +127,15 @@ static KS_TFUNC(list, free) {
 };
 
 
+// list.__len__(self) -> get the length
+static KS_TFUNC(list, len) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_type_list, "self");
+
+    return (ks_obj)ks_int_new(self->len);
+};
+
 
 // list.__getitem__(self, idx) -> get the item in a list
 static KS_TFUNC(list, getitem) {
@@ -158,6 +167,8 @@ void ks_type_list_init() {
         {"__str__", (ks_obj)ks_cfunc_new(list_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(list_str_)},
         {"__free__", (ks_obj)ks_cfunc_new(list_free_)},
+
+        {"__len__", (ks_obj)ks_cfunc_new(list_len_)},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(list_getitem_, "list.__getitem__(self, idx)")},
 

@@ -13,6 +13,8 @@
 // always include the main header
 #include "ks.h"
 
+#include <math.h>
+
 // formatting colors
 #define BOLD   "\033[1m"
 #define RESET  "\033[0m"
@@ -25,6 +27,7 @@ void ks_type_type_init();
 void ks_type_none_init();
 void ks_type_bool_init();
 void ks_type_int_init();
+void ks_type_float_init();
 void ks_type_str_init();
 void ks_type_tuple_init();
 void ks_type_list_init();
@@ -38,6 +41,11 @@ void ks_type_cfunc_init();
 void ks_type_pfunc_init();
 void ks_type_thread_init();
 
+
+void ks_mem_init();
+
+// init the logging system
+void ks_log_init();
 
 void ks_init_funcs();
 
