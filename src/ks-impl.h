@@ -31,12 +31,12 @@ void ks_type_list_init();
 void ks_type_dict_init();
 void ks_type_Error_init();
 
-void ks_type_vm_init();
 void ks_type_code_init();
 void ks_type_ast_init();
 void ks_type_parser_init();
 void ks_type_cfunc_init();
 void ks_type_pfunc_init();
+void ks_type_thread_init();
 
 
 void ks_init_funcs();

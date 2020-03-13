@@ -47,13 +47,23 @@ int main(int argc, char** argv) {
         }
     }
 
-
     // now, try & initialize the library
     if (!ks_init()) {
         fprintf(stderr, "Failed to initialize kscript!\n");
         return -1;
     }
 
+
+/*
+    // should be NULL, we are not in a managed thread
+    ks_warn("thread: %p", ks_thread_cur());
+
+
+    ks_warn("thread: %p", th);
+
+    ks_warn("special case exit...");
+    return 0;
+*/
 
     // exception
     ks_obj exc = NULL;
@@ -106,7 +116,8 @@ int main(int argc, char** argv) {
         ks_debug("CODE: %S", myc);
 
         // execute it
-        ks_obj ret = vm_exec(ks_vm_default, myc);
+        //ks_obj ret = vm_exec(ks_vm_default, myc);
+        ks_obj ret = ks_thread_call_code(ks_thread_cur(), myc);
         if (exc = ks_catch()) {
             ks_error("%T: %R", exc, exc);
             return -1;

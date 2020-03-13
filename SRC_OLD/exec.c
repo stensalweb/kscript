@@ -953,43 +953,6 @@ static void VM_exec() {
     // should never get here
 }
 
-// method for calling a kfunc (internal bytecode function)
-static kso kso_vm_call_kfunc(ks_kfunc func, int n_args, kso* args) {
-    // push on values
-    if (n_args != func->params->len) {
-        return kse_fmt("Tried calling %R with wrong number of args, given %i, but expected %i", func, n_args, func->params->len);
-    }
-
-
-    VM_push_frame(func->code);
-
-
-    int i;
-    for (i = 0; i < n_args; ++i) {
-        ks_str param = (ks_str)func->params->items[i];
-        ks_dict_set(CUR_SCOPE().local_vars, (kso)param, param->v_hash, args[i]);
-    }
-
-
-    VM_exec();
-
-    kso val = VM_stk_pop();
-    return val;
-}
-
-
-// executes code on the VM
-void ks_vm_exec(ks_code code) {
-
-    VM_push_frame(code);
-
-    VM_exec();
-
-    // we don't use the result
-    VM_stk_popu();
-}
-
-
 void ks_vm_coredump() {
     #define _EXEC_ERR(...) { \
         int i, haderr = 0; \

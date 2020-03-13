@@ -29,7 +29,7 @@ KSM_STD    ?=
 # the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
 libks_src       := $(addprefix src/, init.c log.c mem.c util.c obj.c builder.c fmt.c funcs.c codegen.c exec.c) \
-				   $(addprefix src/types/, type.c none.c bool.c int.c str.c tuple.c list.c dict.c Error.c cfunc.c pfunc.c code.c ast.c parser.c)
+				   $(addprefix src/types/, type.c none.c bool.c int.c str.c tuple.c list.c dict.c Error.c cfunc.c pfunc.c code.c ast.c parser.c thread.c)
 
 # the header files that if changed, should cause recompilation
 libks_src_h     := $(addprefix src/, ks.h ks-impl.h)
@@ -100,7 +100,7 @@ $(libks_a): $(libks_o)
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
 $(ks_exe): $(libks_so) $(MOD_std_so) $(ks_o)
-	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(ks_o) -lks -lm -ldl -o $@
+	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(ks_o) -lks -lm -ldl -lpthread -o $@
 
 # rule to build a standard module
 std/%/libksm_%.so:

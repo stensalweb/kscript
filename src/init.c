@@ -28,6 +28,9 @@ const ks_version_t* ks_version() {
 }
 
 
+// global vars
+ks_dict ks_globals = NULL;
+
 // initialize the whole library
 bool ks_init() {
     gettimeofday(&ks_start_time, NULL);
@@ -43,6 +46,8 @@ bool ks_init() {
     ks_type_dict_init();
     ks_type_Error_init();
 
+    ks_type_thread_init();
+
     ks_type_cfunc_init();
     ks_type_pfunc_init();
     ks_type_code_init();
@@ -52,7 +57,42 @@ bool ks_init() {
     ks_init_funcs();
 
 
-    ks_type_vm_init();
+//    ks_type_vm_init();
+
+
+    // initialize globals
+
+    ks_globals = ks_dict_new(0, NULL);
+    ks_dict_set_cn(ks_globals, (ks_dict_ent_c[]){
+
+        /* types */
+
+        {"bool",       KS_NEWREF(ks_type_bool)},
+        {"int",        KS_NEWREF(ks_type_int)},
+        
+        {"str",        KS_NEWREF(ks_type_str)},
+        {"list",       KS_NEWREF(ks_type_list)},
+        
+        {"tuple",      KS_NEWREF(ks_type_tuple)},
+        {"dict",       KS_NEWREF(ks_type_dict)},
+
+        {"Error",      KS_NEWREF(ks_type_Error)},
+
+        {"thread",     KS_NEWREF(ks_type_thread)},
+
+
+        /* functions */
+
+        {"hash",       KS_NEWREF(ks_F_hash)},
+        {"repr",       KS_NEWREF(ks_F_repr)},
+        {"print",      KS_NEWREF(ks_F_print)},
+
+
+        // end
+        {NULL, NULL}
+    });
+
+
 
     // success
     return true;

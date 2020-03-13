@@ -33,6 +33,10 @@
 #include <time.h>
 #include <sys/time.h>
 
+// for threads
+#include <pthread.h> 
+
+
 /* CONSTANTS */
 
 // enumeration for levels of logging, from least important to most important
@@ -1026,24 +1030,6 @@ typedef struct {
 }* ks_ast;
 
 
-
-// ks_vm - a virtual machine object, which can run kscript code & manage state
-typedef struct {
-    KS_OBJ_BASE
-
-    // the execution stack, which holds values
-    ks_list stk;
-
-    // global variables
-    ks_dict globals;
-
-}* ks_vm;
-
-
-// the default virtual machine to run code on
-extern ks_vm ks_vm_default;
-
-
 // ks_cfunc - a C-function wrapper which can be called the same as a kscript function
 typedef struct {
     KS_OBJ_BASE
@@ -1093,6 +1079,88 @@ typedef struct {
 }* ks_Error;
 
 
+
+/* EXECUTION */
+
+// ks_stk_frame - represents a single point of execution
+typedef struct {
+    KS_OBJ_BASE
+
+    // the function being called in the stack frame,
+    // normally a 'ks_cfunc', or a 'ks_code' object
+    ks_obj func;
+
+    // the program counter
+    // Only valid if typeof(func) == bytecode
+    ksb* pc;
+
+}* ks_stack_frame;
+
+
+// create a new stack frame
+ks_stack_frame ks_stack_frame_new(ks_obj func);
+
+
+// ks_thread - a thread that is currently executing code
+typedef struct {
+    KS_OBJ_BASE
+
+    /* internal pthread implementation (do not touch!) */
+
+    // the underlying pthread object
+    pthread_t _pth;
+
+    // mutex for locking access to a thread
+    pthread_mutex_t _mut;
+
+
+    /* general variables about the thread */
+
+    // readable name for the thread, or just the address
+    ks_str name;
+
+
+    /* execution variables */
+
+    // the stack frames being called,
+    // all of them must be of type 'ks_stack_frame'
+    ks_list stack_frames;
+
+    // the stack for the thread
+    ks_list stk;
+
+
+    /* exception/error handling */
+
+    // the currently raised exception (or NULL if it did not exist)
+    ks_obj exc;
+
+    // the exception's info when it was thrown (or NULL, if one has not been thrown yet)
+    ks_tuple exc_info;
+
+
+}* ks_thread;
+
+
+// construct a new kscript thread
+// if 'name==NULL', then a random name is generated
+ks_thread ks_thread_new(char* name);
+
+// Lock a thread
+// NOTE: Use ks_thread_unlock(self) once the lock is through
+void ks_thread_lock(ks_thread self);
+
+// Unlock a thread locked with 'ks_thread_lock(self)'
+void ks_thread_unlock(ks_thread self);
+
+// return the current thread
+// NOTE: Does *NOT* return a new reference to the thread
+ks_thread ks_thread_cur();
+
+// call code on a given thread
+ks_obj ks_thread_call_code(ks_thread self, ks_code code);
+
+
 /* STRING BUILDING/UTILITY TYPES */
 
 // ks_str_b - a string building utility to make string concatenation simpler
@@ -1106,6 +1174,7 @@ typedef struct {
     char* data;
 
 } ks_str_b;
+
 
 
 
@@ -1150,7 +1219,9 @@ extern ks_type
 
     ks_type_Error,
 
-    ks_type_vm,
+    ks_type_stack_frame,
+    ks_type_thread,
+
     ks_type_code,
     ks_type_ast,
     ks_type_parser,
@@ -1194,6 +1265,9 @@ extern ks_cfunc
 
 
 ;
+
+// global variables
+extern ks_dict ks_globals;
 
 
 /* GENERIC/GENERAL LIBRARY FUNCTIONS */
@@ -1517,13 +1591,6 @@ void ksca_store_c     (ks_code self, char* name);
 void ksca_store_attr_c(ks_code self, char* name);
 
 
-/* VM (Virtual Machine) */
-
-// Create a new virtual machine
-// NOTE: Returns a new reference
-ks_vm ks_vm_new();
-
-
 /* AST (Abstract Syntax Trees) */
 
 // Create an AST representing a constant value
@@ -1714,8 +1781,7 @@ ks_obj ks_catch2(ks_list stk_info);
 
 /* VM EXECUTION */
 
-// Execute code on the VM
-ks_obj vm_exec(ks_vm vm, ks_code code);
+
 
 
 /* MISC. UTILS/FUNCTIONS */

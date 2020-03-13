@@ -87,37 +87,28 @@ bool ks_is_callable(ks_obj func) {
     return false;
 }
 
-
-
-// the current object being thrown, or NULL if there is no such object
-static ks_obj cur_thrown = NULL;
-
-static ks_list cur_thrown_stk = NULL;
-
 // throw an object up the call stack, and return 'NULL'
 void* ks_throw(ks_obj obj) {
+
+    // get current thread
+    ks_thread cth = ks_thread_cur();
+
     // ensure 
-    assert(cur_thrown == NULL && "There was already an object thrown and not caught, but someone threw something else!");
+    assert(cth->exc == NULL && "There was already an object thrown and not caught, but someone threw something else!");
 
     if (obj == NULL) {
         // flush the throw status if NULL is passed
         // reset the stack
-        if (cur_thrown) KS_DECREF(cur_thrown);
-        cur_thrown = NULL;
+        if (cth->exc) KS_DECREF(cth->exc);
+        cth->exc = NULL;
     } else {
         // add to the throw stack
-        cur_thrown = KS_NEWREF(obj);
+        cth->exc = KS_NEWREF(obj);
     }
 
-    if (!cur_thrown_stk) {
-        // initialize it
-        cur_thrown_stk = ks_list_new(0, NULL);
-    }
-
-
-    // copy it to the stack
-    ks_list_clear(cur_thrown_stk);
-    ks_list_pushn(cur_thrown_stk, ks_call_stk->len, ks_call_stk->elems);
+    // set exc_info to the tuple of stack frames
+    if (cth->exc_info) KS_DECREF(cth->exc_info);
+    cth->exc_info = ks_tuple_new(cth->stack_frames->len, cth->stack_frames->elems);
 
     // return NULL so people can return this and return NULL easily
     return NULL;
@@ -151,27 +142,35 @@ void* ks_throw_fmt(ks_type errtype, char* fmt, ...) {
 }
 
 
-
 // try and catch the object off
 ks_obj ks_catch() {
-    ks_obj ret = cur_thrown;
-    cur_thrown = NULL;
+    // get current thread
+    ks_thread cth = ks_thread_cur();
+
+    ks_obj ret = cth->exc;
+    cth->exc = NULL;
+
     // return the active try/catch reference
     return ret;
 }
 
 
-
 // try and catch the object off
 ks_obj ks_catch2(ks_list stk_info) {
-    ks_obj ret = cur_thrown;
-    cur_thrown = NULL;
+
+    ks_thread cth = ks_thread_cur();
+
+    ks_obj ret = cth->exc;
+    cth->exc = NULL;
+
     // copy this
     ks_list_clear(stk_info);
 
+    // push the result
     if (ret) {
-        ks_list_pushn(stk_info, cur_thrown_stk->len, cur_thrown_stk->elems);
+        ks_list_pushn(stk_info, cth->exc_info->len, cth->exc_info->elems);
     }
+
     // return the active try/catch reference
     return ret;
 }

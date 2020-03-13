@@ -201,6 +201,9 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
                 break;
             }
 
+
+            tries++;
+
             // probing function
             bi = bi_orig + tries;
 

@@ -54,7 +54,7 @@ void* ks_malloc(ks_size_t sz) {
     struct ks_ibuf* buf = malloc(sizeof(struct ks_ibuf) + sz);
 
     if (!buf) {
-        ks_error("ks_malloc(%llu) failed!\n", sz);
+        ks_error("ks_malloc(%zu) failed!\n", sz);
         return NULL;
     }
 
@@ -65,7 +65,7 @@ void* ks_malloc(ks_size_t sz) {
     void* usr_ptr = (void*)&buf->data;
 
     // trace out the result
-    memtrace("ks_malloc(%llu) -> %p\n", sz, usr_ptr);
+    memtrace("ks_malloc(%zu) -> %p\n", sz, usr_ptr);
 
     return usr_ptr;
 
@@ -98,7 +98,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
         if (new_buf == NULL) {
             // realloc failed
 
-            ks_error("ks_realloc(%p, %llu) failed!\n", ptr, new_sz);
+            ks_error("ks_realloc(%p, %zu) failed!\n", ptr, new_sz);
 
             // free our buffer we started with
             free(buf);
@@ -115,7 +115,7 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
         void* usr_ptr = (void*)&new_buf->data;
 
         // memory trace it out
-        memtrace("ks_realloc(%p, %llu) -> %p\n", ptr, new_sz, usr_ptr);
+        memtrace("ks_realloc(%p, %zu) -> %p\n", ptr, new_sz, usr_ptr);
 
         // return backl what the user sees
         return usr_ptr;
