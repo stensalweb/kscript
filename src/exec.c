@@ -69,9 +69,10 @@ typedef struct {
 static int exc_call_stk_p = -1;
 static exc_call_stk_item exc_call_stk[4096];
 
-
 // internal execution algorithm
 ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
+
+    ks_mutex_lock(ks_GIL);
     
     ks_stack_frame this_stack_frame = ks_stack_frame_new((ks_obj)code);
     ks_list_push(self->stack_frames, (ks_obj)this_stack_frame);
@@ -532,6 +533,7 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
         /*for (i = self->stack_frames->len - 1; i >= 0; i--) {
             ks_printf("In #%i: %R\n", i, ((ks_stack_frame)self->stack_frames->elems[i])->func);
         }*/
+        ks_printf("In %R\n", ks_thread_cur());
     }
 
     ret_val = NULL;
@@ -550,6 +552,9 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
 
     // free any temporary arguments
     ks_free(args);
+
+    // unlock the mutex
+    ks_mutex_unlock(ks_GIL);
 
     return ret_val;
 

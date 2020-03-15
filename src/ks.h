@@ -368,6 +368,9 @@ typedef struct ks_dict* ks_dict;
 // Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
 #define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
 
+// Require that an object is callable
+#define KS_REQ_CALLABLE(_obj, _name) KS_REQ(ks_is_callable(_obj), "Parameter '%s' (of type '%T') was not callable", _name, _obj)
+
 
 // throw a type conversion error
 #define KS_ERR_CONV(_obj, _totype) { \
@@ -1133,9 +1136,13 @@ typedef struct {
 
     /* internal pthread object */
 
-    pthread_mutex_t _mut;
+    pthread_mutex_t* _mut;
 
 }* ks_mutex;
+
+
+// global interpreter lock
+extern ks_mutex ks_GIL;
 
 // Construct a new, unlocked, mutex
 // NOTE: This returns a new reference
@@ -1157,6 +1164,11 @@ typedef struct {
     // the underlying pthread object
     pthread_t _pth;
 
+    // whether or not the underlying pthread is still active
+    bool _pth_active;
+
+    // list of 'ks_thread' objects which are sub threads
+    ks_list sub_threads;
 
 
     /* general variables about the thread */
@@ -1164,11 +1176,19 @@ typedef struct {
     // readable name for the thread, or just the address
     ks_str name;
 
-    // mutex object
+    // mutex object for thread access
     ks_mutex mut;
 
 
     /* execution variables */
+
+    // the functor object to execute
+    ks_obj target;
+
+
+    // list of arguments
+    ks_tuple args;
+
 
     // the stack frames being called,
     // all of them must be of type 'ks_stack_frame'
@@ -1192,7 +1212,10 @@ typedef struct {
 
 // construct a new kscript thread
 // if 'name==NULL', then a random name is generated
-ks_thread ks_thread_new(char* name);
+ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args);
+
+// join the thread back
+void ks_thread_join(ks_thread self);
 
 // Lock a thread
 // NOTE: Use ks_thread_unlock(self) once the lock is through

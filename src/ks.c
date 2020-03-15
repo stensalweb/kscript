@@ -14,10 +14,64 @@
 
 
 
-void my_getopt() {
+static KS_FUNC(cfunc_main) {
 
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+    ks_str fname_o = (ks_str)args[0];
+    KS_REQ_TYPE(fname_o, ks_type_str, "fname");
+
+    char* fname = fname_o->chr;
+
+    // exception handling
+    ks_obj exc = NULL;
+
+    FILE* fp = fopen(fname, "r");
+    if (!fp) {
+        ks_error("Failed to open file '%s': %s", fname, strerror(errno));
+        return NULL;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    int len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    char* csrc = ks_malloc(len + 1);
+    fread(csrc, 1, len, fp);
+    csrc[len] = '\0';
+
+    ks_str src = ks_str_new(csrc);
+    ks_free(csrc);
+    ks_str src_name = ks_str_new((char*)fname);
+
+    ks_parser p = ks_parser_new(src, src_name);
+    KS_DECREF(src_name);
+    if (exc = ks_catch()) {
+        ks_error("%T: %R", exc, exc);
+        return NULL;
+    }
+
+    ks_ast prog = ks_parser_parse_file(p);
+    if (exc = ks_catch()) {
+        ks_error("%T: %R", exc, exc);
+        return NULL;
+    }
+
+    ks_code myc = ks_codegen(prog);
+    if (exc = ks_catch()) {
+        ks_error("%T: %R", exc, exc);
+        return NULL;
+    }
+    
+    ks_debug("CODE: %S", myc);
+
+    ks_obj ret = ks_thread_call_code(ks_thread_cur(), myc);
+    if (exc = ks_catch()) {
+        ks_error("%T: %R", exc, exc);
+        return -1;
+    }
+    
+    return KSO_NONE;
 }
-
 
 
 int main(int argc, char** argv) {
@@ -93,60 +147,21 @@ int main(int argc, char** argv) {
     
     ks_debug("prog_args: %S", prog_args);
 
-    ks_thread main_thread = ks_thread_cur();
-    assert(main_thread != NULL);
-
     ks_dict_set_cn(ks_globals, (ks_dict_ent_c[]){
         {"__argv__", KS_NEWREF(prog_args)},
 
         {NULL, NULL}
     });
 
+    ks_cfunc my_main = ks_cfunc_new(cfunc_main_);
 
+    ks_str fname_o = ks_str_new(fname);
+    ks_thread main_thread = ks_thread_new("main", my_main, 1, (ks_obj*)&fname_o);
 
-    // exception handling
-    ks_obj exc = NULL;
+    ks_thread_join(main_thread);
+    KS_DECREF(main_thread);
 
-
-    FILE* fp = fopen(fname, "r");
-    if (!fp) {
-        ks_error("Failed to open file '%s': %s", fname, strerror(errno));
-        return -1;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    int len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char* csrc = ks_malloc(len + 1);
-    fread(csrc, 1, len, fp);
-    csrc[len] = '\0';
-
-    ks_str src = ks_str_new(csrc);
-    ks_free(csrc);
-    ks_str src_name = ks_str_new((char*)fname);
-
-    ks_parser p = ks_parser_new(src, src_name);
-    KS_DECREF(src_name);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return -1;
-    }
-
-    ks_ast prog = ks_parser_parse_file(p);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return -1;
-    }
-
-    ks_code myc = ks_codegen(prog);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return -1;
-    }
-
-    ks_debug("CODE: %S", myc);
-
+/*
     // execute it
     //ks_obj ret = vm_exec(ks_vm_default, myc);
     ks_obj ret = ks_thread_call_code(main_thread, myc);
@@ -154,7 +169,7 @@ int main(int argc, char** argv) {
         ks_error("%T: %R", exc, exc);
         return -1;
     }
-
+*/
     /*} else if (optind >= argc) {
         // no arguments left
         ks_error("%s: Too many files given to run!", argv[0]);
@@ -165,11 +180,10 @@ int main(int argc, char** argv) {
         return -1;
     }*/
 
+    //KS_DECREF(main_thread);
+
     ks_debug("mem_max: %l", (int64_t)ks_mem_max());
 
-
-    // end the main thread
-    KS_DECREF(ks_thread_cur());
 
     return 0;
 }

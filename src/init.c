@@ -28,6 +28,9 @@ const ks_version_t* ks_version() {
 }
 
 
+// global interpreter lock
+ks_mutex ks_GIL = NULL;
+
 // global vars
 ks_dict ks_globals = NULL;
 
@@ -61,6 +64,9 @@ bool ks_init() {
 
     ks_init_funcs();
 
+
+    // construct a mutex
+    ks_GIL = ks_mutex_new();
 
 
 //    ks_type_vm_init();

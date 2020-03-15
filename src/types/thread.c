@@ -91,19 +91,20 @@ ks_mutex ks_mutex_new() {
     KS_INIT_OBJ(self, ks_type_mutex);
 
     // create pthread's mutex
-    pthread_mutex_init(&self->_mut, NULL);
+    self->_mut = ks_malloc(sizeof(*self->_mut));
+    pthread_mutex_init(self->_mut, NULL);
 
     return self;
 }
 
 // Lock a mutex
 void ks_mutex_lock(ks_mutex self) {
-    pthread_mutex_lock(&self->_mut);
+    pthread_mutex_lock(self->_mut);
 }
 
 // Unlock a mutex
 void ks_mutex_unlock(ks_mutex self) {
-    pthread_mutex_unlock(&self->_mut);
+    pthread_mutex_unlock(self->_mut);
 }
 
 /* member functions */
@@ -142,7 +143,7 @@ static KS_TFUNC(mutex, free) {
     KS_REQ_TYPE(self, ks_type_mutex, "self");
 
     // free mutex resource
-    pthread_mutex_destroy(&self->_mut);
+    pthread_mutex_destroy(self->_mut);
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
@@ -169,18 +170,25 @@ static void* thread_init(void* _self) {
     // set the global variable
     pthread_setspecific(this_thread_key, (void*)self);
 
+    ks_obj ret = ks_call(self->target, self->args->len, self->args->elems);
+    ks_info("got: %R", ret);
     return NULL;
 }
 
-
 // create a new thread
-ks_thread ks_thread_new(char* name) {
+ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args) {
     ks_thread self = KS_ALLOC_OBJ(ks_thread);
     KS_INIT_OBJ(self, ks_type_thread);
 
+    ks_thread parent = ks_thread_cur();
+
+    if (parent) {
+        ks_mutex_lock(parent->mut);
+        ks_list_push(parent->sub_threads, (ks_obj)self);
+    }
+    
     self->mut = ks_mutex_new();
     ks_mutex_lock(self->mut);
-
 
     if (name) {
         self->name = ks_str_new(name);
@@ -191,16 +199,44 @@ ks_thread ks_thread_new(char* name) {
     self->stk = ks_list_new(0, NULL);
     self->stack_frames = ks_list_new(0, NULL);
 
+    self->target = KS_NEWREF(func);
+    self->args = ks_tuple_new(n_args, args);
+
+    self->sub_threads = ks_list_new(0, NULL);
+    //ks_printf("%R\n", self->args);
+
     self->exc = NULL;
     self->exc_info = NULL;
 
     // set the pthread
+    self->_pth_active = true;
     pthread_create(&self->_pth, NULL, thread_init, self);
-
+    
     // done with initialization
     ks_mutex_unlock(self->mut);
 
+
+    if (parent) {
+        ks_mutex_unlock(parent->mut);
+    }
+    
+
     return self;
+}
+
+
+// join the thread back
+void ks_thread_join(ks_thread self) {
+    if (!self->_pth_active) return;
+
+    int i;
+    for (i = 0; i < self->sub_threads->len; ++i) {
+        ks_thread_join((ks_thread)self->sub_threads->elems[i]);
+    }
+
+    pthread_join(self->_pth, NULL);
+    self->_pth_active = false;
+
 }
 
 // return the current thread
@@ -208,26 +244,60 @@ ks_thread ks_thread_new(char* name) {
 ks_thread ks_thread_cur() {
     // attempt to return it
     ks_thread this_thread = (ks_thread)pthread_getspecific(this_thread_key);
-    if (!this_thread) this_thread = main_thread;
     return this_thread;
 }
 
 // Lock a thread
 // NOTE: Use ks_thread_unlock(self) once the lock is through
 void ks_thread_lock(ks_thread self) {
-    if (!self) self = main_thread;
     ks_mutex_lock(self->mut);
 }
 
 // Unlock a thread locked with 'ks_thread_lock(self)'
 void ks_thread_unlock(ks_thread self) {
-    if (!self) self = main_thread;
     ks_mutex_unlock(self->mut);
 
 }
 
 
 /* member functions */
+
+
+// thread.__new__(name, target, args=(,)) -> construct a thread from a target
+static KS_TFUNC(thread, new) {
+    KS_REQ_N_ARGS_MIN(n_args, 2);
+    ks_str name = (ks_str)args[0];
+    KS_REQ_TYPE(name, ks_type_str, "name");
+    ks_obj target = (ks_obj)args[1];
+    KS_REQ_CALLABLE(target, "target");
+
+    int p_n_args = 0;
+    ks_obj* p_args = NULL;
+
+    if (n_args > 2) {
+        KS_REQ_TYPE(args[2], ks_type_tuple, "args");
+        p_n_args = ((ks_tuple)args[2])->len;
+        p_args = ((ks_tuple)args[2])->elems;
+    }
+
+    
+    ks_thread ret = ks_thread_new(name->chr, target, p_n_args, p_args);
+
+    return (ks_obj)ret;
+
+};
+
+// thread.join(self) -> join the thread
+static KS_TFUNC(thread, join) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_thread self = (ks_thread)args[0];
+    KS_REQ_TYPE(self, ks_type_thread, "self");
+
+    ks_thread_join(self);
+
+    return KSO_NONE;
+
+};
 
 
 // thread.__str__(self) -> string representation
@@ -237,7 +307,6 @@ static KS_TFUNC(thread, str) {
     KS_REQ_TYPE(self, ks_type_thread, "self");
 
     return (ks_obj)ks_fmt_c("<%T:%R @ %p>", self, self->name, self);
-
 };
 
 
@@ -247,14 +316,16 @@ static KS_TFUNC(thread, free) {
     ks_thread self = (ks_thread)args[0];
     KS_REQ_TYPE(self, ks_type_thread, "self");
 
-    ks_debug("thread <%p> done!", self);
-
     // ensure that has completed
-    pthread_join(self->_pth, NULL);
+    //pthread_join(self->_pth, NULL);
+    ks_thread_join(self);
+
+    ks_debug("thread <%p> done!", self);
 
     // dereference vars
     KS_DECREF(self->mut);
 
+    KS_DECREF(self->sub_threads);
 
     KS_DECREF(self->stk);
     ks_free(self->stack_frames);
@@ -302,6 +373,8 @@ void ks_type_thread_init() {
     });
 
     ks_type_set_cn(ks_type_thread, (ks_dict_ent_c[]){
+        {"__new__", (ks_obj)ks_cfunc_new(thread_new_)},
+        {"join", (ks_obj)ks_cfunc_new(thread_join_)},
         {"__str__", (ks_obj)ks_cfunc_new(thread_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(thread_str_)},
         {"__this__", (ks_obj)ks_cfunc_new(thread_this_)},
@@ -312,9 +385,6 @@ void ks_type_thread_init() {
 
     // create the global variable
     pthread_key_create(&this_thread_key, NULL);
-
-    // construct the main thread
-    main_thread = ks_thread_new("main");
 
 }
 
