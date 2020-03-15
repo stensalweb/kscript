@@ -137,6 +137,24 @@ static KS_TFUNC(list, len) {
 };
 
 
+
+// list.__add__(L, R) -> append 2 lists
+// TODO: add iterable support
+static KS_TFUNC(list, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_list && R->type == ks_type_list) {
+        ks_list res = ks_list_new(((ks_list)L)->len, ((ks_list)L)->elems);
+        ks_list_pushn(res, ((ks_list)R)->len, ((ks_list)R)->elems);
+        return (ks_obj)res;
+    }
+
+
+
+    KS_ERR_BOP_UNDEF("+", L, R);
+};
+
 // list.__getitem__(self, idx) -> get the item in a list
 static KS_TFUNC(list, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -169,6 +187,8 @@ void ks_type_list_init() {
         {"__free__", (ks_obj)ks_cfunc_new(list_free_)},
 
         {"__len__", (ks_obj)ks_cfunc_new(list_len_)},
+        
+        {"__add__", (ks_obj)ks_cfunc_new(list_add_)},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(list_getitem_, "list.__getitem__(self, idx)")},
 

@@ -14,7 +14,7 @@ KS_TYPE_DECLFWD(ks_type_tuple);
 // create a kscript int from a C-style int
 ks_tuple ks_tuple_new(int len, ks_obj* elems) {
     // allocate enough memory for the elements
-    ks_tuple self = (ks_tuple)malloc(sizeof(*self) + sizeof(ks_obj) * len);
+    ks_tuple self = (ks_tuple)ks_malloc(sizeof(*self) + sizeof(ks_obj) * len);
     KS_INIT_OBJ(self, ks_type_tuple);
 
     // initialize type-specific things
@@ -74,7 +74,6 @@ static KS_TFUNC(tuple, free) {
     }
 
     // no buffer free is needed because the tuple itself is allocated with its elements
-
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
 

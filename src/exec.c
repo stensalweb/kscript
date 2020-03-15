@@ -25,6 +25,9 @@
 //   printed, so this is not useful for debugging
 //#define VME__GOTO
 
+// yield the GIl temporarily
+#define VME_YIELDGIL { ks_unlockGIL(); ks_lockGIL(); }
+
 
 #define VME_ASSERT(...) assert(__VA_ARGS__)
 #define VME_ABORT() assert(false && "Internal Virtual Machine Error");
@@ -37,7 +40,7 @@
 #define VMED_START while (true) switch (*c_pc) {
 #define VMED_END default: fprintf(stderr, "ERROR: in kscript VM exec (%p), unknown instruction code '%i' encountered\n", code, (int)*c_pc); VME_ABORT(); break;}
 
-#define VMED_NEXT() continue;
+#define VMED_NEXT() { VME_YIELDGIL continue; }
 
 #define VMED_CASE_START(_bc) case _bc: {
 #define VMED_CASE_END VMED_NEXT() }
@@ -47,7 +50,7 @@
 #define VMED_START { VMED_NEXT();
 #define VMED_END }
 
-#define VMED_NEXT() goto *goto_targets[*c_pc];
+#define VMED_NEXT() { VME_YIELDGIL goto *goto_targets[*c_pc]; }
 
 #define VMED_CASE_START(_bc) lbl_##_bc: {
 #define VMED_CASE_END VMED_NEXT() }
@@ -71,8 +74,7 @@ static exc_call_stk_item exc_call_stk[4096];
 
 // internal execution algorithm
 ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
-
-    ks_mutex_lock(ks_GIL);
+    ks_lockGIL();
     
     ks_stack_frame this_stack_frame = ks_stack_frame_new((ks_obj)code);
     ks_list_push(self->stack_frames, (ks_obj)this_stack_frame);
@@ -554,7 +556,7 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
     ks_free(args);
 
     // unlock the mutex
-    ks_mutex_unlock(ks_GIL);
+    ks_unlockGIL();
 
     return ret_val;
 

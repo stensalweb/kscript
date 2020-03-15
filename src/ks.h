@@ -1140,9 +1140,15 @@ typedef struct {
 
 }* ks_mutex;
 
-
-// global interpreter lock
+// global interpreter lock, use 'ks_lock_GIL()' and 'ks_unlock_GIL()'
 extern ks_mutex ks_GIL;
+
+// acquire the GIL lock
+void ks_lockGIL();
+
+// end GIL usage
+void ks_unlockGIL();
+
 
 // Construct a new, unlocked, mutex
 // NOTE: This returns a new reference
@@ -1170,21 +1176,20 @@ typedef struct {
     // list of 'ks_thread' objects which are sub threads
     ks_list sub_threads;
 
+    // true iff the thread owns the GIL
+    bool hasGIL;
+
 
     /* general variables about the thread */
 
     // readable name for the thread, or just the address
     ks_str name;
 
-    // mutex object for thread access
-    ks_mutex mut;
-
 
     /* execution variables */
 
     // the functor object to execute
     ks_obj target;
-
 
     // list of arguments
     ks_tuple args;
@@ -1214,15 +1219,11 @@ typedef struct {
 // if 'name==NULL', then a random name is generated
 ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args);
 
+// start executing the thread
+void ks_thread_start(ks_thread self);
+
 // join the thread back
 void ks_thread_join(ks_thread self);
-
-// Lock a thread
-// NOTE: Use ks_thread_unlock(self) once the lock is through
-void ks_thread_lock(ks_thread self);
-
-// Unlock a thread locked with 'ks_thread_lock(self)'
-void ks_thread_unlock(ks_thread self);
 
 // return the current thread
 // NOTE: Does *NOT* return a new reference to the thread

@@ -15,7 +15,6 @@
 
 
 static KS_FUNC(cfunc_main) {
-
     KS_REQ_N_ARGS_MIN(n_args, 1);
     ks_str fname_o = (ks_str)args[0];
     KS_REQ_TYPE(fname_o, ks_type_str, "fname");
@@ -67,7 +66,7 @@ static KS_FUNC(cfunc_main) {
     ks_obj ret = ks_thread_call_code(ks_thread_cur(), myc);
     if (exc = ks_catch()) {
         ks_error("%T: %R", exc, exc);
-        return -1;
+        return NULL;
     }
     
     return KSO_NONE;
@@ -156,34 +155,17 @@ int main(int argc, char** argv) {
     ks_cfunc my_main = ks_cfunc_new(cfunc_main_);
 
     ks_str fname_o = ks_str_new(fname);
-    ks_thread main_thread = ks_thread_new("main", my_main, 1, (ks_obj*)&fname_o);
+    ks_thread main_thread = ks_thread_new("main", (ks_obj)my_main, 1, (ks_obj*)&fname_o);
+    KS_DECREF(fname_o);
+    KS_DECREF(my_main);
+
+    // start executing the thread
+    ks_thread_start(main_thread);
 
     ks_thread_join(main_thread);
     KS_DECREF(main_thread);
 
-/*
-    // execute it
-    //ks_obj ret = vm_exec(ks_vm_default, myc);
-    ks_obj ret = ks_thread_call_code(main_thread, myc);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return -1;
-    }
-*/
-    /*} else if (optind >= argc) {
-        // no arguments left
-        ks_error("%s: Too many files given to run!", argv[0]);
-        return -1;
-    } else {
-        // no arguments left
-        ks_error("%s: No files or expressions given to run!", argv[0]);
-        return -1;
-    }*/
-
-    //KS_DECREF(main_thread);
-
     ks_debug("mem_max: %l", (int64_t)ks_mem_max());
-
 
     return 0;
 }
