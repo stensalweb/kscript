@@ -4,7 +4,7 @@
 *.o
 
 # kscript config file
-src/ks_config.h
+src/ks-config.h
 
 
 # build/generated folders
