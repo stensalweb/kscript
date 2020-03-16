@@ -1296,6 +1296,7 @@ ks_obj ks__exec(ks_code code);
 
 // ks_str_b - a string building utility to make string concatenation simpler
 //   and more efficient
+// SEE: fmt.c
 typedef struct {
 
     // the current length of the string builder
@@ -1437,6 +1438,11 @@ const ks_version_t* ks_version();
 //   but is only meant for rough approximation. Using the std time module is best for most results
 double ks_time();
 
+// Sleep (i.e. yield the thrad) for a given duration (in seconds).
+// Will emit a warning if a syscall (i.e. nanosleep on linux) gives an error code/warning
+// but will NOT raise an exception
+void ks_sleep(double dur);
+
 /* LOGGING */
 
 // return the current logging level, one of KS_LOG_* enum values
@@ -1460,6 +1466,10 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_warn(...)  ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 // prints a error message, assuming the current log level allows for it
 #define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+// disable tracing
+#undef ks_trace
+#define ks_trace(...)
 
 
 // print variadically

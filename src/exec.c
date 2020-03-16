@@ -26,7 +26,10 @@
 //#define VME__GOTO
 
 // yield the GIl temporarily
-#define VME_YIELDGIL { ks_unlockGIL(); ks_lockGIL(); }
+//#define VME_YIELDGIL { ks_unlockGIL(); ks_lockGIL(); }
+
+// disable yielding GIL
+#define VME_YIELDGIL { }
 
 
 #define VME_ASSERT(...) assert(__VA_ARGS__)
@@ -40,7 +43,7 @@
 #define VMED_START while (true) switch (*c_pc) {
 #define VMED_END default: fprintf(stderr, "ERROR: in kscript VM exec (%p), unknown instruction code '%i' encountered\n", code, (int)*c_pc); VME_ABORT(); break;}
 
-#define VMED_NEXT() { VME_YIELDGIL continue; }
+#define VMED_NEXT() { if (++gilct % 8 == 0) { VME_YIELDGIL } continue; }
 
 #define VMED_CASE_START(_bc) case _bc: {
 #define VMED_CASE_END VMED_NEXT() }
@@ -79,22 +82,15 @@ ks_obj ks__exec(ks_code code) {
     assert(self != NULL && "'ks__exec()' called outside of a thread!");
     assert(self->stack_frames->len > 0 && "No stack frames available!");
 
+    uint32_t gilct = 0;
 
     // current stack frame
     ks_stack_frame this_stack_frame = (ks_stack_frame)self->stack_frames->elems[self->stack_frames->len - 1];
 
-
     // see if it was part of a kfunc
     ks_kfunc this_kfunc = (ks_kfunc)this_stack_frame->kfunc;
 
-    // the GIL should be locked before this
-    //ks_lockGIL();
-
-    // tell that we are entering the call stack
-    //ks_list_push(ks_call_stk, (ks_obj)code);
-
     // start program counter at the beginning
-    //ksb* c_pc = code->bc;
     #define c_pc (this_stack_frame->pc)
 
     // set program counter
@@ -111,7 +107,8 @@ ks_obj ks__exec(ks_code code) {
 
     // arguments
     ks_obj* args = NULL;
-
+    
+    // ensure 'args' holds enough
     #define ENSURE_ARGS(_n) { if ((_n) >= args_n) { args_n = (_n); args = ks_realloc(args, sizeof(*args) * args_n); } }
 
     ksb op;
@@ -138,16 +135,8 @@ ks_obj ks__exec(ks_code code) {
     #define GOTO_TARGET(_bc) [_bc] = &&lbl_##_bc,
 
     static void* goto_targets[] = {
-        GOTO_TARGET(KSB_NOOP)
-        
-        GOTO_TARGET(KSB_PUSH)
-        GOTO_TARGET(KSB_DUP)
-        GOTO_TARGET(KSB_POPU)
 
-        GOTO_TARGET(KSB_RET)
-        GOTO_TARGET(KSB_JMP)
-        GOTO_TARGET(KSB_JMPT)
-        GOTO_TARGET(KSB_JMPF)
+        // TODO: fill these up to use computed goto
     
     
     };
@@ -183,7 +172,9 @@ ks_obj ks__exec(ks_code code) {
         VMED_CASE_START(KSB_POPU)
             VMED_CONSUME(ksb, op);
 
-            ks_list_popu(self->stk);
+            ks_obj val = ks_list_pop(self->stk);
+
+            KS_DECREF(val);
 
         VMED_CASE_END
 
@@ -520,7 +511,6 @@ ks_obj ks__exec(ks_code code) {
             //c_pc += op_i32.arg;
 
         VMED_CASE_END
-
 
         // template for a binary operator case
         // 3rd argument is the 'extra code' to be ran to possibly shortcut it

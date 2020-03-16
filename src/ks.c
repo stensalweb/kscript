@@ -84,7 +84,6 @@ int main(int argc, char** argv) {
         return -1; \
     }
 
-
     // parse arguments 
     while ((opt = getopt(argc, argv, "+vVh")) != -1) {
         if (opt == 'h') {
@@ -130,7 +129,7 @@ int main(int argc, char** argv) {
         KS_DECREF(argi);
     }
     
-    ks_debug("prog_args: %S", prog_args);
+    //ks_debug("prog_args: %S", prog_args);
 
     // update globals
     ks_dict_set_cn(ks_globals, (ks_dict_ent_c[]){
@@ -154,7 +153,7 @@ int main(int argc, char** argv) {
     ks_thread_join(main_thread);
     //KS_DECREF(main_thread);
 
-    ks_debug("mem_max: %l", (int64_t)ks_mem_max());
+    //ks_debug("mem_max: %l", (int64_t)ks_mem_max());
 
     return 0;
 }

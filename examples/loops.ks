@@ -1,5 +1,16 @@
 #!ks
 
+
+r = ""
+
+i = 0
+while i < 100000 {
+    r = r + i
+    i = i + 1
+}
+
+exit()
+
 # Collatz Conjecture (https://en.wikipedia.org/wiki/Collatz_conjecture) example,
 #   iterate until we haven't hit a cycle
 

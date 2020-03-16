@@ -151,8 +151,18 @@ static KS_TFUNC(str, add) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_obj L = args[0], R = args[1];
 
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    ks_str_b_add_str(&SB, L);
+    ks_str_b_add_str(&SB, R);
+
+    ks_str ret = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+
+
     // just append their string conversions
-    return (ks_obj)ks_fmt_c("%S%S", L, R);
+    return (ks_obj)ret;
 };
 
 

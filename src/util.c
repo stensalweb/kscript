@@ -6,6 +6,31 @@
 
 #include "ks-impl.h"
 
+// get the start time (initialize it in 'ks_init')
+static struct timeval ks_start_time = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
+
+// return the time since it started
+double ks_time() {
+    struct timeval curtime;
+    gettimeofday(&curtime, NULL);
+    return (curtime.tv_sec - ks_start_time.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_start_time.tv_usec);
+}
+
+
+// sleep for a given duration
+void ks_sleep(double dur) {
+
+    double fa = floor(dur);
+
+    struct timespec tim, tim2;
+    tim.tv_sec = fa;
+    tim.tv_nsec = 1000000000 * (dur - fa);
+
+    if (nanosleep(&tim, &tim2) != 0) {
+        ks_warn("nanosleep() syscall returned non-zero!");
+    }
+
+}
 
 // read a file's entire source and return as a string
 // return 'NULL' and throw an exception if there was an error
@@ -73,4 +98,10 @@ int ks_getline(char** lineptr, size_t* n, FILE* fp) {
     // NUL-terminate
     *position = '\0';
     return (position - *lineptr - 1);
+}
+
+// initialize the utilities
+void ks_util_init() {
+
+    gettimeofday(&ks_start_time, NULL);
 }

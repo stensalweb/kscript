@@ -66,7 +66,7 @@ ks_dict ks_dict_new(int len, ks_obj* entries) {
     self->entries = NULL;
 
     // calculate a good size of buckets for the length
-    self->n_buckets = next_prime(2 * len + 5);
+    self->n_buckets = next_prime(4 * len + 5);
     self->buckets = ks_malloc(sizeof(*self->buckets) * self->n_buckets);
     
     // now, set all buckets to empty
@@ -318,6 +318,7 @@ ks_obj ks_dict_get_c(ks_dict self, char* key) {
 // set the given element
 int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
 
+    // don't allow above a certain load factor
     if (self->n_entries >= self->n_buckets / 4) {
         // we need to scale up the dictionary
         dict_resize(self, self->n_buckets * 4);
@@ -339,8 +340,6 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
 
 
     do {
-
-
         // get the entry index (ei), which is an index into self->entries
         int ei = self->buckets[bi];
 
@@ -367,7 +366,10 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
             // possible match; the hashes match
             if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
                 // they are equal, so it contains the key already. Now, just update the value
+                KS_DECREF(self->entries[ei].val);
+                // decref the last value
                 self->entries[ei].val = val;
+                
                 return 1;
             }
         }
@@ -385,7 +387,6 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
     // some problem adding it, should not happen
     return -1;
 }
-
 
 
 // delete the given element

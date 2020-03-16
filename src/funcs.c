@@ -235,22 +235,11 @@ static KS_FUNC(sleep) {
     // allow other threads to run
     ks_unlockGIL();
 
-    if (dur_d > 0) {
+    // call the base C library function
+    ks_sleep(dur_d);
 
-        double fa = floor(dur_d);
-
-        struct timespec tim, tim2;
-        tim.tv_sec = fa;
-        tim.tv_nsec = 1000000000 * (dur_d - fa);
-
-        if (nanosleep(&tim, &tim2) != 0) {
-            ks_warn("nanosleep() syscall returned non-zero!");
-        }
-    }
-
-
+    // require the lock back
     ks_lockGIL();
-
 
     // calculate and return real time
     s_time = ks_time() - s_time;

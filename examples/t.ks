@@ -1,19 +1,15 @@
 
+N = 10
+
 
 func f(x) {
     y = 0
-    while y < 100 {
+    while y < 10 {
+        # pretend like we're doing work
+        sleep(.1)
         print (x)
         y = y + 1
     }
-
-    ret none
-
-    func h(a) {
-        ret x ** a
-    }
-
-    print (thread.__this__(), h(3))
 
     ret none
 }
@@ -24,7 +20,7 @@ func f(x) {
 ts = []
 
 i = 0
-while i < 20 {
+while i < N {
     t = thread('test' + str(i), f, (i,))
     t.start()
     ts.push(t)

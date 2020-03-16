@@ -4,7 +4,7 @@ kscript is a dynamic, duck typed, easy-to-use language with a large standard lib
 
 This is all currently a big WIP, lots of rewrites, etc, but it is becoming promising. It has a very small footprint as far as memory, CPU, and disk. It aims to be sleek above all else, being extremely extensible, and the syntax is made to solve many issues I personally have with many languages. It's reasonably fast in most cases (within a factor of 2 of Python).
 
-As far as performance, my goal is to match Python (or beat it, although that may prove hard to accomplish). Ultimate speed of the language is not the end goal; rather a consistent, generic, and very easy to use language is the goal. Most speed-related issues will be solved by writing C-extensions (or perhaps some other language), which I will design to be very straightforward. In most cases, however, I find I am already within a factor of 2 or 3 of Python's performance, except in cases of string creation and deletion on a large scale (which even Python has problems with).
+As far as performance, my goal is to match Python within a factor of 5. Ultimate speed of the language is not the end goal; rather a consistent, generic, and very easy to use language is the goal. Most speed-related issues will be solved by writing C-extensions (or perhaps some other language), which I will design to be very straightforward. In most cases, however, I find I am already within a factor of 2 or 3 of Python's performance, except in cases of string creation and deletion on a large scale (which even Python has problems with).
 
 ## About
 

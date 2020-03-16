@@ -1,6 +1,11 @@
 /* mem.c - kscript's memory management routines
  *
  * 
+ * Internally, I use an exponential reallocation algorithm,
+ *   so essentially every time a buffer needs to be reallocated, instead of just reallocating to the new size,
+ *   we realloc to a certain factor of the new buffer (see _MEM_REALLOC_FAC)
+ * : new_sz = req_sz * _MEM_REALLOC_FAC + _MEM_REALLOC_CON
+ * 
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
@@ -9,6 +14,15 @@
 #include "ks-impl.h"
 
 
+
+// reallocation factor for new memory
+#define _MEM_REALLOC_FAC 1.5
+
+// new reallocation constant
+#define _MEM_REALLOC_CON 8
+
+
+// whether or not to memory trace
 #define KS_MEM_TRACE
 
 
@@ -103,6 +117,8 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
     // capture the starting size
     ks_size_t start_sz = buf->size;
 
+    ks_size_t new_new_sz = new_sz;
+
 
     if (buf->size >= new_sz) {
         if (mut) ks_mutex_unlock(mut);
@@ -112,7 +128,10 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
     } else {
         // otherwise, call C realloc() to get enough data
 
-        struct ks_ibuf* new_buf = realloc(buf, sizeof(struct ks_ibuf) + new_sz);
+        // oversize it 
+        new_new_sz = new_sz * _MEM_REALLOC_FAC + _MEM_REALLOC_CON;
+
+        struct ks_ibuf* new_buf = realloc(buf, sizeof(struct ks_ibuf) + new_new_sz);
 
         if (new_buf == NULL) {
             // realloc failed
@@ -125,16 +144,16 @@ void* ks_realloc(void* ptr, ks_size_t new_sz) {
             return NULL;
         }
 
-        new_buf->size = new_sz;
+        new_buf->size = new_new_sz;
 
         // record memory difference
-        add_mem((int64_t)new_sz - start_sz);
+        add_mem((int64_t)new_new_sz - start_sz);
 
         // get what the user sees
         void* usr_ptr = (void*)&new_buf->data;
 
         // memory trace it out
-        memtrace("ks_realloc(%p, %zu) -> %p\n", ptr, new_sz, usr_ptr);
+        memtrace("ks_realloc(%p, %zu) -> %p (new_new_sz: %zu)\n", ptr, new_sz, usr_ptr, new_new_sz);
 
         if (mut) ks_mutex_unlock(mut);
 
@@ -150,13 +169,14 @@ void ks_free(void* ptr) {
 
     if (mut) ks_mutex_lock(mut);
 
-    memtrace("ks_free(%p)\n", ptr);
 
     // go 'underneath' the buffer to our internal datastructure
     struct ks_ibuf* buf = (struct ks_ibuf*)ptr - 1;
 
     // get the current memory amount
     ks_size_t sz = buf->size;
+
+    memtrace("ks_free(%p) # sz: %i\n", ptr, (int)sz);
 
     // remove memory
     add_mem(-(int64_t)sz);

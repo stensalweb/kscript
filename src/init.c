@@ -7,9 +7,6 @@
 #include "ks-impl.h"
 
 
-// get the start time (initialize it in 'ks_init')
-static struct timeval ks_start_time = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
-
 // the static version information
 static ks_version_t this_version = (ks_version_t){
 
@@ -27,7 +24,6 @@ const ks_version_t* ks_version() {
     return &this_version;
 }
 
-
 // global interpreter lock
 ks_mutex ks_GIL = NULL;
 
@@ -36,7 +32,7 @@ ks_dict ks_globals = NULL;
 
 // initialize the whole library
 bool ks_init() {
-    gettimeofday(&ks_start_time, NULL);
+    ks_util_init();
 
     ks_mem_init();
 
@@ -119,13 +115,5 @@ bool ks_init() {
 
     // success
     return true;
-}
-
-
-// return the time since it started
-double ks_time() {
-    struct timeval curtime;
-    gettimeofday(&curtime, NULL);
-    return (curtime.tv_sec - ks_start_time.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_start_time.tv_usec);
 }
 

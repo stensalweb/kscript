@@ -220,10 +220,11 @@ pthread_key_t this_thread_key;
 // initialize a thread
 static void* thread_init(void* _self) {
     ks_thread self = (ks_thread)_self;
-    ks_debug("thread <%p> initializing!", self);
 
     // set the global variable
     pthread_setspecific(this_thread_key, (void*)self);
+
+    ks_debug("thread <%p> initializing!", self);
 
     // execute
     ks_lockGIL();
@@ -256,7 +257,6 @@ ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args) {
 
     // initialize variables
     self->hasGIL = false;
-
 
     // start off with NULL
     self->result = NULL;
@@ -299,10 +299,10 @@ void ks_thread_start(ks_thread self) {
 void ks_thread_join(ks_thread self) {
     if (!self->_pth_active) return;
 
-
     // unlock ourselves so the other one can join
     bool inThread = ks_thread_cur() != NULL;
     if (inThread) ks_unlockGIL();
+
 
     pthread_join(self->_pth, NULL);
     self->_pth_active = false;

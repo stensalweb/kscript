@@ -14,8 +14,8 @@
 #include "ks.h"
 
 #include <math.h>
-
 #include <errno.h>
+#include <ctype.h>
 
 
 
@@ -46,6 +46,7 @@ void ks_type_cfunc_init();
 void ks_type_pfunc_init();
 void ks_type_thread_init();
 
+void ks_util_init();
 
 void ks_mem_init();
 
