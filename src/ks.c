@@ -222,6 +222,9 @@ int main(int argc, char** argv) {
 
     // update globals
     ks_dict_set_cn(ks_globals, (ks_dict_ent_c[]){
+        {"__globals__", KS_NEWREF(ks_globals)},
+        
+        {"__path__", KS_NEWREF(ks_paths)},
         {"__argv__", KS_NEWREF(prog_args)},
 
         {NULL, NULL}

@@ -23,6 +23,7 @@ extern "C" {
 #include <errno.h>
 #include <ctype.h>
 #include <stddef.h>
+#include <dlfcn.h>
 
 
 
@@ -52,6 +53,7 @@ void ks_type_parser_init();
 void ks_type_cfunc_init();
 void ks_type_pfunc_init();
 void ks_type_thread_init();
+void ks_type_module_init();
 
 void ks_util_init();
 

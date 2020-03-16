@@ -82,6 +82,18 @@ ks_dict ks_dict_new(int len, ks_obj* entries) {
     return self;
 }
 
+void ks_dict_merge(ks_dict self, ks_dict src) {
+    int i;
+    for (i = 0; i < src->n_entries; ++i) {
+        // ensure it wasn't deleted
+        struct ks_dict_entry* ent = &src->entries[i];
+        if (ent->hash != 0 && ent->val != NULL) {
+            // set it in 'self'
+            ks_dict_set(self, ent->hash, ent->key, ent->val);
+        }
+    }
+}
+
 
 // construct a new dictionary from C-style entries, but do not create new references for them
 ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns) {

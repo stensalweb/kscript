@@ -1172,7 +1172,6 @@ typedef struct {
 }* ks_Error;
 
 
-
 /* EXECUTION */
 
 // ks_stk_frame - represents a single point of execution
@@ -1309,6 +1308,29 @@ ks_thread ks_thread_cur();
 // internal execution method
 ks_obj ks__exec(ks_code code);
 
+
+/* MODULES/EXTENSIONS */
+
+// ks_module - a type representing an entire module
+typedef struct {
+    KS_OBJ_BASE
+
+    // attributes in the module
+    ks_dict attr;
+
+}* ks_module;
+
+
+// construct a new module, given a name
+// NOTE: Returns a new reference
+ks_module ks_module_new(char* mname);
+
+// search for and return a module, if successful
+// NOTE: throws an error if not found
+// NOTE: Returns a new reference
+ks_module ks_module_import(char* mname);
+
+
 /* STRING BUILDING/UTILITY TYPES */
 
 // ks_str_b - a string building utility to make string concatenation simpler
@@ -1378,8 +1400,9 @@ extern ks_type
     ks_type_parser,
     
     ks_type_cfunc,
-    ks_type_kfunc
+    ks_type_kfunc,
 
+    ks_type_module
 ;
 
 
@@ -1393,6 +1416,7 @@ extern ks_cfunc
     ks_F_sleep,
     ks_F_len,
     ks_F_typeof,
+    ks_F_import,
 
     // operators
 
@@ -1424,6 +1448,9 @@ extern ks_cfunc
 
 // global variables
 extern ks_dict ks_globals;
+
+// the paths to search for things (similar to 'PYTHON_PATH')
+extern ks_list ks_paths;
 
 
 /* GENERIC/GENERAL LIBRARY FUNCTIONS */
@@ -1624,6 +1651,11 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap);
 ks_tuple ks_tuple_new(int len, ks_obj* elems);
 
 
+// Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
+// NOTE: This variant does not create references to the objects!, so don't call DECREF on 'elems'
+// NOTE: Returns a new reference
+ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
+
 /* LIST */
 
 // Create a new kscript list from an array of elements, or an empty list if `len==0`
@@ -1658,6 +1690,9 @@ void ks_list_popu(ks_list self);
 // ks_dict_new(3, (ks_obj[]){ key1, val1, key2, val2, key3, val3 })
 // NOTE: Returns a new reference
 ks_dict ks_dict_new(int len, ks_obj* entries);
+
+// Merge in entries of 'src' into self, replacing any entries in 'self' that existed
+void ks_dict_merge(ks_dict self, ks_dict src);
 
 // Create a new kscript dictionary from an array of C-style strings to values, which will not create new references to values
 // The last key is 'NULL'
@@ -1987,6 +2022,14 @@ void ks_errend();
 // Throw an exception if it failed
 ks_str ks_readfile(char* fname);
 
+
+// structure describing a C-extension initializer
+struct ks_module_cext_init {
+
+    // initialize and import the function
+    ks_module (*init_func)();
+
+};
 
 
 // Implementation of GNU getline function, reading an entire line from a FILE pointer

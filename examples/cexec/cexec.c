@@ -36,58 +36,67 @@ FUNCTIONS:
 
 // include this since this is a module.
 // NOTE: this also includes the `REQ_*` macros which are useful for error generation
-#include "ks_module.h"
+#include "ks-module.h"
 
 // to ensure we have the `popen()` C function
 #include <stdio.h>
 
 /* now, define our function that runs a given command */
 
-KS_MFUNC((cexec, run) {
-    #define SIG "cexec.run(cmd)"
+static KS_TFUNC(cexec, run) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str cmd = (ks_str)args[0];
-    KS_REQ_TYPE(cmd, ks_T_str, "cmd");
+    KS_REQ_TYPE(cmd, ks_type_str, "cmd");
 
     // file pointer to command output
     FILE* fp = NULL;
 
     // open a new process
     fp = popen(cmd->chr, "r");
-    if (fp == NULL) return kse_fmt(SIG ": Error running comand '%S'", cmd);
+    //if (fp == NULL) return kse_fmt(SIG ": Error running comand '%S'", cmd);
+    if (fp == NULL) return ks_throw_fmt(ks_type_Error, "cmd '%S' failed to open!", cmd);
 
     // create a string builder to add the buffers to
-    ks_strB result = ks_strB_create();
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    // unlock the GIL, so other threads may go while it is running
+    ks_unlockGIL();
 
     // keep reading valid buffers until the output is finished
     char buf[4096];
     while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
-        ks_strB_add(&result, buf, strlen(buf));
+        ks_str_b_add(&SB, strlen(buf), buf);
     }
 
+
+    // acquire it back before calling any more functions
+    ks_lockGIL();
+
+
     // finish the string builder
-    ks_str ret = ks_strB_finish(&result);
+    ks_str ret = ks_str_b_get(&SB);
 
     // check for error code
     ks_int status = ks_int_new(WEXITSTATUS(pclose(fp)));
 
     // return our tuple. Since we created the string and int, we don't want to record another reference to them
-    return (kso)ks_tuple_new_norefs((kso[]){ (kso)status, (kso)ret }, 2);
-    #undef SIG
+
+    return (ks_obj)ks_tuple_new_n(2, (ks_obj[]){ (ks_obj)status, (ks_obj)ret });
 }
 
+static ks_module get_module() {
+    ks_module mod = ks_module_new("cexec");
 
-MODULE_INIT() {
-    // create our new module
-    ks_module mod = ks_module_new_c("cexec");
+    ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
+        /* functions */
+        {"run", (ks_obj)ks_cfunc_new2(cexec_run_, "cexec.run(cmd)")},
 
-    // add our function
-    MODULE_ADD_CKS_FUNC(mod, "run", cexec_run_);
-    
-    // return our module
-    return (kso)mod;
+        {NULL, NULL}
+    });
+
+    return mod;
 }
 
-// finalize everything, making it a valid kscript module
-MODULE_END();
-
+// boiler plate code
+MODULE_INIT(get_module)

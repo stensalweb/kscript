@@ -8,7 +8,7 @@ KS_DIR         ?= ../..
 #KS_DIR         ?= /usr/local
 
 # CFLAGS for compiling this module, just need to include kscript
-cexec_CFLAGS   ?= $(CFLAGS) -I$(KS_DIR)/include
+cexec_CFLAGS   ?= $(CFLAGS) -I$(KS_DIR)/src
 
 # linker flags for compiling this module, just need to link to kscript
 cexec_LDFLAGS  ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks

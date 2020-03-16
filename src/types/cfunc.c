@@ -37,13 +37,6 @@ ks_cfunc ks_cfunc_new2(ks_obj (*func)(int n_args, ks_obj* args), char* hrname) {
 }
 
 
-// free a kscript cfunc
-void ks_free_cfunc(ks_cfunc self) {
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-}
-
-
 /* member functions */
 
 // cfunc.__free__(self) -> free a cfunc
@@ -58,7 +51,6 @@ static KS_TFUNC(cfunc, free) {
     return KSO_NONE;
 };
 
-
 // cfunc.__str__(self) -> to string
 static KS_TFUNC(cfunc, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -67,8 +59,6 @@ static KS_TFUNC(cfunc, str) {
     
     return (ks_obj)ks_fmt_c("<'%T' : %S>", self, self->name_hr);
 };
-
-
 
 
 // initialize cfunc type

@@ -15,6 +15,7 @@ ks_cfunc
     ks_F_sleep = NULL,
     ks_F_exit = NULL,
     ks_F_typeof = NULL,
+    ks_F_import = NULL,
 
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -269,6 +270,19 @@ static KS_FUNC(exit) {
     return NULL;
 }
 
+/* __import__(name) -> module
+ *
+ * Attempt to import a module, and return the module as an object
+ *
+ */
+static KS_FUNC(import) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str name = (ks_str)args[0];
+    KS_REQ_TYPE(name, ks_type_str, "name");
+
+    // attempt to import it
+    return (ks_obj)ks_module_import(name->chr);
+}
 
 
 /* getattr(obj, attr) -> obj
@@ -644,6 +658,7 @@ void ks_init_funcs() {
     ks_F_exit = ks_cfunc_new2(exit_, "exit(code=0)");
     ks_F_sleep = ks_cfunc_new2(sleep_, "sleep(dur=0)");
     ks_F_typeof = ks_cfunc_new2(typeof_, "typeof(obj)");
+    ks_F_import = ks_cfunc_new2(import_, "import(name)");
 
     ks_F_add = ks_cfunc_new2(add_, "__add__(L, R)");
     ks_F_sub = ks_cfunc_new2(sub_, "__sub__(L, R)");

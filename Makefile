@@ -48,7 +48,7 @@ endif
 # the sources for our ks library (addprefix basically just adds `src`
 #   to each of the files, since we are in `./` and they're in `./src`)
 libks_src       := $(addprefix src/, init.c log.c mem.c util.c obj.c fmt.c funcs.c codegen.c exec.c getopt_long.c) \
-				   $(addprefix src/types/, type.c none.c bool.c int.c float.c str.c tuple.c list.c dict.c Error.c cfunc.c kfunc.c pfunc.c code.c ast.c parser.c thread.c)
+				   $(addprefix src/types/, type.c none.c bool.c int.c float.c str.c tuple.c list.c dict.c Error.c cfunc.c kfunc.c pfunc.c code.c ast.c parser.c thread.c module.c)
 
 # the header files that if changed, should cause recompilation
 libks_src_h     := $(addprefix src/, ks.h ks-impl.h) $(KS_CONFIG)

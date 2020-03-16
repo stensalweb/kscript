@@ -11,7 +11,7 @@
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_tuple);
 
-// create a kscript int from a C-style int
+// construct a tuple
 ks_tuple ks_tuple_new(int len, ks_obj* elems) {
     // allocate enough memory for the elements
     ks_tuple self = (ks_tuple)ks_malloc(sizeof(*self) + sizeof(ks_obj) * len);
@@ -28,6 +28,26 @@ ks_tuple ks_tuple_new(int len, ks_obj* elems) {
 
     return self;
 }
+
+
+// contruct a tuple with no new references
+ks_tuple ks_tuple_new_n(int len, ks_obj* elems) {
+    // allocate enough memory for the elements
+    ks_tuple self = (ks_tuple)ks_malloc(sizeof(*self) + sizeof(ks_obj) * len);
+    KS_INIT_OBJ(self, ks_type_tuple);
+
+    // initialize type-specific things
+    self->len = len;
+
+    int i;
+    // and populate the array, without creating new references
+    for (i = 0; i < len; ++i) {
+        self->elems[i] = elems[i];
+    }
+
+    return self;
+}
+
 
 // tuple.__str__(self) -> convert to string
 static KS_TFUNC(tuple, str) {
