@@ -57,6 +57,7 @@ bool ks_init() {
     ks_type_thread_init();
 
     ks_type_cfunc_init();
+    ks_type_kfunc_init();
     ks_type_pfunc_init();
     ks_type_code_init();
     ks_type_ast_init();
@@ -97,8 +98,10 @@ bool ks_init() {
 
         {"hash",       KS_NEWREF(ks_F_hash)},
         {"repr",       KS_NEWREF(ks_F_repr)},
+        {"exit",       KS_NEWREF(ks_F_exit)},
         {"print",      KS_NEWREF(ks_F_print)},
         {"len",        KS_NEWREF(ks_F_len)},
+        {"sleep",      KS_NEWREF(ks_F_sleep)},
         {"typeof",     KS_NEWREF(ks_F_typeof)},
 
         /* math constants */

@@ -73,11 +73,22 @@ static int exc_call_stk_p = -1;
 static exc_call_stk_item exc_call_stk[4096];
 
 // internal execution algorithm
-ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
-    ks_lockGIL();
-    
-    ks_stack_frame this_stack_frame = ks_stack_frame_new((ks_obj)code);
-    ks_list_push(self->stack_frames, (ks_obj)this_stack_frame);
+//ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
+ks_obj ks__exec(ks_code code) {
+    ks_thread self = ks_thread_cur();
+    assert(self != NULL && "'ks__exec()' called outside of a thread!");
+    assert(self->stack_frames->len > 0 && "No stack frames available!");
+
+
+    // current stack frame
+    ks_stack_frame this_stack_frame = (ks_stack_frame)self->stack_frames->elems[self->stack_frames->len - 1];
+
+
+    // see if it was part of a kfunc
+    ks_kfunc this_kfunc = (ks_kfunc)this_stack_frame->kfunc;
+
+    // the GIL should be locked before this
+    //ks_lockGIL();
 
     // tell that we are entering the call stack
     //ks_list_push(ks_call_stk, (ks_obj)code);
@@ -89,10 +100,8 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
     // set program counter
     c_pc = code->bc;
 
-
     // what will be returned
     ks_obj ret_val = NULL;
-
 
     // starting length
     int start_stk_len = self->stk->len;
@@ -200,7 +209,6 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
             KS_DECREF(ret);
 
         VMED_CASE_END
-
 
 
 
@@ -363,7 +371,6 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
         VMED_CASE_END
 
 
-
         /* VALUE LOOKUP */
 
         VMED_CASE_START(KSB_LOAD)
@@ -372,12 +379,35 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
             ks_str name = (ks_str)code->v_const->elems[op_i32.arg];
             VME_ASSERT(name->type == ks_type_str && "load [name] : 'name' must be a string");
 
-            ks_obj val = ks_dict_get(ks_globals, name->v_hash, (ks_obj)name);
-            if (!val) {
-                // throw an exception
-                ks_throw_fmt(ks_type_Error, "Use of undeclared variable '%S'", name);
-                goto EXC;
+            ks_obj val = NULL;
+            
+            // try local variables
+            if (this_stack_frame->locals != NULL) {
+                val = ks_dict_get(this_stack_frame->locals, name->v_hash, (ks_obj)name);
+                if (val != NULL) goto found;
             }
+
+            // use closures to resolve the reference
+            if (this_kfunc != NULL) {
+                for (i = this_kfunc->closures->len - 1; i >= 0; --i) {
+                    val = ks_dict_get((ks_dict)this_kfunc->closures->elems[i], name->v_hash, (ks_obj)name);
+                    if (val != NULL) goto found;
+                }
+            }
+            
+            // try global variables
+            val = ks_dict_get(ks_globals, name->v_hash, (ks_obj)name);
+            if (val != NULL) goto found;
+
+
+            // else, we can't find the value, so throw an exception
+            // throw an exception
+            ks_throw_fmt(ks_type_Error, "Use of undeclared variable '%S'", name);
+            goto EXC;
+
+            // if found here
+            found: ;
+
             ks_list_push(self->stk, val);
             KS_DECREF(val);
 
@@ -398,14 +428,13 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
 
             // set it in the globals
             // TODO: add local variables too
-            ks_dict_set(ks_globals, name->v_hash, (ks_obj)name, val);
+            assert(this_stack_frame->locals != NULL && "'store' bytecode encountered in a stack frame that has no locals()!");
+            ks_dict_set(this_stack_frame->locals, name->v_hash, (ks_obj)name, val);
 
             // increment program counter
             //c_pc += op_i32.arg;
 
         VMED_CASE_END
-
-
 
         VMED_CASE_START(KSB_LOAD_ATTR)
             VMED_CONSUME(ksb_i32, op_i32);
@@ -448,6 +477,44 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
 
             ks_list_push(self->stk, val);
             KS_DECREF(obj);
+
+            // increment program counter
+            //c_pc += op_i32.arg;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_NEW_FUNC)
+            VMED_CONSUME(ksb, op);
+
+            // get the TOS
+            ks_kfunc top = (ks_kfunc)ks_list_pop(self->stk);
+
+            assert(top->type == ks_type_kfunc && "'new_func' used on TOS which was not a kfunc!");
+
+            ks_list_push(self->stk, (ks_obj)ks_kfunc_new_copy(top));
+
+            KS_DECREF(top);
+
+            // increment program counter
+            //c_pc += op_i32.arg;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_ADD_CLOSURE)
+            VMED_CONSUME(ksb, op);
+
+            // get the TOS
+            ks_kfunc top = (ks_kfunc)self->stk->elems[self->stk->len - 1];
+
+            assert(top->type == ks_type_kfunc && "'add_closure' used on TOS which was not a kfunc!");
+            assert(this_stack_frame->locals != NULL && "'add_closure' used in stack frame which had no locals!");
+
+            // first, add our current closures
+            if (this_kfunc != NULL) {
+                ks_list_pushn(top->closures, 1, &this_kfunc->closures->elems[this_kfunc->closures->len - 1]);
+            }
+
+            ks_list_push(top->closures, (ks_obj)this_stack_frame->locals);
 
             // increment program counter
             //c_pc += op_i32.arg;
@@ -511,32 +578,22 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
 
     EXC: ;
 
-
-    // grab the call stack at which the error occured
-    ks_list exc_info = ks_list_new(0, NULL);
-    ks_obj exc = ks_catch2(exc_info);
-
     if (exc_call_stk_p > start_ecs) {
-        // we have a handler ready, so push it on the stack & return
+        // there is a 'try'/'catch' block, so run that
+
+        // grab the call stack at which the error occured
+        ks_list exc_info = ks_list_new(0, NULL);
+        ks_obj exc = ks_catch2(exc_info);
+
+        // we have a handler ready, so push it on the stack & execute
         ks_list_push(self->stk, exc);
         KS_DECREF(exc);
         c_pc = exc_call_stk[exc_call_stk_p--].to_c_pc;
         goto dispatch;
-    } else {
-        // error, so rethrow it and return
-        ks_error("%T: %S", exc, exc);
-
-        // print in reverse order
-        ks_printf("Call Stack:\n");
-        
-        for (i = exc_info->len - 1; i >= 0; i--) {
-            ks_printf("In #%i: %S\n", i, exc_info->elems[i]);
-        }
-        /*for (i = self->stack_frames->len - 1; i >= 0; i--) {
-            ks_printf("In #%i: %R\n", i, ((ks_stack_frame)self->stack_frames->elems[i])->func);
-        }*/
-        ks_printf("In %R\n", ks_thread_cur());
     }
+
+
+    // else, return NULL, and see if someone above us handles it
 
     ret_val = NULL;
     goto RET;
@@ -548,22 +605,33 @@ ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
         ks_list_popu(self->stk);
     }
 
-    // take off the top of the stack frame
-    ks_list_popu(self->stack_frames);
-    KS_DECREF(this_stack_frame);
-
     // free any temporary arguments
     ks_free(args);
-
-    // unlock the mutex
-    ks_unlockGIL();
 
     return ret_val;
 
 }
 
 
+// end with an error
+void ks_errend() {
+    ks_list exc_info = ks_list_new(0, NULL);
+    ks_obj exc = ks_catch2(exc_info);
+    assert(exc != NULL && "ks_errend() called with no exception!");
 
+    // error, so rethrow it and return
+    ks_error("%T: %S", exc, exc);
 
+    // print in reverse order
+    ks_printf("Call Stack:\n");
+    
+    int i;
+    for (i = 0; i < exc_info->len; i++) {
+        ks_printf("%*c#%i: %S\n", 2, ' ', i, exc_info->elems[i]);
+    }
 
-
+    
+    ks_printf("In thread %R @ %p\n", ks_thread_cur()->name, ks_thread_cur());
+    // exit with error
+    exit(1);
+}

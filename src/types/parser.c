@@ -99,6 +99,73 @@ ks_str ks_tok_expstr(ks_tok tok) {
     return full_what;
 }
 
+// generate a string from a token, marked up
+ks_str ks_tok_expstr_2(ks_tok tok) {
+
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    if (tok.parser != NULL && tok.len >= 0) {
+        // we have a valid token
+        int i = tok.pos;
+        int lineno = tok.line;
+        char c;
+
+        char* src = tok.parser->src->chr;
+
+        // rewind to the start of the line
+        while (i >= 0) {
+            c = src[i];
+
+            if (c == '\n') {
+                i++;
+                break;
+            }
+            i--;
+        }
+
+
+        if (i < 0) i++;
+        if (src[i] == '\n') i++;
+
+        // line start index
+        int lsi = i;
+
+        while (c = src[i]) {
+            if (c == '\n') break;
+            i++;
+        }
+
+        // line length
+        int ll = i - lsi;
+
+        // the start of the line
+        char* sl = src + lsi;
+
+        //printf("LINE: %.*s\n", ll, src + lsi);
+        /*ks_str_b_add_fmt(&SB, "\n%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
+            ll, sl,
+            tok.col, ' ',
+            tok.len - 1, '~',
+            tok.line + 1, tok.col + 1,
+            tok.parser->src_name
+        );*/
+        // now, add additional metadata about the error, including in-source markup
+        ks_str_b_add_fmt(&SB, "\n%.*s" RED BOLD "%.*s" RESET "%.*s\n%*c" RED "^%*c" RESET,
+            tok.col, sl,
+            tok.len, sl + tok.col,
+            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            tok.col, ' ',
+            tok.len - 1, '~'
+        );
+    }
+
+    ks_str full_what = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+
+    return full_what;
+}
+
 
 /* UTIL FUNCTIONS */
 
@@ -399,9 +466,12 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_OP, "+") CASE_S(KS_TOK_OP, "-")
         CASE_S(KS_TOK_OP, "*") CASE_S(KS_TOK_OP, "/")
         CASE_S(KS_TOK_OP, "%") 
+
+        CASE_S(KS_TOK_OP, "<=")
+        CASE_S(KS_TOK_OP, ">=")
         
-        CASE_S(KS_TOK_OP, "<") CASE_S(KS_TOK_OP, "<=")
-        CASE_S(KS_TOK_OP, ">") CASE_S(KS_TOK_OP, ">=")
+        CASE_S(KS_TOK_OP, "<") 
+        CASE_S(KS_TOK_OP, ">") 
         CASE_S(KS_TOK_OP, "==") CASE_S(KS_TOK_OP, "!=")
 
         CASE_S(KS_TOK_OP, "~")
@@ -1330,6 +1400,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         // create a block of statements
         ks_ast blk = ks_ast_new_block(0, NULL);
+        blk->tok = blk->tok_expr = ctok;
 
         // skip anything irrelevant
         SKIP_IRR_S();
@@ -1364,6 +1435,26 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         ADV_1();
 
         return blk;
+    } else if (TOK_EQ(ctok, "ret")) {
+        // ret <expr>
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        // parse out the expression being thrown
+        ks_ast expr = ks_parser_parse_expr(self);
+        if (!expr) goto kpps_err;
+
+        ks_ast ret = ks_ast_new_ret(expr);
+        KS_DECREF(expr);
+
+        ret->tok = start_tok;
+
+        ret->tok_expr = ks_tok_combo(start_tok, expr->tok_expr);
+
+        return ret;
+
+
     } else if (TOK_EQ(ctok, "throw")) {
         // throw <expr>
         ADV_1();
@@ -1422,6 +1513,57 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         SKIP_IRR_S();
 
+        ks_ast __first_tail = NULL;
+        ks_ast __last_tail = NULL;
+
+        while (TOK_EQ(CTOK(), "elif")) {
+            ADV_1();
+
+            ks_ast elif_cond = ks_parser_parse_expr(self);
+            if (!elif_cond) {
+                KS_DECREF(cond);
+                KS_DECREF(body);
+                goto kpps_err;
+            }
+    
+            SKIP_IRR_E();
+
+            // parse another statement
+            if (CTOK().type == KS_TOK_COMMA) {
+                // skip it so inline statements can be used
+                ADV_1();
+            }
+
+
+            SKIP_IRR_S();
+
+            ks_ast elif_blk = ks_parser_parse_stmt(self);
+
+            if (!elif_blk) {
+                KS_DECREF(cond);
+                KS_DECREF(elif_cond);
+                KS_DECREF(body);
+                goto kpps_err;
+            }
+
+
+            ks_ast elif_if = ks_ast_new_if(elif_cond, elif_blk, NULL);
+
+            if (__last_tail != NULL) {
+                // if there's already one, push it on and then replace it
+                ks_list_push(__last_tail->children, (ks_obj)elif_if);
+                KS_DECREF(elif_if);
+            }
+
+            // set where to append from
+            __last_tail = elif_if;
+            if (__first_tail == NULL) __first_tail = __last_tail;
+            //else_blk = elif_if;
+
+            SKIP_IRR_S();
+        }
+
+
         if (TOK_EQ(CTOK(), "else")) {
             ADV_1();
             // parse another statement
@@ -1431,16 +1573,24 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             }
             SKIP_IRR_S();
 
-            else_blk = ks_parser_parse_stmt(self);
-            if (!else_blk) {
+            ks_ast else_this_blk = ks_parser_parse_stmt(self);
+            if (!else_this_blk) {
                 KS_DECREF(cond);
                 KS_DECREF(body);
                 goto kpps_err;
             }
 
+            if (__last_tail != NULL) {
+                // if there's already one, push it on and then replace it
+                ks_list_push(__last_tail->children, (ks_obj)else_this_blk);
+                KS_DECREF(else_this_blk);
+            }
+
+            __last_tail = else_this_blk;
+            if (__first_tail == NULL) __first_tail = __last_tail;
         }
 
-        ks_ast res = ks_ast_new_if(cond, body, else_blk);
+        ks_ast res = ks_ast_new_if(cond, body, __first_tail);
 
         // they are now contained in 'res'
         KS_DECREF(cond);
@@ -1626,13 +1776,111 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         }
 
+    } else if (TOK_EQ(ctok, "func")) {
+
+        // func name(?PARAMS) { BODY }
+        // parse out the 'func'
+        ks_tok funtok = CTOK();
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        if (CTOK().type != KS_TOK_IDENT) {
+            syntax_error(CTOK(), "Unexpected token, expected the name of a function");
+            goto kpps_err;
+        }
+
+        // get the name as a variable reference
+        ks_str _name = ks_str_new_l(CTOK().parser->src->chr + CTOK().pos, CTOK().len);
+        ks_ast name = ks_ast_new_var(_name);
+        name->tok = name->tok_expr = CTOK();
+        ADV_1();
+
+        if (CTOK().type != KS_TOK_LPAR) {
+            syntax_error(CTOK(), "Unexpected token, expected '(' for function params");
+            goto kpps_err;
+        }
+        ADV_1();
+
+        ks_list pars = ks_list_new(0, NULL);
+        SKIP_IRR_E();
+
+        while (CTOK().type != KS_TOK_RPAR) {
+            if (CTOK().type != KS_TOK_IDENT) {
+                syntax_error(CTOK(), "Unexpected token, expected a parameter name for a function");
+                goto kpps_err;
+            }
+
+            ks_str par_name = ks_str_new_l(CTOK().parser->src->chr + CTOK().pos, CTOK().len);
+            ks_list_push(pars, (ks_obj)par_name);
+            KS_DECREF(par_name);
+
+            ADV_1();
+
+            // skip comma
+            if (CTOK().type == KS_TOK_COMMA) {
+                ADV_1();
+            }
+
+
+            SKIP_IRR_E();
+        }
+
+        if (CTOK().type != KS_TOK_RPAR) {
+            syntax_error(CTOK(), "Unexpected token, expected ')' for function params");
+            goto kpps_err;
+        }
+        ADV_1();
+
+        if (CTOK().type != KS_TOK_LBRC) {
+            syntax_error(CTOK(), "Unexpected token, expected '{' for function body");
+            goto kpps_err;
+        }
+
+        // parse out the '{ BODY }'
+        ks_ast body = ks_parser_parse_stmt(self);
+        if (!body) {
+            KS_DECREF(name);
+            goto kpps_err;
+        }
+
+        // genrate the body as its own constant
+        ks_code new_code = ks_codegen(body);
+        if (!new_code) {
+            KS_DECREF(body);
+            KS_DECREF(name);
+            goto kpps_err;
+        }
+
+        // construct a function from the body
+        ks_kfunc new_kfunc = ks_kfunc_new(new_code, _name);
+        KS_DECREF(new_code);
+        KS_DECREF(_name);
+
+        // add parameters
+        int i;
+        for (i = 0; i < pars->len; ++i) {
+            ks_kfunc_addpar(new_kfunc, (ks_str)pars->elems[i]);
+        }
+        KS_DECREF(pars);
+
+        
+        // create a new constant reference
+        ks_ast new_const = ks_ast_new_const((ks_obj)new_kfunc);
+        name->tok = name->tok_expr = funtok;
+        KS_DECREF(new_kfunc);
+
+        // now, create an assignment: name = func
+        ks_ast res = ks_ast_new_bop(KS_AST_BOP_ASSIGN, name, new_const);
+        res->tok = res->tok_expr = funtok;
+
+        return res;
+
     } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
 
         // parse expression
         return ks_parser_parse_expr(self);
     }
-
-
 
     // no pattern was found, error out
     return syntax_error(start_tok, "Unexpected start of statement");

@@ -17,7 +17,6 @@
 void ks_obj_free(ks_obj obj) {
     assert(obj->refcnt <= 0);
 
-
     if (obj->type->__free__ == NULL) {
         // just free memory & dereference the type,
         // assume nothing else as it wasn't provided
@@ -31,7 +30,6 @@ void ks_obj_free(ks_obj obj) {
             ks_warn("Error freeing object %p", obj);
         }
     }
-
 }
 
 
@@ -72,10 +70,10 @@ bool ks_eq(ks_obj A, ks_obj B) {
     return false;
 }
 
-
 // Return if it is callable
 bool ks_is_callable(ks_obj func) {
     if (func->type == ks_type_cfunc) return true;
+    if (func->type == ks_type_kfunc) return true;
     if (func->type == ks_type_type) return true;
 
     // callable here
@@ -153,7 +151,6 @@ ks_obj ks_catch() {
     // return the active try/catch reference
     return ret;
 }
-
 
 // try and catch the object off
 ks_obj ks_catch2(ks_list stk_info) {

@@ -55,7 +55,6 @@ void ks_code_add_meta(ks_code self, ks_tok tok) {
 
 }
 
-
 // add bytes to the code
 void ks_code_add(ks_code self, int len, ksb* data) {
     // start index
@@ -113,6 +112,9 @@ void ksca_jmpf   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPF, relamt)
 
 void ksca_try_start (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_START, relamt)
 void ksca_try_end   (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_END, relamt)
+
+void ksca_closure   (ks_code self) KSCA_B(KSB_ADD_CLOSURE)
+void ksca_new_func  (ks_code self) KSCA_B(KSB_NEW_FUNC)
 
 void ksca_load      (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD, ks_code_add_const(self, (ks_obj)name))
 void ksca_load_attr (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD_ATTR, ks_code_add_const(self, (ks_obj)name))

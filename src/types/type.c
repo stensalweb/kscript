@@ -222,6 +222,21 @@ static KS_TFUNC(type, setattr) {
 };
 
 
+// type.__eq__(L, R) -> return whether the 2 types are equal
+static KS_TFUNC(type, eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_type && R->type == ks_type_type) {
+        return KSO_BOOL(L == R);
+    }
+
+    KS_ERR_BOP_UNDEF("==", L, R);
+};
+
+
+
+
 // initialize type type
 void ks_type_type_init() {
     KS_INIT_TYPE_OBJ(ks_type_type, "type");
@@ -232,6 +247,10 @@ void ks_type_type_init() {
 
         {"__getattr__", (ks_obj)ks_cfunc_new(type_getattr_)},
         {"__setattr__", (ks_obj)ks_cfunc_new(type_setattr_)},
+
+
+        {"__eq__", (ks_obj)ks_cfunc_new(type_eq_)},
+
 
         {NULL, NULL}   
     });

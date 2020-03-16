@@ -15,6 +15,10 @@
 
 #include <math.h>
 
+#include <errno.h>
+
+
+
 // formatting colors
 #define BOLD   "\033[1m"
 #define RESET  "\033[0m"
@@ -33,6 +37,7 @@ void ks_type_tuple_init();
 void ks_type_list_init();
 void ks_type_dict_init();
 void ks_type_Error_init();
+void ks_type_kfunc_init();
 
 void ks_type_code_init();
 void ks_type_ast_init();

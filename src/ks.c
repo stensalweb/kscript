@@ -12,64 +12,50 @@
 
 #include <errno.h>
 
-
-
+// Cfunc wrapper to call
 static KS_FUNC(cfunc_main) {
     KS_REQ_N_ARGS_MIN(n_args, 1);
-    ks_str fname_o = (ks_str)args[0];
-    KS_REQ_TYPE(fname_o, ks_type_str, "fname");
+    ks_str fname = (ks_str)args[0];
+    KS_REQ_TYPE(fname, ks_type_str, "fname");
 
-    char* fname = fname_o->chr;
 
-    // exception handling
-    ks_obj exc = NULL;
+    // 1. read the source code from the file
+    // allowing for any errors
+    ks_str src_code = ks_readfile(fname->chr);
+    if (!src_code) return NULL;
 
-    FILE* fp = fopen(fname, "r");
-    if (!fp) {
-        ks_error("Failed to open file '%s': %s", fname, strerror(errno));
-        return NULL;
-    }
+    // 2. construct a parser
+    ks_parser p = ks_parser_new(src_code, fname);
+    if (!p) return NULL;
 
-    fseek(fp, 0, SEEK_END);
-    int len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char* csrc = ks_malloc(len + 1);
-    fread(csrc, 1, len, fp);
-    csrc[len] = '\0';
-
-    ks_str src = ks_str_new(csrc);
-    ks_free(csrc);
-    ks_str src_name = ks_str_new((char*)fname);
-
-    ks_parser p = ks_parser_new(src, src_name);
-    KS_DECREF(src_name);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return NULL;
-    }
-
+    // 3. parse out the entire module (which will also syntax validate)
     ks_ast prog = ks_parser_parse_file(p);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
+    if (!prog) {
+        KS_DECREF(p);    
         return NULL;
     }
 
+    // 4. generate a bytecode object reprsenting the module
     ks_code myc = ks_codegen(prog);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
+    if (!myc) {
+        KS_DECREF(p);    
+        KS_DECREF(prog);    
         return NULL;
     }
-    
+
+    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
+    }
+
+
+    // debug the code it is going to run
     ks_debug("CODE: %S", myc);
 
-    ks_obj ret = ks_thread_call_code(ks_thread_cur(), myc);
-    if (exc = ks_catch()) {
-        ks_error("%T: %R", exc, exc);
-        return NULL;
-    }
-    
-    return KSO_NONE;
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    return ks_call((ks_obj)myc, 0, NULL);
 }
 
 
@@ -146,13 +132,15 @@ int main(int argc, char** argv) {
     
     ks_debug("prog_args: %S", prog_args);
 
+    // update globals
     ks_dict_set_cn(ks_globals, (ks_dict_ent_c[]){
         {"__argv__", KS_NEWREF(prog_args)},
 
         {NULL, NULL}
     });
 
-    ks_cfunc my_main = ks_cfunc_new(cfunc_main_);
+    // construct a main function
+    ks_cfunc my_main = ks_cfunc_new2(cfunc_main_, "__std.main(fname)");
 
     ks_str fname_o = ks_str_new(fname);
     ks_thread main_thread = ks_thread_new("main", (ks_obj)my_main, 1, (ks_obj*)&fname_o);
@@ -162,8 +150,9 @@ int main(int argc, char** argv) {
     // start executing the thread
     ks_thread_start(main_thread);
 
+    // ensure the thread is done
     ks_thread_join(main_thread);
-    KS_DECREF(main_thread);
+    //KS_DECREF(main_thread);
 
     ks_debug("mem_max: %l", (int64_t)ks_mem_max());
 

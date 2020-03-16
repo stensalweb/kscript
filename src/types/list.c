@@ -150,8 +150,6 @@ static KS_TFUNC(list, add) {
         return (ks_obj)res;
     }
 
-
-
     KS_ERR_BOP_UNDEF("+", L, R);
 };
 
@@ -175,6 +173,32 @@ static KS_TFUNC(list, getitem) {
     return KS_NEWREF(self->elems[idxi]);
 };
 
+// list.push(self, obj) -> push an item to a list
+static KS_TFUNC(list, push) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_type_list, "self");
+    ks_obj obj = (ks_obj)args[1];
+
+    ks_list_push(self, obj);
+
+    // return itself
+    return KS_NEWREF(self);
+};
+
+
+// list.pop(self) -> return last item popped off 
+static KS_TFUNC(list, pop) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_type_list, "self");
+
+    // ensure there were enough items
+    if (self->len <= 0) ks_throw_fmt(ks_type_Error, "'%T' object is empty; nothing to pop off", self);
+
+    // return last item
+    return ks_list_pop(self);
+};
 
 
 // initialize list type
@@ -187,8 +211,11 @@ void ks_type_list_init() {
         {"__free__", (ks_obj)ks_cfunc_new(list_free_)},
 
         {"__len__", (ks_obj)ks_cfunc_new(list_len_)},
-        
+
         {"__add__", (ks_obj)ks_cfunc_new(list_add_)},
+
+        {"push", (ks_obj)ks_cfunc_new(list_push_)},
+        {"pop", (ks_obj)ks_cfunc_new(list_pop_)},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(list_getitem_, "list.__getitem__(self, idx)")},
 

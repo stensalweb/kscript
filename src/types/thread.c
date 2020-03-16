@@ -24,6 +24,11 @@ ks_stack_frame ks_stack_frame_new(ks_obj func) {
 
     self->func = KS_NEWREF(func);
 
+    self->kfunc = (ks_kfunc)(func->type == ks_type_kfunc ? func : NULL);
+
+    self->locals = NULL;
+    self->pc = NULL;
+
     return self;
 }
 
@@ -37,6 +42,9 @@ static KS_TFUNC(stack_frame, free) {
     KS_REQ_TYPE(self, ks_type_stack_frame, "self");
 
     KS_DECREF(self->func);
+
+    // free local variables, if allocated
+    if (self->locals != NULL) KS_DECREF(self->locals);
 
 
     KS_UNINIT_OBJ(self);
@@ -69,14 +77,41 @@ static KS_TFUNC(stack_frame, str) {
         if (fi >= 0) {
             // set information
             //ks_list_popu(call_stk);
-            ks_str o_str = ks_tok_expstr(code_obj->meta[fi].tok);
-            ks_str new_str = ks_fmt_c("%S: %S\n", code_obj->name_hr, o_str);
+            ks_str o_str = ks_tok_expstr_2(code_obj->meta[fi].tok);
+            ks_str new_str = ks_fmt_c("%S (line %i, col %i): %S", code_obj->name_hr, code_obj->meta[fi].tok.line+1, code_obj->meta[fi].tok.col+1, o_str);
             KS_DECREF(o_str);
 
             return (ks_obj)new_str;
         }
-    }
+    } else if (self->func->type == ks_type_kfunc) {
+        // attempt to search for it
 
+        ks_code code_obj = ((ks_kfunc)self->func)->code;
+
+        // get current offset into btecode
+        int offset = (int)(self->pc - code_obj->bc);
+
+        int fi = -1, i;
+        for (i = 0; i < code_obj->meta_n; ++i) {
+            if (offset <= code_obj->meta[i].bc_n) {
+                fi = i;
+                break;
+            }
+        }
+        if (fi >= 0) {
+            // set information
+            //ks_list_popu(call_stk);
+            ks_str o_str = ks_tok_expstr_2(code_obj->meta[fi].tok);
+            ks_str new_str = ks_fmt_c("%S (line %i, col %i): %S", code_obj->name_hr, code_obj->meta[fi].tok.line+1, code_obj->meta[fi].tok.col+1, o_str);
+            KS_DECREF(o_str);
+
+            return (ks_obj)new_str;
+        }
+
+    } else if (self->func->type == ks_type_cfunc) {
+        return (ks_obj)ks_fmt_c("%S [cfunc]", ((ks_cfunc)self->func)->name_hr);
+
+    }
 
     return (ks_obj)ks_fmt_c("<'stack_frame' type(func): %T obj @ %p>", self->func, self);
 };
@@ -194,9 +229,15 @@ static void* thread_init(void* _self) {
     ks_lockGIL();
     ks_obj ret = ks_call(self->target, self->args->len, self->args->elems);
 
-    ks_info("got: %R", ret);
-    ks_unlockGIL();
+    if (!ret) {
+        // handle exception
+        ks_errend();
+    }
 
+    // store the result
+    self->result = ret;
+
+    ks_unlockGIL();
 
     return NULL;
 }
@@ -215,6 +256,10 @@ ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args) {
 
     // initialize variables
     self->hasGIL = false;
+
+
+    // start off with NULL
+    self->result = NULL;
 
     if (name) {
         self->name = ks_str_new(name);
@@ -307,7 +352,6 @@ static KS_TFUNC(thread, new) {
 
 };
 
-
 // thread.start(self) -> start executing the thread
 static KS_TFUNC(thread, start) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -329,7 +373,17 @@ static KS_TFUNC(thread, join) {
     ks_thread_join(self);
 
     return KSO_NONE;
+};
 
+// thread.result(self) -> join the thread, and then get its result
+static KS_TFUNC(thread, result) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_thread self = (ks_thread)args[0];
+    KS_REQ_TYPE(self, ks_type_thread, "self");
+
+    ks_thread_join(self);
+
+    return KS_NEWREF(self->result);
 };
 
 
@@ -356,6 +410,9 @@ static KS_TFUNC(thread, free) {
 
     KS_DECREF(self->target);
     KS_DECREF(self->args);
+
+    // free result if it exists
+    if (self->result) KS_DECREF(self->result);
 
     // dereference vars
     KS_DECREF(self->sub_threads);
@@ -406,8 +463,11 @@ void ks_type_thread_init() {
 
     ks_type_set_cn(ks_type_thread, (ks_dict_ent_c[]){
         {"__new__", (ks_obj)ks_cfunc_new(thread_new_)},
+
         {"start", (ks_obj)ks_cfunc_new(thread_start_)},
         {"join", (ks_obj)ks_cfunc_new(thread_join_)},
+        {"result", (ks_obj)ks_cfunc_new(thread_result_)},
+
         {"__str__", (ks_obj)ks_cfunc_new(thread_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(thread_str_)},
         {"__this__", (ks_obj)ks_cfunc_new(thread_this_)},

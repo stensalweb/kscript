@@ -162,6 +162,16 @@ enum {
     // 1:[op] 4:[int relamt]
     KSB_TRY_END,
 
+    // Replace the function on top with a copy (i.e. new, distinct copy)
+    // 1:[op]
+    KSB_NEW_FUNC,
+
+
+    // Add a closure reference to the current stack frame to the TOS, which must be a kfunc
+    // 1:[op]
+    KSB_ADD_CLOSURE,
+
+
 
     /** PRIMITIVE CONSTRUCTION, these opcodes create basic primitives from the stack **/
 
@@ -348,7 +358,8 @@ typedef struct ks_dict* ks_dict;
 // NOTE: Should be used inside of a KS_FUNC(), because this will return NULL!
 #define KS_REQ(_expr, ...) {       \
     if (!(_expr)) {                \
-        ks_error(__VA_ARGS__);     \
+        ks_throw_fmt(ks_type_Error, __VA_ARGS__); \
+        /*ks_error(__VA_ARGS__);*/     \
         return NULL;               \
     }                              \
 }
@@ -896,7 +907,6 @@ typedef struct {
 
     }* meta;
 
-
 }* ks_code;
 
 
@@ -1072,6 +1082,43 @@ typedef struct {
 }* ks_cfunc;
 
 
+// ks_kfunc - a k-script function
+typedef struct {
+    KS_OBJ_BASE
+
+    // human readable name (default: <cfunc @ ADDR>)
+    ks_str name_hr;
+
+    // list of dictionaries to look up values in
+    ks_list closures;
+
+
+    // number of parameters (positional) that is takes
+    int n_param;
+
+    // list of formal parameters for the function
+    struct ks_kfunc_param {
+        // the name of the variable
+        ks_str name;
+    }* params;
+
+
+    // the bytecode to execute
+    ks_code code;
+
+}* ks_kfunc;
+
+
+// Construct a new kfunc from bytecode and a human readable name
+ks_kfunc ks_kfunc_new(ks_code code, ks_str name_hr);
+
+// create a new copy of the kfunc
+ks_kfunc ks_kfunc_new_copy(ks_kfunc func);
+
+// add a parameter name
+void ks_kfunc_addpar(ks_kfunc self, ks_str name);
+
+
 
 // ks_pfunc - a partial function wrapper, which wraps a callable with some of the arguments prefilled
 // This is useful for member functions, for example, which have their first argument prefilled
@@ -1118,6 +1165,13 @@ typedef struct {
     // the function being called in the stack frame,
     // normally a 'ks_cfunc', or a 'ks_code' object
     ks_obj func;
+
+    // dictionary of local variables, iff type(func)==kfunc,
+    // otherwise, NULL
+    ks_dict locals;
+
+    // the kfunct it is executing on, or NULL if not
+    ks_kfunc kfunc;
 
     // the program counter
     // Only valid if typeof(func) == bytecode
@@ -1194,6 +1248,9 @@ typedef struct {
     // list of arguments
     ks_tuple args;
 
+    // the result of the function call
+    ks_obj result;
+
 
     // the stack frames being called,
     // all of them must be of type 'ks_stack_frame'
@@ -1230,8 +1287,10 @@ void ks_thread_join(ks_thread self);
 ks_thread ks_thread_cur();
 
 // call code on a given thread
-ks_obj ks_thread_call_code(ks_thread self, ks_code code);
+//ks_obj ks_thread_call_code(ks_thread self, ks_code code);
 
+// internal execution method
+ks_obj ks__exec(ks_code code);
 
 /* STRING BUILDING/UTILITY TYPES */
 
@@ -1300,7 +1359,8 @@ extern ks_type
     ks_type_ast,
     ks_type_parser,
     
-    ks_type_cfunc
+    ks_type_cfunc,
+    ks_type_kfunc
 
 ;
 
@@ -1311,6 +1371,8 @@ extern ks_cfunc
     ks_F_repr,
     ks_F_hash,
     ks_F_print,
+    ks_F_exit,
+    ks_F_sleep,
     ks_F_len,
     ks_F_typeof,
 
@@ -1661,6 +1723,9 @@ void ksca_jmpf      (ks_code self, int relamt);
 void ksca_try_start (ks_code self, int relamt);
 void ksca_try_end   (ks_code self, int relamt);
 
+void ksca_closure   (ks_code self);
+void ksca_new_func  (ks_code self);
+
 void ksca_load      (ks_code self, ks_str name);
 void ksca_load_attr (ks_code self, ks_str name);
 void ksca_store     (ks_code self, ks_str name);
@@ -1790,6 +1855,9 @@ ks_tok ks_tok_combo(ks_tok A, ks_tok B);
 // convert token to a string with mark
 ks_str ks_tok_expstr(ks_tok tok);
 
+// convert token to string, just the 2 relevant lines
+ks_str ks_tok_expstr_2(ks_tok tok);
+
 /* CFUNC */
 
 // Create a new C-function wrapper
@@ -1865,12 +1933,26 @@ ks_obj ks_catch();
 // catches excetion, also setting stack info
 ks_obj ks_catch2(ks_list stk_info);
 
+
+// if there was an error, print stack trace and exit
+// only call if there was an error! (this should really only be called by ks_thread's class)
+void ks_errend();
+
+
 /* VM EXECUTION */
 
 
 
 
 /* MISC. UTILS/FUNCTIONS */
+
+
+
+// Attempt to open and read an entire file indicated by 'fname'.
+// Throw an exception if it failed
+ks_str ks_readfile(char* fname);
+
+
 
 // Implementation of GNU getline function, reading an entire line from a FILE pointer
 // Always ks_free(line) after done with this function, as this function reallocates buffers

@@ -84,6 +84,7 @@ static KS_TFUNC(pfunc, call) {
     args++;
     n_args--;
     
+
     // combine the filled in args with what is passed
     int new_n_args = self->n_fill + n_args;
 
@@ -107,9 +108,11 @@ static KS_TFUNC(pfunc, call) {
         } else {
             // error: not called with enough arguments
             ks_free(new_args);
+            ks_throw_fmt(ks_type_Error, "Not enough arguments!");
             return NULL;
         }
     }
+
 
     ks_obj ret = ks_call(self->func, new_n_args, new_args);
 

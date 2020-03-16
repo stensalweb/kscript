@@ -112,6 +112,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             st->stk_len--;                           \
         }                                            \
     }
+
     if (self->kind == KS_AST_VAR) {
         
         // variable name
@@ -143,6 +144,16 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         // add meta data
         ks_code_add_meta(to, self->tok_expr);
+
+        // add closure
+        if (self->children->elems[0]->type == ks_type_kfunc) {
+            // copy and add closure to the function
+            ksca_new_func(to);
+            ksca_closure(to);
+
+            ks_code_add_meta(to, self->tok_expr);
+        }
+
 
         st->stk_len++;
 
@@ -251,6 +262,27 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         // internal error if this is not true
         assert(st->stk_len == start_len + 1 && "Function output was not emitted correctly!");
+
+
+    } else if (self->kind == KS_AST_RET) {
+
+        // do a return
+
+        // first, calculate the function
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+        // ensure the function emitted one 
+        assert(start_len + 1 == st->stk_len && "'ret' expr was not emitted correctly!");
+
+        // throw the value
+        ksca_ret(to);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // the stack gets rewound, so don't touch this here
+        RESET_STK(0);
+
 
     } else if (self->kind == KS_AST_THROW) {
 
@@ -655,7 +687,6 @@ ks_code ks_codegen(ks_ast self) {
 
     // the current state
     em_state st = (em_state) { .stk_len = 0 };
-
 
     // emit the main function
     if (!ast_emit(self, &st, to)) {

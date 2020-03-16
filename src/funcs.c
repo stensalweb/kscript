@@ -12,6 +12,8 @@ ks_cfunc
     ks_F_repr = NULL,
     ks_F_print = NULL,
     ks_F_len = NULL,
+    ks_F_sleep = NULL,
+    ks_F_exit = NULL,
     ks_F_typeof = NULL,
 
     ks_F_getattr = NULL,
@@ -40,9 +42,6 @@ ks_cfunc
 ;
 
 
-// the call stack, where it is currently located
-ks_list ks_call_stk = NULL;
-
 /* call(func, *args) -> obj
  *
  * Try and call 'func(*args)' and return the result
@@ -59,14 +58,52 @@ ks_list ks_call_stk = NULL;
  * 
  */
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
+
+    // current thread
+    ks_thread this_th = ks_thread_cur();
+    assert(this_th != NULL && "ks_call() used outside of a thread!");
+
+    // create a new stack frame
+    ks_stack_frame this_stack_frame = ks_stack_frame_new(func);
+    ks_list_push(this_th->stack_frames, (ks_obj)this_stack_frame);
+
+    // the result to return
+    ks_obj ret = NULL;
+
     if (func->type == ks_type_cfunc) {
         ks_cfunc cff = (ks_cfunc)func;
 
-        ks_list_push(ks_call_stk, func);
-        ks_obj ret = cff->func(n_args, args);
-        ks_list_popu(ks_call_stk);
+        ret = cff->func(n_args, args);
 
-        return ret;
+    } else if (func->type == ks_type_kfunc) {
+        ks_kfunc kff = (ks_kfunc)func;
+        KS_REQ_N_ARGS(n_args, kff->n_param);
+
+        // start off empty
+        this_stack_frame->locals = ks_dict_new(0, NULL);
+
+        // push on arguments
+        int i;
+        for (i = 0; i < kff->n_param; ++i) {
+            ks_dict_set(this_stack_frame->locals, kff->params[i].name->v_hash, (ks_obj)kff->params[i].name, args[i]);
+        }
+
+        // actually call it
+        ret = ks__exec(kff->code);
+
+    } else if (func->type == ks_type_code) {
+
+        // just execute bytecode
+        ks_code cf = (ks_code)func;
+        // never any arguments to bytecode
+        KS_REQ_N_ARGS(n_args, 0);
+
+        // start off empty
+        this_stack_frame->locals = ks_dict_new(0, NULL);
+
+        // actually call it
+        ret = ks__exec(cf);
+
     } else if (func->type == ks_type_type) {
         // try and construct a value by calling the constructor
 
@@ -80,7 +117,7 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
             if (ft->__init__ != NULL) {
                 // uses an initializer, so just call __new__ with no arguments
 
-                ks_obj ret = ks_call(ft->__new__, 0, NULL);
+                ret = ks_call(ft->__new__, 0, NULL);
 
                 // this is to handle derived classes; we always manually set the new type
                 ks_type old_type = ret->type;
@@ -93,7 +130,7 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
                 new_args[0] = ret;
                 // copy other arguments passed in
-                memcpy(&new_args[1], args, n_args);
+                memcpy(&new_args[1], args, sizeof(ks_obj) * n_args);
 
                 // initialize it, don't care about return value because we are returning the result from 'ret'
                 ks_obj dontcare = ks_call(ft->__init__, 1 + n_args, new_args);
@@ -102,36 +139,38 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
                 // free temporary results
                 ks_free(new_args);
 
-                return ret;
             } else {
                 // no initializer, so call '__new__' with all the arguments
-                ks_obj ret = ks_call(ft->__new__, n_args, args);
+                ret = ks_call(ft->__new__, n_args, args);
 
                 // this is to handle derived classes; we always manually set the new type
                 ks_type old_type = ret->type;
                 ret->type = ft;
                 KS_INCREF(ret->type);
                 KS_DECREF(old_type);
-
-                return ret;
             }
         }
     } else if (func->type->__call__ != NULL) {
         // call type(obj).__call__(self, *args)
-        ks_obj* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
+        ks_obj* new_args = ks_malloc(sizeof(ks_obj) * (1 + n_args));
+
+        // copy in arguments
         *new_args = func;
-        memcpy(&new_args[1], args, n_args);
+        memcpy(&new_args[1], args, sizeof(ks_obj) * n_args);
 
-        ks_obj ret = ks_call(func->type->__call__, 1 + n_args, new_args);
+        ret = ks_call(func->type->__call__, 1 + n_args, new_args);
 
+        // free temporary buffer
         ks_free(new_args);
-        return ret;
 
+    } else {
+        ks_throw_fmt(ks_type_Error, "'%T' object was not callable!", func);
+        ret = NULL;
     }
 
-    // if nothing was returned
-    ks_throw_fmt(ks_type_Error, "'%T' object was not callable!", func);
-    return NULL;
+    // take off result
+    ks_list_popu(this_th->stack_frames);
+    return ret;
 }
 
 
@@ -167,6 +206,75 @@ static KS_FUNC(typeof) {
     ks_obj obj = args[0];
 
     return KS_NEWREF(obj->type);
+}
+
+/* sleep(dur=0) -> float
+ *
+ * Sleep for an amount of time (in seconds). Returns the real amount of time slept
+ *
+ */
+static KS_FUNC(sleep) {
+    KS_REQ_N_ARGS_MAX(n_args, 1);
+
+    // amount to sleep
+    double dur_d = 0.0;
+
+    if (n_args == 1) {
+        ks_obj dur = args[0];
+        if (dur->type == ks_type_int) {
+            dur_d = ((ks_int)dur)->val;
+        } else if (dur->type == ks_type_float) {
+            dur_d = ((ks_float)dur)->val;
+        } else {
+            return ks_throw_fmt(ks_type_Error, "'dur' was not a numeric quantity; expected an 'int' or a 'float', but got '%T'", dur);
+        }
+    }
+
+    double s_time = ks_time();
+
+    // allow other threads to run
+    ks_unlockGIL();
+
+    if (dur_d > 0) {
+
+        double fa = floor(dur_d);
+
+        struct timespec tim, tim2;
+        tim.tv_sec = fa;
+        tim.tv_nsec = 1000000000 * (dur_d - fa);
+
+        if (nanosleep(&tim, &tim2) != 0) {
+            ks_warn("nanosleep() syscall returned non-zero!");
+        }
+    }
+
+
+    ks_lockGIL();
+
+
+    // calculate and return real time
+    s_time = ks_time() - s_time;
+    return (ks_obj)ks_float_new(s_time);
+}
+
+
+/* exit(code=0) -> none
+ *
+ * Exit the process 
+ *
+ */
+static KS_FUNC(exit) {
+    KS_REQ_N_ARGS_MAX(n_args, 1);
+    if (n_args == 1) {
+        ks_int obj = (ks_int)args[0];
+        KS_REQ_TYPE(obj, ks_type_int, "code");
+        exit((int)obj->val);
+    } else {
+        exit(0);
+    }
+
+    // should never happen
+    return NULL;
 }
 
 
@@ -402,11 +510,12 @@ static KS_FUNC(print) {
 
 
 // template for defining a binary operator function
-#define T_KS_FUNC_BOP(_name, _str, _fname)                 \
+#define T_KS_FUNC_BOP(_name, _str, _fname, _spec)          \
 static KS_FUNC(_name) {                                    \
     KS_REQ_N_ARGS(n_args, 2);                              \
-    if (args[0]->type->_fname != NULL)                    \
-        return ks_call(args[0]->type->_fname, 2, args);   \
+    if (args[0]->type->_fname != NULL)                     \
+        return ks_call(args[0]->type->_fname, 2, args);    \
+    { _spec; }                                             \
     KS_ERR_BOP_UNDEF(_str, args[0], args[1]);              \
 }
 
@@ -416,7 +525,7 @@ static KS_FUNC(_name) {                                    \
  * Attempt to calculate 'L+R'
  * 
  */
-T_KS_FUNC_BOP(add, "+", __add__)
+T_KS_FUNC_BOP(add, "+", __add__, {})
 
 
 /* __sub__(L, R) -> obj
@@ -424,7 +533,7 @@ T_KS_FUNC_BOP(add, "+", __add__)
  * Attempt to calculate 'L-R'
  * 
  */
-T_KS_FUNC_BOP(sub, "-", __sub__)
+T_KS_FUNC_BOP(sub, "-", __sub__, {})
 
 
 /* __mul__(L, R) -> obj
@@ -432,14 +541,14 @@ T_KS_FUNC_BOP(sub, "-", __sub__)
  * Attempt to calculate 'L*R'
  * 
  */
-T_KS_FUNC_BOP(mul, "*", __mul__)
+T_KS_FUNC_BOP(mul, "*", __mul__, {})
 
 /* __div__(L, R) -> obj
  *
  * Attempt to calculate 'L/R'
  * 
  */
-T_KS_FUNC_BOP(div, "/", __div__)
+T_KS_FUNC_BOP(div, "/", __div__, {})
 
 
 /* __mod__(L, R) -> obj
@@ -447,14 +556,14 @@ T_KS_FUNC_BOP(div, "/", __div__)
  * Attempt to calculate 'L%R'
  * 
  */
-T_KS_FUNC_BOP(mod, "%", __mod__)
+T_KS_FUNC_BOP(mod, "%", __mod__, {})
 
 /* __pow__(L, R) -> obj
  *
  * Attempt to calculate 'L**R'
  * 
  */
-T_KS_FUNC_BOP(pow, "**", __pow__)
+T_KS_FUNC_BOP(pow, "**", __pow__, {})
 
 
 
@@ -465,42 +574,42 @@ T_KS_FUNC_BOP(pow, "**", __pow__)
  * Attempt to calculate 'L<R'
  * 
  */
-T_KS_FUNC_BOP(lt, "<", __lt__)
+T_KS_FUNC_BOP(lt, "<", __lt__, {})
 
 /* __le__(L, R) -> obj
  *
  * Attempt to calculate 'L<=R'
  * 
  */
-T_KS_FUNC_BOP(le, "<=", __le__)
+T_KS_FUNC_BOP(le, "<=", __le__, {})
 
 /* __gt__(L, R) -> obj
  *
  * Attempt to calculate 'L>R'
  * 
  */
-T_KS_FUNC_BOP(gt, ">", __gt__)
+T_KS_FUNC_BOP(gt, ">", __gt__, {})
 
 /* __ge__(L, R) -> obj
  *
  * Attempt to calculate 'L>=R'
  * 
  */
-T_KS_FUNC_BOP(ge, ">=", __ge__)
+T_KS_FUNC_BOP(ge, ">=", __ge__, {})
 
 /* __eq__(L, R) -> obj
  *
  * Attempt to calculate 'L==R'
  * 
  */
-T_KS_FUNC_BOP(eq, "==", __eq__)
+T_KS_FUNC_BOP(eq, "==", __eq__, { return KSO_BOOL(args[0] == args[1]); })
 
 /* __ne__(L, R) -> obj
  *
  * Attempt to calculate 'L!=R'
  * 
  */
-T_KS_FUNC_BOP(ne, "!=", __ne__)
+T_KS_FUNC_BOP(ne, "!=", __ne__, { return KSO_BOOL(args[0] != args[1]); })
 
 
 
@@ -534,38 +643,36 @@ T_KS_FUNC_UOP(sqig, "~", __sqig__)
 // initialize all the functions
 void ks_init_funcs() {
 
-    ks_call_stk = ks_list_new(0, NULL);
+    ks_F_repr = ks_cfunc_new2(repr_, "repr(obj)");
+    ks_F_hash = ks_cfunc_new2(hash_, "hash(obj)");
+    ks_F_print = ks_cfunc_new2(print_, "print(*args)");
+    ks_F_len = ks_cfunc_new2(len_, "len(obj)");
+    ks_F_exit = ks_cfunc_new2(exit_, "exit(code=0)");
+    ks_F_sleep = ks_cfunc_new2(sleep_, "sleep(dur=0)");
+    ks_F_typeof = ks_cfunc_new2(typeof_, "typeof(obj)");
 
-    ks_F_repr = ks_cfunc_new(repr_);
-    ks_F_hash = ks_cfunc_new(hash_);
-    ks_F_print = ks_cfunc_new(print_);
-    ks_F_len = ks_cfunc_new(len_);
-    ks_F_typeof = ks_cfunc_new(typeof_);
+    ks_F_add = ks_cfunc_new2(add_, "__add__(L, R)");
+    ks_F_sub = ks_cfunc_new2(sub_, "__sub__(L, R)");
+    ks_F_mul = ks_cfunc_new2(mul_, "__mul__(L, R)");
+    ks_F_div = ks_cfunc_new2(div_, "__div__(L, R)");
+    ks_F_mod = ks_cfunc_new2(mod_, "__mod__(L, R)");
+    ks_F_pow = ks_cfunc_new2(pow_, "__pow__(L, R)");
 
-    ks_F_add = ks_cfunc_new(add_);
-    ks_F_sub = ks_cfunc_new(sub_);
-    ks_F_mul = ks_cfunc_new(mul_);
-    ks_F_div = ks_cfunc_new(div_);
-    ks_F_mod = ks_cfunc_new(mod_);
-    ks_F_pow = ks_cfunc_new(pow_);
+    ks_F_lt = ks_cfunc_new2(lt_, "__lt__(L, R)");
+    ks_F_le = ks_cfunc_new2(le_, "__le__(L, R)");
+    ks_F_gt = ks_cfunc_new2(gt_, "__gt__(L, R)");
+    ks_F_ge = ks_cfunc_new2(ge_, "__ge__(L, R)");
+    ks_F_eq = ks_cfunc_new2(eq_, "__eq__(L, R)");
+    ks_F_ne = ks_cfunc_new2(ne_, "__ne__(L, R)");
 
-    ks_F_lt = ks_cfunc_new(lt_);
-    ks_F_le = ks_cfunc_new(le_);
-    ks_F_gt = ks_cfunc_new(gt_);
-    ks_F_ge = ks_cfunc_new(ge_);
-    ks_F_eq = ks_cfunc_new(eq_);
-    ks_F_ne = ks_cfunc_new(ne_);
+    ks_F_neg = ks_cfunc_new2(neg_, "__neg__(V)");
+    ks_F_sqig = ks_cfunc_new2(sqig_, "__sqig__(V)");
 
-    ks_F_neg = ks_cfunc_new(neg_);
-    ks_F_sqig = ks_cfunc_new(sqig_);
+    ks_F_getattr = ks_cfunc_new2(getattr_, "getattr(obj, attr)");
+    ks_F_setattr = ks_cfunc_new2(setattr_, "setattr(obj, attr, val)");
 
-    ks_F_getattr = ks_cfunc_new(getattr_);
-    ks_F_setattr = ks_cfunc_new(setattr_);
-
-    ks_F_getitem = ks_cfunc_new(getitem_);
-    ks_F_setitem = ks_cfunc_new(setitem_);
-
-
+    ks_F_getitem = ks_cfunc_new2(getitem_, "getitem(obj, *vals)");
+    ks_F_setitem = ks_cfunc_new2(setitem_, "setitem(obj, *args)");
 
 
 }
