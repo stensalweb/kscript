@@ -17,8 +17,16 @@
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
+#pragma once
 #ifndef KS_H__
 #define KS_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// include configuration file first
+#include <ks_config.h>
 
 // C std
 #include <stdint.h>
@@ -38,6 +46,15 @@
 
 
 /* CONSTANTS */
+
+
+// The 'major' release of kscript
+#define KS_VERSION_MAJOR 0
+// The 'minor' release of kscript
+#define KS_VERSION_MINOR 0
+// The 'patch' release of kscript
+// NOTE: patch==0 means it is a LTS
+#define KS_VERSION_PATCH 1
 
 // enumeration for levels of logging, from least important to most important
 enum {
@@ -1468,8 +1485,16 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 // disable tracing
+#ifdef KS_C_NO_TRACE
 #undef ks_trace
 #define ks_trace(...)
+#endif
+
+// disable debug
+#ifdef KS_C_NO_DEBUG
+#undef ks_debug
+#define ks_debug(...)
+#endif
 
 
 // print variadically
@@ -1975,6 +2000,8 @@ ks_str ks_readfile(char* fname);
 // ks_free(line);
 int ks_getline(char** lineptr, size_t* n, FILE* fp);
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KS_H__ */

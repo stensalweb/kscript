@@ -34,7 +34,6 @@ This will build dependencies of the standard library
 
 Now, `cd kscript`, and run these commands:
 
-
   * `make init` (creates `include/kscript_config.h`)
   * `make` (builds the library & executable)
   * (optional) `sudo make install` (installs kscript to `/usr/local`)

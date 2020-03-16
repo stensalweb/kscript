@@ -26,10 +26,10 @@
 //#define VME__GOTO
 
 // yield the GIl temporarily
-//#define VME_YIELDGIL { ks_unlockGIL(); ks_lockGIL(); }
+#define VME_YIELDGIL { ks_unlockGIL(); ks_lockGIL(); }
 
 // disable yielding GIL
-#define VME_YIELDGIL { }
+//#define VME_YIELDGIL { }
 
 
 #define VME_ASSERT(...) assert(__VA_ARGS__)
@@ -194,9 +194,9 @@ ks_obj ks__exec(ks_code code) {
                 goto EXC;
             }
     
-            for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
-
             ks_list_push(self->stk, ret);
+            
+            for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
             KS_DECREF(ret);
 
         VMED_CASE_END

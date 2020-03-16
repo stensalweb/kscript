@@ -7,8 +7,14 @@
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
+#pragma once
 #ifndef KS_IMPL_H__
 #define KS_IMPL_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 // always include the main header
 #include "ks.h"
@@ -16,6 +22,7 @@
 #include <math.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stddef.h>
 
 
 
@@ -71,7 +78,9 @@ static inline ks_hash_t ks_hash_bytes(int len, uint8_t* data) {
     return res == 0 ? 1 : res;
 }
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KS_IMPL_H__ */
 

@@ -10,9 +10,9 @@
 // the static version information
 static ks_version_t this_version = (ks_version_t){
 
-    .major = 0,
-    .minor = 0,
-    .patch = 1,
+    .major = KS_VERSION_MAJOR,
+    .minor = KS_VERSION_MINOR,
+    .patch = KS_VERSION_PATCH,
 
     .date = __DATE__,
     .time = __TIME__

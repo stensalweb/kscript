@@ -238,6 +238,8 @@ static void* thread_init(void* _self) {
     // store the result
     self->result = ret;
 
+    ks_debug("thread <%p> done!", self);
+
     ks_unlockGIL();
 
     return NULL;
@@ -405,8 +407,6 @@ static KS_TFUNC(thread, free) {
 
     // ensure that has completed
     ks_thread_join(self);
-
-    ks_debug("thread <%p> done!", self);
 
     KS_DECREF(self->target);
     KS_DECREF(self->args);

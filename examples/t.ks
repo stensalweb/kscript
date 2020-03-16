@@ -1,7 +1,6 @@
 
 N = 10
 
-
 func f(x) {
     y = 0
     while y < 10 {

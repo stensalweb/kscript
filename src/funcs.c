@@ -149,6 +149,9 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
                 KS_INCREF(ret->type);
                 KS_DECREF(old_type);
             }
+        } else {
+            ks_throw_fmt(ks_type_Error, "'%T' object was not callable!", func);
+            ret = NULL;
         }
     } else if (func->type->__call__ != NULL) {
         // call type(obj).__call__(self, *args)
@@ -341,11 +344,13 @@ static KS_FUNC(getitem) {
 
     ks_obj obj = args[0];
 
+
     if (obj->type->__getitem__ != NULL) {
 
         // call type(obj).__getitem__(*args)
         return ks_call(obj->type->__getitem__, n_args, args);
     }
+
 
     // error
     KS_ERR_KEY_N(obj, n_args - 1, args + 1);

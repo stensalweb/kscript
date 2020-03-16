@@ -125,7 +125,7 @@ void* ks_throw_fmt(ks_type errtype, char* fmt, ...) {
     va_end(ap);
 
     if (!what) {
-        ks_error("Failed to format thrown error message in ks_throw_fmt()!");
+        fprintf(stderr, RED "ERROR" RESET ": Internal Throw Error!\n");
         return NULL;
     }
 

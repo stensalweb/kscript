@@ -60,6 +60,7 @@ static int next_prime(int x) {
 ks_dict ks_dict_new(int len, ks_obj* entries) {
     ks_dict self = KS_ALLOC_OBJ(ks_dict);
     KS_INIT_OBJ(self, ks_type_dict);
+    assert(len % 2 == 0 && "Given odd multiple!");
 
     // always start with no entries
     self->n_entries = 0;
@@ -74,10 +75,9 @@ ks_dict ks_dict_new(int len, ks_obj* entries) {
     for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = BUCKET_EMPTY;
 
     // now, set the (key, val) pairs of 'entries' into the dictionary
-    for (i = 0; i < len; ++i) {
+    for (i = 0; i < len / 2; ++i) {
         ks_dict_set(self, 0, entries[2 * i], entries[2 * i + 1]);
     }
-
 
     return self;
 }
@@ -212,7 +212,7 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
         } while (bi != bi_orig);
 
         if (!found) {
-            ks_error("Internal Dictionary Error! (Could not resize)");
+            fprintf(stderr, RED "ERROR" RESET ": Internal dict error! (could not resize dict @ %p)\n", self);
         }
     }
 }
@@ -441,6 +441,65 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
 
 /* member functions */
 
+// dict.__new__(self, *kvps) -> create a new dictionary
+static KS_TFUNC(dict, new) {
+    KS_REQ_N_ARGS_MIN(n_args, 0);
+    if (n_args % 2 != 0) {
+        return ks_throw_fmt(ks_type_Error, "Expected an even number of arguments (k, v, ...), but got %i", n_args);
+    }
+    return (ks_obj)ks_dict_new(n_args, args);
+};
+
+// dict.__getitem__(self, key) -> get an entry
+static KS_TFUNC(dict, getitem) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+    ks_obj obj = args[1];
+    // get the hash
+    ks_hash_t hash_obj = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+
+    if (hash_obj == 0) {
+        // special value meaning unhashable
+        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
+    }
+
+
+    ks_obj res = ks_dict_get(self, hash_obj, obj);
+
+    // throw error if it didnt exist
+    if (!res) KS_ERR_KEY(self, obj);
+
+    return res;
+};
+
+// dict.__setitem__(self, key, val) -> set an entry
+static KS_TFUNC(dict, setitem) {
+    KS_REQ_N_ARGS(n_args, 3);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+    ks_obj obj = args[1];
+    // get the hash
+    ks_hash_t hash_obj = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+
+    if (hash_obj == 0) {
+        // special value meaning unhashable
+        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
+    }
+
+    ks_obj val = args[2];
+
+
+    // set value
+    ks_dict_set(self, hash_obj, obj, val);
+
+    // just return the value
+    return KS_NEWREF(val);
+};
+
+
+
+
 // dict.__str__(self) -> convert to string
 static KS_TFUNC(dict, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -503,8 +562,14 @@ void ks_type_dict_init() {
     KS_INIT_TYPE_OBJ(ks_type_dict, "dict");
 
     ks_type_set_cn(ks_type_dict, (ks_dict_ent_c[]){
+        {"__new__", (ks_obj)ks_cfunc_new(dict_new_)},
         {"__str__", (ks_obj)ks_cfunc_new(dict_str_)},
         {"__free__", (ks_obj)ks_cfunc_new(dict_free_)},
+
+        {"__getitem__", (ks_obj)ks_cfunc_new(dict_getitem_)},
+        {"__setitem__", (ks_obj)ks_cfunc_new(dict_setitem_)},
+
+
         {NULL, NULL}   
     });
 
