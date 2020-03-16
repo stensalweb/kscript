@@ -13,15 +13,34 @@
 
 # -*- CONFIGURATION
 
-# set the C compiler (?= means 'set if not already set')
-CC         ?= cc
+# set the C compiler (?= means 'set if not already set', even though 'CC' is a special case which is always set)
+#CC         ?= cc
 # set the compiler flags
-CFLAGS     ?= -Ofast -ffast-math -std=c99 
+CFLAGS     ?= -O3 -std=c99 
 # set the installation prefix
 PREFIX     ?= /usr/local
 
 # which standard modules to build? default is all of them
 KSM_STD    ?= 
+
+# default to not changing the options
+KS_OPTS    ?= NONE_NEW
+
+
+# configuration file
+KS_CONFIG   = src/ks-config.h
+
+ifeq ($(wildcard $(KS_CONFIG)),)
+    $(warning No kscript config found, copying the default one)
+    $(shell ./gen_config_h.sh $(KS_OPTS) > $(KS_CONFIG))
+endif
+
+ifneq ($(KS_OPTS),NONE_NEW)
+ifneq ($(shell head -n 1 $(KS_CONFIG)),"//$(KS_OPTS)")
+    $(warning 'KS_OPTS' changed; recalculating header file)
+    $(shell ./gen_config_h.sh $(KS_OPTS) > $(KS_CONFIG))
+endif
+endif
 
 
 # -*- INPUT FILES
@@ -32,7 +51,7 @@ libks_src       := $(addprefix src/, init.c log.c mem.c util.c obj.c fmt.c funcs
 				   $(addprefix src/types/, type.c none.c bool.c int.c float.c str.c tuple.c list.c dict.c Error.c cfunc.c kfunc.c pfunc.c code.c ast.c parser.c thread.c)
 
 # the header files that if changed, should cause recompilation
-libks_src_h     := $(addprefix src/, ks.h ks-impl.h)
+libks_src_h     := $(addprefix src/, ks.h ks-impl.h) $(KS_CONFIG)
 
 # the sources for the ks executable (so things can be ran from 
 #   commandline)
@@ -62,14 +81,10 @@ ks_exe    := ./bin/ks
 # -*- RULES
 
 # these are rules that are `not real files`, but can be ran like `make clean`
-.PHONY: default init clean uninstall
+.PHONY: default clean uninstall
 
 # by default, build the `ec` binary
 default: $(ksm_std_so) $(ks_exe)
-
-# initializes the build process, cleaning, and then creating the configuration header
-init: clean
-	cp ks_config.T.h ./src/ks_config.h
 
 # using wildcard means it only removes what exists, which makes for more useful
 #   messages

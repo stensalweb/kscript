@@ -29,8 +29,11 @@ For example,
     }
 }
 ```
+## Conditionals/Loops
 
-Code can be executed if a given expression is 'truthy', using the `if (condition) { code_to_run; }` construct found in many languages
+### `if`
+
+Code can be executed if a given expression is 'truthy', using the `if (condition) { code_to_run; }` construct found in many languages. Essentially, the interpreter evaluates `condition`, and if that condition was `truthy` (i.e. the value `true`, a non-zero integer, or something which has a positive `len(obj)`), then `code_to_run` is executed. Otherwise, it jumps to after the `if` block and continues executing normally
 
 It also has support for 'else' causes, which will run instead of the other code, in the case that the condition is not truthy.
 
@@ -49,4 +52,54 @@ if (A) {
 }
 
 ```
+
+Using `elif` has the same effect as `else if`
+
+
+
+### `while`
+
+The `while` loop is similar to most languages' constructs. However, there is no equivalent of `do { ... } while (COND)`
+
+Also, there is a `while; else` loop. It works differently than python's (see [https://realpython.com/lessons/while-loop-else-clause/](https://realpython.com/lessons/while-loop-else-clause/)).
+
+The `else` part of a `while` loop is executed only if the condition is false on the FIRST run.
+
+
+The following example illustrates it's use for ensuring that the while loop ran at least once:
+
+```python
+
+data = [...]
+
+while len(data) > 0 {
+    # process data...
+    data.pop()
+} else {
+    print ("Had no data!")
+}
+
+```
+
+Or, equivalently:
+
+```python
+
+data = [...]
+
+if len(data <= 0) {
+    print ("Had no data")
+}
+
+while len(data) > 0 {
+    # process data...
+    data.pop()
+}
+
+
+```
+
+I introduced this feature to help with more readable data processing. For example, some times you would require that `data` has some elements in it. If not, the `else` clause will execute, and you can clearly handle that case.
+
+
 

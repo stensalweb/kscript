@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+@@DEFS@@
+
 
 /* logging/printing */
 

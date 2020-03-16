@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 // include configuration file first
-#include <ks_config.h>
+#include <ks-config.h>
 
 // C std
 #include <stdint.h>

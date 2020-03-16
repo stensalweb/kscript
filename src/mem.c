@@ -23,8 +23,9 @@
 
 
 // whether or not to memory trace
+#ifndef KS_C_NO_TRACE
 #define KS_MEM_TRACE
-
+#endif
 
 // only enable trace calls if the build enabled memory tracing
 #ifdef KS_MEM_TRACE

@@ -34,7 +34,6 @@ This will build dependencies of the standard library
 
 Now, `cd kscript`, and run these commands:
 
-  * `make init` (creates `include/kscript_config.h`)
   * `make` (builds the library & executable)
   * (optional) `sudo make install` (installs kscript to `/usr/local`)
 
@@ -47,12 +46,17 @@ Now, you can run the kscript binary via: `./bin/ks`
 Example (output may differ slightly):
 ```bash
 $ ./bin/ks -h
-Usage: ./bin/ks [-e expr | -f file] [--h]
-  -h,--help              Prints this help message, then exits
-  -e,--expr [EXPR]       Compiles [EXPR], then executes it
-  -f,--file [FILE]       Reads [FILE], compiles it, then executes it
-  -i,--info              Prints build information, then exits
-  -v                     Increases the verbosity by one level (use -v -v for more verbosity)
+Usage: ./bin/ks [options] FILE [args...]
+       ./bin/ks [options] -e 'EXPR' [args...]
+
+Options:
+  -h, --help            Prints this help/usage message
+  -e [EXPR]             Run an inline expression, instead of a file
+  -v[vv]                Increase verbosity (use '-vvv' for 'TRACE' level)
+  -V, --version         Print out just the version information for kscript
+
+kscript v0.0.1 Mar 16 2020 00:29:42
+Cade Brown <brown.cade@gmail.com>
 ```
 
 To run an expression to test, run:
@@ -85,7 +89,6 @@ Here is the progress on builtin types:
 
 See the `examples/` folder for examples. Here are some of the basics:
 
-
 ### Hello World
 
 This is the classic Hello World example
@@ -98,17 +101,4 @@ print ("Hello World")
 
 ## Syntax
 
-### Basics
-
-The syntax is fairly simple:
-
-  * `#...` denotes a single line comment (like python)
-  * `#* ... *#` denotes a start/end comment
-  * `a + b` yields the result of the sum of `a` and `b` (works the same for operators like `-`,`*`,`/`,`%`,...)
-  * normal order of operations applies here: `a + (b * c)` evaluates `b * c` first, then adds `a` and the result
-  * `f(a, b, c)` is a function call with 3 arguments onto the function `f`
-  * `f[a]` is a get call, which will work the way it does for most other language for respective types (lists will treat `a` as the index into the values, dictionaries will treat `a` as the key, etc). Some types support `f[a, b, ...]` as well
-  * `f[a] = b` is a set call, which will set an item (similarly, some types support `f[a, b] = c`)
-  * `obj.member` is an attribute reference, gets a member of that object
-  * `func f(x, y) { ... }` is a function definition for a function named `f`, taking 2 arguments, `x` and `y`
-
+See [SYNTAX.md](./SYNTAX.md) for more information
