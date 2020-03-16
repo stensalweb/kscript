@@ -1391,7 +1391,6 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
     // skip irrelevant characters
     SKIP_IRR_S();
 
-
     if (ctok.type == KS_TOK_LBRC) {
 
         // { STMT... }
@@ -1471,6 +1470,49 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         ret->tok = start_tok;
 
         ret->tok_expr = ks_tok_combo(start_tok, expr->tok_expr);
+
+        return ret;
+    } else if (TOK_EQ(ctok, "import")) {
+        // import <name>
+
+        // skip 'import'
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        if (CTOK().type != KS_TOK_IDENT) {
+            syntax_error(start_tok, "Expected a name of a module here");
+            goto kpps_err;
+        }
+
+        ks_str name = ks_str_new_l(CTOK().parser->src->chr + CTOK().pos, CTOK().len);
+
+        // skip name
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        if (VALID() && CTOK().type != KS_TOK_NEWLINE && CTOK().type != KS_TOK_SEMI) {
+            KS_DECREF(name);
+            syntax_error(CTOK(), "Expected a newline or ';' after import statement");
+            goto kpps_err;
+        }
+
+
+        ks_str funcname = ks_str_new("__import__");
+
+        ks_ast funcname_v = ks_ast_new_var(funcname);
+        KS_DECREF(funcname);
+        ks_ast name_v = ks_ast_new_var(name);
+        ks_ast name_c = ks_ast_new_const((ks_obj)name);
+        KS_DECREF(name);
+
+        ks_ast import_res = ks_ast_new_call(funcname_v, 1, &name_c);
+        KS_DECREF(funcname_v);
+
+        ks_ast ret = ks_ast_new_bop(KS_AST_BOP_ASSIGN, name_v, import_res);
+        KS_DECREF(name_v);
+        KS_DECREF(import_res);
 
         return ret;
 
@@ -1852,13 +1894,33 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             goto kpps_err;
         }
 
+        if (new_code->name_hr != NULL) KS_DECREF(new_code->name_hr);
+        ks_str_b SB;
+        ks_str_b_init(&SB);
+
+        // generate the human readable name
+        ks_str_b_add_c(&SB, _name->chr);
+        ks_str_b_add_c(&SB, "(");
+
+        // add parameters
+        int i;
+        for (i = 0; i < pars->len; ++i) {
+            if (i != 0) ks_str_b_add_c(&SB, ", ");
+            ks_str_b_add_str(&SB, pars->elems[i]);
+        }
+
+        ks_str_b_add_c(&SB, ") [kfunc]");
+
+        new_code->name_hr = ks_str_b_get(&SB);
+
+        ks_str_b_free(&SB);
+
         // construct a function from the body
         ks_kfunc new_kfunc = ks_kfunc_new(new_code, _name);
         KS_DECREF(new_code);
         KS_DECREF(_name);
 
         // add parameters
-        int i;
         for (i = 0; i < pars->len; ++i) {
             ks_kfunc_addpar(new_kfunc, (ks_str)pars->elems[i]);
         }
@@ -1901,6 +1963,9 @@ ks_ast ks_parser_parse_file(ks_parser self) {
 
     // block of contents
     blk = ks_ast_new_block(0, NULL);
+
+
+    blk->tok = blk->tok_expr = CTOK();
 
     // skip irrelevant characters
     SKIP_IRR_S();
@@ -1957,7 +2022,7 @@ void ks_type_parser_init() {
     KS_INIT_TYPE_OBJ(ks_type_parser, "parser");
 
     ks_type_set_cn(ks_type_parser, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_cfunc_new(parser_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(parser_free_, "parser.__free__(self)")},
         {NULL, NULL}   
     });
 }

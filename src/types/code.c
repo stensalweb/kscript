@@ -431,6 +431,13 @@ static KS_TFUNC(code, str) {
             ks_str_b_add_fmt(&SB, "try_end %+i  # to %i", val, i + val);
             break;
 
+        case KSB_NEW_FUNC:
+            ks_str_b_add_fmt(&SB, "new_func");
+            break;
+
+        case KSB_ADD_CLOSURE:
+            ks_str_b_add_fmt(&SB, "add_closure");
+            break;
 
 
 
@@ -520,8 +527,8 @@ void ks_type_code_init() {
     KS_INIT_TYPE_OBJ(ks_type_code, "code");
 
     ks_type_set_cn(ks_type_code, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new(code_str_)},
-        {"__free__", (ks_obj)ks_cfunc_new(code_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(code_str_, "code.__str__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(code_free_, "code.__free__(self)")},
         {NULL, NULL}   
     });
 }

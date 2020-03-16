@@ -276,7 +276,7 @@ void ks_type_ast_init() {
     KS_INIT_TYPE_OBJ(ks_type_ast, "ast");
 
     ks_type_set_cn(ks_type_ast, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_cfunc_new(ast_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(ast_free_, "ast.__free__(self)")},
         {NULL, NULL}   
     });
 }

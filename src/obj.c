@@ -92,6 +92,9 @@ void* ks_throw(ks_obj obj) {
     ks_thread cth = ks_thread_cur();
 
     // ensure 
+    if (cth->exc != NULL) {
+        ks_warn("Already object on cth->exc: %T", cth->exc);
+    }
     assert(cth->exc == NULL && "There was already an object thrown and not caught, but someone threw something else!");
 
     if (obj == NULL) {
@@ -130,6 +133,11 @@ void* ks_throw_fmt(ks_type errtype, char* fmt, ...) {
     }
 
     ks_obj errobj = ks_call((ks_obj)errtype, 1, (ks_obj*)&what);
+    if (!errobj) {
+        fprintf(stderr, RED "ERROR" RESET ": Internal Throw Error!\n");
+        return NULL;
+    }
+
     KS_DECREF(what);
 
     // actually throw the object
@@ -166,6 +174,8 @@ ks_obj ks_catch2(ks_list stk_info) {
     // push the result
     if (ret) {
         ks_list_pushn(stk_info, cth->exc_info->len, cth->exc_info->elems);
+        KS_DECREF(cth->exc_info);
+        cth->exc_info = NULL;
     }
 
     // return the active try/catch reference

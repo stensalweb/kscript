@@ -104,13 +104,13 @@ int main(int argc, char** argv) {
         { "help",    no_argument,       0, 'h' },
         { "verbose", no_argument,       0, 'v' },
         { "expr",    required_argument, 0, 'e' },
-        { 0, 0, 0, 0}
+        { NULL, 0, NULL, 0}
     };
 
-    // long opt index
-    int option_index = 0;
 
-    while ((opt = getopt_long(argc, argv, "+hvVe:", long_options, &option_index)) != -1) {
+    optind = 0;
+    
+    while ((opt = getopt_long(argc, argv, "+e:hvV", long_options, NULL)) != -1) {
         if (opt == 'h') {
             // print help
             printf("Usage: %s [options] FILE [args...]\n", argv[0]);
@@ -140,6 +140,8 @@ int main(int argc, char** argv) {
             OPT_ERR("%s: Unknown option '%s', run '%s -h' to see help message", argv[0], argv[optind-1], argv[0]);
         } else if (opt == ':') {
             OPT_ERR("%s: Option '-%c' needs a value, run '%s -h' to see help message", argv[0], optopt, argv[0]);
+        } else {
+            OPT_ERR("%s: Unknown options passed ('%s')!, run '%s -h' to see help message", argv[0], argv[optind-1], argv[0]);
         }
     }
 

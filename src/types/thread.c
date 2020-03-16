@@ -329,25 +329,31 @@ ks_thread ks_thread_cur() {
 
 /* member functions */
 
-// thread.__new__(name, target, args=(,)) -> construct a thread from a target
+// thread.__new__(target, args=(,), name=none) -> construct a thread from a target
 static KS_TFUNC(thread, new) {
-    KS_REQ_N_ARGS_MIN(n_args, 2);
-    ks_str name = (ks_str)args[0];
-    KS_REQ_TYPE(name, ks_type_str, "name");
-    ks_obj target = (ks_obj)args[1];
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
+    ks_obj target = args[0];
     KS_REQ_CALLABLE(target, "target");
+
+    char* name = NULL;
+
+    if (n_args >= 3) {
+        ks_str name_str = (ks_str)args[2];
+        KS_REQ_TYPE(name_str, ks_type_str, "name");
+        name = name_str->chr;
+    }
 
     // result thread
     ks_thread ret = NULL;
 
-    if (n_args > 2) {
-        ks_tuple p_args = (ks_tuple)args[2];
+    if (n_args >= 2) {
+        ks_tuple p_args = (ks_tuple)args[1];
         KS_REQ_TYPE(p_args, ks_type_tuple, "args");
         // for some reason, it seems we need an extra reference here
         KS_INCREF(p_args);
-        ret = ks_thread_new(name->chr, target, p_args->len, p_args->elems);
+        ret = ks_thread_new(name, target, p_args->len, p_args->elems);
     } else {
-        ret = ks_thread_new(name->chr, target, 0, NULL);
+        ret = ks_thread_new(name, target, 0, NULL);
     }
 
     return (ks_obj)ret;
@@ -448,30 +454,30 @@ void ks_type_thread_init() {
     KS_INIT_TYPE_OBJ(ks_type_thread, "thread");
 
     ks_type_set_cn(ks_type_stack_frame, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new(stack_frame_str_)},
-        {"__free__", (ks_obj)ks_cfunc_new(stack_frame_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(stack_frame_str_, "stack_frame.__str__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(stack_frame_free_, "stack_frame.__free__(self)")},
         {NULL, NULL}   
     });
 
     ks_type_set_cn(ks_type_mutex, (ks_dict_ent_c[]){
-        {"lock", (ks_obj)ks_cfunc_new(mutex_lock_)},
-        {"unlock", (ks_obj)ks_cfunc_new(mutex_unlock_)},
+        {"lock", (ks_obj)ks_cfunc_new2(mutex_lock_, "mutex.lock(self)")},
+        {"unlock", (ks_obj)ks_cfunc_new2(mutex_unlock_, "mutex.unlock(self)")},
 
-        {"__free__", (ks_obj)ks_cfunc_new(mutex_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(mutex_free_, "mutex.free(self)")},
         {NULL, NULL}   
     });
 
     ks_type_set_cn(ks_type_thread, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new(thread_new_)},
+        {"__new__", (ks_obj)ks_cfunc_new2(thread_new_, "thread.__new__(func, args=(,), name=NONE)")},
 
-        {"start", (ks_obj)ks_cfunc_new(thread_start_)},
-        {"join", (ks_obj)ks_cfunc_new(thread_join_)},
-        {"result", (ks_obj)ks_cfunc_new(thread_result_)},
+        {"start", (ks_obj)ks_cfunc_new2(thread_start_, "thread.start(self)")},
+        {"join", (ks_obj)ks_cfunc_new2(thread_join_, "thread.join(self)")},
+        {"result", (ks_obj)ks_cfunc_new2(thread_result_, "thread.result(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new(thread_str_)},
-        {"__repr__", (ks_obj)ks_cfunc_new(thread_str_)},
-        {"__this__", (ks_obj)ks_cfunc_new(thread_this_)},
-        {"__free__", (ks_obj)ks_cfunc_new(thread_free_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(thread_str_, "thread.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(thread_str_, "thread.__repr__(self)")},
+        {"__this__", (ks_obj)ks_cfunc_new2(thread_this_, "thread.__this__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(thread_free_, "thread.__free__(self)")},
         
         {NULL, NULL}   
     });

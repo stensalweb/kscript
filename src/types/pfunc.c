@@ -149,8 +149,8 @@ void ks_type_pfunc_init() {
     KS_INIT_TYPE_OBJ(ks_type_pfunc, "pfunc");
 
     ks_type_set_cn(ks_type_pfunc, (ks_dict_ent_c[]){
-        {"__call__", (ks_obj)ks_cfunc_new(pfunc_call_)},
-        {"__free__", (ks_obj)ks_cfunc_new(pfunc_free_)},
+        {"__call__", (ks_obj)ks_cfunc_new2(pfunc_call_, "pfunc.__call__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(pfunc_free_, "pfunc.__free__(self)")},
         {NULL, NULL}   
     });
 

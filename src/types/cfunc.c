@@ -66,9 +66,9 @@ void ks_type_cfunc_init() {
     KS_INIT_TYPE_OBJ(ks_type_cfunc, "cfunc");
 
     ks_type_set_cn(ks_type_cfunc, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_cfunc_new(cfunc_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(cfunc_free_, "cfunc.__free__(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new(cfunc_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(cfunc_str_, "cfunc.__str__(self)")},
 
         {NULL, NULL}   
     });

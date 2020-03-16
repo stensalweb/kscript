@@ -58,9 +58,9 @@ void ks_type_bool_init() {
     KS_INIT_TYPE_OBJ(ks_type_bool, "bool");
 
     ks_type_set_cn(ks_type_bool, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new(bool_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(bool_str_, "bool.__str__(self)")},
 
-        {"__free__", (ks_obj)ks_cfunc_new(bool_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(bool_free_, "bool.__free__(self)")},
         {NULL, NULL}
     });
 

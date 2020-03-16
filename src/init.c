@@ -73,7 +73,7 @@ bool ks_init() {
     ks_paths = ks_list_new(0, NULL);
 
     ks_str myp = ks_str_new(".");
-    ks_list_push(ks_paths, myp);
+    ks_list_push(ks_paths, (ks_obj)myp);
     KS_DECREF(myp);
 
     // get the environment variable
@@ -89,7 +89,7 @@ bool ks_init() {
         while (tok != NULL) {
             // add to the paths
             myp = ks_str_new(tok);
-            ks_list_push(ks_paths, myp);
+            ks_list_push(ks_paths, (ks_obj)myp);
             KS_DECREF(myp);
 
             // grab next token
@@ -116,6 +116,10 @@ bool ks_init() {
         {"dict",           KS_NEWREF(ks_type_dict)},
 
         {"Error",          KS_NEWREF(ks_type_Error)},
+        {"SyntaxError",    KS_NEWREF(ks_type_SyntaxError)},
+        {"MathError",      KS_NEWREF(ks_type_MathError)},
+        {"AttrError",      KS_NEWREF(ks_type_AttrError)},
+        {"KeyError",       KS_NEWREF(ks_type_KeyError)},
 
         {"thread",         KS_NEWREF(ks_type_thread)},
 
@@ -136,6 +140,11 @@ bool ks_init() {
         {"E",              (ks_obj)ks_float_new(2.7182818284590452353602874713526625)},
         {"PHI",            (ks_obj)ks_float_new(1.6180339887498948482045868343656381177)},
 
+        /* misc constants */
+        {"NONE",           KS_NEWREF(KSO_NONE)},
+        {"NaN",            KS_NEWREF(KS_NAN)},
+        {"TRUE",           KS_NEWREF(KSO_TRUE)},
+        {"FALSE",          KS_NEWREF(KSO_FALSE)},
 
         // end
         {NULL, NULL}

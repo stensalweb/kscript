@@ -11,8 +11,14 @@
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_float);
 
+// global singleton for 'NAN' values
+ks_float KS_NAN = NULL;
+
 // create a kscript int from a C-style int
 ks_float ks_float_new(double val) {
+    // check for NAN
+    if (val != val) return (ks_float)KS_NEWREF(KS_NAN);
+
     ks_float self = KS_ALLOC_OBJ(ks_float);
     KS_INIT_OBJ(self, ks_type_float);
 
@@ -68,6 +74,12 @@ static KS_TFUNC(float, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_float self = (ks_float)args[0];
     KS_REQ_TYPE(self, ks_type_float, "self");
+
+    // don't free the NAN
+    if (self == KS_NAN) {
+        self->refcnt = 0xFFFF;
+        return KSO_NONE;
+    }
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
@@ -256,7 +268,6 @@ static KS_TFUNC(float, ne) {
 };
 
 
-
 // float.__neg__(V) -> negative float
 static KS_TFUNC(float, neg) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -283,36 +294,62 @@ static KS_TFUNC(float, sqig) {
 };
 
 
+// float.isnan(self) -> return if it is NAN
+static KS_TFUNC(float, isnan) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_float self = (ks_float)args[0];
+    KS_REQ_TYPE(self, ks_type_float, "self");
+
+    return KSO_BOOL(self->val != self->val);
+}
+
+
+
 // initialize float type
 void ks_type_float_init() {
     KS_INIT_TYPE_OBJ(ks_type_float, "float");
 
+    // construct NAN value
+    KS_NAN = KS_ALLOC_OBJ(ks_float);
+    KS_INIT_OBJ(KS_NAN, ks_type_float);
+    KS_NAN->val = nan("0");
+
+    // initialize type-specific things
+
     ks_type_set_cn(ks_type_float, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new(float_new_)},
+        {"__new__", (ks_obj)ks_cfunc_new2(float_new_, "float.__new__(obj)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new(float_str_)},
-        {"__repr__", (ks_obj)ks_cfunc_new(float_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(float_str_, "float.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(float_str_, "float.__repr__(self)")},
         
-        {"__free__", (ks_obj)ks_cfunc_new(float_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(float_free_, "float.__free__(self)")},
  
-        {"__add__", (ks_obj)ks_cfunc_new(float_add_)},
-        {"__sub__", (ks_obj)ks_cfunc_new(float_sub_)},
-        {"__mul__", (ks_obj)ks_cfunc_new(float_mul_)},
-        {"__div__", (ks_obj)ks_cfunc_new(float_div_)},
-        {"__mod__", (ks_obj)ks_cfunc_new(float_mod_)},
-        {"__pow__", (ks_obj)ks_cfunc_new(float_pow_)},
+        {"__add__", (ks_obj)ks_cfunc_new2(float_add_, "float.__add__(L, R)")},
+        {"__sub__", (ks_obj)ks_cfunc_new2(float_sub_, "float.__sub__(L, R)")},
+        {"__mul__", (ks_obj)ks_cfunc_new2(float_mul_, "float.__mul__(L, R)")},
+        {"__div__", (ks_obj)ks_cfunc_new2(float_div_, "float.__div__(L, R)")},
+        {"__mod__", (ks_obj)ks_cfunc_new2(float_mod_, "float.__mod__(L, R)")},
+        {"__pow__", (ks_obj)ks_cfunc_new2(float_pow_, "float.__pow__(L, R)")},
  
-        {"__lt__", (ks_obj)ks_cfunc_new(float_lt_)},
-        {"__le__", (ks_obj)ks_cfunc_new(float_le_)},
-        {"__gt__", (ks_obj)ks_cfunc_new(float_gt_)},
-        {"__ge__", (ks_obj)ks_cfunc_new(float_ge_)},
-        {"__eq__", (ks_obj)ks_cfunc_new(float_eq_)},
-        {"__ne__", (ks_obj)ks_cfunc_new(float_ne_)},
+        {"__lt__", (ks_obj)ks_cfunc_new2(float_lt_, "float.__lt__(L, R)")},
+        {"__le__", (ks_obj)ks_cfunc_new2(float_le_, "float.__le__(L, R)")},
+        {"__gt__", (ks_obj)ks_cfunc_new2(float_gt_, "float.__gt__(L, R)")},
+        {"__ge__", (ks_obj)ks_cfunc_new2(float_ge_, "float.__ge__(L, R)")},
+        {"__eq__", (ks_obj)ks_cfunc_new2(float_eq_, "float.__eq__(L, R)")},
+        {"__ne__", (ks_obj)ks_cfunc_new2(float_ne_, "float.__ne__(L, R)")},
 
-        {"__neg__", (ks_obj)ks_cfunc_new(float_neg_)},
-        {"__sqig__", (ks_obj)ks_cfunc_new(float_sqig_)},
+        {"__neg__", (ks_obj)ks_cfunc_new2(float_neg_, "float.__neg__(self)")},
+        {"__sqig__", (ks_obj)ks_cfunc_new2(float_sqig_, "float.__sqig__(self)")},
+
+        {"isnan", (ks_obj)ks_cfunc_new2(float_isnan_, "float.isnan(self)")},
+
+
+        {"nan", KS_NEWREF(KS_NAN)},
  
         {NULL, NULL}   
     });
+
+
+
 }
 

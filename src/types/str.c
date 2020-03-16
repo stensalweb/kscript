@@ -172,14 +172,14 @@ void ks_type_str_init() {
 
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new(str_new_)},
-        {"__free__", (ks_obj)ks_cfunc_new(str_free_)},
+        {"__new__", (ks_obj)ks_cfunc_new2(str_new_, "str.__new__(obj)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(str_free_, "str.__free__(self)")},
 
-        {"__len__", (ks_obj)ks_cfunc_new(str_len_)},
+        {"__len__", (ks_obj)ks_cfunc_new2(str_len_, "str.__len__(self)")},
 
-        {"__repr__", (ks_obj)ks_cfunc_new(str_repr_)},
+        {"__repr__", (ks_obj)ks_cfunc_new2(str_repr_, "str.__repr__(self)")},
 
-        {"__add__", (ks_obj)ks_cfunc_new(str_add_)},
+        {"__add__", (ks_obj)ks_cfunc_new2(str_add_, "str.__add__(L, R)")},
 
         {NULL, NULL}
     });

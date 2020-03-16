@@ -21,7 +21,7 @@ CFLAGS     ?= -O3 -std=c99
 PREFIX     ?= /usr/local
 
 # which standard modules to build? default is all of them
-KSM_STD    ?= 
+KSM_STD    ?= m
 
 # default to not changing the options
 KS_OPTS    ?= NONE_NEW
@@ -64,7 +64,7 @@ ksm_std         := $(KSM_STD)
 # now, generate a list of `.o` files needed
 libks_o         := $(patsubst %.c,%.o, $(libks_src))
 ks_o            := $(patsubst %.c,%.o, $(ks_src))
-ksm_std_so      := $(patsubst %,std/%/libksm_%.so, $(ksm_std))
+ksm_std_so      := $(patsubst %,modules/%/libksm_%.so, $(ksm_std))
 
 
 # -*- OUTPUT FILES
@@ -84,13 +84,13 @@ ks_exe    := ./bin/ks
 .PHONY: default clean uninstall
 
 # by default, build the `ec` binary
-default: $(ksm_std_so) $(ks_exe)
+default: $(ks_exe) $(ksm_std_so) 
 
 # using wildcard means it only removes what exists, which makes for more useful
 #   messages
 clean:
 	rm -rf $(wildcard $(ks_o) $(libks_o) $(ks_exe) $(libks_so) $(libks_a))
-	-for subdir in $(patsubst %,std/%,$(ksm_std)); do \
+	-for subdir in $(patsubst %,modules/%,$(ksm_std)); do \
 		$(MAKE) -C $$subdir clean ; \
 	done
 
@@ -114,11 +114,11 @@ $(libks_a): $(libks_o)
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
-$(ks_exe): $(libks_so) $(MOD_std_so) $(ks_o)
+$(ks_exe): $(libks_so) $(ks_o) $(MOD_std_so)
 	$(CC) $(CFLAGS) -Wl,-rpath=./lib/ -L./lib/ $(ks_o) -lks -lm -ldl -lpthread -o $@
 
 # rule to build a standard module
-std/%/libksm_%.so:
+modules/%/libksm_%.so:
 	$(MAKE) -C $(dir $@)
 
 # rule to install the whole package to PREFIX

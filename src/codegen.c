@@ -685,6 +685,11 @@ ks_code ks_codegen(ks_ast self) {
     // construct an empty bytecode here
     ks_code to = ks_code_new(NULL);
 
+
+    // add meta data
+    ks_code_add_meta(to, self->tok_expr);
+
+
     // the current state
     em_state st = (em_state) { .stk_len = 0 };
 

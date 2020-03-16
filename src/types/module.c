@@ -44,20 +44,38 @@ static ks_module attempt_load(char* cname) {
         
         if (cext_init != NULL) {
             // call the function, and return its result
-            return cext_init->init_func();   
+            ks_module mod = cext_init->init_func();
+            if (!mod) return NULL;
+
+            ks_debug("[import] '%s' succeeded!", cname);
+            return mod;
         }
 
     }
 
     // not found
     return NULL;
-
 }
+
+
+// cache of modules
+static ks_dict mod_cache = NULL;
+
 
 // attempt a module with a given name
 ks_module ks_module_import(char* mname) {
     //__C_module_init__
     ks_module mod = NULL;
+
+    ks_str mod_key = ks_str_new(mname);
+    
+    // check the cache for quick return
+    mod = ks_dict_get(mod_cache, mod_key->v_hash, (ks_obj)mod_key);
+    if (mod != NULL) {
+        KS_DECREF(mod_key);
+        return mod;
+    }
+
 
     int i;
     for (i = 0; i < ks_paths->len; ++i) {
@@ -66,11 +84,31 @@ ks_module ks_module_import(char* mname) {
 
         mod = attempt_load(ctry->chr);
         KS_DECREF(ctry);
-        if (mod != NULL) return mod;
+        if (mod != NULL) goto finish;
+
+        ctry = ks_fmt_c("%S/modules/%s/libksm_%s.so", ks_paths->elems[i], mname, mname);
+
+        mod = attempt_load(ctry->chr);
+        KS_DECREF(ctry);
+        if (mod != NULL) goto finish;
 
     }
 
-    return ks_throw_fmt(ks_type_Error, "Failed to import module '%s'", mname);
+
+    finish:;
+
+    if (mod == NULL) {
+        // not found, throw error
+        KS_DECREF(mod_key);
+        return ks_throw_fmt(ks_type_Error, "Failed to import module '%s': No such module!", mname);
+    } else {
+        // add it to the dictionary, and return
+        ks_dict_set(mod_cache, mod_key->v_hash, (ks_obj)mod_key, mod);
+        KS_DECREF(mod_key);
+        return mod;
+    }
+
+
 }
 
 /* member functions */
@@ -112,19 +150,30 @@ static KS_TFUNC(module, getattr) {
     ks_str attr = (ks_str)args[1];
     KS_REQ_TYPE(attr, ks_type_str, "attr");
 
-    return ks_dict_get(self->attr, attr->v_hash, (ks_str)attr);
+    // special case
+    if (*attr->chr == '_' && strncmp(attr->chr, "__dict__", 8) == 0) {
+        return KS_NEWREF(self->attr);
+    }
+
+    ks_obj ret = ks_dict_get(self->attr, attr->v_hash, (ks_obj)attr);
+
+    if (!ret) {
+        KS_ERR_ATTR(self, attr);
+    }
+
+    return ret;
 };
 
 // module.__setattr__(self, attr, val) -> set attribute
 static KS_TFUNC(module, setattr) {
-    KS_REQ_N_ARGS(n_args, 2);
+    KS_REQ_N_ARGS(n_args, 3);
     ks_module self = (ks_module)args[0];
     KS_REQ_TYPE(self, ks_type_module, "self");
     ks_str attr = (ks_str)args[1];
     KS_REQ_TYPE(attr, ks_type_str, "attr");
     ks_obj val = args[2];
 
-    ks_dict_set(self->attr, attr->v_hash, (ks_str)attr, val);
+    ks_dict_set(self->attr, attr->v_hash, (ks_obj)attr, val);
 
     return KS_NEWREF(val);
 };
@@ -135,15 +184,18 @@ void ks_type_module_init() {
     KS_INIT_TYPE_OBJ(ks_type_module, "module");
 
     ks_type_set_cn(ks_type_module, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_cfunc_new(module_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(module_free_, "module.__free__(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new(module_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(module_str_, "module.__str__(self)")},
 
-        {"__getattr__", (ks_obj)ks_cfunc_new(module_getattr_)},
-        {"__setattr__", (ks_obj)ks_cfunc_new(module_setattr_)},
+        {"__getattr__", (ks_obj)ks_cfunc_new2(module_getattr_, "module.__getattr__(self, attr)")},
+        {"__setattr__", (ks_obj)ks_cfunc_new2(module_setattr_, "module.__setattr__(self, attr, val)")},
 
         {NULL, NULL}   
     });
+
+    // construct cache
+    mod_cache = ks_dict_new(0, NULL);
 
 }
 

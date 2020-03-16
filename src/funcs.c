@@ -107,7 +107,6 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
     } else if (func->type == ks_type_type) {
         // try and construct a value by calling the constructor
-
         // cast it
         ks_type ft = (ks_type)func;
 
@@ -119,15 +118,16 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
                 // uses an initializer, so just call __new__ with no arguments
 
                 ret = ks_call(ft->__new__, 0, NULL);
+                if (!ret) return NULL;
 
                 // this is to handle derived classes; we always manually set the new type
                 ks_type old_type = ret->type;
                 ret->type = ft;
                 KS_INCREF(ret->type);
                 KS_DECREF(old_type);
-                
+
                 // now set up our newly created object as the first argument to the initializer
-                ks_obj* new_args = ks_malloc(sizeof(*new_args) * (1 + n_args));
+                ks_obj* new_args = ks_malloc(sizeof(ks_obj) * (1 + n_args));
 
                 new_args[0] = ret;
                 // copy other arguments passed in
@@ -135,6 +135,11 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
                 // initialize it, don't care about return value because we are returning the result from 'ret'
                 ks_obj dontcare = ks_call(ft->__init__, 1 + n_args, new_args);
+                if (!dontcare) {
+                    KS_DECREF(ret);
+                    return NULL;
+                }
+
                 KS_DECREF(dontcare);
 
                 // free temporary results
@@ -143,6 +148,7 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
             } else {
                 // no initializer, so call '__new__' with all the arguments
                 ret = ks_call(ft->__new__, n_args, args);
+                if (!ret) return NULL;
 
                 // this is to handle derived classes; we always manually set the new type
                 ks_type old_type = ret->type;

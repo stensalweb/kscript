@@ -14,13 +14,11 @@ func f(x) {
 }
 
 
-
-
 ts = []
 
 i = 0
 while i < N {
-    t = thread('test' + str(i), f, (i,))
+    t = thread(f, (i,), 'test' + str(i))
     t.start()
     ts.push(t)
 

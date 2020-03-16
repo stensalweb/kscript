@@ -34,13 +34,15 @@ int getopt(int, char * const [], const char *);
 extern char *optarg;
 extern int optind, opterr, optopt, optreset;
 
+// argument parsing options
 struct option {
-	const char *name;
-	int has_arg;
-	int *flag;
-	int val;
+    const char *name;
+    int has_arg;
+    int *flag;
+    int val;
 };
 
+// main functions
 int getopt_long(int, char *const *, const char *, const struct option *, int *);
 int getopt_long_only(int, char *const *, const char *, const struct option *, int *);
 

@@ -10,6 +10,12 @@
 
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_Error);
+KS_TYPE_DECLFWD(ks_type_MathError);
+KS_TYPE_DECLFWD(ks_type_SyntaxError);
+KS_TYPE_DECLFWD(ks_type_KeyError);
+KS_TYPE_DECLFWD(ks_type_AttrError);
+KS_TYPE_DECLFWD(ks_type_TypeError);
+KS_TYPE_DECLFWD(ks_type_OpError);
 
 // create a kscript int from a string
 ks_Error ks_Error_new(ks_str what) {
@@ -36,13 +42,48 @@ ks_Error ks_Error_new_c(char* what) {
 
 /* member functions */
 
-// Error.__new__(self, what) -> create a new error from a string reason
+// Error.__new__() -> allocate an error
 static KS_TFUNC(Error, new) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_str what = (ks_str)args[0];
+    KS_REQ_N_ARGS_RANGE(n_args, 0, 1);
+
+    if (n_args == 0) {
+        // empty one
+        ks_Error self = KS_ALLOC_OBJ(ks_Error);
+        KS_INIT_OBJ(self, ks_type_Error);
+
+        // initialize the dictionary
+        self->attr = ks_dict_new_cn((ks_dict_ent_c[]){
+            {NULL, NULL}
+        });
+
+
+        return (ks_obj)self;
+    } else {
+
+        ks_str what = (ks_str)args[0];
+        KS_REQ_TYPE(what, ks_type_str, "what");
+
+        return (ks_obj)ks_Error_new(what);
+    }
+};
+
+// Error.__init__(self, what) -> construct an error
+static KS_TFUNC(Error, init) {
+
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_Error self = (ks_Error)args[0];
+    KS_REQ_TYPE(self, ks_type_Error, "self");
+
+    ks_str what = (ks_str)args[1];
     KS_REQ_TYPE(what, ks_type_str, "what");
 
-    return (ks_obj)ks_Error_new(what);
+    ks_dict_set_cn(self->attr, (ks_dict_ent_c[]){
+        {"what", KS_NEWREF(what)},
+        {NULL, NULL}
+    });
+
+    // done initializing
+    return KSO_NONE;
 };
 
 
@@ -96,15 +137,37 @@ void ks_type_Error_init() {
     KS_INIT_TYPE_OBJ(ks_type_Error, "Error");
 
     ks_type_set_cn(ks_type_Error, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new(Error_new_)},
-        {"__free__", (ks_obj)ks_cfunc_new(Error_free_)},
+        {"__new__", (ks_obj)ks_cfunc_new2(Error_new_, "Error.__new__()")},
+        {"__init__", (ks_obj)ks_cfunc_new2(Error_init_, "Error.__init__(self, what)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(Error_free_, "Error.__free__(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new(Error_str_)},
-        {"__repr__", (ks_obj)ks_cfunc_new(Error_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(Error_str_, "Error.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(Error_str_, "Error.__repr__(self)")},
 
-        {"__getattr__", (ks_obj)ks_cfunc_new(Error_getattr_)},
+        {"__getattr__", (ks_obj)ks_cfunc_new2(Error_getattr_, "Error.__getattr__(self, attr)")},
 
         {NULL, NULL}   
     });
+
+    // sub types
+    KS_INIT_TYPE_OBJ(ks_type_SyntaxError, "SyntaxError");
+    ks_type_add_parent(ks_type_SyntaxError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_MathError, "MathError");
+    ks_type_add_parent(ks_type_MathError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_KeyError, "KeyError");
+    ks_type_add_parent(ks_type_KeyError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_AttrError, "AttrError");
+    ks_type_add_parent(ks_type_AttrError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_TypeError, "TypeError");
+    ks_type_add_parent(ks_type_TypeError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_OpError, "OpError");
+    ks_type_add_parent(ks_type_OpError, ks_type_Error);
+
+
 }
 

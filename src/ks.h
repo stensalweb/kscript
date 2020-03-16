@@ -376,7 +376,6 @@ typedef struct ks_dict* ks_dict;
 #define KS_REQ(_expr, ...) {       \
     if (!(_expr)) {                \
         ks_throw_fmt(ks_type_Error, __VA_ARGS__); \
-        /*ks_error(__VA_ARGS__);*/     \
         return NULL;               \
     }                              \
 }
@@ -394,39 +393,39 @@ typedef struct ks_dict* ks_dict;
 #define KS_REQ_N_ARGS_RANGE(_nargs, _min, _max) KS_REQ((_nargs) >= (_min) && (_nargs) <= (_max), "Incorrect number of arguments, expected between %i and %i, but got %i", (int)(_min), (int)(_max), (int)(_nargs))
 
 // Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
-#define KS_REQ_TYPE(_obj, _type, _name) KS_REQ((_obj)->type == (_type), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
+#define KS_REQ_TYPE(_obj, _type, _name) KS_REQ(ks_type_issub((_obj)->type, (_type)), "Incorrect type for '%s', expected '%S', but got '%S'", _name, _type, (_obj)->type)
 
 // Require that an object is callable
-#define KS_REQ_CALLABLE(_obj, _name) KS_REQ(ks_is_callable(_obj), "Parameter '%s' (of type '%T') was not callable", _name, _obj)
+#define KS_REQ_CALLABLE(_obj, _name) KS_REQ(ks_is_callable(_obj) == true, "Parameter '%s' (of type '%T') was not callable", _name, _obj)
 
 
 // throw a type conversion error
 #define KS_ERR_CONV(_obj, _totype) { \
-    ks_throw_fmt(ks_type_Error, "'%T' object could not be converted to %S", _obj, _totype); \
+    ks_throw_fmt(ks_type_TypeError, "'%T' object could not be converted to %S", _obj, _totype); \
     return NULL; \
 }
 
 // Throw an operator undefined error and return NULL
 #define KS_ERR_BOP_UNDEF(_str, _L, _R) { \
-    ks_throw_fmt(ks_type_Error, "operator '%s' not defined for '%T' and '%T'", _str, _L, _R); \
+    ks_throw_fmt(ks_type_OpError, "operator '%s' not defined for '%T' and '%T'", _str, _L, _R); \
     return NULL; \
 }
 
 // Throw an operator undefined error and return NULL
 #define KS_ERR_UOP_UNDEF(_str, _V) { \
-    ks_throw_fmt(ks_type_Error, "operator '%s' not defined for '%T'", _str, _V); \
+    ks_throw_fmt(ks_type_OpError, "operator '%s' not defined for '%T'", _str, _V); \
     return NULL; \
 }
 
 // throw an attribute error
 #define KS_ERR_ATTR(_obj, _attr) { \
-    ks_throw_fmt(ks_type_Error, "'%T' object has no attr %R", _obj, _attr); \
+    ks_throw_fmt(ks_type_AttrError, "'%T' object has no attr %R", _obj, _attr); \
     return NULL; \
 }
 
 // throw an item key error
 #define KS_ERR_KEY(_obj, _key) { \
-    ks_throw_fmt(ks_type_Error, "'%T' object did not contain the key %*R", _obj, _key); \
+    ks_throw_fmt(ks_type_KeyError, "'%T' object did not contain the key %*R", _obj, _key); \
     return NULL; \
 }
 
@@ -439,7 +438,7 @@ typedef struct ks_dict* ks_dict;
     for (i = 0; i < _nk; ++i) ks_str_b_add_fmt(&SB, "%s%R", i > 0 ? " " : "", _ky[i]); \
     ks_str sbs = ks_str_b_get(&SB); \
     ks_str_b_free(&SB); \
-    ks_throw_fmt(ks_type_Error, "'%T' object did not contain the key %S", _obj, sbs); \
+    ks_throw_fmt(ks_type_KeyError, "'%T' object did not contain the key %S", _obj, sbs); \
     KS_DECREF(sbs); \
     return NULL; \
 }
@@ -755,6 +754,10 @@ typedef struct {
     double val;
 
 }* ks_float;
+
+
+// Global singleton representing the 'NAN' value (not-a-number)
+extern ks_float KS_NAN;
 
 
 // ks_str - type representing a string of characters. Internally, the buffer is length encoded & NUL-terminated
@@ -1389,7 +1392,14 @@ extern ks_type
     ks_type_list,
     ks_type_dict,
 
+    // error types
     ks_type_Error,
+    ks_type_SyntaxError,
+    ks_type_MathError,
+    ks_type_KeyError,
+    ks_type_AttrError,
+    ks_type_TypeError,
+    ks_type_OpError,
 
     ks_type_stack_frame,
     ks_type_mutex,
@@ -1556,6 +1566,10 @@ int64_t ks_mem_max();
 // Initialize a type variable. Make sure 'self' has not been ref cnted, etc. Just an allocated blob of memory!
 // NOTE: Returns a new reference
 void ks_init_type(ks_type self, char* name);
+
+
+// check if 'self' is a sub type of 'of'
+bool ks_type_issub(ks_type self, ks_type of);
 
 // add a parent to the type, which the type will derive from
 void ks_type_add_parent(ks_type self, ks_type parent);

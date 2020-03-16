@@ -510,6 +510,24 @@ static KS_TFUNC(dict, setitem) {
 };
 
 
+// dict.keys(self) -> return a list of keys
+static KS_TFUNC(dict, keys) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+
+    ks_list ret = ks_list_new(0, NULL);
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].hash != 0 && self->entries[i].val != NULL) {
+            ks_list_push(ret, self->entries[i].key);
+        }
+    }
+
+    return ret;
+};
+
 
 
 // dict.__str__(self) -> convert to string
@@ -574,13 +592,14 @@ void ks_type_dict_init() {
     KS_INIT_TYPE_OBJ(ks_type_dict, "dict");
 
     ks_type_set_cn(ks_type_dict, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new(dict_new_)},
-        {"__str__", (ks_obj)ks_cfunc_new(dict_str_)},
-        {"__free__", (ks_obj)ks_cfunc_new(dict_free_)},
+        {"__new__", (ks_obj)ks_cfunc_new2(dict_new_, "dict.__new__(self, *keyvals)")},
+        {"__str__", (ks_obj)ks_cfunc_new2(dict_str_, "dict.__str__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(dict_free_, "dict.__free__(self)")},
 
-        {"__getitem__", (ks_obj)ks_cfunc_new(dict_getitem_)},
-        {"__setitem__", (ks_obj)ks_cfunc_new(dict_setitem_)},
+        {"__getitem__", (ks_obj)ks_cfunc_new2(dict_getitem_, "dict.__getitem__(self, key)")},
+        {"__setitem__", (ks_obj)ks_cfunc_new2(dict_setitem_, "dict.__setitem__(self, key, val)")},
 
+        {"keys", (ks_obj)ks_cfunc_new2(dict_keys_, "dict.keys(self)")},
 
         {NULL, NULL}   
     });

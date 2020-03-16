@@ -94,6 +94,9 @@ static KS_TFUNC(int, div) {
     ks_obj L = args[0], R = args[1];
 
     if (L->type == ks_type_int && R->type == ks_type_int) {
+        if (((ks_int)R)->val == 0) {
+            return ks_throw_fmt(ks_type_MathError, "Division by 0!");
+        }
         return (ks_obj)ks_int_new(((ks_int)L)->val / ((ks_int)R)->val);
     }
 
@@ -260,27 +263,27 @@ void ks_type_int_init() {
     KS_INIT_TYPE_OBJ(ks_type_int, "int");
 
     ks_type_set_cn(ks_type_int, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new(int_str_)},
-        {"__repr__", (ks_obj)ks_cfunc_new(int_str_)},
+        {"__str__", (ks_obj)ks_cfunc_new2(int_str_, "int.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(int_str_, "int.__repr__(self)")},
         
-        {"__free__", (ks_obj)ks_cfunc_new(int_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(int_free_, "int.__free__(self)")},
  
-        {"__add__", (ks_obj)ks_cfunc_new(int_add_)},
-        {"__sub__", (ks_obj)ks_cfunc_new(int_sub_)},
-        {"__mul__", (ks_obj)ks_cfunc_new(int_mul_)},
-        {"__div__", (ks_obj)ks_cfunc_new(int_div_)},
-        {"__mod__", (ks_obj)ks_cfunc_new(int_mod_)},
-        {"__pow__", (ks_obj)ks_cfunc_new(int_pow_)},
+        {"__add__", (ks_obj)ks_cfunc_new2(int_add_, "int.__add__(L, R)")},
+        {"__sub__", (ks_obj)ks_cfunc_new2(int_sub_, "int.__sub__(L, R)")},
+        {"__mul__", (ks_obj)ks_cfunc_new2(int_mul_, "int.__mul__(L, R)")},
+        {"__div__", (ks_obj)ks_cfunc_new2(int_div_, "int.__div__(L, R)")},
+        {"__mod__", (ks_obj)ks_cfunc_new2(int_mod_, "int.__mod__(L, R)")},
+        {"__pow__", (ks_obj)ks_cfunc_new2(int_pow_, "int.__pow__(L, R)")},
  
-        {"__lt__", (ks_obj)ks_cfunc_new(int_lt_)},
-        {"__le__", (ks_obj)ks_cfunc_new(int_le_)},
-        {"__gt__", (ks_obj)ks_cfunc_new(int_gt_)},
-        {"__ge__", (ks_obj)ks_cfunc_new(int_ge_)},
-        {"__eq__", (ks_obj)ks_cfunc_new(int_eq_)},
-        {"__ne__", (ks_obj)ks_cfunc_new(int_ne_)},
+        {"__lt__", (ks_obj)ks_cfunc_new2(int_lt_, "int.__lt__(L, R)")},
+        {"__le__", (ks_obj)ks_cfunc_new2(int_le_, "int.__le__(L, R)")},
+        {"__gt__", (ks_obj)ks_cfunc_new2(int_gt_, "int.__gt__(L, R)")},
+        {"__ge__", (ks_obj)ks_cfunc_new2(int_ge_, "int.__ge__(L, R)")},
+        {"__eq__", (ks_obj)ks_cfunc_new2(int_eq_, "int.__eq__(L, R)")},
+        {"__ne__", (ks_obj)ks_cfunc_new2(int_ne_, "int.__ne__(L, R)")},
 
-        {"__neg__", (ks_obj)ks_cfunc_new(int_neg_)},
-        {"__sqig__", (ks_obj)ks_cfunc_new(int_sqig_)},
+        {"__neg__", (ks_obj)ks_cfunc_new2(int_neg_, "int.__neg__(self)")},
+        {"__sqig__", (ks_obj)ks_cfunc_new2(int_sqig_, "int.__sqig__(self)")},
  
         {NULL, NULL}   
     });

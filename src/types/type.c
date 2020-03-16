@@ -33,6 +33,23 @@ void ks_init_type(ks_type self, char* name) {
     KS_DECREF(parents_list);
 
 }
+
+
+// check if 'self' is a sub type of 'of'
+bool ks_type_issub(ks_type self, ks_type of) {
+    if (self == of) return true;
+
+    int i;
+    for (i = 0; i < self->__parents__->len; ++i) {
+        // check if it is a parent
+        if (ks_type_issub((ks_type)self->__parents__->elems[i], of)) return true;
+    }
+
+    // not a sub type
+    return false;
+
+}
+
 // get an attribute
 ks_obj ks_type_get(ks_type self, ks_str key) {
     assert(key->type == ks_type_str);
@@ -179,6 +196,41 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
     // otherwise, append it to the list
     ks_list_push(self->__parents__, (ks_obj)parent);
 
+    // and set other variables
+    #define REPL(_x) if (self->_x == NULL) self->_x = parent->_x;
+
+    REPL(__new__)
+    REPL(__init__)
+
+    REPL(__add__)
+    REPL(__sub__)
+    REPL(__mul__)
+    REPL(__div__)
+    REPL(__mod__)
+    REPL(__pow__)
+
+    REPL(__lt__)
+    REPL(__le__)
+    REPL(__gt__)
+    REPL(__ge__)
+    REPL(__eq__)
+    REPL(__ne__)
+
+    REPL(__neg__)
+    REPL(__sqig__)
+
+    REPL(__getattr__)
+    REPL(__setattr__)
+
+    REPL(__getitem__)
+    REPL(__setitem__)
+
+    REPL(__call__)
+    REPL(__free__)
+    REPL(__repr__)
+    REPL(__str__)
+    REPL(__len__)
+
 }
 
 
@@ -221,8 +273,72 @@ static KS_TFUNC(type, setattr) {
     return KSO_NONE;
 };
 
+// compare 2 types, 0 if they are the same,
+// >0 if L is a sub type of R, or <0 if R is a sub type if R
+// returns '2' if neither was directly related
+static int type__cmp(ks_type L, ks_type R) {
+    if (L == R) return 0;
+    if (ks_type_issub(L, R)) return 1;
+    if (ks_type_issub(R, L)) return -1;
 
-// type.__eq__(L, R) -> return whether the 2 types are equal
+    // special case
+    return 2;
+}
+
+// type.__lt__(L, R) -> get parenting
+static KS_TFUNC(type, lt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_type && R->type == ks_type_type) {
+        int tcmp = type__cmp((ks_type)L, (ks_type)R);
+        return KSO_BOOL(tcmp != 2 && tcmp < 0);
+    }
+
+    KS_ERR_BOP_UNDEF("<", L, R);
+};
+
+// type.__le__(L, R) -> get parenting
+static KS_TFUNC(type, le) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_type && R->type == ks_type_type) {
+        int tcmp = type__cmp((ks_type)L, (ks_type)R);
+        return KSO_BOOL(tcmp != 2 && tcmp <= 0);
+    }
+
+    KS_ERR_BOP_UNDEF("<=", L, R);
+};
+
+// type.__gt__(L, R) -> get parenting
+static KS_TFUNC(type, gt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_type && R->type == ks_type_type) {
+        int tcmp = type__cmp((ks_type)L, (ks_type)R);
+        return KSO_BOOL(tcmp != 2 && tcmp > 0);
+    }
+
+    KS_ERR_BOP_UNDEF(">", L, R);
+};
+
+// type.__ge__(L, R) -> get parenting
+static KS_TFUNC(type, ge) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_type && R->type == ks_type_type) {
+        int tcmp = type__cmp((ks_type)L, (ks_type)R);
+        return KSO_BOOL(tcmp != 2 && tcmp >= 0);
+    }
+
+    KS_ERR_BOP_UNDEF(">=", L, R);
+};
+
+
+// type.__eq__(L, R) -> get parenting
 static KS_TFUNC(type, eq) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_obj L = args[0], R = args[1];
@@ -233,6 +349,19 @@ static KS_TFUNC(type, eq) {
 
     KS_ERR_BOP_UNDEF("==", L, R);
 };
+
+// type.__ne__(L, R) -> get parenting
+static KS_TFUNC(type, ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_type && R->type == ks_type_type) {
+        return KSO_BOOL(L != R);
+    }
+
+    KS_ERR_BOP_UNDEF("!=", L, R);
+};
+
 
 
 
@@ -248,9 +377,12 @@ void ks_type_type_init() {
         {"__getattr__", (ks_obj)ks_cfunc_new(type_getattr_)},
         {"__setattr__", (ks_obj)ks_cfunc_new(type_setattr_)},
 
-
+        {"__lt__", (ks_obj)ks_cfunc_new(type_lt_)},
+        {"__le__", (ks_obj)ks_cfunc_new(type_le_)},
+        {"__gt__", (ks_obj)ks_cfunc_new(type_gt_)},
+        {"__ge__", (ks_obj)ks_cfunc_new(type_ge_)},
         {"__eq__", (ks_obj)ks_cfunc_new(type_eq_)},
-
+        {"__ne__", (ks_obj)ks_cfunc_new(type_ne_)},
 
         {NULL, NULL}   
     });

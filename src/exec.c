@@ -71,9 +71,6 @@ typedef struct {
 
 } exc_call_stk_item;
 
-// the current position in the exc_call_stk array
-static int exc_call_stk_p = -1;
-static exc_call_stk_item exc_call_stk[4096];
 
 // internal execution algorithm
 //ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
@@ -83,6 +80,11 @@ ks_obj ks__exec(ks_code code) {
     assert(self->stack_frames->len > 0 && "No stack frames available!");
 
     uint32_t gilct = 0;
+
+
+    // the current position in the exc_call_stk array
+    int exc_call_stk_p = -1;
+    exc_call_stk_item exc_call_stk[256];
 
     // current stack frame
     ks_stack_frame this_stack_frame = (ks_stack_frame)self->stack_frames->elems[self->stack_frames->len - 1];
@@ -568,6 +570,7 @@ ks_obj ks__exec(ks_code code) {
 
     EXC: ;
 
+    // error handler
     if (exc_call_stk_p > start_ecs) {
         // there is a 'try'/'catch' block, so run that
 
@@ -584,7 +587,6 @@ ks_obj ks__exec(ks_code code) {
 
 
     // else, return NULL, and see if someone above us handles it
-
     ret_val = NULL;
     goto RET;
 
@@ -610,14 +612,14 @@ void ks_errend() {
     assert(exc != NULL && "ks_errend() called with no exception!");
 
     // error, so rethrow it and return
-    ks_error("%T: %S", exc, exc);
+    ks_printf(RED BOLD "%T" RESET ": %S\n", exc, exc);
 
     // print in reverse order
     ks_printf("Call Stack:\n");
     
     int i;
     for (i = 0; i < exc_info->len; i++) {
-        ks_printf("%*c#%i: %S\n", 2, ' ', i, exc_info->elems[i]);
+        ks_printf("%*c#%i: In %S\n", 2, ' ', i, exc_info->elems[i]);
     }
 
     

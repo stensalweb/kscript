@@ -107,7 +107,7 @@ void ks_type_kfunc_init() {
     KS_INIT_TYPE_OBJ(ks_type_kfunc, "kfunc");
 
     ks_type_set_cn(ks_type_kfunc, (ks_dict_ent_c[]){
-        {"__free__", (ks_obj)ks_cfunc_new(kfunc_free_)},
+        {"__free__", (ks_obj)ks_cfunc_new2(kfunc_free_, "kfunc.__free__(self)")},
 
         {NULL, NULL}   
     });
