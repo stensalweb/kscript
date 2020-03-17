@@ -370,7 +370,6 @@ static const double gamma_C0[] = {
 };
 
 
-
 // Level 1 of approximation, using a series of length 6
 // TODO: add this to compute_table.py
 #define GAMMA_C1_G 4.7421875

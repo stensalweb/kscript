@@ -1,18 +1,58 @@
 #!/usr/local/env python3
+""" compute_table.py - compute lookup tables for Chebyshev approximations (as well as Lanczos approximations)
+
+For required modules: run `pip3 install -r compute_table_requirements.txt`
+
+On some platforms, gmpy2 might require something like `sudo apt install libgmp-dev libmpfr-dev libmpc-dev`
+
+
+Essentially, this file generates arrays of float constants that can be used 
+
+Right now, I only have implemented the 'Gamma' and the 'Zeta' function using these approximations, so that is what
+  I have written
+
+
+ -- GAMMA FUNCTION --
+
+The Gamma function can be tricky to compute
+
+
+
+ -- ZETA FUNCTION --
+
+The Zeta function can be approximated with transforming to a Eta function, and also by
+  using Chebyshev error approximation polynomials.
+
+You can read the paper that I implemented this from here: http://numbers.computation.free.fr/Constants/Miscellaneous/zetaevaluations.pdf
+
+
 
 """
 
-compute_table.py
+import gmpy2
+import numpy as np
+from gmpy2 import mpfr, const_pi, exp, sqrt
+from functools import lru_cache
+
+# set to a lot of bits
+gmpy2.get_context().precision = 1024
+
+pi = const_pi()
+
+def factorial(x):
+    return gmpy2.gamma(x + 1)
 
 
-"""
+def double_factorial(n):
+     if n <= 0:
+         return 1
+     else:
+         return n * double_factorial(n - 2)
 
-from math import factorial, sqrt, pi, gamma, exp
 
 
-# calculate the 'd' series from the paper's Proposition #1, which can
-#   be used in the other function
-def calc_zeta_table(N):
+# print out a zeta table of a given size
+def do_Zeta(N):
 
     # compute term
     def d(k):
@@ -26,65 +66,82 @@ def calc_zeta_table(N):
 
     d0 = d(0)
 
+    print (" --- Rieman Zeta Function Table (N=%i) ---" % (N, ))
+
     # calculate them all
     for k in range(1, N+1):
-        yield d(k) / d0
+        d_k = d(k) / d0
+        print ("%.60s," % (d_k,))
+
+    print ("")
 
 
-# return factorial of a float
-def ffact(x):
-    return gamma(x + 1)
+# create a gamma function table
+def do_Gamma(N, g):
 
+    # not working currently
 
-# calculate the 'p' series from here: https://en.wikipedia.org/wiki/Lanczos_approximation
-#   be used in the other function
-def calc_gamma_table(k, g):
+    # partial fractions of coefficient terms
+    partial_fracs = [
+        [0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 2, -6, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, -3, 24, -30, 0, 0, 0, 0, 0, 0, 0],
+        [1, 4, -60, 180, -140, 0, 0, 0, 0, 0, 0],
+        [1, -5, 120, -630, 1120, -630, 0, 0, 0, 0, 0],
+        [1, 6, -210, 1680, -5040, 6300, -2772, 0, 0, 0, 0],
+        [1, -7, 336, -3780, 16800, -34650, 33264, -12012, 0, 0, 0],
+        [1, 8, -504, 7560, -46200, 138600, -216216, 168168, -51480, 0, 0],
+        [1, -9, 720, -13860, 110880, -450450, 1009008, -1261260, 823680, -218790, 0],
+        [1, 10, -990, 23760, -240240, 1261260, -3783780, 6726720, -7001280, 3938220, -923780]
+    ]
 
-    # compute the matrix coefficients for chebyshev polynomials
-    def C(n, m):
-        if n == 1 and m == 1: return 1
-        elif n == 2 and m == 2: return 1
-        elif m == 1: return -C(n - 2, 1)
-        elif n == m: return 2 * C(n - 1, m - 1)
+    # max size
+    assert N <= len(partial_fracs)
+
+    # compute Chebyshev polynomial coefficient in a matrix
+    @lru_cache()
+    def C(i, j):
+        # recursively calculate
+        if i > j and j >= 2:
+            return 2 * C(i - 1, j - 1) - C(i - 2, j)
+        elif i >= 3 and j == i:
+            return 2 * C(i - 1, j - 1)
+        elif i >= 3 and j == 1:
+            return -C(i - 2, 1)
         else:
-            return 2 * C(n-1, m-1) - C(n - 2, m)
+            return 1
 
     # compute term
     def p(k):
-        # compute sum from Proposition #1
+        # compute sums
         res = 0
+        for a in range(0, k+1):
+            Cij = C(2 * k + 1, 2 * a + 1)
+            res += Cij * factorial(a - 0.5) * (a + g + 0.5) ** (-(a + 0.5)) * exp(a + g + 0.5)
 
-        for l in range(0, k+1):
-            res += C(2 * k + 1, 2 * l + 1) * ffact(l - .5) * (l + g + 0.5) ** (-(l + 0.5)) * exp(l + g + 0.5)
+        return (sqrt(2.0) / pi) * res
 
-        return sqrt(2) / pi * res
+    # generate final coefficient
+    def c(idx):
+        res = 0
+        for i in range(len(partial_fracs[0])):
+            res += partial_fracs[i][idx] * p(i)
+        return res
 
-    def c(i):
-        return p(i)
-
+    print (" --- Gamma Function Table (N=%i,g=%f) ---" % (N, g))
 
     # calculate them all
-    for i in range(k):
-        yield c(i)
+    for i in range(N):
+        c_i = c(i)
+        print ("%.60s," % (c_i,))
 
+    print ("")
 
-N = 6
+# do some basic zeta tables
 
-print (" --- Rieman Zeta Function Table (N=%i) ---" % (N, ))
+do_Zeta(20)
 
-for d_k in calc_zeta_table(N):
-    print (str(d_k) + ", ")
-
-
-"""
-
-k = 9
-g = 1.0
-
-print (" --- Gamma Function Table (k=%i,g=%f) ---" % (k, g))
-
-for p_k in calc_gamma_table(k, g):
-    print (str(p_k) + ", ")
-"""
-
+#do_Gamma(7, 5)
+#do_Gamma(15, 4.7421875)
 
