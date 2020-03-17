@@ -525,7 +525,7 @@ static KS_TFUNC(dict, keys) {
         }
     }
 
-    return ret;
+    return (ks_obj)ret;
 };
 
 

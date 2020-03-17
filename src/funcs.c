@@ -16,6 +16,8 @@ ks_cfunc
     ks_F_exit = NULL,
     ks_F_typeof = NULL,
     ks_F_import = NULL,
+    ks_F_iter = NULL,
+    ks_F_next = NULL,
 
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -288,6 +290,46 @@ static KS_FUNC(import) {
 
     // attempt to import it
     return (ks_obj)ks_module_import(name->chr);
+}
+
+/* iter(obj) -> iterable
+ *
+ * Turn an object into an iterable
+ *
+ */
+static KS_FUNC(iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj obj = args[0];
+    KS_REQ_ITERABLE(obj, "obj");
+
+    if (obj->type->__next__ != NULL) {
+        // already is iterable; just return it
+        return KS_NEWREF(obj);
+    } else if (obj->type->__iter__ != NULL) {
+        // create an iterable and return it
+        return ks_call(obj->type->__iter__, 1, &obj);
+
+    } else {
+        // should never happen
+        return ks_throw_fmt(ks_type_Error, "ks_is_iterable() gave a bad result!");
+    }
+}
+
+
+/* next(obj) -> obj
+ *
+ * Get the next item in an iterable, or throw a 'OutOfIterError'
+ *
+ */
+static KS_FUNC(next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj obj = args[0];
+
+    if (obj->type->__next__ != NULL) {
+        return ks_call(obj->type->__next__, 1, &obj);
+    } else {
+        return ks_throw_fmt(ks_type_Error, "'%T' object had no '__next__' method!", obj);
+    }
 }
 
 
@@ -674,6 +716,8 @@ void ks_init_funcs() {
     ks_F_sleep = ks_cfunc_new2(sleep_, "sleep(dur=0)");
     ks_F_typeof = ks_cfunc_new2(typeof_, "typeof(obj)");
     ks_F_import = ks_cfunc_new2(import_, "import(name)");
+    ks_F_iter = ks_cfunc_new2(iter_, "iter(obj)");
+    ks_F_next = ks_cfunc_new2(next_, "next(obj)");
 
     ks_F_add = ks_cfunc_new2(add_, "__add__(L, R)");
     ks_F_sub = ks_cfunc_new2(sub_, "__sub__(L, R)");

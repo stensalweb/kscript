@@ -85,6 +85,12 @@ bool ks_is_callable(ks_obj func) {
     return false;
 }
 
+// return if it is iterable
+bool ks_is_iterable(ks_obj obj) {
+    return obj->type->__iter__ != NULL || obj->type->__next__ != NULL;
+}
+
+
 // throw an object up the call stack, and return 'NULL'
 void* ks_throw(ks_obj obj) {
 

@@ -125,6 +125,9 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__getitem__", __getitem__)
         ATTR_CASE("__setitem__", __setitem__)
 
+        ATTR_CASE("__iter__", __iter__)
+        ATTR_CASE("__next__", __next__)
+
         ATTR_CASE("__call__", __call__)
         
         ATTR_CASE("__free__", __free__)
@@ -224,6 +227,9 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
 
     REPL(__getitem__)
     REPL(__setitem__)
+
+    REPL(__iter__)
+    REPL(__next__)
 
     REPL(__call__)
     REPL(__free__)

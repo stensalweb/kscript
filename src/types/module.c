@@ -70,7 +70,7 @@ ks_module ks_module_import(char* mname) {
     ks_str mod_key = ks_str_new(mname);
     
     // check the cache for quick return
-    mod = ks_dict_get(mod_cache, mod_key->v_hash, (ks_obj)mod_key);
+    mod = (ks_module)ks_dict_get(mod_cache, mod_key->v_hash, (ks_obj)mod_key);
     if (mod != NULL) {
         KS_DECREF(mod_key);
         return mod;
@@ -103,7 +103,7 @@ ks_module ks_module_import(char* mname) {
         return ks_throw_fmt(ks_type_Error, "Failed to import module '%s': No such module!", mname);
     } else {
         // add it to the dictionary, and return
-        ks_dict_set(mod_cache, mod_key->v_hash, (ks_obj)mod_key, mod);
+        ks_dict_set(mod_cache, mod_key->v_hash, (ks_obj)mod_key, (ks_obj)mod);
         KS_DECREF(mod_key);
         return mod;
     }

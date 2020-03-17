@@ -360,6 +360,7 @@ typedef struct ks_tuple* ks_tuple;
 // SEE: types/list.c
 typedef struct ks_list* ks_list;
 
+
 // ks_dict - an object representing a generic object mapping, where an object of (most) types can be a key, and any type can be
 //   a value
 // Internally, a hash table implementation is used, similar to Python's
@@ -399,6 +400,9 @@ typedef struct ks_dict* ks_dict;
 
 // Require that an object is callable
 #define KS_REQ_CALLABLE(_obj, _name) KS_REQ(ks_is_callable(_obj) == true, "Parameter '%s' (of type '%T') was not callable", _name, _obj)
+
+// Require that an object is iterable
+#define KS_REQ_ITERABLE(_obj, _name) KS_REQ(ks_is_iterable(_obj) == true, "Parameter '%s' (of type '%T') was not iterable", _name, _obj)
 
 
 // throw a type conversion error
@@ -585,6 +589,14 @@ struct ks_type {
 
     // type.__call__(self, *args) -> call 'self' like a function, given arguments
     ks_obj __call__;
+
+
+    // type.__iter__(self) -> return an iterator for an object
+    ks_obj __iter__;
+
+    // type.__next__(self) -> return the next object for an iterator
+    ks_obj __next__;
+
 
     // type.__getattr__(self, attr) -> get an attribute from an object
     ks_obj __getattr__;
@@ -790,7 +802,6 @@ struct ks_str {
     char chr[2];
 
 };
-
 
 // ks_parser - an integrated parser which can parse kscript & bytecode to
 //   ASTs & code objects
@@ -1024,6 +1035,12 @@ enum {
     // 'children[1]' is the list of parameter names (cast to ks_list)
     // 'children[3]' is the body of the function, containing the code for the function
     KS_AST_FUNC,
+
+    // represents a 'for' block, i.e. iterating through some iterable
+    // 'children[0]' is the item being iterated through (AST)
+    // 'children[1]' is the body to execute on each run (AST)
+    // 'children[2]' is the variable to assign to
+    KS_AST_FOR,
 
 
     /** BINARY OPERATORS **/
@@ -1345,6 +1362,27 @@ ks_module ks_module_new(char* mname);
 ks_module ks_module_import(char* mname);
 
 
+/* ITERATOR TYPES */
+
+// ks_list_iter - list iterable object
+// SEE: types/list.c
+typedef struct {
+    KS_OBJ_BASE
+
+    // the object it is iterating on
+    ks_list obj;
+
+    // the current position in the list
+    int pos;
+
+}* ks_list_iter;
+
+
+// Create a new list iterator for a given list
+// NOTE: Returns a new reference
+ks_list_iter ks_list_iter_new(ks_list obj);
+
+
 /* STRING BUILDING/UTILITY TYPES */
 
 // ks_str_b - a string building utility to make string concatenation simpler
@@ -1413,6 +1451,9 @@ extern ks_type
     ks_type_TypeError,
     ks_type_OpError,
 
+    // special error; used to signal the end of an iterator
+    ks_type_OutOfIterError,
+
     ks_type_stack_frame,
     ks_type_mutex,
     ks_type_thread,
@@ -1424,7 +1465,11 @@ extern ks_type
     ks_type_cfunc,
     ks_type_kfunc,
 
-    ks_type_module
+    ks_type_module,
+
+    // iterators
+    ks_type_list_iter
+
 ;
 
 
@@ -1439,6 +1484,8 @@ extern ks_cfunc
     ks_F_len,
     ks_F_typeof,
     ks_F_import,
+    ks_F_iter,
+    ks_F_next,
 
     // operators
 
@@ -1912,6 +1959,10 @@ ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name);
 // NOTE: Returns a new reference
 ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body);
 
+// Create an AST representing a for loop
+// NOTE: Returns a new reference
+ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_ast assign_to);
+
 
 
 // Create a new AST represernting a binary operation on 2 objects
@@ -2005,6 +2056,10 @@ bool ks_eq(ks_obj A, ks_obj B);
 
 // Return whether or not 'func' is callable as a function
 bool ks_is_callable(ks_obj func);
+
+// Return whether or not 'obj' is iterable, through the `iter()` and `next()` protocol
+bool ks_is_iterable(ks_obj obj);
+
 
 // Attempt to call 'func' on 'args', returning NULL if there was an error
 // NOTE: Returns a new reference

@@ -11,6 +11,7 @@
 
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_list);
+KS_TYPE_DECLFWD(ks_type_list_iter);
 
 // create a kscript int from a C-style int
 ks_list ks_list_new(int len, ks_obj* elems) {
@@ -173,6 +174,16 @@ static KS_TFUNC(list, getitem) {
     return KS_NEWREF(self->elems[idxi]);
 };
 
+// list.__iter__(self) -> return an iterator
+static KS_TFUNC(list, iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_list self = (ks_list)args[0];
+    KS_REQ_TYPE(self, ks_type_list, "self");
+
+    return (ks_obj)ks_list_iter_new(self);
+};
+
+
 // list.push(self, obj) -> push an item to a list
 static KS_TFUNC(list, push) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -185,7 +196,6 @@ static KS_TFUNC(list, push) {
     // return itself
     return KS_NEWREF(self);
 };
-
 
 // list.pop(self) -> return last item popped off 
 static KS_TFUNC(list, pop) {
@@ -201,6 +211,53 @@ static KS_TFUNC(list, pop) {
 };
 
 
+/* iterator */
+
+
+ks_list_iter ks_list_iter_new(ks_list obj) {
+    ks_list_iter self = KS_ALLOC_OBJ(ks_list_iter);
+    KS_INIT_OBJ(self, ks_type_list_iter);
+
+    // initialize type-specific things
+    self->pos = 0;
+    self->obj = (ks_list)KS_NEWREF(obj);
+
+    return self;
+}
+
+// list_iter.__free__(self) -> free resources
+static KS_TFUNC(list_iter, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_list_iter self = (ks_list_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_list_iter, "self");
+
+    // release reference to the list
+    KS_DECREF(self->obj);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+
+    return KSO_NONE;
+}
+
+// list_iter.__next__(self) -> return next item in the list, or raise a OutOfIterError if it is exhausted
+static KS_TFUNC(list_iter, next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_list_iter self = (ks_list_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_list_iter, "self");
+
+    if (self->pos >= self->obj->len) {
+        return ks_throw_fmt(ks_type_OutOfIterError, "");
+    } else {
+        // get next object
+        ks_obj ret = self->obj->elems[self->pos++];
+        return KS_NEWREF(ret);
+    }
+
+}
+
+
 // initialize list type
 void ks_type_list_init() {
     KS_INIT_TYPE_OBJ(ks_type_list, "list");
@@ -214,10 +271,22 @@ void ks_type_list_init() {
 
         {"__add__", (ks_obj)ks_cfunc_new2(list_add_, "list.__add__(L, R)")},
 
+        {"__iter__", (ks_obj)ks_cfunc_new2(list_iter_, "list.__iter__(self)")},
+
         {"push", (ks_obj)ks_cfunc_new2(list_push_, "list.push(self, obj)")},
         {"pop", (ks_obj)ks_cfunc_new2(list_pop_, "list.pop(self)")},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(list_getitem_, "list.__getitem__(self, idx)")},
+
+        {NULL, NULL}   
+    });
+
+
+    KS_INIT_TYPE_OBJ(ks_type_list_iter, "list_iter");
+
+    ks_type_set_cn(ks_type_list_iter, (ks_dict_ent_c[]){
+        {"__free__", (ks_obj)ks_cfunc_new2(list_iter_free_, "list_iter.__free__(self)")},
+        {"__next__", (ks_obj)ks_cfunc_new2(list_iter_next_, "list_iter.__next__(self)")},
 
         {NULL, NULL}   
     });

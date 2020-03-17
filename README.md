@@ -6,6 +6,13 @@ This is all currently a big WIP, lots of rewrites, etc, but it is becoming promi
 
 As far as performance, my goal is to match Python within a factor of 5. Ultimate speed of the language is not the end goal; rather a consistent, generic, and very easy to use language is the goal. Most speed-related issues will be solved by writing C-extensions (or perhaps some other language), which I will design to be very straightforward. In most cases, however, I find I am already within a factor of 2 or 3 of Python's performance, except in cases of string creation and deletion on a large scale (which even Python has problems with).
 
+
+Current Efforts:
+
+  * Unifying numerics interface (i.e. `bool`, `int`, `float`, `complex`)
+  * Implementing the math library (`m`), and perhaps adding an arbitrary precision package using GMP, like `mp.int` and `mp.float`
+  * Implementing iterators, with `iter`, and `next` functionality, and thus also `for` loops
+
 ## About
 
 As broad as I could go, I think that kscript could work as a better replacement for front-end web development (aka replace JavaScript), as it solves many issues JavaScript faces:

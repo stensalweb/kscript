@@ -135,6 +135,8 @@ bool ks_init() {
         {"sleep",          KS_NEWREF(ks_F_sleep)},
         {"typeof",         KS_NEWREF(ks_F_typeof)},
         {"__import__",     KS_NEWREF(ks_F_import)},
+        {"iter",           KS_NEWREF(ks_F_iter)},
+        {"next",           KS_NEWREF(ks_F_next)},
 
         /* math constants */
 
