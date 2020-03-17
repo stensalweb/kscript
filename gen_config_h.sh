@@ -1,5 +1,6 @@
 #!/bin/sh
-
+# generate a kscript config from the argv's passed in (should be 'KS_OPTS')
+# echo it out to stdout, so that you can call this script and redirect to a file
 
 # options
 OPTS="$@"
@@ -25,6 +26,7 @@ for i in $OPTS; do
     # split on ':'
     set -- `echo $i | tr ':' ' '`
     
+    # ensure this is the newest definition of the given argument, and add it to the generated header
     echo "
 #ifdef $1
 #undef $1
@@ -41,3 +43,4 @@ echo '
 #endif
 
 #endif /* KS_CONFIG_H__ */'
+
