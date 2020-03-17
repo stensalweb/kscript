@@ -159,7 +159,7 @@ def do_Gamma(N, g):
 
     print ("")
 
-# do some basic zeta tables
+# do some basic zeta tables, for various accuracies required
 
 do_Zeta(18)
 do_Zeta(29)
