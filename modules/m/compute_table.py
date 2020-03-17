@@ -31,11 +31,13 @@ You can read the paper that I implemented this from here: http://numbers.computa
 
 import gmpy2
 import numpy as np
-from gmpy2 import mpfr, const_pi, exp, sqrt
+from gmpy2 import mpfr, const_pi, exp, sqrt, gamma
+import math
 from functools import lru_cache
 
+
 # set to a lot of bits
-gmpy2.get_context().precision = 1024
+gmpy2.get_context().precision = 160
 
 pi = const_pi()
 
@@ -54,6 +56,14 @@ def double_factorial(n):
 # print out a zeta table of a given size
 def do_Zeta(N):
 
+    # calculate the error
+    def err(s):
+        # error only depends on imaginary component 
+        t = abs(complex(s).imag)
+        # calculate error term
+        et = (3 / (3 + sqrt(8)) ** N) * ((1 + 2 * t) * exp(t * pi / 2)) / (1 - 2 ** (1 - t))
+        return abs(et)
+
     # compute term
     def d(k):
         # compute sum from Proposition #1
@@ -71,10 +81,21 @@ def do_Zeta(N):
     # calculate them all
     for k in range(1, N+1):
         d_k = d(k) / d0
-        print ("%.60s," % (d_k,))
+        print ("%-60s," % (d_k,))
+
+    print ("   - Correct Digits: -")
+
+    # real component does not change accuracy
+    cr = 0
+    for ci in range(0, 100, 5):
+        c = cr + ci * 1j
+        # number of correct digits
+        digs = -math.log(float(err(c)), 10)
+        if digs >= 13:
+            print ("at %s, %.2f digits" % (c, digs))
+
 
     print ("")
-
 
 # create a gamma function table
 def do_Gamma(N, g):
@@ -140,7 +161,11 @@ def do_Gamma(N, g):
 
 # do some basic zeta tables
 
-do_Zeta(20)
+do_Zeta(18)
+do_Zeta(29)
+
+do_Zeta(65)
+do_Zeta(112)
 
 #do_Gamma(7, 5)
 #do_Gamma(15, 4.7421875)
