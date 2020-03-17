@@ -185,11 +185,17 @@ enum {
     // 1:[op]
     KSB_NEW_FUNC,
 
-
     // Add a closure reference to the current stack frame to the TOS, which must be a kfunc
     // 1:[op]
     KSB_ADD_CLOSURE,
 
+    // Replace the TOS with iter(TOS), throwing an error if it couldn't do it
+    // 1:[op]
+    KSB_MAKE_ITER,
+
+    // Push on next(TOS), or, if there was an error, jump 'relamt' bytes in the bytecode and discard the error
+    // 1:[op]
+    KSB_ITER_NEXT,
 
 
     /** PRIMITIVE CONSTRUCTION, these opcodes create basic primitives from the stack **/
@@ -347,6 +353,8 @@ typedef struct ks_obj* ks_obj;
 // See more on string operations in `types/str.c`
 typedef struct ks_str* ks_str;
 
+
+
 // ks_type - an object representing a type in kscript. Every object has a type, which you can check with `obj->type`,
 // SEE: types/type.c
 typedef struct ks_type* ks_type;
@@ -402,7 +410,7 @@ typedef struct ks_dict* ks_dict;
 #define KS_REQ_CALLABLE(_obj, _name) KS_REQ(ks_is_callable(_obj) == true, "Parameter '%s' (of type '%T') was not callable", _name, _obj)
 
 // Require that an object is iterable
-#define KS_REQ_ITERABLE(_obj, _name) KS_REQ(ks_is_iterable(_obj) == true, "Parameter '%s' (of type '%T') was not iterable", _name, _obj)
+#define KS_REQ_ITERABLE(_obj, _name) KS_REQ(ks_is_iterable(_obj) == true, "'%T' object was not iterable", _obj)
 
 
 // throw a type conversion error
@@ -751,13 +759,23 @@ extern ks_bool KS_TRUE, KS_FALSE;
 
 
 // ks_int - type representing an integer value (signed, 64 bit) in kscript
-typedef struct {
+typedef struct ks_int {
     KS_OBJ_BASE
 
     // the actual integer value
     int64_t val;
 
 }* ks_int;
+
+
+// number of small integers to cache internally
+// all integers with abs(x) <= KS_SMALL_INT_MAX
+// are stored here
+#define KS_SMALL_INT_MAX 255
+
+// array of small integers:
+// KS_SMALL_INTS[val + KS_SMALL_INT_MAX]
+extern struct ks_int KS_SMALL_INTS[];
 
 
 // ks_float - type representing a floating point real number
@@ -802,6 +820,11 @@ struct ks_str {
     char chr[2];
 
 };
+
+// character strings, global singletons
+extern struct ks_str KS_STR_CHARS[];
+
+
 
 // ks_parser - an integrated parser which can parse kscript & bytecode to
 //   ASTs & code objects
@@ -1378,9 +1401,29 @@ typedef struct {
 }* ks_list_iter;
 
 
+// ks_dict_iter - dict iterable object
+// SEE: types/dict.c
+typedef struct {
+    KS_OBJ_BASE
+
+    // the object it is iterating on
+    ks_dict obj;
+
+    // current entry position
+    int pos;
+
+}* ks_dict_iter;
+
+
+
 // Create a new list iterator for a given list
 // NOTE: Returns a new reference
 ks_list_iter ks_list_iter_new(ks_list obj);
+
+
+// Create a new dict iterator for a given dict
+// NOTE: Returns a new reference
+ks_dict_iter ks_dict_iter_new(ks_dict obj);
 
 
 /* STRING BUILDING/UTILITY TYPES */
@@ -1468,7 +1511,8 @@ extern ks_type
     ks_type_module,
 
     // iterators
-    ks_type_list_iter
+    ks_type_list_iter,
+    ks_type_dict_iter
 
 ;
 
@@ -1876,6 +1920,9 @@ void ksca_try_end   (ks_code self, int relamt);
 void ksca_closure   (ks_code self);
 void ksca_new_func  (ks_code self);
 
+void ksca_make_iter (ks_code self);
+void ksca_iter_next (ks_code self, int relamt);
+
 void ksca_load      (ks_code self, ks_str name);
 void ksca_load_attr (ks_code self, ks_str name);
 void ksca_store     (ks_code self, ks_str name);
@@ -1961,7 +2008,7 @@ ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body);
 
 // Create an AST representing a for loop
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_ast assign_to);
+ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_str assign_to);
 
 
 

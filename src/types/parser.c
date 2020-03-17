@@ -1080,7 +1080,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
                 goto kppe_end;
             }
 
-            if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax, 2 value types not expected like this"); 
+            if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
             // TODO: handle keywords
 
@@ -1761,6 +1761,62 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         // return the constructed result
         return res;
+    } else if (TOK_EQ(ctok, "for")) {
+        // for <ident> in <expr> { BODY }
+        
+        // skip 'for'
+        ADV_1();
+
+        if (CTOK().type != KS_TOK_IDENT) {
+            syntax_error(start_tok, "Expected an identifier after 'for'");
+            goto kpps_err;
+        }
+
+        ks_str ident = ks_str_new_l(self->src->chr + CTOK().pos, CTOK().len);
+
+        ADV_1();
+
+        if (!TOK_EQ(CTOK(), "in")) {
+            KS_DECREF(ident);
+            syntax_error(start_tok, "Expected 'in' keyword for the 'for' loop");
+            goto kpps_err;
+        }
+        
+        // skip it
+        ADV_1();
+
+        // now, parse an expression
+        ks_ast expr = ks_parser_parse_expr(self);
+        if (!expr) {
+            KS_DECREF(ident);
+            goto kpps_err;
+        }
+
+        // skip comma
+        if (CTOK().type == KS_TOK_COMMA) {
+            ADV_1();
+        }
+
+        SKIP_IRR_S();
+
+        ks_ast body = ks_parser_parse_stmt(self);
+        if (!body) {
+            KS_DECREF(ident);
+            KS_DECREF(expr);
+            goto kpps_err;
+        }
+
+        // now, return an ast
+        ks_ast ret = ks_ast_new_for(expr, body, ident);
+        KS_DECREF(expr);
+        KS_DECREF(body);
+        KS_DECREF(ident);
+
+        ret->tok = ret->tok_expr = start_tok;
+
+        return ret;
+
+
 
     } else if (TOK_EQ(ctok, "try")) {
 

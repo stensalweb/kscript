@@ -220,7 +220,7 @@ ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body) {
 
 // Create an AST representing a for loop
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_ast assign_to) {
+ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_str assign_to) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
     KS_INIT_OBJ(self, ks_type_ast);
 

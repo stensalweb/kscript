@@ -25,6 +25,7 @@
 
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_dict);
+KS_TYPE_DECLFWD(ks_type_dict_iter);
 
 
 // return true if 'x' is prime, false otherwise
@@ -509,6 +510,15 @@ static KS_TFUNC(dict, setitem) {
     return KS_NEWREF(val);
 };
 
+// dict.__iter__(self) -> return an iterator for a dictionary
+static KS_TFUNC(dict, iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+
+    return (ks_obj)ks_dict_iter_new(self);
+};
+
 
 // dict.keys(self) -> return a list of keys
 static KS_TFUNC(dict, keys) {
@@ -587,6 +597,65 @@ static KS_TFUNC(dict, free) {
 };
 
 
+
+/* iterator */
+
+ks_dict_iter ks_dict_iter_new(ks_dict obj) {
+    ks_dict_iter self = KS_ALLOC_OBJ(ks_dict_iter);
+    KS_INIT_OBJ(self, ks_type_dict_iter);
+
+    // initialize type-specific things
+    self->pos = 0;
+    self->obj = (ks_dict)KS_NEWREF(obj);
+
+    return self;
+}
+
+// dict_iter.__free__(self) -> free resources
+static KS_TFUNC(dict_iter, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict_iter self = (ks_dict_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_dict_iter, "self");
+
+    // release reference to the list
+    KS_DECREF(self->obj);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+}
+
+// dict_iter.__next__(self) -> return the next (key, val) pair, or return an error
+static KS_TFUNC(dict_iter, next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict_iter self = (ks_dict_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_dict_iter, "self");
+
+
+    // skip empty/deleted entries
+    while (self->pos < self->obj->n_entries && self->obj->entries[self->pos].val == NULL) {
+        self->pos++;
+    }
+
+
+    if (self->pos >= self->obj->n_entries) {
+        return ks_throw_fmt(ks_type_OutOfIterError, "");
+    } else {
+        // get next object
+        ks_tuple ret = ks_tuple_new_n(2, (ks_obj[]){ 
+            self->obj->entries[self->pos].key, 
+            self->obj->entries[self->pos].val 
+        });
+
+        // declare it as used
+        self->pos++;
+        return ret;
+    }
+}
+
+
+
 // initialize dict type
 void ks_type_dict_init() {
     KS_INIT_TYPE_OBJ(ks_type_dict, "dict");
@@ -598,8 +667,23 @@ void ks_type_dict_init() {
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(dict_getitem_, "dict.__getitem__(self, key)")},
         {"__setitem__", (ks_obj)ks_cfunc_new2(dict_setitem_, "dict.__setitem__(self, key, val)")},
+        
+        {"__iter__", (ks_obj)ks_cfunc_new2(dict_iter_, "dict.__iter__(self)")},
 
         {"keys", (ks_obj)ks_cfunc_new2(dict_keys_, "dict.keys(self)")},
+
+        {NULL, NULL}   
+    });
+
+
+    // add iterable type
+    KS_INIT_TYPE_OBJ(ks_type_dict_iter, "dict_iter");
+
+    ks_type_set_cn(ks_type_dict_iter, (ks_dict_ent_c[]){
+        {"__free__", (ks_obj)ks_cfunc_new2(dict_iter_free_, "dict_iter.__free__(self)")},
+
+        {"__next__", (ks_obj)ks_cfunc_new2(dict_iter_next_, "dict_iter.__next__(self)")},
+
 
         {NULL, NULL}   
     });

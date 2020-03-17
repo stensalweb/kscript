@@ -575,7 +575,8 @@ static KS_FUNC(_name) {                                    \
         if (ret != NULL) return ret;                       \
         ks_thread cth = ks_thread_cur();                   \
         if (cth->exc && cth->exc->type == ks_type_OpError) \
-            KS_DECREF(ks_catch());                         \
+            { KS_DECREF(ks_catch()); }                     \
+        else return NULL;                                  \
     }                                                      \
     if (args[1]->type->_fname != NULL) {                   \
         return ks_call(args[1]->type->_fname, 2, args);    \

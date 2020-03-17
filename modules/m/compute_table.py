@@ -161,12 +161,12 @@ def do_Gamma(N, g):
 
 # do some basic zeta tables, for various accuracies required
 
-do_Zeta(18)
-do_Zeta(29)
+#do_Zeta(18)
+#do_Zeta(29)
 
-do_Zeta(65)
-do_Zeta(112)
+#do_Zeta(65)
+#do_Zeta(112)
 
-#do_Gamma(7, 5)
+do_Gamma(7, 5)
 #do_Gamma(15, 4.7421875)
 

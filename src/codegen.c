@@ -600,6 +600,80 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             wj_p->arg = (int)(bj_a - wj_a);
 
         }
+
+    } else if (self->kind == KS_AST_FOR) {
+        // generate a 'for' loop
+
+        // first, attempt to evaluate the expression:
+        if (!ast_emit(self->children->elems[0], st, to)) return false;
+
+        // there should be 1 item on the stack
+        assert(st->stk_len == start_len + 1 && "'for' iterable did not produce a value!");
+
+        // transform it to an iterable
+        ksca_make_iter(to);
+
+
+        // now:
+        // I = the iterable
+        // Stack looks like:
+        // | I
+        // On each iteration, we should first do:
+        // | I next(I)
+        // If that threw a OutOfIterError, pop off the iterable, and jump to after
+        //   the for loop
+        // Otherwise, then execute:
+        // ASSIGN 'for._assign_to'
+        // And run the body
+        // Then, do the next iteration
+
+
+        // start of the loop is here
+        int start_loop = to->bc_n;
+
+        // fill in later
+        int in_jp = to->bc_n;
+        ksca_iter_next(to, -1);
+        int in_jf = to->bc_n;
+
+        st->stk_len++;
+
+        // assign to local variable
+        ksca_store(to, (ks_str)self->children->elems[2]);
+
+        // pop off the result
+        ksca_popu(to);
+        st->stk_len--;
+        
+        // now, run the body
+        // first, attempt to evaluate the expression:
+        if (!ast_emit(self->children->elems[1], st, to)) return false;
+        RESET_STK(1);
+
+
+        int end_jp = to->bc_n;
+
+        // now, jump back to the start of the loop
+        // fill in later
+        ksca_jmp(to, -1);
+
+
+        // jumping from
+        int end_jf = to->bc_n;
+
+
+        ksb_i32* ej_p = (ksb_i32*)(&to->bc[end_jp]);
+
+        // the end jump needs to jump to after the entire thing
+        ej_p->arg = (int)(start_loop - end_jf);
+
+
+        ksb_i32* in_p = (ksb_i32*)(&to->bc[in_jp]);
+
+        // the end jump needs to jump to after the entire thing
+        in_p->arg = (int)(end_jf - in_jf);
+
+
     } else if (self->kind == KS_AST_TRY) {
         // execute a try catch block
 

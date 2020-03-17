@@ -514,6 +514,66 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
+
+        VMED_CASE_START(KSB_MAKE_ITER)
+            VMED_CONSUME(ksb, op);
+
+            assert(self->stk->len > 0 && "'make_iter' had stack that was empty!");
+
+            // pop off the top item
+            ks_obj top = ks_list_pop(self->stk);
+
+            ks_obj top_iter = ks_F_iter->func(1, &top);
+            KS_DECREF(top);
+            if (!top_iter) {
+                // exception was raised
+                goto EXC;    
+            }
+
+            // otherwise, push back on 'top_iter'
+            ks_list_push(self->stk, top_iter);
+
+
+        VMED_CASE_END
+
+
+        VMED_CASE_START(KSB_ITER_NEXT)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            //printf("len: %i\n", self->stk->len);
+
+            assert(self->stk->len > 0 && "'iter_next' had stack that was empty!");
+
+            // pop off the top item
+            ks_obj top = self->stk->elems[self->stk->len - 1];
+
+            assert(ks_is_iterable(top) && "'iter_next', TOS was not an iterable!");
+
+            ks_obj top_next = ks_F_next->func(1, &top);
+            if (!top_next) {
+                // exception was raised, check if it is 'OutOfIterError'
+                if (self->exc && self->exc->type == ks_type_OutOfIterError) {
+                    KS_DECREF(self->exc);
+                    self->exc = NULL;
+                    if (self->exc_info) KS_DECREF(self->exc_info);
+                    self->exc_info = NULL;
+                    // now, jump in byte code to the end of the loop
+                    c_pc += op_i32.arg;
+                } else {
+                    // handle unrelatex exception
+                    goto EXC;
+                }
+            } else {
+
+                // otherwise, push back on 'top_iter'
+                ks_list_push(self->stk, top_next);
+
+            }
+
+        VMED_CASE_END
+
+
+
         // template for a binary operator case
         // 3rd argument is the 'extra code' to be ran to possibly shortcut it
         #define T_BOP_CASE(_bop,  _str, _func, ...) { \

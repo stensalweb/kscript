@@ -134,6 +134,7 @@ static void* arg_error(char* argname, char* expr) {
     if (!a0) _TY_ERR(args[0], "float"); \
     ks_obj a1 = cvtNum(args[1], TY_FLOAT); \
     if (!a1) { KS_DECREF(a0); _TY_ERR(args[1], "float"); } \
+    { __VA_ARGS__; }; \
     ks_obj ret = (ks_obj)ks_float_new(_cfunc_f(((ks_float)a0)->val, ((ks_float)a1)->val)); \
     KS_DECREF(a0); KS_DECREF(a1); \
     return ret; \
@@ -146,6 +147,7 @@ static void* arg_error(char* argname, char* expr) {
     if (!a0) _TY_ERR(args[0], "float, complex"); \
     ks_obj a1 = cvtNum(args[1], TY_FLOAT); \
     if (!a1) { KS_DECREF(a0); _TY_ERR(args[1], "float, complex"); } \
+    { __VA_ARGS__; }; \
     if (a0->type == ks_type_float && a1->type == ks_type_float) { \
         ks_obj ret = (ks_obj)ks_float_new(_cfunc_f(((ks_float)a0)->val, ((ks_float)a1)->val)); \
         KS_DECREF(a0); KS_DECREF(a1); \
@@ -233,7 +235,14 @@ T_M_F_1f(rad, my_rad);
 
 
 // return x**y
-T_M_F_2fc(pow, pow, cpow);
+T_M_F_2fc(pow, pow, cpow, 
+    if (
+        a0->type == ks_type_float && a1->type == ks_type_float && 
+        ((ks_float)a0)->val < 0 && floor(((ks_float)a1)->val) != ((ks_float)a1)->val
+    ) { 
+        return ks_throw_fmt(ks_type_MathError, "Cannot raise negative float to fractional float power (cast one or both to 'complex')"); 
+    });
+
 // atan2(y, x) -> return the phase given by the coordinate (x, y)
 T_M_F_2f(atan2, atan2);
 // hypot(x, y) -> return the hypoteneuse of a right triangle with sides 'x' and 'y'
@@ -346,6 +355,10 @@ static KS_TFUNC(m, log) {
  * 
  *   [0]: https://en.wikipedia.org/wiki/Lanczos_approximation
  *   [1]: https://mrob.com/pub/ries/lanczos-gamma.html
+ * 
+ * 
+ * TODO: Actually generate arbitrary coefficients for gamma
+ * https://web.viu.ca/pughg/phdThesis/phdThesis.pdf
  * 
  */
 

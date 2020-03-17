@@ -1,4 +1,6 @@
-/* types/str.c - kscript's basic string implementation
+/* types/str.c - kscript's string implementation
+ *
+ * This file includes most elementary string operations
  *
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -11,8 +13,19 @@
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_str);
 
+// string characters
+struct ks_str KS_STR_CHARS[256];
+
 // create a kscript string from a C-style string with a length (not including NUL-terminator)
 ks_str ks_str_new_l(char* chr, int len) {
+    assert (len >= 0 && "ks_str creation encountered negative length!");
+    if (len == 0) {
+        // return empty string
+        return (ks_str)KS_NEWREF(&KS_STR_CHARS[0]);    
+    } else if (len == 1) {
+        return (ks_str)KS_NEWREF(&KS_STR_CHARS[*chr]);    
+    }
+
     ks_str self = (ks_str)ks_malloc(sizeof(struct ks_str) + len);
     KS_INIT_OBJ(self, ks_type_str);
 
@@ -90,12 +103,10 @@ ks_str ks_str_unescape(ks_str A) {
     return ret;
 }
 
-
 int ks_str_cmp(ks_str A, ks_str B) {
     if (A->len != B->len) return A->len - B->len;
     else return memcmp(A->chr, B->chr, A->len);
 }
-
 
 // str.__new__(obj) -> convert any object to a string
 static KS_TFUNC(str, new) {
@@ -119,6 +130,11 @@ static KS_TFUNC(str, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_type_str, "self");
+    if (self >= &KS_STR_CHARS[0] || self <= &KS_STR_CHARS[255]) {
+        // global singleton
+        self->refcnt = 0xFFFF;
+        return KSO_NONE;
+    }
 
     // nothing else is needed because the string is allocated with enough bytes for all the characters    
     KS_UNINIT_OBJ(self);
@@ -126,7 +142,6 @@ static KS_TFUNC(str, free) {
 
     return KSO_NONE;
 };
-
 
 // str.__len__(self) -> get the length
 static KS_TFUNC(str, len) {
@@ -165,10 +180,115 @@ static KS_TFUNC(str, add) {
     return (ks_obj)ret;
 };
 
+// search a string for a given character
+static bool my_strnchr(char* coll, int n, char c) {
+    int i;
+    for (i = 0; i < n; ++i) {
+        if (coll[i] == c) return true;
+    }
+    return false;
+}
+
+// str.split(self, delim=' \t\n') -> split a string on a given delimeter
+static KS_TFUNC(str, split) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+
+    int n_delims = 0;
+    char* delims = NULL;
+
+    if (n_args == 2) {
+        ks_str delim_o = (ks_str)args[1];
+        KS_REQ_TYPE(delim_o, ks_type_str, "delim");
+
+        // take from this one
+        n_delims = delim_o->len;
+        delims = delim_o->chr;
+    } else {
+        // default
+        n_delims = 3;
+        delims = " \t\n";
+    }
+
+    // the list of tokens
+    ks_list ret = ks_list_new(0, NULL);
+
+    ks_str tmp = NULL;
+
+    int last_pos = 0;
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        if (my_strnchr(delims, n_delims, self->chr[i])) {
+            // found a character, so add the last pos until the current to it
+            tmp = ks_str_new_l(self->chr + last_pos, i - last_pos);
+            ks_list_push(ret, (ks_obj)tmp);
+            KS_DECREF(tmp);
+
+            // update it for next time
+            last_pos = i + 1;
+        } else {
+            // do nothing
+        }
+    }
+
+    // push the last match (which may be empty)
+    tmp = ks_str_new_l(self->chr + last_pos, i - last_pos);
+    ks_list_push(ret, (ks_obj)tmp);
+
+    KS_DECREF(tmp);
+
+    // just append their string conversions
+    return (ks_obj)ret;
+};
+
+// str.find(self, target) -> return the index at which 'target' appears in 'self', or '-1' if it is not contained in anything
+static KS_TFUNC(str, find) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+    ks_str target = (ks_str)args[1];
+    KS_REQ_TYPE(target, ks_type_str, "target");
+
+    if (target->len == 0 || self->len == 0) return (ks_obj)ks_int_new(-1);
+
+    int i;
+    for (i = 0; i + target->len <= self->len; ++i) {
+        if (strncmp(self->chr + i, target->chr, target->len) == 0) {
+            return (ks_obj)ks_int_new(i);
+        }
+    }
+
+    // just append their string conversions
+    return (ks_obj)ks_int_new(-1);
+};
+
+
+
+
 
 // initialize string type
 void ks_type_str_init() {
     KS_INIT_TYPE_OBJ(ks_type_str, "str");
+
+    int i;
+    // initialize single character string singletons
+    for (i = 0; i < 256; ++i) {
+
+        KS_INIT_OBJ(&KS_STR_CHARS[i], ks_type_str);
+
+        // set the length
+        KS_STR_CHARS[i].len = i == 0 ? 0 : 1;
+
+        // copy in all the data
+        memcpy(KS_STR_CHARS[i].chr, &i, KS_STR_CHARS[i].len);
+
+        KS_STR_CHARS[i].chr[KS_STR_CHARS[i].len] = '\0';
+
+        // calculate the hash for the string when it gets created
+        KS_STR_CHARS[i].v_hash = ks_hash_bytes(KS_STR_CHARS[i].len, KS_STR_CHARS[i].chr);
+
+    }
 
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
@@ -181,8 +301,10 @@ void ks_type_str_init() {
 
         {"__add__", (ks_obj)ks_cfunc_new2(str_add_, "str.__add__(L, R)")},
 
-        {NULL, NULL}
-    });
+        {"split", (ks_obj)ks_cfunc_new2(str_split_, "str.split(self, delim=' \\t\\n')")},
+        {"find", (ks_obj)ks_cfunc_new2(str_find_, "str.find(self, target)")},
 
+        {NULL, NULL},
+    });
 }
 

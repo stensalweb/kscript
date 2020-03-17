@@ -78,7 +78,7 @@ int ks_code_add_const(ks_code self, ks_obj val) {
             return i;
         }
     }
-
+    
     // else, add it and return the last index
     ks_list_push(self->v_const, val);
     return self->v_const->len - 1;
@@ -115,6 +115,9 @@ void ksca_try_end   (ks_code self, int relamt) KSCA_B_I32(KSB_TRY_END, relamt)
 
 void ksca_closure   (ks_code self) KSCA_B(KSB_ADD_CLOSURE)
 void ksca_new_func  (ks_code self) KSCA_B(KSB_NEW_FUNC)
+
+void ksca_make_iter (ks_code self) KSCA_B(KSB_MAKE_ITER)
+void ksca_iter_next (ks_code self, int relamt) KSCA_B_I32(KSB_ITER_NEXT, relamt)
 
 void ksca_load      (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD, ks_code_add_const(self, (ks_obj)name))
 void ksca_load_attr (ks_code self, ks_str name) KSCA_B_I32(KSB_LOAD_ATTR, ks_code_add_const(self, (ks_obj)name))
@@ -406,6 +409,15 @@ static KS_TFUNC(code, str) {
             ks_str_b_add_fmt(&SB, "throw");
             break;
 
+
+        case KSB_MAKE_ITER:
+            ks_str_b_add_fmt(&SB, "make_iter");
+            break;
+
+        case KSB_ITER_NEXT:
+            i += 4;
+            ks_str_b_add_fmt(&SB, "iter_next %+i  # to %i", val, i + val);
+            break;
 
 
         case KSB_JMP:

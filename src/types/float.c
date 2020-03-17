@@ -168,13 +168,18 @@ static KS_TFUNC(float, mod) {
 };
 
 
+// determine whether a double is an integral value
+static bool my_isint(double v) {
+    return v == floor(v);
+}
+
 // float.__pow__(L, R) -> exponent
 static KS_TFUNC(float, pow) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_obj L = args[0], R = args[1];
     double vL, vR, vRes;
 
-    T_BOP_STDCASE(vRes = pow(vL, vR));
+    T_BOP_STDCASE(if (!my_isint(vR) && vL < 0) { return ks_throw_fmt(ks_type_MathError, "Cannot raise negative number to a fractional power"); } vRes = pow(vL, vR));
 
     KS_ERR_BOP_UNDEF("**", L, R);
 };

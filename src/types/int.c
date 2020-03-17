@@ -11,8 +11,17 @@
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_int);
 
+// global singletons
+struct ks_int KS_SMALL_INTS[2 * KS_SMALL_INT_MAX + 1];
+
+
 // create a kscript int from a C-style int
 ks_int ks_int_new(int64_t val) {
+    if (val <= KS_SMALL_INT_MAX && val >= -KS_SMALL_INT_MAX) {
+        // return singleton
+        return (ks_int)KS_NEWREF(&KS_SMALL_INTS[val + KS_SMALL_INT_MAX]);
+    }
+
     ks_int self = KS_ALLOC_OBJ(ks_int);
     KS_INIT_OBJ(self, ks_type_int);
 
@@ -67,6 +76,12 @@ static KS_TFUNC(int, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_int self = (ks_int)args[0];
     KS_REQ_TYPE(self, ks_type_int, "self");
+
+    // check for global singletons
+    if (self >= &KS_SMALL_INTS[0] && self <= &KS_SMALL_INTS[2 * KS_SMALL_INT_MAX + 1]) {
+        self->refcnt = 0xFFFF;
+        return KSO_NONE;
+    }
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
@@ -284,6 +299,14 @@ static KS_TFUNC(int, sqig) {
 // initialize int type
 void ks_type_int_init() {
     KS_INIT_TYPE_OBJ(ks_type_int, "int");
+
+    int i;
+    for (i = -KS_SMALL_INT_MAX; i <= KS_SMALL_INT_MAX; ++i) {
+        KS_INIT_OBJ(&KS_SMALL_INTS[i + KS_SMALL_INT_MAX], ks_type_int);
+
+        KS_SMALL_INTS[i + KS_SMALL_INT_MAX].val = i;
+    }
+
 
     ks_type_set_cn(ks_type_int, (ks_dict_ent_c[]){
         {"__new__", (ks_obj)ks_cfunc_new2(int_new_, "int.__new__(obj)")},

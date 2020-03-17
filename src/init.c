@@ -35,6 +35,7 @@ ks_list ks_paths = NULL;
 
 // initialize the whole library
 bool ks_init() {
+
     ks_util_init();
 
     ks_mem_init();
@@ -47,8 +48,10 @@ bool ks_init() {
     ks_type_bool_init();
     ks_type_int_init();
     ks_type_float_init();
-    ks_type_complex_init();
+
     ks_type_str_init();
+    ks_type_complex_init();
+
     ks_type_tuple_init();
     ks_type_list_init();
     ks_type_dict_init();

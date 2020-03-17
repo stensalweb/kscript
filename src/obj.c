@@ -99,7 +99,7 @@ void* ks_throw(ks_obj obj) {
 
     // ensure 
     if (cth->exc != NULL) {
-        ks_warn("Already object on cth->exc: %T", cth->exc);
+        ks_warn("Already object on cth->exc: %T, then obj: %T", cth->exc, obj);
     }
     assert(cth->exc == NULL && "There was already an object thrown and not caught, but someone threw something else!");
 
