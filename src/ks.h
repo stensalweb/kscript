@@ -37,6 +37,8 @@ extern "C" {
 #include <string.h>
 #include <assert.h>
 
+#include <complex.h>
+
 // timing functions
 #include <time.h>
 #include <sys/time.h>
@@ -755,9 +757,18 @@ typedef struct {
 
 }* ks_float;
 
-
 // Global singleton representing the 'NAN' value (not-a-number)
 extern ks_float KS_NAN;
+
+
+// ks_complex - represents a complex number
+typedef struct {
+    KS_OBJ_BASE
+
+    // the actual float value
+    double complex val;
+
+}* ks_complex;
 
 
 // ks_str - type representing a string of characters. Internally, the buffer is length encoded & NUL-terminated
@@ -1387,6 +1398,7 @@ extern ks_type
     ks_type_bool,
     ks_type_int,
     ks_type_float,
+    ks_type_complex,
     ks_type_str,
     ks_type_tuple,
     ks_type_list,
@@ -1619,6 +1631,13 @@ ks_int ks_int_new(int64_t val);
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
 ks_float ks_float_new(double val);
+
+
+/* COMPLEX */
+
+// Create a new kscript complex from a C-style complex value
+// NOTE: Returns a new reference
+ks_complex ks_complex_new(double complex val);
 
 
 

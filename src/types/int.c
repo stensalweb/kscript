@@ -25,6 +25,29 @@ ks_int ks_int_new(int64_t val) {
 /* member functions */
 
 
+
+
+// int.__new__(obj) -> convert 'obj' to a int
+static KS_TFUNC(int, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+
+    ks_obj obj = args[0];
+    if (obj->type == ks_type_int) {
+        return KS_NEWREF(obj);
+    } else if (obj->type == ks_type_float) {
+        return (ks_obj)ks_int_new(round(((ks_float)obj)->val));
+    } else if (obj->type == ks_type_complex) {
+        return (ks_obj)ks_int_new(round(((ks_complex)obj)->val));
+    } else if (obj->type == ks_type_str) {
+        // TODO: error check and see if it was a valid float
+        int64_t val = atoll(((ks_str)obj)->chr);
+        return (ks_obj)ks_int_new(val);
+    } else {
+        KS_ERR_CONV(obj, ks_type_int);
+    }
+};
+
+
 // int.__str__(self) -> free an int object
 static KS_TFUNC(int, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -263,6 +286,7 @@ void ks_type_int_init() {
     KS_INIT_TYPE_OBJ(ks_type_int, "int");
 
     ks_type_set_cn(ks_type_int, (ks_dict_ent_c[]){
+        {"__new__", (ks_obj)ks_cfunc_new2(int_new_, "int.__new__(obj)")},
         {"__str__", (ks_obj)ks_cfunc_new2(int_str_, "int.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(int_str_, "int.__repr__(self)")},
         

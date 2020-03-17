@@ -155,7 +155,7 @@ ks_obj ks_catch() {
 
     ks_obj ret = cth->exc;
     cth->exc = NULL;
-
+    
     // return the active try/catch reference
     return ret;
 }

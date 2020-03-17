@@ -41,6 +41,8 @@ static KS_TFUNC(float, new) {
         return KS_NEWREF(obj);
     } else if (obj->type == ks_type_int) {
         return (ks_obj)ks_float_new(((ks_int)obj)->val);
+    } else if (obj->type == ks_type_complex) {
+        return (ks_obj)ks_float_new(((ks_complex)obj)->val);
     } else if (obj->type == ks_type_str) {
         // TODO: error check and see if it was a valid float
         double val = atof(((ks_str)obj)->chr);
@@ -185,6 +187,16 @@ static KS_TFUNC(float, pow) {
     if (L->type == ks_type_float && R->type == ks_type_float) { \
         vL = ((ks_float)L)->val; \
         vR = ((ks_float)R)->val; \
+        { __VA_ARGS__; } \
+        return KSO_BOOL(vRes); \
+    } else if (L->type == ks_type_int && R->type == ks_type_float) { \
+        vL = ((ks_int)L)->val; \
+        vR = ((ks_float)R)->val; \
+        { __VA_ARGS__; } \
+        return KSO_BOOL(vRes); \
+    } else if (L->type == ks_type_float && R->type == ks_type_int) { \
+        vL = ((ks_float)L)->val; \
+        vR = ((ks_int)R)->val; \
         { __VA_ARGS__; } \
         return KSO_BOOL(vRes); \
     } \

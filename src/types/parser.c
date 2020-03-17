@@ -375,7 +375,7 @@ static void* tokenize(ks_parser self) {
             ADDTOK(KS_TOK_IDENT);
         } else if (isdigit(c) || (c == '.' && isdigit(self->src->chr[i+1]))) {
             // parse out a numerical constant
-            // it could be 
+            // it could be an int, float, and/or have an imaginary component
 
             // go through all the digits we can
             while (isdigit(self->src->chr[i])) {
@@ -392,13 +392,47 @@ static void* tokenize(ks_parser self) {
                     ADV();
                 }
 
+                if (self->src->chr[i] == 'i') {
+                    // imaginary component
+                    ADV();
+                }
+
+                if (self->src->chr[i] && is_ident_m(self->src->chr[i])) {
+                    ks_tok badtok = (ks_tok){ 
+                        .parser = self, .type = KS_TOK_NONE, 
+                        .pos = start_i, .len = i - start_i, 
+                        .line = start_line, .col = start_col 
+                    };
+                    return syntax_error(badtok, "Unexpected characters after imaginary literal");
+                }
+
                 ADDTOK(KS_TOK_FLOAT);
 
 
             } else {
-                // we are parsing an integer, so we're fininshed
-                ADDTOK(KS_TOK_INT);
+
+                if (self->src->chr[i] == 'i') {
+                    // imaginary component
+                    ADV();
+
+                    if (self->src->chr[i] && is_ident_m(self->src->chr[i])) {
+                        ks_tok badtok = (ks_tok){ 
+                            .parser = self, .type = KS_TOK_NONE, 
+                            .pos = start_i, .len = i - start_i, 
+                            .line = start_line, .col = start_col 
+                        };
+                        return syntax_error(badtok, "Unexpected characters after imaginary literal");
+                    }
+                    // still consider this a float
+                    ADDTOK(KS_TOK_FLOAT);
+                } else {
+
+                    // we are parsing an integer, so we're fininshed
+                    ADDTOK(KS_TOK_INT);
+                }
+
             }
+
         } else if (c == '\'' || c == '"') {
             char s_c = c;
 
@@ -992,14 +1026,31 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             // push an integer onto the value stack
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
-            // convert token to actual int value
-            ks_float new_float = ks_float_new(tok_getfloat(ctok));
 
-            // transform it into an AST
-            ks_ast new_ast = ks_ast_new_const((ks_obj)new_float);
-            KS_DECREF(new_float);
+            ks_ast new_ast = NULL;
+            if ((self->src->chr + ctok.pos)[ctok.len - 1] == 'i') {
+                // imaginary constant
+                ks_complex new_complex = ks_complex_new(I * tok_getfloat(ctok));
 
-            new_ast->tok = new_ast->tok_expr = ctok;
+                // transform it into an AST
+                new_ast = ks_ast_new_const((ks_obj)new_complex);
+                KS_DECREF(new_complex);
+
+                new_ast->tok = new_ast->tok_expr = ctok;
+
+            } else {
+                // normal float constant
+                // convert token to actual int value
+                ks_float new_float = ks_float_new(tok_getfloat(ctok));
+
+                // transform it into an AST
+                new_ast = ks_ast_new_const((ks_obj)new_float);
+                KS_DECREF(new_float);
+
+                new_ast->tok = new_ast->tok_expr = ctok;
+
+            }
+
 
             // push it on the output stack
             Spush(Out, new_ast);

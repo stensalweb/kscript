@@ -527,8 +527,17 @@ static KS_FUNC(print) {
 #define T_KS_FUNC_BOP(_name, _str, _fname, _spec)          \
 static KS_FUNC(_name) {                                    \
     KS_REQ_N_ARGS(n_args, 2);                              \
-    if (args[0]->type->_fname != NULL)                     \
-        return ks_call(args[0]->type->_fname, 2, args);    \
+    if (args[0]->type->_fname != NULL) {                   \
+        ks_obj ret = NULL;                                 \
+        ret = ks_call(args[0]->type->_fname, 2, args);     \
+        if (ret != NULL) return ret;                       \
+        ks_thread cth = ks_thread_cur();                   \
+        if (cth->exc && cth->exc->type == ks_type_OpError) \
+            KS_DECREF(ks_catch());                         \
+    }                                                      \
+    if (args[1]->type->_fname != NULL) {                   \
+        return ks_call(args[1]->type->_fname, 2, args);    \
+    }                                                      \
     { _spec; }                                             \
     KS_ERR_BOP_UNDEF(_str, args[0], args[1]);              \
 }

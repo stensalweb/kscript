@@ -25,19 +25,53 @@
 #endif
 #define M_PI 3.141592653589793238462643383279502884
 
+enum {
 
-// attempt to convert an object to a float, throwing an error if
-static ks_float cvtFloat(ks_obj obj) {
+    TY_NONE = 0,
 
-    // try a couple of common results
-    if (obj->type == ks_type_float) {
-        return (ks_float)KS_NEWREF(obj);
-    } else if (obj->type == ks_type_int) {
-        return (ks_float)ks_float_new(((ks_int)obj)->val);
+    // cast to an integer
+    TY_INT,
+
+    // cast to a float
+    TY_FLOAT,
+
+    // cast to a complex
+    TY_COMPLEX
+};
+
+
+// convert to a numeric of at least 'minTY', see TY_* macros
+static ks_obj cvtNum(ks_obj obj, int minTY) {
+    // fails conversion if not a numeric
+    if (obj->type != ks_type_int && obj->type != ks_type_float && obj->type != ks_type_complex) {
+        return NULL;
     }
+    if (minTY == TY_INT) {
+        // keep everything as it is
+        return KS_NEWREF(obj);
+    } else if (minTY == TY_FLOAT) {
+        if (obj->type == ks_type_int) {
+            return (ks_obj)ks_float_new(((ks_int)obj)->val);
+        }
+        return KS_NEWREF(obj);
+    } else if (minTY == TY_COMPLEX) {
+        if (obj->type == ks_type_int) {
+            return (ks_obj)ks_complex_new(((ks_int)obj)->val);
+        } else if (obj->type == ks_type_float) {
+            return (ks_obj)ks_complex_new(((ks_float)obj)->val);
+        }
 
-    // could not convert float
-    KS_ERR_CONV(obj, ks_type_float);
+        return KS_NEWREF(obj);
+
+    } else {
+        assert(false && "cvtNum() given invalid 'minTY'!");
+        return NULL;
+    }
+}
+
+
+#define _TY_ERR(_a, _types) { \
+    return ks_throw_fmt(ks_type_TypeError, "Could not convert '%T' object to a valid type: %s", _a, _types); \
 }
 
 
@@ -48,17 +82,88 @@ static void* arg_error(char* argname, char* expr) {
 
 /* now, define our function that runs a given command */
 
-// template for a math function taking 1 argument
-// Extra arguments are ran after parsing, but before the cfunction is called
-#define T_MATH_FUNC_1(_name, _cfunc, ...) static KS_TFUNC(m, _name) { \
+
+// 1arg, float, complex
+#define T_M_F_1fc(_name, _cfunc_f, _cfunc_c, ...) static KS_TFUNC(m, _name) { \
     KS_REQ_N_ARGS(n_args, 1); \
-    ks_float a0 = cvtFloat(args[0]); \
-    if (!a0) return NULL; \
+    ks_obj a0 = cvtNum(args[0], TY_FLOAT); \
+    if (!a0) _TY_ERR(args[0], "float, complex"); \
     { __VA_ARGS__; }; \
-    double ret = _cfunc(a0->val); \
+    /**/ if (a0->type == ks_type_float) { \
+        ks_obj ret = (ks_obj)ks_float_new(_cfunc_f(((ks_float)a0)->val)); \
+        KS_DECREF(a0); \
+        return ret; \
+    } else if (a0->type == ks_type_complex) { \
+        ks_obj ret = (ks_obj)ks_complex_new(_cfunc_c(((ks_complex)a0)->val)); \
+        KS_DECREF(a0); \
+        return ret; \
+    } \
     KS_DECREF(a0); \
-    return (ks_obj)ks_float_new(ret); \
+    _TY_ERR(args[0], "float, complex"); \
 }
+
+// 1arg, float
+#define T_M_F_1f(_name, _cfunc_f, ...) static KS_TFUNC(m, _name) { \
+    KS_REQ_N_ARGS(n_args, 1); \
+    ks_obj a0 = cvtNum(args[0], TY_FLOAT); \
+    if (!a0) _TY_ERR(args[0], "float"); \
+    if (a0->type == ks_type_complex) { \
+        KS_DECREF(a0); \
+        _TY_ERR(args[0], "float"); \
+    } \
+    { __VA_ARGS__; }; \
+    ks_obj ret = (ks_obj)ks_float_new(_cfunc_f(((ks_float)a0)->val)); \
+    KS_DECREF(a0); \
+    return ret; \
+}
+
+
+// template for a function taking exactly 2 arguments, only floats
+#define T_M_F_2f(_name, _cfunc_f, ...) static KS_TFUNC(m, _name) { \
+    KS_REQ_N_ARGS(n_args, 2); \
+    if (args[0]->type == ks_type_complex) _TY_ERR(args[0], "float"); \
+    if (args[1]->type == ks_type_complex) _TY_ERR(args[1], "float"); \
+    ks_obj a0 = cvtNum(args[0], TY_FLOAT); \
+    if (!a0) _TY_ERR(args[0], "float"); \
+    ks_obj a1 = cvtNum(args[1], TY_FLOAT); \
+    if (!a1) { KS_DECREF(a0); _TY_ERR(args[1], "float"); } \
+    ks_obj ret = (ks_obj)ks_float_new(_cfunc_f(((ks_float)a0)->val, ((ks_float)a1)->val)); \
+    KS_DECREF(a0); KS_DECREF(a1); \
+    return ret; \
+}
+
+// template for a function taking exactly 2 arguments, floats or complex
+#define T_M_F_2fc(_name, _cfunc_f, _cfunc_c, ...) static KS_TFUNC(m, _name) { \
+    KS_REQ_N_ARGS(n_args, 2); \
+    ks_obj a0 = cvtNum(args[0], TY_FLOAT); \
+    if (!a0) _TY_ERR(args[0], "float, complex"); \
+    ks_obj a1 = cvtNum(args[1], TY_FLOAT); \
+    if (!a1) { KS_DECREF(a0); _TY_ERR(args[1], "float, complex"); } \
+    if (a0->type == ks_type_float && a1->type == ks_type_float) { \
+        ks_obj ret = (ks_obj)ks_float_new(_cfunc_f(((ks_float)a0)->val, ((ks_float)a1)->val)); \
+        KS_DECREF(a0); KS_DECREF(a1); \
+        return ret; \
+    } else { \
+        double complex a0c, a1c; \
+        if (a0->type == ks_type_complex) { \
+            a0c = ((ks_complex)a0)->val; \
+            if (a1->type == ks_type_complex) { \
+                a1c = ((ks_complex)a1)->val; \
+            } else { \
+                a1c = ((ks_float)a1)->val; \
+            } \
+        } else { \
+            a0c = ((ks_float)a0)->val; \
+            a1c = ((ks_complex)a1)->val; \
+        } \
+        ks_obj ret = (ks_obj)ks_complex_new(_cfunc_c(a0c, a1c)); \
+        KS_DECREF(a0); KS_DECREF(a1); \
+        return ret; \
+    } \
+}
+
+
+
 
 // template for a math function taking 2 arguments
 // Extra arguments are ran after parsing, but before the cfunction is called
@@ -76,15 +181,22 @@ static void* arg_error(char* argname, char* expr) {
 }
 
 
+
+
 /* misc */
 
-// sqrt(val) -> return the square root
-T_MATH_FUNC_1(sqrt, sqrt, if (a0->val < 0.0) return arg_error("val", "val >= 0");)
-// cbrt(val) -> return the cube root
-T_MATH_FUNC_1(cbrt, cbrt)
-// exp(val) -> return the exponential function
-T_MATH_FUNC_1(exp, exp)
 
+// my cube root for complex numbers
+static double complex my_ccbrt(double complex val) {
+    return cpow(val, 1.0 / 3.0);
+}
+
+// sqrt(val) -> return the square root
+T_M_F_1fc(sqrt, sqrt, csqrt, if (a0->type == ks_type_float && ((ks_float)a0)->val < 0.0) return arg_error("val", "val >= 0");)
+// cbrt(val) -> return the cube root
+T_M_F_1fc(cbrt, cbrt, my_ccbrt)
+// exp(val) -> return the exponential function
+T_M_F_1fc(exp, exp, cexp)
 
 
 // calculate sign of a double
@@ -110,103 +222,133 @@ static double my_deg(double radians) {
 
 
 // sign(x) -> return +1 if the sign is positive, 0 if it is zero, or -1 otherwise
-T_MATH_FUNC_1(sign, my_sign);
-
-
+T_M_F_1f(sign, my_sign);
 
 // deg(rad) -> turn radians into degrees
-T_MATH_FUNC_1(deg, my_deg);
+T_M_F_1f(deg, my_deg);
 
 // rad(deg) -> turn degrees into radians
-T_MATH_FUNC_1(rad, my_rad);
+T_M_F_1f(rad, my_rad);
 
 
 
 // return x**y
-T_MATH_FUNC_2(pow, pow);
+T_M_F_2fc(pow, pow, cpow);
 // atan2(y, x) -> return the phase given by the coordinate (x, y)
-T_MATH_FUNC_2(atan2, atan2);
+T_M_F_2f(atan2, atan2);
 
 // hypot(x, y) -> return the hypoteneuse of a right triangle with sides 'x' and 'y'
-T_MATH_FUNC_2(hypot, hypot);
-
-
-/* analysis/stats */
-
-// gamma(x) -> return the Gamma(x) function
-T_MATH_FUNC_1(gamma, tgamma, if (a0->val <= 0 && floor(a0->val) == a0->val) { return arg_error("x", "!(x <= 0 && is_int(x))"); });
-// lgamma(x) -> return log(|Gamma(x)|) function
-T_MATH_FUNC_1(lgamma, lgamma);
-
+T_M_F_2f(hypot, hypot);
 
 /* trig functions */
 
 // sin(rad) -> return the sin of a given radian measure
-T_MATH_FUNC_1(sin, sin)
+//T_MATH_FUNC_1(sin, sin)
+T_M_F_1fc(sin, sin, csin);
 // cos(rad) -> return the cos of a given radian measure
-T_MATH_FUNC_1(cos, cos)
+T_M_F_1fc(cos, cos, ccos)
 // tan(rad) -> return the tan of a given radian measure
-T_MATH_FUNC_1(tan, tan)
+T_M_F_1fc(tan, tan, ctan)
 
 // asin(val) -> return the inverse sin of a given result
-T_MATH_FUNC_1(asin, asin, if (fabs(a0->val) > 1) return arg_error("val", "|val| <= 1");)
+T_M_F_1fc(asin, asin, casin, if (a0->type == ks_type_float && fabs(((ks_float)a0)->val) > 1) return arg_error("val", "|val| <= 1");)
 // acos(val) -> return the inverse cos of a given result
-T_MATH_FUNC_1(acos, acos, if (fabs(a0->val) > 1) return arg_error("val", "|val| <= 1");)
+T_M_F_1fc(acos, acos, cacos, if (a0->type == ks_type_float && fabs(((ks_float)a0)->val) > 1) return arg_error("val", "|val| <= 1");)
 // atan(val) -> return the inverse tan of a given result
-T_MATH_FUNC_1(atan, atan)
+T_M_F_1fc(atan, atan, catan)
 
 
 /* hyperbolic trig functions */
 
 // sinh(rad) -> return the sin of a given radian measure
-T_MATH_FUNC_1(sinh, sinh)
+T_M_F_1fc(sinh, sinh, csinh)
 // cosh(rad) -> return the cos of a given radian measure
-T_MATH_FUNC_1(cosh, cosh)
+T_M_F_1fc(cosh, cosh, ccosh)
 // tanh(rad) -> return the tan of a given radian measure
-T_MATH_FUNC_1(tanh, tanh)
+T_M_F_1fc(tanh, tanh, ctanh)
 
 // asinh(val) -> return the inverse sin of a given value
-T_MATH_FUNC_1(asinh, asinh)
+T_M_F_1fc(asinh, asinh, casinh)
 // acosh(val) -> return the inverse cos of a given value
-T_MATH_FUNC_1(acosh, acosh, if (a0->val < 1) return arg_error("val", "val >= 1");)
+T_M_F_1fc(acosh, acosh, cacosh, if (a0->type == ks_type_float && ((ks_float)a0)->val < 1) return arg_error("val", "val >= 1");)
 // atanh(val) -> return the inverse tan of a given value
-T_MATH_FUNC_1(atanh, atanh, if (fabs(a0->val) > 1) return arg_error("val", "|val| <= 1");)
-
+T_M_F_1fc(atanh, atanh, catanh, if (a0->type == ks_type_float && fabs(((ks_float)a0)->val) > 1) return arg_error("val", "|val| <= 1");)
 
 // logarithm
 // Use an optional 'base' argument which defaults to 'E' (natural logarithm)
 static KS_TFUNC(m, log) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
-    ks_float val = cvtFloat(args[0]);
-    if (!val) return NULL;
-
-    double ret = 0.0;
+    ks_obj val = cvtNum(args[0], TY_FLOAT);
+    if (!val) _TY_ERR(val, "float, complex");
 
     if (n_args == 2) {
 
         // logarithm of a given base
-        ks_float base = cvtFloat(args[1]);
+        ks_obj base = cvtNum(args[1], TY_FLOAT);
         if (!base) {
             KS_DECREF(val);
-            return NULL;
+            _TY_ERR(base, "float, complex");
         }
-        ret = log(val->val) / log(base->val);
+        ks_obj ret = NULL;
+
+        if (base->type == ks_type_complex || val->type == ks_type_complex) {
+            // 1 or the other is complex
+            double complex base_c, val_c;
+            if (base->type == ks_type_complex) {
+                base_c = ((ks_complex)base)->val;
+                if (val->type == ks_type_complex) {
+                    val_c = ((ks_complex)val)->val;
+                } else {
+                    val_c = ((ks_float)val)->val;
+                }
+            } else if (base->type == ks_type_float) {
+                base_c = ((ks_float)base)->val;
+                // other must be complex
+                val_c = ((ks_complex)val)->val;
+            }
+
+            ret = (ks_obj)ks_complex_new(clog(val_c) / clog(base_c));
+
+        } else {
+            // both floats
+            ret = (ks_obj)ks_float_new(log(((ks_float)val)->val) / log(((ks_float)base)->val));
+
+        }
 
         KS_DECREF(base);
+        KS_DECREF(val);
+        return ret;
     } else {
         // natural logarithm
-        ret = log(val->val);
+        if (val->type == ks_type_float) {
+            ks_obj ret = (ks_obj)ks_float_new(log(((ks_float)val)->val));
+            KS_DECREF(val);
+            return ret;
+        } else if (val->type == ks_type_complex) {
+            ks_obj ret = (ks_obj)ks_complex_new(clog(((ks_complex)val)->val));
+            KS_DECREF(val);
+            return ret;
+        } else {
+            assert (false && "Unknown type ! shouldn't get here");
+        }
     }
-    KS_DECREF(val);
-
-    return (ks_obj)ks_float_new(ret);
 }
 
 
 
 /* my additional functions */
 
-/* Riemann Zeta Function : compute sum(i**-n for all n)
+/* 
+ * Gamma Function : compute (x-1)! for all values
+ * 
+ * 
+ * Use Lanczos approximation [0] to compute it very fast and accurately
+ * 
+ *   [0]: https://en.wikipedia.org/wiki/Lanczos_approximation
+ *   [1]: https://mrob.com/pub/ries/lanczos-gamma.html
+ * 
+ * 
+ * Riemann Zeta Function : compute sum(i**-n for all n)
  *
  * We first use a transform via the Dirichlet function [3], and then apply a Chebyshev approximation
  *   to that function using methods in [3], and finally transform back.
@@ -221,6 +363,103 @@ static KS_TFUNC(m, log) {
  *   [4] http://numbers.computation.free.fr/Constants/Miscellaneous/zetaevaluations.pdf
  *
  */
+
+
+// constants used in computation
+#define SQRT_2PI 2.506628274631000502415765284811045253006986
+#define LOG_SQRT_2PI 0.91893853320467274178032973640561763986139747363778341
+
+
+// Level 0 of approximation, using a series of length 7
+// TODO: add this to compute_table.py, right now I pull these from [1] in the Lanczos approximation
+#define GAMMA_C0_G 5
+#define GAMMA_C0_N 7
+
+static const double gamma_C0[] = {
+    1.000000000190015,
+    76.18009172947146,
+    -86.50532032941677,
+    24.01409824083091,
+    -1.231739572450155,
+    0.1208650973866179e-2,
+    -0.5395239384953e-5
+};
+
+
+
+// Level 1 of approximation, using a series of length 6
+// TODO: add this to compute_table.py
+#define GAMMA_C1_G 4.7421875
+#define GAMMA_C1_N 15
+
+static const double gamma_C1[] = {
+    0.99999999999999709182,
+   	57.156235665862923517,
+   	-59.597960355475491248,
+   	14.136097974741747174,
+    -0.49191381609762019978,
+    0.33994649984811888699e-4,
+    0.46523628927048575665e-4,
+    -0.98374475304879564677e-4,
+    0.15808870322491248884e-3,
+	-0.21026444172410488319e-3,
+ 	0.21743961811521264320e-3,
+ 	-.16431810653676389022e-3,
+ 	0.84418223983852743293e-4,
+    -0.26190838401581408670e-4,
+	0.36899182659531622704e-5
+};
+
+
+// compute Gamma(z), for all complex numbers
+static complex double my_cgamma(complex double z) {
+    if (creal(z) < 0.5) {
+        // use reflection formula, so our approximation converges
+        return M_PI / (csin(M_PI * z) * my_cgamma(1 - z));
+    } else {
+        // shift off
+        z -= 1;
+
+        // sum a seriies approximation
+        complex double sum = gamma_C1[0];
+
+        int i;
+        for (i = 1; i < GAMMA_C1_N; ++i) {
+            sum += gamma_C1[i] / (z + i);
+        }
+
+        double complex t = z + (GAMMA_C1_G) + 0.5;
+        return SQRT_2PI * cpow(t, z + 0.5) * cexp(-t) * sum;
+    }
+}
+
+// compute ln(Gamma(z)), for all complex numbers
+static complex double my_clgamma(complex double z) {
+    if (creal(z) < 0.5) {
+        // use reflection formula, so our approximation converges
+        return M_PI / (csin(M_PI * z) * my_cgamma(1 - z));
+    } else {
+        // shift off
+        z -= 1;
+
+        // sum a seriies approximation
+        complex double sum = gamma_C1[0];
+
+        int i;
+        for (i = 1; i < GAMMA_C1_N; ++i) {
+            sum += gamma_C1[i] / (z + i);
+        }
+
+        double complex t = z + (GAMMA_C1_G) + 0.5;
+        return (LOG_SQRT_2PI + clog(sum)) - t + clog(t) * (z + 0.5);
+    }
+}
+
+
+// gamma(x) -> return the Gamma(x) function
+T_M_F_1fc(gamma, tgamma, my_cgamma, if (a0->type == ks_type_float && ((ks_float)a0)->val <= 0 && floor(((ks_float)a0)->val) == ((ks_float)a0)->val) { return arg_error("x", "!(x <= 0 && is_int(x))"); });
+// lgamma(x) -> return log(|Gamma(x)|) function
+T_M_F_1fc(lgamma, lgamma, my_clgamma);
 
 
 // Level 0 of approximation, using a series of length '10'
@@ -479,8 +718,61 @@ double my_zeta(double x) {
 
 }
 
+
+// compute zeta function on complex numbers
+complex double my_czeta(complex double x) {
+
+    if (x == 1) return INFINITY;
+    if (creal(x) < 0) {
+        // use reflection formula with the functional equation
+        // Zeta(x) = 2 * (2*PI)^(x-1) * sin(x * PI/2) * Gamma(1-x) * Zeta(1 - x)
+        return 2 * cpow(2 * M_PI, x - 1) * csin(x * M_PI / 2) * my_cgamma(1 - x) * my_czeta(1 - x);
+
+    } else {
+
+        // now, have cutoffs for different acuracies
+
+        // the total sum
+        complex double sum = 0;
+
+        // the alterating sign, and the index
+        int sign = 1, i;
+
+        // compute term, using d_k which was precomputed
+        // term = (-1)^i * d_i / (i+1)^x
+        if (creal(x) > 50) {
+            for (i = 0; i < ZETA_C0_N; ++i, sign *= -1) {
+                sum += sign * zeta_C0[i] * cpow(i + 1, -x);
+            }
+        } else if (creal(x) > 30) {
+            for (i = 0; i < ZETA_C1_N; ++i, sign *= -1) {
+                sum += sign * zeta_C1[i] * cpow(i + 1, -x);
+            }
+        } else if (creal(x) > 12) {
+            for (i = 0; i < ZETA_C2_N; ++i, sign *= -1) {
+                sum += sign * zeta_C2[i] * cpow(i + 1, -x);
+            }
+        } else {
+            // fall back to most accurate
+            for (i = 0; i < ZETA_C3_N; ++i, sign *= -1) {
+                sum += sign * zeta_C3[i] * cpow(i + 1, -x);
+            }
+        }
+
+        // transform it back from the Eta function so that it is relevant to the Riemann Zeta function
+        sum /= 1 - cpow(2, 1 - x);
+
+        return sum;
+    }
+
+}
+
+
 // zeta(x) -> return the Riemann Zeta function of 'x'
-T_MATH_FUNC_1(zeta, my_zeta);
+T_M_F_1fc(zeta, my_zeta, my_czeta);
+
+
+// now, export them all
 
 static ks_module get_module() {
     ks_module mod = ks_module_new(MODULE_NAME);
@@ -494,6 +786,7 @@ static ks_module get_module() {
         {"asin", (ks_obj)ks_cfunc_new2(m_asin_, "m.asin(val)")},
         {"acos", (ks_obj)ks_cfunc_new2(m_acos_, "m.acos(val)")},
         {"atan", (ks_obj)ks_cfunc_new2(m_atan_, "m.atan(val)")},
+        {"atan2", (ks_obj)ks_cfunc_new2(m_atan2_, "m.atan2(y, x)")},
 
         {"sinh", (ks_obj)ks_cfunc_new2(m_sinh_, "m.sinh(rad)")},
         {"cosh", (ks_obj)ks_cfunc_new2(m_cosh_, "m.cosh(rad)")},
