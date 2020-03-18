@@ -125,6 +125,8 @@ bool ks_init() {
         {"MathError",      KS_NEWREF(ks_type_MathError)},
         {"AttrError",      KS_NEWREF(ks_type_AttrError)},
         {"KeyError",       KS_NEWREF(ks_type_KeyError)},
+        {"OpError",        KS_NEWREF(ks_type_OpError)},
+        {"ToDoError",      KS_NEWREF(ks_type_ToDoError)},
 
         {"thread",         KS_NEWREF(ks_type_thread)},
 

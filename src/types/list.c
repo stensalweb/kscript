@@ -30,6 +30,44 @@ ks_list ks_list_new(int len, ks_obj* elems) {
 
     return self;
 }
+
+// create a list by exhausting an iterable
+ks_list ks_list_from_iterable(ks_obj obj) {
+
+    // some shortcuts
+    /**/ if (obj->type == ks_type_list)  return (ks_list)KS_NEWREF(obj);
+    else if (obj->type == ks_type_tuple) return ks_list_new(((ks_tuple)obj)->len, ((ks_tuple)obj)->elems);
+
+    ks_obj iter_obj = ks_F_iter->func(1, &obj);
+    if (!iter_obj) return NULL;
+
+    ks_list res = ks_list_new(0, NULL);
+
+    while (true) {
+        ks_obj cur = ks_F_next->func(1, &iter_obj);
+        if (!cur) {
+            // error occured
+            if (ks_thread_cur()->exc->type == ks_type_OutOfIterError) {
+                // signals the stop of the iterator, so just return at this point
+                ks_catch_ignore();
+                break;
+            } else {
+                // unrelated error; stop
+                KS_DECREF(iter_obj);
+                KS_DECREF(res);
+                return NULL;
+            }
+        }
+
+        ks_list_push(res, cur);
+        KS_DECREF(cur);
+    }
+
+    KS_DECREF(iter_obj);
+    return res;
+
+}
+
 void ks_list_clear(ks_list self) {
     // decref all elements and remove length
     while (self->len > 0) {
@@ -75,6 +113,15 @@ void ks_list_popu(ks_list self) {
     ks_obj top = self->elems[--self->len];
     KS_DECREF(top);
 }
+
+
+
+// list.__new__(obj) -> create list from iterable
+static KS_TFUNC(list, new) {
+    KS_REQ_N_ARGS_RANGE(n_args, 0, 1);
+    if (n_args == 0) return (ks_obj)ks_list_new(0, NULL);
+    else return (ks_obj)ks_list_from_iterable(args[0]);
+};
 
 
 // list.__str__(self) -> convert to string
@@ -263,6 +310,8 @@ void ks_type_list_init() {
     KS_INIT_TYPE_OBJ(ks_type_list, "list");
 
     ks_type_set_cn(ks_type_list, (ks_dict_ent_c[]){
+        {"__new__", (ks_obj)ks_cfunc_new2(list_new_, "list.__new__(obj)")},
+
         {"__str__", (ks_obj)ks_cfunc_new2(list_str_, "list.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(list_str_, "list.__repr__(self)")},
         {"__free__", (ks_obj)ks_cfunc_new2(list_free_, "list.__free__(self)")},

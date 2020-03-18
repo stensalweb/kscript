@@ -10,6 +10,7 @@
 
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_tuple);
+KS_TYPE_DECLFWD(ks_type_tuple_iter);
 
 // construct a tuple
 ks_tuple ks_tuple_new(int len, ks_obj* elems) {
@@ -112,6 +113,14 @@ static KS_TFUNC(tuple, free) {
 };
 
 
+// tuple.__iter__(self) -> return an iterator
+static KS_TFUNC(tuple, iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_tuple self = (ks_tuple)args[0];
+    KS_REQ_TYPE(self, ks_type_tuple, "self");
+
+    return (ks_obj)ks_tuple_iter_new(self);
+};
 
 // tuple.__getitem__(self, idx) -> get the item in a tuple
 static KS_TFUNC(tuple, getitem) {
@@ -135,16 +144,74 @@ static KS_TFUNC(tuple, getitem) {
 
 
 
+/* iterator */
+
+ks_tuple_iter ks_tuple_iter_new(ks_tuple obj) {
+    ks_tuple_iter self = KS_ALLOC_OBJ(ks_tuple_iter);
+    KS_INIT_OBJ(self, ks_type_tuple_iter);
+
+    // initialize type-specific things
+    self->pos = 0;
+    self->obj = (ks_tuple)KS_NEWREF(obj);
+
+    return self;
+}
+
+// tuple_iter.__free__(self) -> free resources
+static KS_TFUNC(tuple_iter, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_tuple_iter self = (ks_tuple_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_tuple_iter, "self");
+
+    // release reference to the list
+    KS_DECREF(self->obj);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+
+    return KSO_NONE;
+}
+
+// tuple_iter.__next__(self) -> return next item in the list, or raise a OutOfIterError if it is exhausted
+static KS_TFUNC(tuple_iter, next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_tuple_iter self = (ks_tuple_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_tuple_iter, "self");
+
+    if (self->pos >= self->obj->len) {
+        return ks_throw_fmt(ks_type_OutOfIterError, "");
+    } else {
+        // get next object
+        ks_obj ret = self->obj->elems[self->pos++];
+        return KS_NEWREF(ret);
+    }
+
+}
+
+
 // initialize tuple type
 void ks_type_tuple_init() {
     KS_INIT_TYPE_OBJ(ks_type_tuple, "tuple");
 
     ks_type_set_cn(ks_type_tuple, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new(tuple_str_)},
-        {"__repr__", (ks_obj)ks_cfunc_new(tuple_str_)},
-        {"__free__", (ks_obj)ks_cfunc_new(tuple_free_)},
+        {"__str__",       (ks_obj)ks_cfunc_new2(tuple_str_, "tuple.__str__(self)")},
+        {"__repr__",      (ks_obj)ks_cfunc_new2(tuple_str_, "tuple.__repr__(self)")},
+        {"__free__",      (ks_obj)ks_cfunc_new2(tuple_free_, "tuple.__free__(self)")},
+
+        {"__iter__",      (ks_obj)ks_cfunc_new2(tuple_iter_, "tuple.__iter__(self)")},
         
-        {"__getitem__", (ks_obj)ks_cfunc_new2(tuple_getitem_, "tuple.__getitem__(self, idx)")},
+        {"__getitem__",   (ks_obj)ks_cfunc_new2(tuple_getitem_, "tuple.__getitem__(self, idx)")},
+
+        {NULL, NULL}   
+    });
+
+
+    KS_INIT_TYPE_OBJ(ks_type_tuple_iter, "tuple_iter");
+
+    ks_type_set_cn(ks_type_tuple_iter, (ks_dict_ent_c[]){
+        {"__free__", (ks_obj)ks_cfunc_new2(tuple_iter_free_, "tuple_iter.__free__(self)")},
+        {"__next__", (ks_obj)ks_cfunc_new2(tuple_iter_next_, "tuple_iter.__next__(self)")},
 
         {NULL, NULL}   
     });

@@ -11,12 +11,11 @@
 KS_TYPE_DECLFWD(nx_type_array);
 
 
-
 /* C API */
 
-// Construct a new array
-nx_array nx_array_new(int n_dim, int* dims, void* data_ptr, nx_dtype dtype) {
-    assert(n_dim >= 0 && "'nx_array_new' given negative number of dimensions!");
+// Construct a new array from C-style (packed) data
+nx_array nx_array_new(int Ndim, ks_ssize_t* dims, void* data_ptr, nx_dtype dtype) {
+    assert(Ndim >= 0 && "'nx_array_new' given negative number of dimensions!");
     assert(dtype >= NX_DTYPE__FIRST && dtype <= NX_DTYPE__LAST && "'nx_array_new' given invalid dtype!");
 
     int sizeof_dtype = nx_dtype_sizeof(dtype);
@@ -30,27 +29,37 @@ nx_array nx_array_new(int n_dim, int* dims, void* data_ptr, nx_dtype dtype) {
     self->dtype = dtype;
 
     // construct with given dimensions
-    self->n_dim = n_dim;
-    self->dims = ks_malloc(sizeof(*self->dims) * self->n_dim);
+    self->Ndim = Ndim;
+    self->dims = ks_malloc(sizeof(*self->dims) * self->Ndim);
+    self->strides = ks_malloc(sizeof(*self->strides) * self->Ndim);
 
-    int i;
-
-    int n_elem = 1;
+    // number of elements
+    int n_elem = 1, i;
 
     if (!dims) {
         // given NULL dimensions, default to '0' in all
-        for (i = 0; i < n_dim; ++i) self->dims[i] = 0;
+        for (i = 0; i < Ndim; ++i) self->dims[i] = 0;
         // number of elements will be 0
         n_elem = 0;
     } else {
         // read in from 'dims'
-        for (i = 0; i < n_dim; ++i) {
+        for (i = 0; i < Ndim; ++i) {
             // each new dimension multiplies the number of elements
             n_elem *= dims[i];
             self->dims[i] = dims[i];
         }
     }
 
+    // fill in the strides
+    for (i = 0; i < Ndim; ++i) {
+        // initialize to 1
+        self->strides[i] = 1;
+
+        int j;
+        for (j = i + 1; j < Ndim; ++j) {
+            self->strides[i] *= self->dims[j];
+        }
+    }
 
     // now, allocate the data
     self->data_ptr = ks_malloc(sizeof_dtype * n_elem);
@@ -64,12 +73,12 @@ nx_array nx_array_new(int n_dim, int* dims, void* data_ptr, nx_dtype dtype) {
 
 // Get a single item from the array, i.e.:
 // self[idxs[0], idxs[1], ..., idxs[n_idx - 1]]
-ks_obj nx_array_getitem(nx_array self, int n_idx, int* idxs) {
+ks_obj nx_array_getitem(nx_array self, int n_idx, ks_ssize_t* idxs) {
     assert(n_idx > 0 && "'nx_array_getitem' given invalid number of indices");
-    assert(n_idx <= self->n_dim && "'nx_array_getitem' given too many indices");
+    assert(n_idx <= self->Ndim && "'nx_array_getitem' given too many indices");
 
     // linear index
-    int lidx = nx_calc_idx(self->n_dim, self->dims, n_idx, idxs);
+    int lidx = nx_calc_idx(self->Ndim, self->dims, self->strides, n_idx, idxs);
     if (lidx < 0) return NULL;
 
     assert (lidx >= 0 && "Internal index error!");
@@ -79,20 +88,20 @@ ks_obj nx_array_getitem(nx_array self, int n_idx, int* idxs) {
     uintptr_t addr = (uintptr_t)self->data_ptr;
     addr += lidx * sizeof_dtype;
 
-    // get a binary cast of it
-    return nx_bincast(self->dtype, (void*)addr);
+    // attempt to convert from binary
+    return nx_bin_get(self->dtype, (void*)addr);
 }
 
 
 // Set a single item from the array, i.e.:
 // self[idxs[0], idxs[1], ..., idxs[n_idx - 1]] = obj
 // return 0 on success, otherwise for failure
-int nx_array_setitem(nx_array self, int n_idx, int* idxs, ks_obj obj) {
+bool nx_array_setitem(nx_array self, int n_idx, ks_ssize_t* idxs, ks_obj obj) {
     assert(n_idx > 0 && "'nx_array_setitem' given invalid number of indices");
-    assert(n_idx <= self->n_dim && "'nx_array_setitem' given too many indices");
+    assert(n_idx <= self->Ndim && "'nx_array_setitem' given too many indices");
 
     // linear index
-    int lidx = nx_calc_idx(self->n_dim, self->dims, n_idx, idxs);
+    int lidx = nx_calc_idx(self->Ndim, self->dims, self->strides, n_idx, idxs);
     if (lidx < 0) return 1;
 
     assert (lidx >= 0 && "Internal index error!");
@@ -102,31 +111,88 @@ int nx_array_setitem(nx_array self, int n_idx, int* idxs, ks_obj obj) {
     uintptr_t addr = (uintptr_t)self->data_ptr;
     addr += lidx * sizeof_dtype;
 
-
-    if (nx_tobin(self->dtype, obj, (void*)addr) != 0) return 1;
-
-    // success
-    return 0;
+    // check for success
+    return nx_bin_set(obj, self->dtype, (void*)addr);
 }
 
 
-
-
-
 /* KSCRIPT API */
+
+// convert to tensor: fill
+static bool tconv_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, ks_ssize_t** dims) {
+    if (ks_is_iterable(cur)) {
+
+        // we have a list, so need to continue recursively calling it
+        ks_list elems = ks_list_from_iterable(cur);
+        if (!elems) return false;
+
+        if (*resp) {
+            // already been created, so ensure it is the correct length
+            if ((*dims)[dep] != elems->len) {
+                ks_throw_fmt(ks_type_Error, "Rows/Entries had different sizes!");
+                return false;
+            }
+        } else {
+            // set the dimensions
+            *dims = ks_realloc(*dims, sizeof(**dims) * (dep + 1));
+            (*dims)[dep] = elems->len;
+        }
+
+        int i;
+        for (i = 0; i < elems->len; ++i) {
+            // recursively call more
+            if (!tconv_fill(dtype, resp, elems->elems[i], idx, dep + 1, dims)) {
+                return false;
+            }
+        }
+
+        KS_DECREF(elems);
+
+    } else {
+
+        // actually set the next object
+        int my_idx = *idx;
+        *idx = *idx + 1;
+
+        if (my_idx == 0) {
+            // we are the first! create 'resp'
+            *resp = nx_array_new(dep, *dims, NULL, dtype);
+        } else {
+            // already created, ensure we are at maximum depth
+            if (dep != (*resp)->Ndim) {
+                ks_throw_fmt(ks_type_Error, "Rows/Entries had different sizes!");
+                return false;
+            }
+        }
+
+        ks_ssize_t sizeof_dtype = nx_dtype_sizeof(dtype);
+        if (sizeof_dtype < 0) return false;
+
+        // get address of result:
+        uintptr_t addr = sizeof_dtype * my_idx + (uintptr_t)(*resp)->data_ptr;
+
+        // now, set the object binarily
+        if (!nx_bin_set(cur, dtype, (void*)addr)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 
 // nx.array.__new__(elems, dtype=None) -> construct a new array
 static KS_TFUNC(array, new) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
     ks_obj elems = args[0];
-    KS_REQ_ITERABLE(elems, "elems");
+    //KS_REQ_ITERABLE(elems, "elems");
 
     // assume nothing
     nx_dtype dtype = NX_DTYPE_ERR;
 
-    if (n_args == 2 && args[2] != KSO_NONE) {
+    if (n_args == 2 && args[1] != KSO_NONE) {
         // parse out a string dtype
-        ks_str dtype_str = (ks_str)args[2];
+        ks_str dtype_str = (ks_str)args[1];
         KS_REQ_TYPE(dtype_str, ks_type_str, "dtype");
 
         dtype = nx_dtype_from_cstr(dtype_str->chr);
@@ -140,11 +206,84 @@ static KS_TFUNC(array, new) {
         dtype = NX_DTYPE_FP32;
     } 
 
-    // now, we have a valid dtype, so check through 'elems' to see
-    // TODO: iterate through
 
-    return (ks_obj)nx_array_new(2, (int[]){2, 2}, NULL, dtype);
+    nx_array res = NULL;
+
+    if (ks_is_iterable(elems)) {
+
+        // the current index
+        int idx = 0;
+
+        // a list of dimensions (which can be reallocated inside 'tconv_fill')
+        ks_ssize_t* dims = NULL;
+
+        // attempt to convert & fill it up
+        if (!tconv_fill(dtype, &res, elems, &idx, 0, &dims)) {
+            if (res != NULL) KS_DECREF(res);
+            ks_free(dims);
+            return NULL;
+        }
+
+        ks_free(dims);
+
+/*
+        ks_list list_elems = ks_list_from_iterable(elems);
+        if (!list_elems) return NULL;
+
+        // TODO: add multidimensional support
+        res = nx_array_new(1, (ks_ssize_t[]){ list_elems->len }, NULL, dtype);
+
+        // now, populate it
+        int i;
+        for (i = 0; i < list_elems->len; ++i) {
+            // try and convert it
+            if (!nx_array_setitem(res, 1, (ks_ssize_t[]){ i }, list_elems->elems[i])) {
+                KS_DECREF(res);
+                KS_DECREF(list_elems);
+                return NULL;
+            }
+        }
+
+        // done with list
+        KS_DECREF(list_elems);
+
+        */
+
+    } else {
+
+
+        // construct a 1-dimensional tensor from a single object
+        res = nx_array_new(1, (ks_ssize_t[]){1}, NULL, dtype);
+
+        // now, try binary casting it
+        if (!nx_bin_set(elems, dtype, res->data_ptr)) {
+            KS_DECREF(res);
+            return NULL;
+        }
+    }
+
+    return (ks_obj)res;
 }
+
+
+
+// nx.array.__free__(self) -> free array and resources
+static KS_TFUNC(array, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    nx_array self = (nx_array)args[0];
+    KS_REQ_TYPE(self, nx_type_array, "self");
+
+    // free buffers
+    ks_free(self->data_ptr);
+    ks_free(self->dims);
+
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+}
+
 
 // nx.array.__repr__(self) -> return string representation
 static KS_TFUNC(array, repr) {
@@ -158,9 +297,9 @@ static KS_TFUNC(array, repr) {
     ks_str_b_add_fmt(&SB, "<'%T' [", self);
 
     int i;
-    for (i = 0; i < self->n_dim; ++i) {
+    for (i = 0; i < self->Ndim; ++i) {
         if (i != 0) ks_str_b_add_c(&SB, ",");
-        ks_str_b_add_fmt(&SB, "%i", self->dims[i]);
+        ks_str_b_add_fmt(&SB, "%l", self->dims[i]);
     }
 
     ks_str_b_add_fmt(&SB, "] of %s", nx_dtype_to_cstr(self->dtype));
@@ -181,7 +320,13 @@ static KS_TFUNC(array, getitem) {
     nx_array self = (nx_array)args[0];
     KS_REQ_TYPE(self, nx_type_array, "self");
 
-    int* idxs = ks_malloc(sizeof(*idxs) * (n_args - 1));
+    // make sure there are not too many
+    if ((n_args - 1) > self->Ndim) return ks_throw_fmt(ks_type_KeyError, "Too many indices!");
+
+    // for now, disable slices
+    if ((n_args - 1) != self->Ndim) return ks_throw_fmt(ks_type_ToDoError, "Slices are not implemented yet!");
+
+    ks_ssize_t* idxs = ks_malloc(sizeof(*idxs) * (n_args - 1));
 
     int i;
     for (i = 1; i < n_args; ++i) {
@@ -204,7 +349,13 @@ static KS_TFUNC(array, setitem) {
     KS_REQ_TYPE(self, nx_type_array, "self");
     ks_obj val = args[n_args - 1];
 
-    int* idxs = ks_malloc(sizeof(*idxs) * (n_args - 2));
+    // make sure there are not too many
+    if ((n_args - 2) > self->Ndim) return ks_throw_fmt(ks_type_KeyError, "Too many indices!");
+
+    // for now, disable slices
+    if ((n_args - 2) != self->Ndim) return ks_throw_fmt(ks_type_ToDoError, "Slices are not implemented yet!");
+
+    ks_ssize_t* idxs = ks_malloc(sizeof(*idxs) * (n_args - 2));
 
     int i;
     for (i = 1; i < n_args - 1; ++i) {
@@ -214,10 +365,36 @@ static KS_TFUNC(array, setitem) {
         idxs[i - 1] = c_idx_o->val;
     }
 
+
     nx_array_setitem(self, n_args - 2, idxs, val);
+
     ks_free(idxs);
     return KS_NEWREF(val);
 }
+
+
+
+// nx.array.shape(self) -> return the shape of the array
+static KS_TFUNC(array, shape) {
+    KS_REQ_N_ARGS(n_args, 1);
+    nx_array self = (nx_array)args[0];
+    KS_REQ_TYPE(self, nx_type_array, "self");
+
+    ks_int* shape_dirs = ks_malloc(sizeof(*shape_dirs) * self->Ndim);
+
+    int i;
+    for (i = 0; i < self->Ndim; ++i) {
+        shape_dirs[i] = ks_int_new(self->dims[i]);
+    }
+
+    ks_tuple res = ks_tuple_new_n(self->Ndim, (ks_obj*)shape_dirs);
+    ks_free(shape_dirs);
+
+    return (ks_obj)res;
+
+}
+
+
 
 // initialize the array type
 void nx_init__array() {
@@ -225,12 +402,15 @@ void nx_init__array() {
 
     ks_type_set_cn(nx_type_array, (ks_dict_ent_c[]){
         {"__new__",        (ks_obj)ks_cfunc_new2(array_new_, "nx.array.__new__(elems, dtype=None)")},
+        {"__free__",        (ks_obj)ks_cfunc_new2(array_free_, "nx.array.__free__(self)")},
 
         {"__repr__",       (ks_obj)ks_cfunc_new2(array_repr_, "nx.array.__repr__(self)")},
         {"__str__",        (ks_obj)ks_cfunc_new2(array_repr_, "nx.array.__str__(self)")},
 
         {"__getitem__",    (ks_obj)ks_cfunc_new2(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
         {"__setitem__",    (ks_obj)ks_cfunc_new2(array_setitem_, "nx.array.__setitem__(self, *idxs)")},
+
+        {"shape",          (ks_obj)ks_cfunc_new2(array_shape_, "nx.array.shape(self)")},
 
         {NULL, NULL},
     });

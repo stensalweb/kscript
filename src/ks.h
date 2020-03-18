@@ -328,6 +328,11 @@ typedef struct {
 //   64 bit indices
 typedef uint64_t ks_size_t;
 
+
+// ks_ssize_t - type representing a signed size, which can be negative
+typedef int64_t ks_ssize_t;
+
+
 // ks_hash_t - type representing a hash of an object. 
 // NOTE: hashes should never be '0', that means the hash is uninitialized or invalid,
 //   so manually 'nudge' the value to '1' or '-1' if that happens to come from a legimitate hash function
@@ -1401,6 +1406,21 @@ typedef struct {
 }* ks_list_iter;
 
 
+
+// ks_tuple_iter - tuple iterable object
+// SEE: types/tuple.c
+typedef struct {
+    KS_OBJ_BASE
+
+    // the object it is iterating on
+    ks_tuple obj;
+
+    // the current position in the list
+    int pos;
+
+}* ks_tuple_iter;
+
+
 // ks_dict_iter - dict iterable object
 // SEE: types/dict.c
 typedef struct {
@@ -1420,6 +1440,9 @@ typedef struct {
 // NOTE: Returns a new reference
 ks_list_iter ks_list_iter_new(ks_list obj);
 
+// Create a new tuple iterator for a given tuple
+// NOTE: Returns a new reference
+ks_tuple_iter ks_tuple_iter_new(ks_tuple obj);
 
 // Create a new dict iterator for a given dict
 // NOTE: Returns a new reference
@@ -1493,6 +1516,7 @@ extern ks_type
     ks_type_AttrError,
     ks_type_TypeError,
     ks_type_OpError,
+    ks_type_ToDoError,
 
     // special error; used to signal the end of an iterator
     ks_type_OutOfIterError,
@@ -1512,6 +1536,7 @@ extern ks_type
 
     // iterators
     ks_type_list_iter,
+    ks_type_tuple_iter,
     ks_type_dict_iter
 
 ;
@@ -1789,6 +1814,10 @@ ks_tuple ks_tuple_new_version(int major, int minor, int patch);
 // Create a new kscript list from an array of elements, or an empty list if `len==0`
 // NOTE: Returns a new reference
 ks_list ks_list_new(int len, ks_obj* elems);
+
+// Create a list from iterating through an iterator, draining it completely
+// NOTE: Returns a new reference
+ks_list ks_list_from_iterable(ks_obj obj);
 
 // Clear a list, emptying the contents
 void ks_list_clear(ks_list self);
@@ -2141,6 +2170,9 @@ ks_obj ks_catch();
 
 // catches excetion, also setting stack info
 ks_obj ks_catch2(ks_list stk_info);
+
+// catch & ignore any error, resetting the error state
+void ks_catch_ignore();
 
 
 // if there was an error, print stack trace and exit

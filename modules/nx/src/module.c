@@ -12,7 +12,7 @@
 #include "ks-module.h"
 
 // main header
-#include "nx.h"
+#include "nx-impl.h"
 
 
 bool hasInit = false;
@@ -23,6 +23,7 @@ static ks_module get_module() {
 
     // attempt to initialize everything
     nx_init__array();
+    nx_init__view();
 
     ks_module mod = ks_module_new(MODULE_NAME);
 
@@ -33,11 +34,10 @@ static ks_module get_module() {
 
         /* types */
         {"array",               KS_NEWREF(nx_type_array)},
-
+        {"view",                KS_NEWREF(nx_type_view)},
 
         {NULL, NULL},
     });
-
 
     // finally
     hasInit = true;

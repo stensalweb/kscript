@@ -37,6 +37,8 @@ void ks_obj_free(ks_obj obj) {
 int64_t ks_len(ks_obj obj) {
     if (obj->type == ks_type_str) {
         return ((ks_str)obj)->len;
+    } else if (obj->type == ks_type_list) {
+        return ((ks_list)obj)->len;
     }
 
     // no len attribute; error
@@ -188,4 +190,19 @@ ks_obj ks_catch2(ks_list stk_info) {
     return ret;
 }
 
+// catch and ignore any error
+void ks_catch_ignore() {
+    ks_thread cth = ks_thread_cur();
+    assert(cth != NULL && "'ks_catch_ignore()' called outside of a thread!");
 
+    if (cth->exc != NULL) {
+        KS_DECREF(cth->exc);
+        cth->exc = NULL;
+
+        if (cth->exc_info != NULL) {
+            KS_DECREF(cth->exc_info);
+            cth->exc_info = NULL;
+        }
+    }
+
+}

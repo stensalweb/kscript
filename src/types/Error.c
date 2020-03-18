@@ -16,6 +16,7 @@ KS_TYPE_DECLFWD(ks_type_KeyError);
 KS_TYPE_DECLFWD(ks_type_AttrError);
 KS_TYPE_DECLFWD(ks_type_TypeError);
 KS_TYPE_DECLFWD(ks_type_OpError);
+KS_TYPE_DECLFWD(ks_type_ToDoError);
 KS_TYPE_DECLFWD(ks_type_OutOfIterError);
 
 // create a kscript int from a string
@@ -168,6 +169,9 @@ void ks_type_Error_init() {
 
     KS_INIT_TYPE_OBJ(ks_type_OpError, "OpError");
     ks_type_add_parent(ks_type_OpError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_ToDoError, "ToDoError");
+    ks_type_add_parent(ks_type_ToDoError, ks_type_Error);
 
     KS_INIT_TYPE_OBJ(ks_type_OutOfIterError, "OutOfIterError");
     ks_type_add_parent(ks_type_OutOfIterError, ks_type_Error);

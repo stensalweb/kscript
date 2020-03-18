@@ -66,9 +66,6 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
     ks_thread this_th = ks_thread_cur();
     assert(this_th != NULL && "ks_call() used outside of a thread!");
 
-    // create a new stack frame
-    ks_stack_frame this_stack_frame = ks_stack_frame_new(func);
-    ks_list_push(this_th->stack_frames, (ks_obj)this_stack_frame);
 
     // the result to return
     ks_obj ret = NULL;
@@ -76,13 +73,33 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
     if (func->type == ks_type_cfunc) {
         ks_cfunc cff = (ks_cfunc)func;
 
+        // special case to prevent recursion
+        bool ignoreStackFrame = func == ks_type_stack_frame->__free__;
+
+        // create a new stack frame
+        if (!ignoreStackFrame) {
+
+            ks_stack_frame this_stack_frame = ks_stack_frame_new(func);
+            ks_list_push(this_th->stack_frames, (ks_obj)this_stack_frame);
+            KS_DECREF(this_stack_frame);
+
+        }
+
         ret = cff->func(n_args, args);
+
+        if (!ignoreStackFrame) ks_list_popu(this_th->stack_frames);
+
 
     } else if (func->type == ks_type_kfunc) {
         ks_kfunc kff = (ks_kfunc)func;
-        KS_REQ_N_ARGS(n_args, kff->n_param);
 
         // start off empty
+        ks_stack_frame this_stack_frame = ks_stack_frame_new(func);
+        ks_list_push(this_th->stack_frames, (ks_obj)this_stack_frame);
+        KS_DECREF(this_stack_frame);
+
+        KS_REQ_N_ARGS(n_args, kff->n_param);
+
         this_stack_frame->locals = ks_dict_new(0, NULL);
 
         // push on arguments
@@ -94,10 +111,17 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
         // actually call it
         ret = ks__exec(kff->code);
 
+        ks_list_popu(this_th->stack_frames);
+
     } else if (func->type == ks_type_code) {
 
         // just execute bytecode
         ks_code cf = (ks_code)func;
+
+        ks_stack_frame this_stack_frame = ks_stack_frame_new(func);
+        ks_list_push(this_th->stack_frames, (ks_obj)this_stack_frame);
+        KS_DECREF(this_stack_frame);
+
         // never any arguments to bytecode
         KS_REQ_N_ARGS(n_args, 0);
 
@@ -106,6 +130,9 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
         // actually call it
         ret = ks__exec(cf);
+
+        ks_list_popu(this_th->stack_frames);
+
 
     } else if (func->type == ks_type_type) {
         // try and construct a value by calling the constructor
@@ -181,7 +208,6 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
     }
 
     // take off result
-    ks_list_popu(this_th->stack_frames);
     return ret;
 }
 
@@ -541,7 +567,10 @@ static KS_FUNC(print) {
         // add spaces between them, i.e. ' '.join()
         if (i != 0) ks_str_b_add_c(&SB, " ");
         // append str(args[i]) to the string builder
-        ks_str_b_add_str(&SB, args[i]);
+        if (!ks_str_b_add_str(&SB, args[i])) {
+            ks_str_b_free(&SB);
+            return NULL;
+        }
     }
 
     // end with a newline

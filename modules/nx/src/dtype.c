@@ -9,7 +9,7 @@
 #include <ctype.h>
 
 // return a dtype from a given C-string
-nx_dtype nx_dtype_from_cstr(char* name) {
+nx_dtype nx_dtype_from_cstr(const char* name) {
     if (!name) return NX_DTYPE_ERR;
 
     int slen = strlen(name);
@@ -89,7 +89,7 @@ const char* nx_dtype_to_cstr(nx_dtype dtype) {
 
 
 // return the size (in bytes) of a datatype
-int nx_dtype_sizeof(nx_dtype dtype) {
+ks_ssize_t nx_dtype_sizeof(nx_dtype dtype) {
 
     /**/ if (dtype == NX_DTYPE_SI8  || dtype == NX_DTYPE_UI8 ) return 1;
     else if (dtype == NX_DTYPE_SI16 || dtype == NX_DTYPE_UI16) return 2;

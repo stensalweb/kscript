@@ -369,7 +369,10 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             ks_obj v_obj = va_arg(ap, ks_obj);
 
             // add to the string builder
-            ks_str_b_add_str(&SB, v_obj);
+            if (!ks_str_b_add_str(&SB, v_obj)) {
+                ks_str_b_free(&SB);
+                return NULL;
+            }
 
             // advance past the specifier
             p += 1;
@@ -380,7 +383,10 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
 
 
             // add to the string builder
-            ks_str_b_add_repr(&SB, v_obj);
+            if (!ks_str_b_add_repr(&SB, v_obj)) {
+                ks_str_b_free(&SB);
+                return NULL;
+            }
 
             // advance past the specifier
             p += 1;

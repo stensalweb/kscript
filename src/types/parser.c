@@ -262,10 +262,28 @@ static void* syntax_error(ks_tok tok, char* fmt, ...) {
 
 // combine A and B to form a larger meta token
 ks_tok ks_tok_combo(ks_tok A, ks_tok B) {
+
+    // ensure they both have a parser
+    if (!A.parser || A.type == KS_TOK_NONE) return B;
+    if (!B.parser || B.type == KS_TOK_NONE) return A;
+
+    ks_tok this_line = B.line < A.line ? B : A;
+
+    int new_len;
+    if (A.line == B.line) {
+        // same line as before, calculate the sum length
+        new_len = _MAX(A.pos+A.len, B.pos+B.len) - _MIN(A.pos, B.pos);
+    } else {
+        // use the first line and extend all the way to the '\n'
+        char* npos = strchr(this_line.parser->src->chr + this_line.pos, '\n');
+        new_len = npos == NULL ? (this_line.parser->src->len - this_line.pos) : ((npos - this_line.parser->src->chr) - this_line.pos);
+    }
+
     return (ks_tok) {
         .parser = A.parser, .type = KS_TOK_COMBO,
-        .pos = _MIN(A.pos, B.pos), .len = _MAX(A.pos+A.len, B.pos+B.len) - _MIN(A.pos, B.pos),
-        .line = _MIN(A.line, B.line), .col = _MIN(A.col, B.col)
+        .pos = _MIN(A.pos, B.pos), 
+        .len = new_len,
+        .line = this_line.line, .col = this_line.col
     };
 }
 
