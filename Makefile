@@ -21,7 +21,7 @@ CFLAGS     ?= -O3 -std=c99
 PREFIX     ?= /usr/local
 
 # which standard modules to build? default is all of them
-KSM_STD    ?= m
+KSM_STD    ?= m nx
 
 # default to not changing the options
 KS_OPTS    ?= NONE_NEW
@@ -76,6 +76,9 @@ libks_a   := ./lib/libks.a
 
 # where to build the executable to
 ks_exe    := ./bin/ks
+
+
+$(info Building with modules: $(KSM_STD))
 
 
 # -*- RULES

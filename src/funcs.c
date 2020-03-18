@@ -415,7 +415,8 @@ static KS_FUNC(getitem) {
 
 
     // error
-    KS_ERR_KEY_N(obj, n_args - 1, args + 1);
+    //KS_ERR_KEY_N(obj, n_args - 1, args + 1);
+    return ks_throw_fmt(ks_type_Error, "'%T' object had no '__getitem__' method!", obj);
 }
 
 
@@ -439,7 +440,7 @@ static KS_FUNC(setitem) {
     }
 
     // error
-    KS_ERR_KEY_N(obj, n_args - 2, args + 1);
+    return ks_throw_fmt(ks_type_Error, "'%T' object had no '__setitem__' method!", obj);
 }
 
 

@@ -49,6 +49,17 @@ ks_tuple ks_tuple_new_n(int len, ks_obj* elems) {
 }
 
 
+// Create a tuple representing a version
+// NOTE: Returns a new reference
+ks_tuple ks_tuple_new_version(int major, int minor, int patch) {
+    return ks_tuple_new_n(3, (ks_obj[]){ 
+        (ks_obj)ks_int_new(major),
+        (ks_obj)ks_int_new(minor),
+        (ks_obj)ks_int_new(patch),
+    });
+}
+
+
 // tuple.__str__(self) -> convert to string
 static KS_TFUNC(tuple, str) {
     KS_REQ_N_ARGS(n_args, 1);

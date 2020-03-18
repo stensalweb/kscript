@@ -204,6 +204,28 @@ ks_obj ks__exec(ks_code code) {
         VMED_CASE_END
 
 
+        VMED_CASE_START(KSB_SETITEM)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // first, consume an array to call
+
+            // load args
+            ENSURE_ARGS(op_i32.arg);
+            ks_list_popn(self->stk, op_i32.arg, args);
+
+            // now call
+            ks_obj ret = ks_F_setitem->func(op_i32.arg, args);
+            if (!ret) {
+                for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
+                goto EXC;
+            }
+    
+            ks_list_push(self->stk, ret);
+            
+            for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
+            KS_DECREF(ret);
+
+        VMED_CASE_END
 
         VMED_CASE_START(KSB_LIST)
             VMED_CONSUME(ksb_i32, op_i32);

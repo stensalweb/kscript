@@ -385,7 +385,7 @@ static void* tokenize(ks_parser self) {
             if (self->src->chr[i] == '.') {
                 // we are parsing some sort of float
                 //return ks_throw_fmt(NULL, "No float support yet!");
-                i++;
+                ADV();
 
                 // any more digits ?
                 while (isdigit(self->src->chr[i])) {

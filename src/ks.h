@@ -1774,11 +1774,15 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap);
 // NOTE: Returns a new reference
 ks_tuple ks_tuple_new(int len, ks_obj* elems);
 
-
 // Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
 // NOTE: This variant does not create references to the objects!, so don't call DECREF on 'elems'
 // NOTE: Returns a new reference
 ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
+
+// Create a tuple representing a version
+// NOTE: Returns a new reference
+ks_tuple ks_tuple_new_version(int major, int minor, int patch);
+
 
 /* LIST */
 

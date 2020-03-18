@@ -339,6 +339,30 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             // the total number shrinks by 1
             st->stk_len--;
 
+        } else if (L->kind == KS_AST_SUBSCRIPT) {
+            // do a setitem call
+
+            // compute the base object that is being set
+
+            int i;
+            for (i = 0; i < L->children->len; ++i) {
+                if (!ast_emit((ks_ast)L->children->elems[i], st, to)) return false;
+            }
+
+            // then calculate the value
+            if (!ast_emit(R, st, to)) return false;
+
+            assert(st->stk_len == start_len + L->children->len + 1 && "'subscript' AST did not emit correctly!");
+
+            // then store it to the given name
+            ksca_setitem(to, L->children->len + 1);
+
+            // add meta data
+            ks_code_add_meta(to, self->tok_expr);
+
+            // the total number shrinks by however many were consumed
+            st->stk_len -= L->children->len;
+
         } else {
 
             //printf("self: %i\n", L->tok.pos);
