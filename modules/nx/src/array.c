@@ -32,6 +32,8 @@ nx_array nx_array_new(int Ndim, ks_ssize_t* dims, void* data_ptr, nx_dtype dtype
     self->Ndim = Ndim;
     self->dims = ks_malloc(sizeof(*self->dims) * self->Ndim);
     self->strides = ks_malloc(sizeof(*self->strides) * self->Ndim);
+    
+
 
     // number of elements
     int n_elem = 1, i;
@@ -129,7 +131,7 @@ static bool tconv_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int
         if (*resp) {
             // already been created, so ensure it is the correct length
             if ((*dims)[dep] != elems->len) {
-                ks_throw_fmt(ks_type_Error, "Rows/Entries had different sizes!");
+                ks_throw_fmt(ks_type_SizeError, "Initialize entries had differing size!");
                 return false;
             }
         } else {
@@ -160,7 +162,7 @@ static bool tconv_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int
         } else {
             // already created, ensure we are at maximum depth
             if (dep != (*resp)->Ndim) {
-                ks_throw_fmt(ks_type_Error, "Rows/Entries had different sizes!");
+                ks_throw_fmt(ks_type_SizeError, "Initialize entries had differing size!");
                 return false;
             }
         }

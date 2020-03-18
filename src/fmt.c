@@ -323,6 +323,47 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
 
             // advance past the specifier
             p += strncmp(p, "lf", 2) == 0 ? 2 : 1;
+
+        } else if (strncmp(p, "z", 1) == 0) {
+            // %z, %+,z - print ks_ssize_t arrays 
+
+
+            // whether or not to do an array
+            bool doMult = strchr(field, '+') != NULL;
+
+
+            if (doMult) {
+
+                int num = va_arg(ap, int);
+                ks_ssize_t* vals = va_arg(ap, ks_ssize_t*);
+
+                int i;
+                for (i = 0; i < num; ++i) {
+
+                    if (i != 0) {
+                        ks_str_b_add(&SB, 1, ",");
+                    }
+
+                    int amt = bfmt_i64(tmp, 255, vals[i], barg);
+
+                    // add to the string builder
+                    ks_str_b_add(&SB, amt, tmp);
+                }
+
+            } else {
+                ks_ssize_t val = va_arg(ap, ks_ssize_t);
+
+                int amt = bfmt_i64(tmp, 255, val, barg);
+
+                // add to the string builder
+                ks_str_b_add(&SB, amt, tmp);
+
+            }
+
+
+            // advance past the specifier
+            p += 1;
+
         } else if (strncmp(p, "s", 1) == 0) {
             // %s : print a C-style NUL-terminated string
 

@@ -30,11 +30,13 @@ static ks_module get_module() {
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
 
         /* misc */
-        {"__version__", (ks_obj)ks_tuple_new_version(0, 0, 1)},
+        {"__version__",     (ks_obj)ks_tuple_new_version(0, 0, 1)},
+
+        {"add",             (ks_obj)ks_cfunc_new2(nx_add_, "nx.add(A, B, D=none)")},
 
         /* types */
-        {"array",               KS_NEWREF(nx_type_array)},
-        {"view",                KS_NEWREF(nx_type_view)},
+        {"array",           KS_NEWREF(nx_type_array)},
+        {"view",            KS_NEWREF(nx_type_view)},
 
         {NULL, NULL},
     });

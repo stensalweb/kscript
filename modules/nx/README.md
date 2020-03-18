@@ -11,6 +11,8 @@ This is a numerics library for tensors, arrays, matrices, etc
 
 `nx.array` -> a tensor which can hold C-style values in an array
 
+`nx.view` -> a view of a tensor, which allows you to edit values, or view a subset of an `nx.array`
+
 
 ## Exported Functions
 

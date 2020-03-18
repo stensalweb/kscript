@@ -102,3 +102,14 @@ ks_ssize_t nx_dtype_sizeof(nx_dtype dtype) {
         return -1;
     }
 }
+
+// Get rule for 2 types
+nx_dtype nx_dtype_opres(nx_dtype Ldt, nx_dtype Rdt) {
+    if (Ldt == Rdt) {
+        // always same in this case
+        return Ldt;
+    } else {
+        ks_throw_fmt(ks_type_TypeError, "Cannot do operation between '%s' and '%s'", nx_dtype_to_cstr(Ldt), nx_dtype_to_cstr(Rdt));
+        return NX_DTYPE_ERR;
+    }
+}

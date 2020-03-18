@@ -87,14 +87,15 @@ typedef int nx_dtype;
 // Return a dtype from a C-string tag, which can be loosely interpreted
 nx_dtype nx_dtype_from_cstr(const char* name);
 
+// Calculate the resulting dtype from an operation involving a left and a right side
+nx_dtype nx_dtype_opres(nx_dtype Ldt, nx_dtype Rdt);
+
 // Return a C-string name from a dtype
 // NOTE: Do not free or modify the returned value!
 const char* nx_dtype_to_cstr(nx_dtype dtype);
 
 // Return the size (in bytes) of a given datatype, or '-1' if there is some error
 ks_ssize_t nx_dtype_sizeof(nx_dtype dtype);
-
-
 
 
 // nx_array - a multidimensional array of a given data type
@@ -129,8 +130,6 @@ extern ks_type nx_type_array;
 // If 'data_ptr==NULL', then the resulting data is set to the 'default' state (0)
 // NOTE: Returns a new reference
 nx_array nx_array_new(int Ndim, ks_ssize_t* dims, void* data_ptr, nx_dtype dtype);
-
-
 
 
 // nx_view - a 'view' of an nx_array, which does not copy values, and can mutate the array itself
@@ -179,6 +178,21 @@ ks_obj nx_view_getitem(nx_view self, int n_idx, ks_ssize_t* idxs);
 // self[idxs[0], idxs[1], ..., idxs[n_idx - 1]] = obj
 // return 0 on success, otherwise for failure
 bool nx_view_setitem(nx_view self, int n_idx, ks_ssize_t* idxs, ks_obj obj);
+
+
+/* BROADCASTING */
+
+
+// A broadcastable function for a 1D input size 
+typedef int (*nx_ufunc_f)(int n_args, nx_dtype* dtypes, uintptr_t* args, ks_ssize_t* dims, ks_ssize_t* strides);
+
+// Broadcast arguments over a function
+int nx_broadcast(nx_ufunc_f ufunc, int n_args, nx_dtype* dtypes, uintptr_t* args, int* Ndims, ks_ssize_t** dims, ks_ssize_t** strides);
+
+
+/* OPERATIONS */
+
+extern KS_TFUNC(nx, add);
 
 
 #endif /* KS_M_NX_H__ */

@@ -20,7 +20,7 @@ mod_LDFLAGS    ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks -lm
 # -*- targets/source setup -*-
 
 # the C files that make up the module
-mod_src_c      := $(wildcard src/*.c)
+mod_src_c      := $(wildcard src/*.c) $(wildcard ops/*.c)
 
 # the .h files that should cause recompilation
 mod_src_h      := $(wildcard ./*.h)

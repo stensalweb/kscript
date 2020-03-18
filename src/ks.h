@@ -1513,6 +1513,7 @@ extern ks_type
     ks_type_SyntaxError,
     ks_type_MathError,
     ks_type_KeyError,
+    ks_type_SizeError,
     ks_type_AttrError,
     ks_type_TypeError,
     ks_type_OpError,
