@@ -1,30 +1,22 @@
 # kscript (ks)
 
-kscript is a dynamic, duck typed, easy-to-use language with a large standard library (eventually, right now it is a WIP).
+kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more!
 
-This is all currently a big WIP, lots of rewrites, etc, but it is becoming promising. It has a very small footprint as far as memory, CPU, and disk. It aims to be sleek above all else, being extremely extensible, and the syntax is made to solve many issues I personally have with many languages. It's reasonably fast in most cases (within a factor of 2 of Python).
-
-As far as performance, my goal is to match Python within a factor of 5. Ultimate speed of the language is not the end goal; rather a consistent, generic, and very easy to use language is the goal. Most speed-related issues will be solved by writing C-extensions (or perhaps some other language), which I will design to be very straightforward. In most cases, however, I find I am already within a factor of 2 or 3 of Python's performance, except in cases of string creation and deletion on a large scale (which even Python has problems with).
-
+It works currently, but is missing a large part of normal functionality, such as file I/O, OS integration, and the extra packages I promise.
 
 Current Efforts:
 
-  * Unifying numerics interface (i.e. `bool`, `int`, `float`, `complex`)
-  * Implementing the math library (`m`), and perhaps adding an arbitrary precision package using GMP, like `mp.int` and `mp.float`
-  * Implementing iterators, with `iter`, and `next` functionality, and thus also `for` loops
+  * Implementing the math library (`m`)
+  * Implementing the numerics library (`nx`), with NumPy-like tensor support
+  * Maybe implementing some niceties like python has with tuple unpacking (i.e. `for key, val in dict:`)
 
 ## About
 
-As broad as I could go, I think that kscript could work as a better replacement for front-end web development (aka replace JavaScript), as it solves many issues JavaScript faces:
-  * Prototypal inheritance, whereas kscript has normal inheritance like every sane language
-  * Very complicated parsing, which is a bottleneck for large objects, whereas kscript has a hand-rolled hybrid recursive descent & shunting yard parser (in my tests of fairly dense code, it parses >1million lines/sec)
-  * Awful type system, specifically for comparisons (`===`, anyone?) and operator overloading (this would be a great feature, especially for online calculators/math apps), whereas kscript has better operator overloads (and a consideration to use the `A ~= B` operator as an approximate equals)
-  * Web Standards have become so bloated, but with many things being obseleted, they now are almost useless, whereas kscript will have libraries to manipulate text, audio, images, dictionary-like data (similar to JSON, likely to be called KSON)
-  * ... and the list goes on
+In the broadest sens, I think that kscript could be a general purpose language for quick development, and that programs written in kscript could be easily distributed and ran on other systems, without worrying a bunch about package versions and support. I plan to have a general purpose standard library that is cross platform, and supports pretty much all the common programming tasks.
 
-At the same time, I also wanted something which could rival Python as a usable scripting and/or systems scripting language. However, I did away with relevant whitespace, Python's overuse of `:` (which even Python core devs are regretting with the addition of the walrus operator), odd choices for vocabulary (like, why do I `except` something always? I prefer `catch`, because sometimes you expect a so-called 'exception' to be thrown, so it's not really anything special. This is just one example, though), and again, feature bloat.
+At the same time, I also wanted something which could rival Python as a usable scripting and/or systems scripting language. However, I did away with relevant whitespace, Python's overuse of `:` (which even Python core devs are regretting with the addition of the walrus operator), odd choices for vocabulary (like, why do I `except` something always? I prefer `catch`, because sometimes you expect a so-called 'exception' to be thrown, so it's not really anything special. This is just one example, though), and again, (useless) feature bloat.
 
-Python has a ~20-40ms startup time for me, varying on which machine I use, etc. But this is just to print out a single string! For system utilities (which may be called in a loop from a shell), this time can start adding up. My goal is a <10ms startup time on an average system, even with a module system
+Python has a ~20-40ms startup time for me, varying on which machine I use, etc. But this is just to print out a single string! For system utilities (which may be called in a loop from a shell), this time can start adding up. My goal is a <10ms startup time on an average system, even with a module system. Currently, I am well within that.
 
 
 ## Building
@@ -32,10 +24,6 @@ Python has a ~20-40ms startup time for me, varying on which machine I use, etc. 
 To build the current version of kscript (library, and executable), first get a copy of the source code.
 
 To get the latest commit, use `git clone https://github.com/chemicaldevelopment/kscript`. This will clone the repo into `kscript/`.
-
-For minimum dependencies, run:
-
-`sudo apt install autogen autotools-dev autoconf`
 
 This will build dependencies of the standard library
 
