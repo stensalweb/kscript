@@ -244,25 +244,7 @@ static KS_TFUNC(view, repr) {
     nx_view self = (nx_view)args[0];
     KS_REQ_TYPE(self, nx_type_view, "self");
 
-    ks_str_b SB;
-    ks_str_b_init(&SB);
-
-    ks_str_b_add_fmt(&SB, "<'%T' [", self);
-
-    int i;
-    for (i = 0; i < self->Ndim; ++i) {
-        if (i != 0) ks_str_b_add_c(&SB, ",");
-        ks_str_b_add_fmt(&SB, "%l", self->dims[i]);
-    }
-
-    ks_str_b_add_fmt(&SB, "] of %s", nx_dtype_to_cstr(self->source->dtype));
-
-    ks_str_b_add_c(&SB, ">");
-
-    ks_str ret = ks_str_b_get(&SB);
-    ks_str_b_free(&SB);
-
-    return (ks_obj)ret;
+    return (ks_obj)ks_fmt_c("<'%T' of %s[%+,z]>", self, nx_dtype_to_cstr(self->source->dtype), self->Ndim, self->dims);
 }
 
 

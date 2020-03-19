@@ -75,20 +75,24 @@ enum {
 
 };
 
+
+// the maximum size of a single entry
+// This constant is useful for initializing a single element
+#define NX_DTYPE_MAX_SIZEOF 64
+
 // the first valid datatype
 #define NX_DTYPE__FIRST NX_DTYPE_SI8
 // the last valid datatype
 #define NX_DTYPE__LAST  NX_DTYPE_FP64
 
+
 // nx_dtype - an enumeration value representing the 'data type' of a tensor/piece of data
 // SEE: `NX_DTYPE_*` enumerations in `nx.h`
 typedef int nx_dtype;
 
+
 // Return a dtype from a C-string tag, which can be loosely interpreted
 nx_dtype nx_dtype_from_cstr(const char* name);
-
-// Calculate the resulting dtype from an operation involving a left and a right side
-nx_dtype nx_dtype_opres(nx_dtype Ldt, nx_dtype Rdt);
 
 // Return a C-string name from a dtype
 // NOTE: Do not free or modify the returned value!
@@ -96,6 +100,29 @@ const char* nx_dtype_to_cstr(nx_dtype dtype);
 
 // Return the size (in bytes) of a given datatype, or '-1' if there is some error
 ks_ssize_t nx_dtype_sizeof(nx_dtype dtype);
+
+
+// Return whether or not the given datatype is an integral datatype
+bool nx_dtype_isint(nx_dtype dtype);
+// Return whether or not the given datatype is an float datatype
+bool nx_dtype_isfloat(nx_dtype dtype);
+// Return whether or not the given datatype is a numeric datatype
+bool nx_dtype_isnum(nx_dtype dtype);
+
+
+// Calculate the resulting dtype from an operation involving a left and a right side
+// NOTE: Throws an error if they cannot be calculated
+nx_dtype nx_dtype_opres(nx_dtype Ldt, nx_dtype Rdt);
+
+// Get the data type for a kscript object
+// NOTE: Throws an error if there is no conversion
+nx_dtype nx_dtype_obj(ks_obj obj);
+
+
+// Initialize 'N' elements of 'dtype' at 'data_ptr'
+// NOTE: data_ptr should point to at least N * nx_Dtype_sizeof(dtype) bytes!
+// Return 0 on success, non-zero otherwise
+int nx_dtype_inits(nx_dtype dtype, int N, void* data_ptr);
 
 
 // nx_array - a multidimensional array of a given data type
@@ -180,14 +207,36 @@ ks_obj nx_view_getitem(nx_view self, int n_idx, ks_ssize_t* idxs);
 bool nx_view_setitem(nx_view self, int n_idx, ks_ssize_t* idxs, ks_obj obj);
 
 
-/* BROADCASTING */
-
+/* BROADCASTING:
+ *
+ * When there is an argument 'n_args' in a function, that tells how many arrays are being broadcasted together.
+ * This value should always be 0
+ * 
+ * Then, the elements of the parameters (for example, 'nx_dtype* dtypes') tell the dtype of each array,
+ * i.e. 'dtypes[0]' is the data type of the first argument
+ * 
+ * Similarly, with 'ks_ssize_t** dims', `dims[0]` is a pointer to the array of dimensions (of length 'Ndim[0]')
+ *   of the size of the first argument
+ * 
+ */
 
 // A broadcastable function for a 1D input size 
-typedef int (*nx_ufunc_f)(int n_args, nx_dtype* dtypes, uintptr_t* args, ks_ssize_t* dims, ks_ssize_t* strides);
+typedef int (*nx_ufunc_f)(int n_args, int len, nx_dtype* dtypes, void** args, ks_ssize_t* strides);
 
-// Broadcast arguments over a function
-int nx_broadcast(nx_ufunc_f ufunc, int n_args, nx_dtype* dtypes, uintptr_t* args, int* Ndims, ks_ssize_t** dims, ks_ssize_t** strides);
+// Perform a check whether the requested arguments can be broadcast together, returning 'true' if they can, 'false' otherwise
+// NOTE: This function does **NOT** throw an error if there was a problem
+bool nx_bcast_check(int n_args, int* Ndims, ks_ssize_t** dims);
+
+// Calculate the size of a broadcast result over 'n_args' arrays
+// NOTE: The 'R_*' variables should point to memory allocated enough for 'max(Ndims)' results, and 'R_Ndim==max(Ndims)' should always
+//   be true! You may need to calculate this before hand
+// NOTE: This function does **NOT** throw an error if there was a problem
+bool nx_bcast_size(int n_args, int* Ndims, ks_ssize_t** dims, int R_Ndim, ks_ssize_t* R_dims);
+
+// Broadcast 'ufunc' over raw data arrays (with 'dtypes' describing them)
+// This function will return '0' on success, non-zero on failure, and will always throw an error if there was a problem
+// NOTE: This function throws an error if there was a problem
+int nx_bcast(nx_ufunc_f ufunc, int n_args, nx_dtype* dtypes, void** args, int* Ndims, ks_ssize_t** dims, ks_ssize_t** strides);
 
 
 /* OPERATIONS */
