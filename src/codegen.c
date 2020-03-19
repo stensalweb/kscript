@@ -629,7 +629,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // generate a 'for' loop
 
         // first, attempt to evaluate the expression:
-        if (!ast_emit(self->children->elems[0], st, to)) return false;
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
 
         // there should be 1 item on the stack
         assert(st->stk_len == start_len + 1 && "'for' iterable did not produce a value!");
@@ -671,7 +671,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         
         // now, run the body
         // first, attempt to evaluate the expression:
-        if (!ast_emit(self->children->elems[1], st, to)) return false;
+        if (!ast_emit((ks_ast)self->children->elems[1], st, to)) return false;
         RESET_STK(1);
 
 

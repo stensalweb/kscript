@@ -25,14 +25,12 @@ To build the current version of kscript (library, and executable), first get a c
 
 To get the latest commit, use `git clone https://github.com/chemicaldevelopment/kscript`. This will clone the repo into `kscript/`.
 
-This will build dependencies of the standard library
-
 Now, `cd kscript`, and run these commands:
 
-  * `make` (builds the library & executable)
+  * `make` (builds modules, libraries, and executable)
   * (optional) `sudo make install` (installs kscript to `/usr/local`)
 
-See [BUILD.md](./BUILD.md) for more information
+See [BUILD.md](./BUILD.md) for more information on configuring the build process
 
 To change the install path, run `PREFIX=/path/to/install sudo make install`
 
@@ -64,20 +62,14 @@ $ ./bin/ks -e 'print (1 + 2**4)'
 
 ## Progress
 
-At this point in writing, I am still working on parsing, code generation, VM implementation, and standard types, but not really started on the standard library. It will, of course, be a WIP for some time before it's really stable, but it will be usable fairly soon.
+Most of the standard types have been created (`int`, `float`, `str`, `dict`, `Error`, etc), and a good deal of the builtins have been implemented `getattr`, `iter`, `print`, etc.
 
-Here is the progress on builtin types:
+A couple of big changes that might be made:
 
-  * `int`: 90%, represents a 64 bit signed integer (and optionally, a larger one)
-  * `long`: 0%, represents an arbitrarily long integer (this will come at a later date, may be merged as part of `int`)
-  * `str`: 60%, represents a string of characters. Most of what needs to be done is interning, i.e. keeping only one copy of each string alive at a time. Also, more efficiency is definitely needed in reclaiming memory, implementing free lists, etc
-  * `cfunc`: 90%, just a wrapper around a callable C function
-  * `code`: 50%, executable bytecode wrapper, needs serialization to disk, etc
-  * `parser`: 80%, works, has a good error handling system with messages, need to add `for` loops, lambdas, slices, and maybe a few more operators
-  * `ast`: 70%, mostly works, but could use pretty printing & reconstruction
-  * `list`/`tuple`: 80%: may need an optimized reallocation function, and freeing memory once the list gets small enough
-  * `dict`: 80%, fully working as is with generic types, but of course it needs to be profiled and optimized. This will take time, and always be more to do.
-  * `type`: 50%, has most operators, `getitem`, `getattr`, etc as functions, but needs inheritance and a way to create them
+
+  * keyword arguments, for example `func(x=4, y=5)`. In kscript, `=` expressions are not just statements, so that would assign to a local variable x and y. I also don't want to add a special case, so I think the best solution for keyword arguments is `func(@x=4, @y=5)`. In my opinion, this is far more readable and explicit, so I think this is what will happen
+  * unpacking iterables, for example `for x, y in coll`. This would be very useful, and just cause a few changes. Also, perhaps allow starred unpacking?
+  * parsing. Currently, I've written the parser from scratch (see `src/types/parser.c`). It's a huge monster, and has basically been battle tested. However, I am wondering if it would be better to use a parser generator, such as yacc. I will have to see. The biggest flaw with those methods is the fact that error messages are often not as good as what I can generate by hand. But, it would greatly simplify adding new features (probably)
 
 
 ## Examples

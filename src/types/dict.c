@@ -650,7 +650,7 @@ static KS_TFUNC(dict_iter, next) {
 
         // declare it as used
         self->pos++;
-        return ret;
+        return (ks_obj)ret;
     }
 }
 
