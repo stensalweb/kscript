@@ -261,11 +261,14 @@ ks_O             := $(patsubst %.c,$(_tmp)/%.o,$(ks_C))
 
 # -*- RULES -*-
 
-.PHONY: default clean install uninstall modules
+.PHONY: all default clean install uninstall modules
 
 
 # default target to build
 default: $(ks_BIN) $(libks_STATIC) $(libks_SHARED) modules
+
+# build everything
+all: default
 
 clean:
 	rm -rf $(wildcard $(_tmp))
@@ -350,6 +353,10 @@ $(ks_BIN): $(libks_SHARED) $(libks_STATIC) modules $(ks_O)
 	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) -lks -lm -ldl -lpthread -lks -o $@
 	strip $@ $(STRIP_OPTS)
 	{MAKE_success}
+
+
+kscript-$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)-amd64.deb: default
+	
 
 
 """)

@@ -1,27 +1,48 @@
-# C objects
-*.a
-*.so
-*.o
 
-# kscript config file
-include/ks-config.h
+# -*- EDITORS -*-
 
-
-# build/generated folders
-build/
-lib/
-bin/
-/Makefile
-.tmp
-
-# build output
-*.tar.*
-
-
-# editors I use
 .vscode/
 
-# for a target
-install
 
-# bin,lib,... are handled within each folder
+# -*- COMPILING  -*-
+
+# C Objects
+*.o
+
+# C targets
+*.a
+*.so
+*.lib
+*.la
+*.dll
+
+
+# -*- GENERATED -*-
+
+# by ./configure
+/Makefile
+/include/ks-config.h
+
+# misc. folders for targets
+/lib/
+/bin/
+
+# extra library things
+/.tmp/
+
+# other directories
+/build/
+
+# build output
+/*.tar.*
+/*.tar
+
+
+# -*- DEBIAN FILES -*-
+
+# temporary files
+/debian/usr
+
+# output from debian
+*.deb
+
