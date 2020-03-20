@@ -199,6 +199,16 @@ export SHARED_END
 STATIC_END       := {STATIC_END}
 export STATIC_END
 
+STRIP_OPTS       ?= --strip-debug --strip-unneeded
+export STRIP_OPTS
+
+KS_VERSION_MAJOR := {args.V[0]}
+export KS_VERSION_MAJOR
+KS_VERSION_MINOR := {args.V[1]}
+export KS_VERSION_MINOR
+KS_VERSION_PATCH := {args.V[2]}
+export KS_VERSION_PATCH
+
 CC               := {CC}
 export CC
 CFLAGS           := {CFLAGS}
@@ -273,11 +283,21 @@ modules:
 install: default $(libks_so) $(ks_exe) $(libks_src_h)
 	install -d $(DESTDIR)$(PREFIX)/bin/
 	install -d $(DESTDIR)$(PREFIX)/lib/
+	install -d $(DESTDIR)$(PREFIX)/share/doc/kscript
 	install -d $(DESTDIR)$(PREFIX)/include/
 
 	install -m 755 $(ks_BIN) $(DESTDIR)$(PREFIX)/bin/
 	install -m 644 $(libks_SHARED) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
 	install -m 644 $(all_H) $(DESTDIR)$(PREFIX)/include/
+	install -m 644 $(wildcard {PWD}/share/doc/*) $(DESTDIR)$(PREFIX)/share/doc/kscript
+
+	mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)
+	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR)
+	ln -s $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR)
+
+	gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog
+	mv $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.gz $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.Debian.gz
+	#gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.Debian
 
 	for subdir in $(STD_MODULES); do \\
 		$(MAKE) -C $$subdir install ; \\
@@ -304,13 +324,21 @@ $(_tmp)/src/%.o: src/%.c $(all_H)
 # Since `libks_o` contains many files, we use `$^` to mean `all input files together`
 $(libks_SHARED): $(libks_O)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -shared -o $@
+	# -Wl,-soname,libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)
+	$(CC) $(CFLAGS) \\
+		$^ $(LDFLAGS) \\
+		-Wl,-soname,libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) \\
+		-shared -o $@
+	strip $@ $(STRIP_OPTS)
+	#strip {PWD}/lib/libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) $(STRIP_OPTS)
+	#ln -s {PWD}/lib/libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) $@
 	{MAKE_success}
 
 # rule to build the static object file (.a)
 $(libks_STATIC): $(libks_O)
 	@mkdir -p $(dir $@)
 	$(AR) cr $@ $^
+	strip $@ $(STRIP_OPTS)
 	{MAKE_success}
 
 # rule to build the executable (no extension) from the library and it's `.o`'s
@@ -318,7 +346,9 @@ $(libks_STATIC): $(libks_O)
 #   explicitly
 $(ks_BIN): $(libks_SHARED) $(libks_STATIC) modules $(ks_O)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) -Wl,-rpath ./lib -lks -lm -ldl -lpthread -lks -o $@
+	# -Wl,-rpath ./lib
+	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) -lks -lm -ldl -lpthread -lks -o $@
+	strip $@ $(STRIP_OPTS)
 	{MAKE_success}
 
 

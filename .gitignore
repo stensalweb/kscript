@@ -26,3 +26,5 @@ install
 
 
 # bin,lib,... are handled within each folder
+
+debian/
