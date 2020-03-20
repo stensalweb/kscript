@@ -11,7 +11,7 @@ KS_DIR         ?= ../..
 MOD_NAME       := m
 
 # CFLAGS for compiling this module, just need to include kscript
-mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/src
+mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include
 
 # linker flags for compiling this module, just need to link to kscript & the C math library
 mod_LDFLAGS    ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks -lm

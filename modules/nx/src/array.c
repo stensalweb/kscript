@@ -171,7 +171,7 @@ nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
         }
     }
 
-    return (ks_obj)res;
+    return res;
 }
 
 // Get a single item from the array, i.e.:
