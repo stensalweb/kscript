@@ -47,7 +47,7 @@ ks_list ks_list_from_iterable(ks_obj obj) {
         ks_obj cur = ks_F_next->func(1, &iter_obj);
         if (!cur) {
             // error occured
-            if (ks_thread_cur()->exc->type == ks_type_OutOfIterError) {
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
                 // signals the stop of the iterator, so just return at this point
                 ks_catch_ignore();
                 break;

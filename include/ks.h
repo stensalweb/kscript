@@ -1,17 +1,72 @@
-/* ks.h - main header for the kscript library
+/* ks.h - main header for the kscript library, including defintions for the C-API, and builtin types,
+ *   as well as builtin globals
  *
+ * |-   High-Level Overview   -|
+ * 
  * kscript is a language/environment that is meant to be highly dynamic, cross platform,
  *   easy to use, and featureful. The standard library includes strings, dictionaries, list
  *   datastructures, image/audio/video utilities, math utilities, graphics utilities, etc
  * 
- * Every object in kscript is castable as a `ks_obj`, which stores the only
- *   essential parts of the object (type & reference count)
  * 
- * You can use the standard utility functions `ks_getattr(obj, attr)`, `ks_call(func, n_args, args)`, etc
+ * 
+ * |-   Binary Inteface   -|
+ * 
+ * Every object in kscript is castable as a `ks_obj`, which stores the only
+ *   essential parts of the object (type & reference count). However, some have extra data attached,
+ *   which you can get by casting to that specific. To do this, with a list, first check:
+ * 
+ * ```
+ * ks_obj my_obj = ...;
+ * if (my_obj->type == ks_type_list) {
+ *     // we know it is a list, so we can cast it
+ *     ks_list my_list = (ks_list)my_obj;
+ * } else {
+ *     // not a list, perhaps throw an error?
+ * }
+ * ```
+ * 
+ * 
+ * |-   Ref Counting   -|
+ * 
+ * Reference Counting (or Ref Counting) is the main memory management tool in kscript. When objects are created,
+ *   for example by `ks_int_new(432)`, they come with an active reference (which means `obj->refcnt >= 1`). An active
+ *   reference means that the object should not be freed. For example, if an object's reference count is 5, then there are 5
+ *   other objects saying "don't free this object, I still need it!". When that count drops to 0, that means the object
+ *   can be destroyed and no one will care. So, that is what is done!
+ * 
+ * This model requires that C-API functions and extensions manage the reference count correctly. So, that means that
+ *   if you 'hold' a reference to an object (i.e. have incremented the reference count via `KS_DECREF(obj)`), you are expected 
+ *   to decrease the reference count via `KS_DECREF(obj)` once you are done using the object. So, code written in kscript itself
+ *   does not need to worry about this because all reference counting will be done in C automatically
+ * 
+ * Once an object is freed, `type(obj).__free__(self)` is called on the object, which should have a reference count of '0'
+ * 
+ * 
+ * |-   Execution State   -|
+ * 
+ * Similar to python, there is a Global Interpreter Lock (GIL), which can be released periodically and during
+ *   I/O operations. While this does have problems with threading in pure kscript, most intense workloads will
+ *   use C-APIs to do the work, which can themselves release the GIL. See functions `ks_GIL_lock()` and `ks_GIL_unlock()`
+ * 
+ * Also, all execution (whether it be kscript code or a C-function called from kscript) must happen inside a `ks_thread`,
+ *   which can be constructed with `ks_thread_new()` (see comments describing how to do this)
+ * 
+ * What this means is that `ks_thread_get()` should always return non-NULL for any code that is being ran, and it does not
+ *   return a new reference, so you should NOT call `KS_DECREF(ks_thread_get())` ever!
+ * 
+ * 
+ * 
+ * 
+ * 
+ * You can use the standard utility functions `ks_call(func, n_args, args)`, etc
  *   to perform the same as the kscript builtins, or directly call their C-api functions
  * 
  * For example, the builtin print function is `ks_F_print`, so you can call:
  *   ks_obj res = ks_F_print->func(1, &obj);
+ * 
+ * 
+ * You can construct primitive via their `_new` functions, i.e.: `ks_list_new(0, NULL)` constructs an empty
+ *   list. See the comments above each function to see what they do
  * 
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -25,38 +80,56 @@
 extern "C" {
 #endif
 
-// include configuration file first
+// generated files
 #include <ks-config.h>
 
-// C std
+
+/* system/stdlib headers */
+#if defined(KS__WINDOWS)
+
+// TODO: actually try and built on windows platform
+
+// include specific headers
+#include <windows.h>
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+
 #include <string.h>
 #include <assert.h>
-
 #include <complex.h>
 
-// timing functions
 #include <time.h>
 #include <sys/time.h>
 
-// for threads
 #include <pthread.h> 
+
+/*#elif defined(KS__LINUX) || defined(KS__MACOS)*/
+#else
+// UNIX-style headers only
+    
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+
+#include <string.h>
+#include <assert.h>
+#include <complex.h>
+
+#include <time.h>
+#include <sys/time.h>
+
+#include <pthread.h> 
+
+#endif
 
 
 /* CONSTANTS */
-
-
-// The 'major' release of kscript
-#define KS_VERSION_MAJOR 0
-// The 'minor' release of kscript
-#define KS_VERSION_MINOR 0
-// The 'patch' release of kscript
-// NOTE: patch==0 means it is a LTS
-#define KS_VERSION_PATCH 1
 
 // enumeration for levels of logging, from least important to most important
 enum {
@@ -100,6 +173,9 @@ enum {
  * 
  * Some bytecodes have indexes that refer to the constants array, which is held by the code object
  * 
+ * All bytecode is executed on a 'ks_thread', so references to the 'stack', and 'exceptions' are variables
+ *   on the thread (which can be obtained via `ks_thread_get()`)
+ * 
  * Terminology:
  *   TOS: Top Of Stack, i.e. the item that is on top of the stack
  *   UTOS: Under Top Of Stack, i.e. the item directly under the top of the stack
@@ -127,6 +203,7 @@ enum {
     // Pop off the TOS, and do not use it in any computation
     // 1:[op]
     KSB_POPU,
+
 
 
     /** CONTROL FLOW, these opcodes change the control flow of the function **/
@@ -194,8 +271,10 @@ enum {
     KSB_MAKE_ITER,
 
     // Push on next(TOS), or, if there was an error, jump 'relamt' bytes in the bytecode and discard the error
+    // (i.e. finish the loop)
     // 1:[op]
     KSB_ITER_NEXT,
+
 
 
     /** PRIMITIVE CONSTRUCTION, these opcodes create basic primitives from the stack **/
@@ -296,10 +375,7 @@ enum {
     KSB_BOP_NE,
 
 
-
-
 };
-
 
 
 /* TYPES/STRUCTURE DEFS */
@@ -380,32 +456,28 @@ typedef struct ks_list* ks_list;
 // SEE: types/dict.c
 typedef struct ks_dict* ks_dict;
 
-
-
-
 /* UTILITY MACROS */
 
 // Require an expression to be true, otherwise throw an error and return 'NULL'
 // This is similar to an assert(), but instead of crashing, it will throw an exception
-// TODO: Actually throw it
 // NOTE: Should be used inside of a KS_FUNC(), because this will return NULL!
-#define KS_REQ(_expr, ...) {       \
-    if (!(_expr)) {                \
+#define KS_REQ(_expr, ...) {                      \
+    if (!(_expr)) {                               \
         ks_throw_fmt(ks_type_Error, __VA_ARGS__); \
-        return NULL;               \
-    }                              \
+        return NULL;                              \
+    }                                             \
 }
 
 // Require that the number of args is a specific amount
 #define KS_REQ_N_ARGS(_nargs, _correct) KS_REQ((_nargs) == (_correct), "Incorrect number of arguments, expected %i, but got %i", (int)(_correct), (int)(_nargs))
 
-// Require that the number of args is a specific amount
+// Require that the number of args is at least a specific amount
 #define KS_REQ_N_ARGS_MIN(_nargs, _min) KS_REQ((_nargs) >= (_min), "Incorrect number of arguments, expected at least %i, but got %i", (int)(_min), (int)(_nargs))
 
-// Require that the number of args is a specific amount
+// Require that the number of args is at most a specific amount
 #define KS_REQ_N_ARGS_MAX(_nargs, _max) KS_REQ((_nargs) <= (_max), "Incorrect number of arguments, expected at most %i, but got %i", (int)(_max), (int)(_nargs))
 
-// Require that the number of args is a specific amount
+// Require that the number of args is in a specific range
 #define KS_REQ_N_ARGS_RANGE(_nargs, _min, _max) KS_REQ((_nargs) >= (_min) && (_nargs) <= (_max), "Incorrect number of arguments, expected between %i and %i, but got %i", (int)(_min), (int)(_max), (int)(_nargs))
 
 // Require that the object is of a given type. 'name' is a C-string that is the human readable name for the variable
@@ -416,7 +488,6 @@ typedef struct ks_dict* ks_dict;
 
 // Require that an object is iterable
 #define KS_REQ_ITERABLE(_obj, _name) KS_REQ(ks_is_iterable(_obj) == true, "'%T' object was not iterable", _obj)
-
 
 // throw a type conversion error
 #define KS_ERR_CONV(_obj, _totype) { \
@@ -552,7 +623,7 @@ static inline ks_obj ks_newref(ks_obj obj) {
 // NOTE: This also downcasts to 'ks_obj'
 #define KS_NEWREF(_obj) ks_newref((ks_obj)(_obj))
 
-
+// base structure describing what a 'type' is
 struct ks_type {
     KS_OBJ_BASE
 
@@ -568,6 +639,9 @@ struct ks_type {
      * The main reason for these attributes are speed of common operations, which this will allow us to skip a dict
      *   lookup, and instead just check whether the member function is non-null
      * 
+     * However, they are still in the 'attr' dict, so any dictionary lookup will also succeed. Therefore,
+     *   no reference is held by these member variables, as they use the one that the dictionary holds
+     * 
      */
 
     // type.__name__ -> the name of the type, typically human readable
@@ -575,8 +649,6 @@ struct ks_type {
 
     // type.__parents__ -> a list of parent classes from which this type derives from
     ks_list __parents__;
-
-
 
 
     // type.__len__(self) -> get the length of an item
@@ -796,11 +868,11 @@ typedef struct {
 extern ks_float KS_NAN;
 
 
-// ks_complex - represents a complex number
+// ks_complex - represents a complex number with a real and imaginary components
 typedef struct {
     KS_OBJ_BASE
 
-    // the actual float value
+    // the actual float value, a C99 type
     double complex val;
 
 }* ks_complex;
@@ -826,7 +898,7 @@ struct ks_str {
 
 };
 
-// character strings, global singletons
+// character strings, global singletons for strings with size 1 (or the empty string with size 0)
 extern struct ks_str KS_STR_CHARS[];
 
 
@@ -898,6 +970,7 @@ enum {
     KS_TOK_SEMI,
 
 };
+
 
 // ks_parser - an integrated parser which can parse kscript & bytecode to
 //   ASTs & code objects
@@ -1110,7 +1183,6 @@ enum {
     // unary '~'
     KS_AST_UOP_SQIG,
 
-
 };
 
 // the first AST kind that is a binary operator
@@ -1127,7 +1199,7 @@ enum {
 
 
 
-// ks_ast - an Abstract Syntax Tree, a high-level representation of a program
+// ks_ast - an Abstract Syntax Tree, a high-level representation of a program/expression
 typedef struct {
     KS_OBJ_BASE
 
@@ -1195,7 +1267,6 @@ ks_kfunc ks_kfunc_new_copy(ks_kfunc func);
 void ks_kfunc_addpar(ks_kfunc self, ks_str name);
 
 
-
 // ks_pfunc - a partial function wrapper, which wraps a callable with some of the arguments prefilled
 // This is useful for member functions, for example, which have their first argument prefilled
 typedef struct {
@@ -1259,7 +1330,11 @@ typedef struct {
 // NOTE: This returns a new reference
 ks_stack_frame ks_stack_frame_new(ks_obj func);
 
-// ks_mutex - a mutual exclusion type, which can be locked over threads
+// ks_mutex - a mutual exclusion type, which can be locked over threads to sync
+//   access or code execution
+// NOTE: Most code does not need to use a mutex, as the GIL will restrict access
+//   to interpreting code. However, in some cases it may be useful to atomicize entire
+//   operations by using a mutex
 typedef struct {
     KS_OBJ_BASE
 
@@ -1269,17 +1344,24 @@ typedef struct {
 
 }* ks_mutex;
 
-// global interpreter lock, use 'ks_lock_GIL()' and 'ks_unlock_GIL()'
+
+// The Global Interpreter Lock (GIL) for kscript, which is shared between threads
+// Only 1 thread may access this at once, and thus it must be locked before use, and unlocked after.
+// NOTE: Don't use `ks_mutex_*` functions on this, use `ks_GIL_*` functions (like `ks_GIL_lock()`)
+//   to manage GIL access
 extern ks_mutex ks_GIL;
 
-// acquire the GIL lock
-void ks_lockGIL();
+// Acquire the Global Interpreter Lock (GIL) for the current thread. If the current thread does not
+//   already have the GIL, this function blocks until it is available
+void ks_GIL_lock();
 
-// end GIL usage
-void ks_unlockGIL();
+// Let go of the Global Interpreter Lock (GIL) for the current thread.
+// It should have been acquired via `ks_GIL_lock()` prior to calling this function
+void ks_GIL_unlock();
 
 
-// Construct a new, unlocked, mutex
+
+// Construct a new, unlocked, mutex, which can be used for the mutual exclusion principle across threads
 // NOTE: This returns a new reference
 ks_mutex ks_mutex_new();
 
@@ -1305,7 +1387,7 @@ typedef struct {
     // list of 'ks_thread' objects which are sub threads
     ks_list sub_threads;
 
-    // true iff the thread owns the GIL
+    // true iff the thread currently owns the GIL
     bool hasGIL;
 
 
@@ -1357,20 +1439,26 @@ void ks_thread_start(ks_thread self);
 // join the thread back
 void ks_thread_join(ks_thread self);
 
-// return the current thread
-// NOTE: Does *NOT* return a new reference to the thread
-ks_thread ks_thread_cur();
+// Get the current thread object
+// NOTE: Does *NOT* return a new reference to the thread, so do not DECREF it!
+// NOTE: Only returns NULL if it is outside a kscript thread, which should never be the case
+//   outside of about 20 lines of 'main()' code in the interpreter itself. You shouldn't check
+//   NULL-status of the result of this function
+ks_thread ks_thread_get();
 
-// call code on a given thread
-//ks_obj ks_thread_call_code(ks_thread self, ks_code code);
 
-// internal execution method
+// internal execution method to execute 'code' on the current thread and then return
+// the result, or 'NULL' if there was an exception
+// NOTE: Don't use this function, unless you know what you're doing!
+// Use `ks_call()` for most execution needs
 ks_obj ks__exec(ks_code code);
+
 
 
 /* MODULES/EXTENSIONS */
 
-// ks_module - a type representing an entire module
+// ks_module - a type representing an entire module, which can be generated
+// from C, or generated by a kscript file
 typedef struct {
     KS_OBJ_BASE
 
@@ -1385,6 +1473,7 @@ typedef struct {
 ks_module ks_module_new(char* mname);
 
 // search for and return a module, if successful
+// 'mname' can be just the module name (i.e. 'mypackage')
 // NOTE: throws an error if not found
 // NOTE: Returns a new reference
 ks_module ks_module_import(char* mname);
@@ -1404,7 +1493,6 @@ typedef struct {
     int pos;
 
 }* ks_list_iter;
-
 
 
 // ks_tuple_iter - tuple iterable object
@@ -1435,7 +1523,6 @@ typedef struct {
 }* ks_dict_iter;
 
 
-
 // Create a new list iterator for a given list
 // NOTE: Returns a new reference
 ks_list_iter ks_list_iter_new(ks_list obj);
@@ -1453,6 +1540,8 @@ ks_dict_iter ks_dict_iter_new(ks_dict obj);
 
 // ks_str_b - a string building utility to make string concatenation simpler
 //   and more efficient
+// NOTE: This is not a 'ks_obj', just an internal utility class, therefore
+// 'KS_DECREF()' and family are not used in this
 // SEE: fmt.c
 typedef struct {
 
@@ -1463,8 +1552,6 @@ typedef struct {
     char* data;
 
 } ks_str_b;
-
-
 
 
 // Initialize the string builder
@@ -1582,13 +1669,12 @@ extern ks_cfunc
     ks_F_getitem,
     ks_F_setitem
 
-
 ;
 
-// global variables
+// global variables, i.e. the builtin types and a few of the functions
 extern ks_dict ks_globals;
 
-// the paths to search for things (similar to 'PYTHON_PATH')
+// the paths to search for things (similar to 'PYTHONPATH')
 extern ks_list ks_paths;
 
 
@@ -1603,6 +1689,9 @@ typedef struct {
     // the semver <major>.<minor>.<patch> build
     int major, minor, patch;
 
+    // the build type of kscript, typically either 'release' or 'debug'
+    const char* build_type;
+
     // the date of the compilation
     //   which is the '__DATE__' macro when it was compiled
     const char* date;
@@ -1614,16 +1703,16 @@ typedef struct {
 } ks_version_t;
 
 // Get the version of kscript
-// Do not free or modify this variable
+// NOTE: Do not free or modify this variable
 const ks_version_t* ks_version();
 
 // Return the time, in seconds, since the library started. It uses a fairly good wall clock,
-//   but is only meant for rough approximation. Using the std time module is best for most results
+//   but is only meant for rough approximation. Using the std time module is best for most results (TODO)
 double ks_time();
 
 // Sleep (i.e. yield the thrad) for a given duration (in seconds).
 // Will emit a warning if a syscall (i.e. nanosleep on linux) gives an error code/warning
-// but will NOT raise an exception
+//   but will NOT raise an exception
 void ks_sleep(double dur);
 
 /* LOGGING */
@@ -1662,8 +1751,17 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 #define ks_debug(...)
 #endif
 
-
-// print variadically
+// Implementation similar to 'printf', but using custom kscript formatting options:
+// %i - 32 bit integer, prints an integer value
+// %l - 64 bit integer, prints an integer value
+// %f - 64 bit double, prints a floating point value
+// %p - void* (or any pointer type), prints address in hex (i.e. '0xab983')
+// %s - char*, prints a NULL-terminated C-style string
+// kscript specifiers:
+// %S - ks_obj, prints `str(obj)`
+// %R - ks_obj, prints `repr(obj)`
+// %T - ks_obj, prints `type(obj)`
+// %O - ks_obj, prints stupid simple format `<'%T' obj @ %p>`
 void ks_printf(const char* fmt, ...);
 
 
@@ -1695,7 +1793,6 @@ int64_t ks_mem_max();
 // Initialize a type variable. Make sure 'self' has not been ref cnted, etc. Just an allocated blob of memory!
 // NOTE: Returns a new reference
 void ks_init_type(ks_type self, char* name);
-
 
 // check if 'self' is a sub type of 'of'
 bool ks_type_issub(ks_type self, ks_type of);
@@ -1757,8 +1854,6 @@ ks_float ks_float_new(double val);
 ks_complex ks_complex_new(double complex val);
 
 
-
-
 /* STR */
 
 // Create a new kscript string from a C-style NUL-terminated string
@@ -1791,7 +1886,6 @@ ks_str ks_fmt_c(const char* fmt, ...);
 // TODO: document format specifiers
 // NOTE: Returns a reference
 ks_str ks_fmt_vc(const char* fmt, va_list ap);
-
 
 
 /* TUPLE */
@@ -2178,31 +2272,15 @@ void ks_catch_ignore();
 
 // if there was an error, print stack trace and exit
 // only call if there was an error! (this should really only be called by ks_thread's class)
+// TODO: make this more repeatable and general
 void ks_errend();
-
-
-/* VM EXECUTION */
-
-
 
 
 /* MISC. UTILS/FUNCTIONS */
 
-
-
 // Attempt to open and read an entire file indicated by 'fname'.
 // Throw an exception if it failed
 ks_str ks_readfile(char* fname);
-
-
-// structure describing a C-extension initializer
-struct ks_module_cext_init {
-
-    // initialize and import the function
-    ks_module (*init_func)();
-
-};
-
 
 // Implementation of GNU getline function, reading an entire line from a FILE pointer
 // Always ks_free(line) after done with this function, as this function reallocates buffers
@@ -2214,6 +2292,16 @@ struct ks_module_cext_init {
 // int len = ks_getline(&line, &len, fp);
 // ks_free(line);
 int ks_getline(char** lineptr, size_t* n, FILE* fp);
+
+
+
+// structure describing a C-extension initializer
+struct ks_module_cext_init {
+
+    // initialize and import the function
+    ks_module (*init_func)();
+
+};
 
 #ifdef __cplusplus
 }

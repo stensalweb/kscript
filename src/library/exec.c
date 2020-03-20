@@ -26,7 +26,7 @@
 //#define VME__GOTO
 
 // yield the GIl temporarily
-#define VME_YIELDGIL { ks_unlockGIL(); ks_lockGIL(); }
+#define VME_YIELDGIL { ks_GIL_unlock(); ks_GIL_lock(); }
 
 // disable yielding GIL
 //#define VME_YIELDGIL { }
@@ -75,7 +75,7 @@ typedef struct {
 // internal execution algorithm
 //ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
 ks_obj ks__exec(ks_code code) {
-    ks_thread self = ks_thread_cur();
+    ks_thread self = ks_thread_get();
     assert(self != NULL && "'ks__exec()' called outside of a thread!");
     assert(self->stack_frames->len > 0 && "No stack frames available!");
 
@@ -705,7 +705,7 @@ void ks_errend() {
     }
 
     
-    ks_printf("In thread %R @ %p\n", ks_thread_cur()->name, ks_thread_cur());
+    ks_printf("In thread %R @ %p\n", ks_thread_get()->name, ks_thread_get());
     // exit with error
     exit(1);
 }

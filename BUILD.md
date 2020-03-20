@@ -6,28 +6,35 @@ Most of this information is detailed in `./Makefile` as well
 
 To build, run these commands:
 
-  * `KS_OPTS="..." make`, which configures & makes the library & executable (running like `KS_OPTS="" make` does a 'default' build. This is probably what you want)
-  * `PREFIX=/usr/local sudo make install`, which installs the library & executable into the prefix (default: `/usr/local`)
+  * `./configure`, which configures & generates config files and makefiles
+  * `make`, which actually builds the target
+  * `PREFIX=/usr/local sudo make install`, which installs the library & executable into the prefix (default: `/usr/local`) (this part is optional)
+
 
 Here are some example builds:
 
-  * `Debug`: `KS_OPTS="" CFLAGS="-Og -g -std=c99 -Wall" make`, this builds a binary & library which can be used in a debugger, and prints out many warning messages
-  * `Release` `KS_OPTS="KS_C_NO_TRACE" CFLAGS="-std=c99 -Ofast -ffast-math"`, this builds a fast binary with no `TRACE:` support
+  * Debug Build: `CFLAGS="-Og -g -std=c99 -Wall" ./configure --build-type debug && make`
+  * Release Build: `CFLAGS="-Ofast -ffast-math -std=c99" ./configure --build-type debug --disable-trace && make`
 
-## `KS_OPTS`
 
-Giving `KS_OPTS="..."` before the first `make` will set the build options
+Run `./configure -h` for descriptions of various options for configuration
 
-Here are a few options:
+## Directory Structure
 
-  * `KS_C_NO_TRACE`: disable all `ks_trace()` calls. This can be useful for release builds
-  * `KS_C_NO_DEBUG`: disable all `ks_debug()` calls. This can be useful for release builds
+The installation structure looks like:
 
-## Dependencies
-
-Although kscript itself strives to require 0 dependencies other than a C compiler and `make`, some of the standard libraries may require external libraries to be installed (for example, the multimedia library requires some audio/image libraries).
-
-Here are a list of standard modules (found in `./std`) and their requirements
-
+  * `$PREFIX/` (default: `/usr/local` on Linux/Unix)
+    * `bin/`
+      * `ks` (the main binary, as a symlink to the specific version)
+      * `ks-VER` (i.e. `ks-0.0.1`), for a specific version
+    * `include/`
+      * `ks-VER/` (i.e. `ks-0.0.1/`), the directory containing standard includes
+    * `lib/`
+      * `libks.so` (symlink to main library)
+      * `ks-VER/` (i.e. `ks-0.0.1/`), the directory containing standard library & module installations
+        * `libks.so.VER` (i.e. `libks.so.0.0.1`, for a specific version)
+        * `modules/` a folder of actual modules (see below for their format)
+        
+### Modules
 
 

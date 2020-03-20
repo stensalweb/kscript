@@ -61,7 +61,7 @@ static KS_TFUNC(cexec, run) {
     ks_str_b_init(&SB);
 
     // unlock the GIL, so other threads may go while it is running
-    ks_unlockGIL();
+    ks_GIL_unlock();
 
     // keep reading valid buffers until the output is finished
     char buf[4096];
@@ -71,7 +71,7 @@ static KS_TFUNC(cexec, run) {
 
 
     // acquire it back before calling any more functions
-    ks_lockGIL();
+    ks_GIL_lock();
 
 
     // finish the string builder

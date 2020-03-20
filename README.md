@@ -27,6 +27,7 @@ To get the latest commit, use `git clone https://github.com/chemicaldevelopment/
 
 Now, `cd kscript`, and run these commands:
 
+  * `./configure` (configures & detects system info, run `./configure -h` to print help information)
   * `make` (builds modules, libraries, and executable)
   * (optional) `sudo make install` (installs kscript to `/usr/local`)
 

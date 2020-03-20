@@ -14,6 +14,8 @@ static ks_version_t this_version = (ks_version_t){
     .minor = KS_VERSION_MINOR,
     .patch = KS_VERSION_PATCH,
 
+    .build_type = KS_BUILD_STR,
+
     .date = __DATE__,
     .time = __TIME__
 

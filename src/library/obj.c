@@ -97,7 +97,7 @@ bool ks_is_iterable(ks_obj obj) {
 void* ks_throw(ks_obj obj) {
 
     // get current thread
-    ks_thread cth = ks_thread_cur();
+    ks_thread cth = ks_thread_get();
 
     // ensure 
     if (cth->exc != NULL) {
@@ -159,7 +159,7 @@ void* ks_throw_fmt(ks_type errtype, char* fmt, ...) {
 // try and catch the object off
 ks_obj ks_catch() {
     // get current thread
-    ks_thread cth = ks_thread_cur();
+    ks_thread cth = ks_thread_get();
 
     ks_obj ret = cth->exc;
     cth->exc = NULL;
@@ -171,7 +171,7 @@ ks_obj ks_catch() {
 // try and catch the object off
 ks_obj ks_catch2(ks_list stk_info) {
 
-    ks_thread cth = ks_thread_cur();
+    ks_thread cth = ks_thread_get();
 
     ks_obj ret = cth->exc;
     cth->exc = NULL;
@@ -192,7 +192,7 @@ ks_obj ks_catch2(ks_list stk_info) {
 
 // catch and ignore any error
 void ks_catch_ignore() {
-    ks_thread cth = ks_thread_cur();
+    ks_thread cth = ks_thread_get();
     assert(cth != NULL && "'ks_catch_ignore()' called outside of a thread!");
 
     if (cth->exc != NULL) {

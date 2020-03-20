@@ -4,11 +4,15 @@
 *.o
 
 # kscript config file
-src/ks-config.h
+include/ks-config.h
 
 
 # build/generated folders
 build/
+lib/
+bin/
+Makefile
+.tmp
 
 # build output
 *.tar.*

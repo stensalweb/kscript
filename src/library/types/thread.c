@@ -144,16 +144,16 @@ void ks_mutex_unlock(ks_mutex self) {
 
 
 // acquire the GIL lock
-void ks_lockGIL() {
-    ks_thread th = ks_thread_cur();
+void ks_GIL_lock() {
+    ks_thread th = ks_thread_get();
     assert(th != NULL && "Not in a thread!");
     if (!th->hasGIL) ks_mutex_lock(ks_GIL);
     th->hasGIL = true;
 }
 
 // end GIL usage
-void ks_unlockGIL() {
-    ks_thread th = ks_thread_cur();
+void ks_GIL_unlock() {
+    ks_thread th = ks_thread_get();
     assert(th != NULL && "Not in a thread!");
     if (th->hasGIL) ks_mutex_unlock(ks_GIL);
     th->hasGIL = false;
@@ -227,7 +227,7 @@ static void* thread_init(void* _self) {
     ks_debug("thread <%p> initializing!", self);
 
     // execute
-    ks_lockGIL();
+    ks_GIL_lock();
     ks_obj ret = ks_call(self->target, self->args->len, self->args->elems);
 
     if (!ret) {
@@ -240,7 +240,7 @@ static void* thread_init(void* _self) {
 
     ks_debug("thread <%p> done!", self);
 
-    ks_unlockGIL();
+    ks_GIL_unlock();
 
     return NULL;
 }
@@ -250,7 +250,7 @@ ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args) {
     ks_thread self = KS_ALLOC_OBJ(ks_thread);
     KS_INIT_OBJ(self, ks_type_thread);
 
-    ks_thread parent = ks_thread_cur();
+    ks_thread parent = ks_thread_get();
 
     // add it to the parent thread
     if (parent) {
@@ -302,8 +302,8 @@ void ks_thread_join(ks_thread self) {
     if (!self->_pth_active) return;
 
     // unlock ourselves so the other one can join
-    bool inThread = ks_thread_cur() != NULL;
-    if (inThread) ks_unlockGIL();
+    bool inThread = ks_thread_get() != NULL;
+    if (inThread) ks_GIL_unlock();
 
 
     pthread_join(self->_pth, NULL);
@@ -316,12 +316,12 @@ void ks_thread_join(ks_thread self) {
     }
 
     // acquire back the lock
-    if (inThread) ks_lockGIL();
+    if (inThread) ks_GIL_lock();
 }
 
 // return the current thread
 // NOTE: Does *NOT* return a new reference to the thread
-ks_thread ks_thread_cur() {
+ks_thread ks_thread_get() {
     // attempt to return it
     ks_thread this_thread = (ks_thread)pthread_getspecific(this_thread_key);
     return this_thread;
@@ -437,7 +437,7 @@ static KS_TFUNC(thread, free) {
 static KS_TFUNC(thread, this) {
     KS_REQ_N_ARGS(n_args, 0);
 
-    ks_thread cur = ks_thread_cur();
+    ks_thread cur = ks_thread_get();
 
     if (!cur) {
         return (ks_obj)ks_throw_fmt(ks_type_Error, "No thread!");

@@ -120,12 +120,12 @@ int main(int argc, char** argv) {
             printf("  -e [EXPR]             Run an inline expression, instead of a file\n");
             printf("  -v[vv]                Increase verbosity (use '-vvv' for 'TRACE' level)\n");
             printf("  -V, --version         Print out just the version information for kscript\n");
-            printf("\nkscript v%i.%i.%i %s %s\n", ver->major, ver->minor, ver->patch, ver->date, ver->time);
+            printf("\nkscript v%i.%i.%i %s %s %s\n", ver->major, ver->minor, ver->patch, ver->build_type, ver->date, ver->time);
             printf("Cade Brown <brown.cade@gmail.com>\n");
             return 0;
         } else if (opt == 'V') {
             // print version
-            printf("kscript v%i.%i.%i %s %s\n", ver->major, ver->minor, ver->patch, ver->date, ver->time);
+            printf("kscript v%i.%i.%i %s %s %s\n", ver->major, ver->minor, ver->patch, ver->build_type, ver->date, ver->time);
             return 0;
         } else if (opt == 'v') {
             // increate verbosity
@@ -145,40 +145,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // old version before getopt_long
-/* 
-    // parse arguments 
-    while ((opt = getopt(argc, argv, "+vVhe:")) != -1) {
-        if (opt == 'h') {
-            // print help
-            printf("Usage: %s [options] FILE [args...]\n\n", argv[0]);
-            printf("       %s [options] -e 'EXPR' [args...]\n\n", argv[0]);
-            printf("Options:\n");
-            printf("  -h               Prints this help/usage message\n");
-            printf("  -v[vv]           Increase verbosity (use '-vvv' for 'TRACE' level)\n");
-            printf("  -V               Print out just the version information for kscript\n");
-            printf("\nkscript v%i.%i.%i %s %s\n", ver->major, ver->minor, ver->patch, ver->date, ver->time);
-            printf("Cade Brown <brown.cade@gmail.com>\n");
-            return 0;
-        } else if (opt == 'V') {
-            // print version
-            printf("kscript v%i.%i.%i %s %s\n", ver->major, ver->minor, ver->patch, ver->date, ver->time);
-            return 0;
-        } else if (opt == 'v') {
-            // increate verbosity
-            ks_log_level_set(ks_log_level() - 1);
-
-        } else if (opt == 'e') {
-            expr = optarg;
-            break;
-
-        } else if (opt == '?') {
-            OPT_ERR("%s: Unknown option '-%c', run with '-h' to see help message", argv[0], optopt);
-        } else if (opt == ':') {
-            OPT_ERR("%s: Option '-%c' needs a value, run with '-h' to see help message", argv[0], optopt);
-        }
-    }
-*/
     // check if given an expression
     if (optind < argc && !expr) {
         // take the file name as the first positional argument

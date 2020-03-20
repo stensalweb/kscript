@@ -63,7 +63,7 @@ ks_cfunc
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
     // current thread
-    ks_thread this_th = ks_thread_cur();
+    ks_thread this_th = ks_thread_get();
     assert(this_th != NULL && "ks_call() used outside of a thread!");
 
 
@@ -271,13 +271,13 @@ static KS_FUNC(sleep) {
     double s_time = ks_time();
 
     // allow other threads to run
-    ks_unlockGIL();
+    ks_GIL_unlock();
 
     // call the base C library function
     ks_sleep(dur_d);
 
     // require the lock back
-    ks_lockGIL();
+    ks_GIL_lock();
 
     // calculate and return real time
     s_time = ks_time() - s_time;
@@ -603,7 +603,7 @@ static KS_FUNC(_name) {                                    \
         ks_obj ret = NULL;                                 \
         ret = ks_call(args[0]->type->_fname, 2, args);     \
         if (ret != NULL) return ret;                       \
-        ks_thread cth = ks_thread_cur();                   \
+        ks_thread cth = ks_thread_get();                   \
         if (cth->exc && cth->exc->type == ks_type_OpError) \
             { KS_DECREF(ks_catch()); }                     \
         else return NULL;                                  \

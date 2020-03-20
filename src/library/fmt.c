@@ -391,7 +391,28 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
 
             // advance past the specifier
             p += 1;
+        } else if (strncmp(p, "O", 1) == 0) {
+            // %O : print the basic, non-recursing, non-calling representation
+        
+            ks_obj v_obj = va_arg(ap, ks_obj);
 
+            ks_str_b_add_c(&SB, "<'");
+            ks_str_b_add_c(&SB, v_obj->type->__name__->chr);
+            ks_str_b_add_c(&SB, "' obj @ 0x");
+
+            // HEX (i.e. base '16') for it
+            barg.base = 16;
+
+            // add pointer to the buffer
+            int amt = bfmt_i64(tmp, 255, (intptr_t)v_obj, barg);
+
+            // add to the string builder
+            ks_str_b_add(&SB, amt, tmp);
+
+            ks_str_b_add_c(&SB, ">");
+
+            // advance past the specifier
+            p += 1;
 
         } else if (strncmp(p, "T", 1) == 0) {
             // %T : print the type of an object
