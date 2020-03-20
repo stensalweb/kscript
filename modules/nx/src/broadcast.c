@@ -13,8 +13,7 @@
  * @author: Cade Brown <brown.cade@gmail.com> 
  */
 
-#include "nx-impl.h"
-
+#include "../nx-impl.h"
 
 
 // Internal inner loop to iterate things,

@@ -8,7 +8,7 @@
 #ifndef KS_M_NX_IMPL_H__
 
 // include main header too
-#include <nx.h>
+#include "./nx.h"
 
 
 

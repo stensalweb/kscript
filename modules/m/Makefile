@@ -1,45 +1,54 @@
-# m/Makefile - Makefile for the math library
+# m/Makefile - math library makefile
+# NOTE: Do not call this by itself, run from the main directory `make modules`
 
-# -*- configuration -*-
+# -*- VARS -*-
 
-# the kscript installation directory. Use `../../` to use the local one,
-#   or `/usr/local` (or another path that it was installed to) for the system-wide one
-KS_DIR         ?= ../..
-#KS_DIR         ?= /usr/local
-
-# module name
 MOD_NAME       := m
 
-# CFLAGS for compiling this module, just need to include kscript
-mod_CFLAGS     ?= $(CFLAGS) -I$(KS_DIR)/include
 
-# linker flags for compiling this module, just need to link to kscript & the C math library
-mod_LDFLAGS    ?= $(LDFLAGS) -L$(KS_DIR)/lib -lks -lm
+# -*- FILES -*-
 
+mod_C          := $(wildcard src/*.c)
 
-# -*- targets/source setup -*-
-
-# the C files that make up the module
-mod_src_c      := $(wildcard src/*.c)
-
-# the output library file (this should begin with `libksm_` so KSM knows its a valid module file)
-mod_LIB        := ./libksm_$(MOD_NAME).so
+mod_H          := 
 
 
-# -*- generated output -*-
-mod_o          := $(patsubst %.c,%.o, $(mod_src_c))
+# -*- TARGETS -*-
+
+# main shared library
+mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
+
+# generated
+mod_O          := $(patsubst %.c,%.o,$(mod_C))
 
 
-# -*- compilation rules -*-
+# -*- RULES -*-
 
-# rule to compile the module file, linking it with kscript
-$(mod_LIB): $(mod_o)
-	$(CC) $(mod_CFLAGS) -shared $^ $(mod_LDFLAGS) -o $@
+# non-file targets
+.PHONY: default clean install uninstall
+
+default: $(mod_SHARED)
+
+# remove all created files
+clean:
+	rm -rf $(wildcard $(mod_SHARED) $(mod_O))
+
+# install all files
+install: $(mod_SHARED) $(mod_H)
+	install -d $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)
+
+	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)
+	#install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)
+
+# rule to uninstall the whole package from PREFIX
+uninstall:
+	rm -f $(wildcard $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)) 
 
 # rule to compile a single object file, no need to link yet
-%.o: %.c
-	$(CC) $(mod_CFLAGS) -fPIC -c $< -o $@
+%.o: %.c $(mod_H) | $(all_H)
+	$(CC) $(CFLAGS) $< -fPIC -c -o $@
 
-# rule to restart the compilation, removing anything done so far
-clean:
-	rm -rf $(wildcard $(mod_LIB) $(mod_o))
+# rule to compile the module file, linking it with kscript
+$(mod_SHARED): $(mod_O)
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -shared -o $@
+	@echo "\n|| Built: $@\n"

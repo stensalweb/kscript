@@ -12,7 +12,7 @@
 #include "ks-module.h"
 
 // main header
-#include "nx-impl.h"
+#include "../nx-impl.h"
 
 
 bool hasInit = false;

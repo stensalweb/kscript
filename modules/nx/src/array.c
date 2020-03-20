@@ -4,7 +4,7 @@
  * @author: Cade Brown
  */
 
-#include "nx-impl.h"
+#include "../nx-impl.h"
 
 
 // declare the array type as residing in this file
