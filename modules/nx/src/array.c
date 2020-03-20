@@ -73,52 +73,6 @@ nx_array nx_array_new(int Ndim, ks_ssize_t* dims, void* data_ptr, nx_dtype dtype
 }
 
 
-// Get a single item from the array, i.e.:
-// self[idxs[0], idxs[1], ..., idxs[n_idx - 1]]
-ks_obj nx_array_getitem(nx_array self, int n_idx, ks_ssize_t* idxs) {
-    assert(n_idx > 0 && "'nx_array_getitem' given invalid number of indices");
-    assert(n_idx <= self->Ndim && "'nx_array_getitem' given too many indices");
-
-    // linear index
-    int lidx = nx_calc_idx(self->Ndim, self->dims, self->strides, n_idx, idxs);
-    if (lidx < 0) return NULL;
-
-    assert (lidx >= 0 && "Internal index error!");
- 
-    int sizeof_dtype = nx_dtype_sizeof(self->dtype);
-
-    uintptr_t addr = (uintptr_t)self->data_ptr;
-    addr += lidx * sizeof_dtype;
-
-    // attempt to convert from binary
-    return nx_bin_get(self->dtype, (void*)addr);
-}
-
-
-// Set a single item from the array, i.e.:
-// self[idxs[0], idxs[1], ..., idxs[n_idx - 1]] = obj
-// return 0 on success, otherwise for failure
-bool nx_array_setitem(nx_array self, int n_idx, ks_ssize_t* idxs, ks_obj obj) {
-    assert(n_idx > 0 && "'nx_array_setitem' given invalid number of indices");
-    assert(n_idx <= self->Ndim && "'nx_array_setitem' given too many indices");
-
-    // linear index
-    int lidx = nx_calc_idx(self->Ndim, self->dims, self->strides, n_idx, idxs);
-    if (lidx < 0) return 1;
-
-    assert (lidx >= 0 && "Internal index error!");
- 
-    int sizeof_dtype = nx_dtype_sizeof(self->dtype);
-
-    uintptr_t addr = (uintptr_t)self->data_ptr;
-    addr += lidx * sizeof_dtype;
-
-    // check for success
-    return nx_bin_set(obj, self->dtype, (void*)addr);
-}
-
-
-/* KSCRIPT API */
 
 // convert to tensor: fill
 static bool tconv_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, ks_ssize_t** dims) {
@@ -182,12 +136,95 @@ static bool tconv_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int
     return true;
 }
 
+// convert kscript object to tensor array
+nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
+    // assume nothing
+    nx_array res = NULL;
+
+    if (ks_is_iterable(obj)) {
+
+        // the current index
+        int idx = 0;
+
+        // a list of dimensions (which can be reallocated inside 'tconv_fill')
+        ks_ssize_t* dims = NULL;
+
+        // attempt to convert & fill it up
+        if (!tconv_fill(dtype, &res, obj, &idx, 0, &dims)) {
+            if (res != NULL) KS_DECREF(res);
+            ks_free(dims);
+            return NULL;
+        }
+
+        ks_free(dims);
+
+    } else {
+
+
+        // construct a 1-dimensional tensor from a single object
+        res = nx_array_new(1, (ks_ssize_t[]){1}, NULL, dtype);
+
+        // now, try binary casting it
+        if (!nx_bin_set(obj, dtype, res->data_ptr)) {
+            KS_DECREF(res);
+            return NULL;
+        }
+    }
+
+    return (ks_obj)res;
+}
+
+// Get a single item from the array, i.e.:
+// self[idxs[0], idxs[1], ..., idxs[n_idx - 1]]
+ks_obj nx_array_getitem(nx_array self, int n_idx, ks_ssize_t* idxs) {
+    assert(n_idx > 0 && "'nx_array_getitem' given invalid number of indices");
+    assert(n_idx <= self->Ndim && "'nx_array_getitem' given too many indices");
+
+    // linear index
+    int lidx = nx_calc_idx(self->Ndim, self->dims, self->strides, n_idx, idxs);
+    if (lidx < 0) return NULL;
+
+    assert (lidx >= 0 && "Internal index error!");
+ 
+    int sizeof_dtype = nx_dtype_sizeof(self->dtype);
+
+    uintptr_t addr = (uintptr_t)self->data_ptr;
+    addr += lidx * sizeof_dtype;
+
+    // attempt to convert from binary
+    return nx_bin_get(self->dtype, (void*)addr);
+}
+
+
+// Set a single item from the array, i.e.:
+// self[idxs[0], idxs[1], ..., idxs[n_idx - 1]] = obj
+// return 0 on success, otherwise for failure
+bool nx_array_setitem(nx_array self, int n_idx, ks_ssize_t* idxs, ks_obj obj) {
+    assert(n_idx > 0 && "'nx_array_setitem' given invalid number of indices");
+    assert(n_idx <= self->Ndim && "'nx_array_setitem' given too many indices");
+
+    // linear index
+    int lidx = nx_calc_idx(self->Ndim, self->dims, self->strides, n_idx, idxs);
+    if (lidx < 0) return 1;
+
+    assert (lidx >= 0 && "Internal index error!");
+ 
+    int sizeof_dtype = nx_dtype_sizeof(self->dtype);
+
+    uintptr_t addr = (uintptr_t)self->data_ptr;
+    addr += lidx * sizeof_dtype;
+
+    // check for success
+    return nx_bin_set(obj, self->dtype, (void*)addr);
+}
+
+
+/* KSCRIPT API */
 
 // nx.array.__new__(elems, dtype=None) -> construct a new array
 static KS_TFUNC(array, new) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
     ks_obj elems = args[0];
-    //KS_REQ_ITERABLE(elems, "elems");
 
     // assume nothing
     nx_dtype dtype = NX_DTYPE_ERR;
@@ -209,62 +246,8 @@ static KS_TFUNC(array, new) {
     } 
 
 
-    nx_array res = NULL;
 
-    if (ks_is_iterable(elems)) {
-
-        // the current index
-        int idx = 0;
-
-        // a list of dimensions (which can be reallocated inside 'tconv_fill')
-        ks_ssize_t* dims = NULL;
-
-        // attempt to convert & fill it up
-        if (!tconv_fill(dtype, &res, elems, &idx, 0, &dims)) {
-            if (res != NULL) KS_DECREF(res);
-            ks_free(dims);
-            return NULL;
-        }
-
-        ks_free(dims);
-
-/*
-        ks_list list_elems = ks_list_from_iterable(elems);
-        if (!list_elems) return NULL;
-
-        // TODO: add multidimensional support
-        res = nx_array_new(1, (ks_ssize_t[]){ list_elems->len }, NULL, dtype);
-
-        // now, populate it
-        int i;
-        for (i = 0; i < list_elems->len; ++i) {
-            // try and convert it
-            if (!nx_array_setitem(res, 1, (ks_ssize_t[]){ i }, list_elems->elems[i])) {
-                KS_DECREF(res);
-                KS_DECREF(list_elems);
-                return NULL;
-            }
-        }
-
-        // done with list
-        KS_DECREF(list_elems);
-
-        */
-
-    } else {
-
-
-        // construct a 1-dimensional tensor from a single object
-        res = nx_array_new(1, (ks_ssize_t[]){1}, NULL, dtype);
-
-        // now, try binary casting it
-        if (!nx_bin_set(elems, dtype, res->data_ptr)) {
-            KS_DECREF(res);
-            return NULL;
-        }
-    }
-
-    return (ks_obj)res;
+    return (ks_obj)nx_array_from_obj(elems, dtype);
 }
 
 

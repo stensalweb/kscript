@@ -85,6 +85,10 @@ nxi_bcast_iter(nx_ufunc_f ufunc, int n_args, nx_dtype* dtypes, ks_ssize_t* sizeo
     ks_ssize_t P_dims[n_args][Ndim-1];
     ks_ssize_t P_strides[n_args][Ndim-1];
 
+    // whether or not the array is linear, even in multiple dimensions,
+    // so it can be represented as a single 1D array with no memory management
+    bool isLinear = true;
+
     // shift dimensions, ignoring the leftmost, since we are currently iterating that
     for (i = 0; i < n_args; ++i) {
         int j;
@@ -98,9 +102,63 @@ nxi_bcast_iter(nx_ufunc_f ufunc, int n_args, nx_dtype* dtypes, ks_ssize_t* sizeo
             } else {
                 P_strides[i][j] = strides__(i, j + 1);
             }
-        }    
+        }
+
+        // only enable if the fast path is enabled
+        #ifdef NX_BCAST_FAST_MDLIN
+    
+        // don't continue checking
+        if (!isLinear) continue;
+
+        // check each dimension for the argument:
+        // for example, strides[-2] == strides[-1] * dims[-1], then
+        // the array is actually linear in memory, and so on
+        // start with the last stride
+        ks_ssize_t req_stride = P_strides[i][Ndim - 2];
+        for (j = Ndim - 3; j >= 0; --j) {
+            if (P_strides[i][j] != req_stride) {
+                isLinear = false;
+                break;
+            }
+            req_stride *= P_strides[i][j];
+        }
+
+        #endif
+
+    }
+    
+    
+    #ifdef NX_BCAST_FAST_MDLIN
+
+    // fastpath for arrays which are multidimensional but linear in memory
+    if (isLinear) {
+
+        // the amount of linear elements, which should be the product of the maximum of the dimensions
+        ks_ssize_t lin_len = 1;
+
+        for (i = 0; i < Ndim; ++i) {
+            ks_ssize_t maxDim = dims__(0, i);
+            int j;
+            for (j = 1; j < n_args; ++j) {
+                if (dims__(j, i) > maxDim) maxDim = dims__(j, i);
+            }
+            lin_len *= maxDim;
+        }
+
+        // array of the linear strides (the last dimension, since all others are linear in memory)
+        ks_ssize_t lin_strides[n_args];
+        for (i = 0; i < n_args; ++i) {
+            lin_strides[i] = P_strides[i][Ndim - 2];
+        }
+
+        // now, just do 1D iteration
+        return ufunc(n_args, lin_len, dtypes, args, lin_strides);
     }
 
+    #endif
+
+
+    // otherwise, recursively call ourselves until we get to 1D loops
     for (i = 0; i < iterNdim; ++i) {
         int j;
         // prepare arguments

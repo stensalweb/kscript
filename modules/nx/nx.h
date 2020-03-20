@@ -159,6 +159,13 @@ extern ks_type nx_type_array;
 nx_array nx_array_new(int Ndim, ks_ssize_t* dims, void* data_ptr, nx_dtype dtype);
 
 
+// Construct an array/tensor from a kscript object.
+// Essentially, it will traverse lists/iterables and create an N-dimensional array if it is iterable
+// If it's not iterable, it returns a size [1] tensor
+// NOTE: Returns a new reference
+nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype);
+
+
 // nx_view - a 'view' of an nx_array, which does not copy values, and can mutate the array itself
 typedef struct {
     KS_OBJ_BASE
@@ -195,7 +202,6 @@ nx_view nx_view_new_whole(nx_array source);
 // starting at 'start', and going through 'start+dims'
 // NOTE: Returns a new reference
 nx_view nx_view_new_slice(nx_array source, int Ndim, ks_ssize_t* start, ks_ssize_t* dims);
-
 
 // Get a single item from the view, i.e.:
 // self[idxs[0], idxs[1], ..., idxs[n_idx - 1]]

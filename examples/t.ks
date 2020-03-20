@@ -6,15 +6,13 @@ import nx
 
 x = nx.array([
     [1, 2],
-    [3, 4]
+    [3, 4],
 ])
 
-#x = nx.array([1, 2])
-#x = nx.array([1, 2, 3, 4])
+z = nx.add(x, x)
 
-
-print (x, z = nx.add(x, x))
-print (z[-1, -1])
+#print (x, z = nx.add(x, x))
+print (z[0, 0])
 
 
 exit()
