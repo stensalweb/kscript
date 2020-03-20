@@ -1,0 +1,10 @@
+Package: kscript
+Version: 0.0-1
+Section: devel
+Priority: optional
+Architecture: amd64
+Depends: libpthread-stubs0-dev, libc6
+Maintainer: Cade Brown <brown.cade@gmail.com>
+Description: Scripting language
+ 'kscript' is a highly dynamic scripting language with
+ a large standard library, suited for many programming tasks
