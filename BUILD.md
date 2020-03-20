@@ -14,7 +14,7 @@ To build, run these commands:
 Here are some example builds:
 
   * Debug Build: `CFLAGS="-Og -g -std=c99 -Wall" ./configure --build-type debug && make`
-  * Release Build: `CFLAGS="-Ofast -ffast-math -std=c99" ./configure --build-type debug --disable-trace && make`
+  * Release Build: `CFLAGS="-Ofast -ffast-math -std=c99" ./configure --build-type release --disable-trace && make`
 
 
 Run `./configure -h` for descriptions of various options for configuration
