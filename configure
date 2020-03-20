@@ -271,7 +271,7 @@ default: $(ks_BIN) $(libks_STATIC) $(libks_SHARED) modules
 all: default
 
 clean:
-	rm -rf $(wildcard $(_tmp) debian/usr build lib bin)
+	rm -rf $(wildcard $(_tmp) debian/usr build lib bin *.deb)
 	for subdir in $(STD_MODULES); do \\
 		$(MAKE) -C $$subdir clean ; \\
 	done
