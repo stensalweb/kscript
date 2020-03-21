@@ -35,14 +35,14 @@ clean:
 
 # install all files
 install: $(mod_SHARED) $(mod_H)
-	install -d $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)
+	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
-	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)
-	#install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)
+	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
+	#install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # rule to uninstall the whole package from PREFIX
 uninstall:
-	rm -f $(wildcard $(DESTDIR)$(PREFIX)/lib/modules/$(MOD_NAME)) 
+	rm -rf $(wildcard $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)) 
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)

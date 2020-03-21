@@ -21,8 +21,8 @@
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#ifndef _GETOPT_H
-#define _GETOPT_H
+#ifndef KS_GETOPT_H
+#define KS_GETOPT_H
 
 #include "ks-impl.h"
 
@@ -30,12 +30,12 @@
 extern "C" {
 #endif
 
-int getopt(int, char * const [], const char *);
-extern char *optarg;
-extern int optind, opterr, optopt, optreset;
+int ks_getopt(int, char * const [], const char *);
+extern char *ks_optarg;
+extern int ks_optind, ks_opterr, ks_optopt, ks_optreset;
 
 // argument parsing options
-struct option {
+struct ks_option {
     const char *name;
     int has_arg;
     int *flag;
@@ -43,8 +43,8 @@ struct option {
 };
 
 // main functions
-int getopt_long(int, char *const *, const char *, const struct option *, int *);
-int getopt_long_only(int, char *const *, const char *, const struct option *, int *);
+int ks_getopt_long(int, char *const *, const char *, const struct ks_option *, int *);
+int ks_getopt_long_only(int, char *const *, const char *, const struct ks_option *, int *);
 
 #define no_argument        0
 #define required_argument  1

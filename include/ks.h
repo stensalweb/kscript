@@ -1258,13 +1258,13 @@ typedef struct {
 
 
 // Construct a new kfunc from bytecode and a human readable name
-ks_kfunc ks_kfunc_new(ks_code code, ks_str name_hr);
+KS_API ks_kfunc ks_kfunc_new(ks_code code, ks_str name_hr);
 
 // create a new copy of the kfunc
-ks_kfunc ks_kfunc_new_copy(ks_kfunc func);
+KS_API ks_kfunc ks_kfunc_new_copy(ks_kfunc func);
 
 // add a parameter name
-void ks_kfunc_addpar(ks_kfunc self, ks_str name);
+KS_API void ks_kfunc_addpar(ks_kfunc self, ks_str name);
 
 
 // ks_pfunc - a partial function wrapper, which wraps a callable with some of the arguments prefilled
@@ -1353,23 +1353,23 @@ extern ks_mutex ks_GIL;
 
 // Acquire the Global Interpreter Lock (GIL) for the current thread. If the current thread does not
 //   already have the GIL, this function blocks until it is available
-void ks_GIL_lock();
+KS_API void ks_GIL_lock();
 
 // Let go of the Global Interpreter Lock (GIL) for the current thread.
 // It should have been acquired via `ks_GIL_lock()` prior to calling this function
-void ks_GIL_unlock();
+KS_API void ks_GIL_unlock();
 
 
 
 // Construct a new, unlocked, mutex, which can be used for the mutual exclusion principle across threads
 // NOTE: This returns a new reference
-ks_mutex ks_mutex_new();
+KS_API ks_mutex ks_mutex_new();
 
 // Lock a mutex
-void ks_mutex_lock(ks_mutex self);
+KS_API void ks_mutex_lock(ks_mutex self);
 
 // Unlock a mutex
-void ks_mutex_unlock(ks_mutex self);
+KS_API void ks_mutex_unlock(ks_mutex self);
 
 
 // ks_thread - a thread that is currently executing code
@@ -1431,27 +1431,27 @@ typedef struct {
 
 // construct a new kscript thread
 // if 'name==NULL', then a random name is generated
-ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args);
+KS_API ks_thread ks_thread_new(char* name, ks_obj func, int n_args, ks_obj* args);
 
 // start executing the thread
-void ks_thread_start(ks_thread self);
+KS_API void ks_thread_start(ks_thread self);
 
 // join the thread back
-void ks_thread_join(ks_thread self);
+KS_API void ks_thread_join(ks_thread self);
 
 // Get the current thread object
 // NOTE: Does *NOT* return a new reference to the thread, so do not DECREF it!
 // NOTE: Only returns NULL if it is outside a kscript thread, which should never be the case
 //   outside of about 20 lines of 'main()' code in the interpreter itself. You shouldn't check
 //   NULL-status of the result of this function
-ks_thread ks_thread_get();
+KS_API ks_thread ks_thread_get();
 
 
 // internal execution method to execute 'code' on the current thread and then return
 // the result, or 'NULL' if there was an exception
 // NOTE: Don't use this function, unless you know what you're doing!
 // Use `ks_call()` for most execution needs
-ks_obj ks__exec(ks_code code);
+KS_API ks_obj ks__exec(ks_code code);
 
 
 
@@ -1470,13 +1470,13 @@ typedef struct {
 
 // construct a new module, given a name
 // NOTE: Returns a new reference
-ks_module ks_module_new(char* mname);
+KS_API ks_module ks_module_new(char* mname);
 
 // search for and return a module, if successful
 // 'mname' can be just the module name (i.e. 'mypackage')
 // NOTE: throws an error if not found
 // NOTE: Returns a new reference
-ks_module ks_module_import(char* mname);
+KS_API ks_module ks_module_import(char* mname);
 
 
 /* ITERATOR TYPES */
@@ -1525,15 +1525,15 @@ typedef struct {
 
 // Create a new list iterator for a given list
 // NOTE: Returns a new reference
-ks_list_iter ks_list_iter_new(ks_list obj);
+KS_API ks_list_iter ks_list_iter_new(ks_list obj);
 
 // Create a new tuple iterator for a given tuple
 // NOTE: Returns a new reference
-ks_tuple_iter ks_tuple_iter_new(ks_tuple obj);
+KS_API ks_tuple_iter ks_tuple_iter_new(ks_tuple obj);
 
 // Create a new dict iterator for a given dict
 // NOTE: Returns a new reference
-ks_dict_iter ks_dict_iter_new(ks_dict obj);
+KS_API ks_dict_iter ks_dict_iter_new(ks_dict obj);
 
 
 /* STRING BUILDING/UTILITY TYPES */
@@ -1556,28 +1556,28 @@ typedef struct {
 
 // Initialize the string builder
 // NOTE: This must be called before `_get` or `_add*` methods
-void ks_str_b_init(ks_str_b* self);
+KS_API void ks_str_b_init(ks_str_b* self);
 
 // Create a (new reference) of a string from the string builder at this point
-ks_str ks_str_b_get(ks_str_b* self);
+KS_API ks_str ks_str_b_get(ks_str_b* self);
 
 // Add character bytes to the string builder
-void ks_str_b_add(ks_str_b* self, int len, char* data);
+KS_API void ks_str_b_add(ks_str_b* self, int len, char* data);
 
 // Add a NUL-terminated C-style string to the buffer
-void ks_str_b_add_c(ks_str_b* self, char* cstr);
+KS_API void ks_str_b_add_c(ks_str_b* self, char* cstr);
 
 // Add a formatted string (formmated by ks_vfmt), and then appended to the string buffer
-void ks_str_b_add_fmt(ks_str_b* self, char* fmt, ...);
+KS_API void ks_str_b_add_fmt(ks_str_b* self, char* fmt, ...);
 
 // Add repr(obj) to the string builder, returns true if it was fine, false if there was an error
-bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj);
+KS_API bool ks_str_b_add_repr(ks_str_b* self, ks_obj obj);
 
 // add str(obj) to the string buffer
-bool ks_str_b_add_str(ks_str_b* self, ks_obj obj);
+KS_API bool ks_str_b_add_str(ks_str_b* self, ks_obj obj);
 
 // Free the string builder, freeing all internal resources (but not the built strings)
-void ks_str_b_free(ks_str_b* self);
+KS_API void ks_str_b_free(ks_str_b* self);
 
 /* BUILTIN TYPES (see 'types/' directory) */
 
@@ -1681,7 +1681,7 @@ extern ks_list ks_paths;
 /* GENERIC/GENERAL LIBRARY FUNCTIONS */
 
 // Attempt to initialize the library. Return 'true' on success, 'false' otherwise
-bool ks_init();
+KS_API bool ks_init();
 
 // Type to hold a kscript version
 typedef struct {
@@ -1704,29 +1704,29 @@ typedef struct {
 
 // Get the version of kscript
 // NOTE: Do not free or modify this variable
-const ks_version_t* ks_version();
+KS_API const ks_version_t* ks_version();
 
 // Return the time, in seconds, since the library started. It uses a fairly good wall clock,
 //   but is only meant for rough approximation. Using the std time module is best for most results (TODO)
-double ks_time();
+KS_API double ks_time();
 
 // Sleep (i.e. yield the thrad) for a given duration (in seconds).
 // Will emit a warning if a syscall (i.e. nanosleep on linux) gives an error code/warning
 //   but will NOT raise an exception
-void ks_sleep(double dur);
+KS_API void ks_sleep(double dur);
 
 /* LOGGING */
 
 // return the current logging level, one of KS_LOG_* enum values
-int ks_log_level();
+KS_API int ks_log_level();
 
 // set the logging level to `new_level`
-void ks_log_level_set(int new_level);
+KS_API void ks_log_level_set(int new_level);
 
 // generically log given a level, the current file, line, and a C-style format string, with a list of arguments
 // NOTE: don't use this, use the macros like `ks_info`, and `ks_warn`, which make it easier to use the logging
 //   system
-void ks_log(int level, const char *file, int line, const char* fmt, ...);
+KS_API void ks_log(int level, const char *file, int line, const char* fmt, ...);
 
 // prints a trace message, assuming the current log level allows for it
 #define ks_trace(...) ks_log(KS_LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
@@ -1762,28 +1762,28 @@ void ks_log(int level, const char *file, int line, const char* fmt, ...);
 // %R - ks_obj, prints `repr(obj)`
 // %T - ks_obj, prints `type(obj)`
 // %O - ks_obj, prints stupid simple format `<'%T' obj @ %p>`
-void ks_printf(const char* fmt, ...);
+KS_API void ks_printf(const char* fmt, ...);
 
 
 /* MEMORY MANAGEMENT */
 
 // Allocate at least 'sz' bytes, and return a pointer to that memory. `ks_malloc(0)` is guaranteed to return non-NULL
 // NOTE: This memory must be free'd by `ks_free(ptr)`, and reallocated using `ks_realloc(ptr, new_sz)`
-void* ks_malloc(ks_size_t sz);
+KS_API void* ks_malloc(ks_size_t sz);
 
 // Attempt to reallocate 'ptr' (which was created using `ks_malloc`) to be at least 'new_sz' bytes. 
 // NOTE: `ks_realloc(NULL, sz)` is the same as doing `ks_malloc(sz)`
-void* ks_realloc(void* ptr, ks_size_t new_sz);
+KS_API void* ks_realloc(void* ptr, ks_size_t new_sz);
 
 // Attempt to free 'ptr' (which must have been allocated using `ks_malloc` or `ks_realloc`)
 // NOTE: `ks_free(NULL)` is a guaranteed NO-OP
-void ks_free(void* ptr);
+KS_API void ks_free(void* ptr);
 
 // Return the current amount of memory being used, or -1 if memory usage is not being tracked
-int64_t ks_mem_cur();
+KS_API int64_t ks_mem_cur();
 
 // Return the maximum amount of memory that has been used at one time, or -1 if memory usage is not being tracked
-int64_t ks_mem_max();
+KS_API int64_t ks_mem_max();
 
 
 /* CREATING/DESTROYING PRIMITIVES */
@@ -1792,30 +1792,30 @@ int64_t ks_mem_max();
 
 // Initialize a type variable. Make sure 'self' has not been ref cnted, etc. Just an allocated blob of memory!
 // NOTE: Returns a new reference
-void ks_init_type(ks_type self, char* name);
+KS_API void ks_init_type(ks_type self, char* name);
 
 // check if 'self' is a sub type of 'of'
-bool ks_type_issub(ks_type self, ks_type of);
+KS_API bool ks_type_issub(ks_type self, ks_type of);
 
 // add a parent to the type, which the type will derive from
-void ks_type_add_parent(ks_type self, ks_type parent);
+KS_API void ks_type_add_parent(ks_type self, ks_type parent);
 
 // Get an attribute for the given type
 // 0 can be passed to 'hash', and it will be calculated
 // NOTE: Returns a new referece
-ks_obj ks_type_get(ks_type self, ks_str key);
+KS_API ks_obj ks_type_get(ks_type self, ks_str key);
 
 // Get a member function (self.attr), with the first argument filled as 'obj'
 //   as the instance
 // NOTE: Returns a new referece
-ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj);
+KS_API ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj);
 
 // Set an attribute for the given type
 // 0 can be passed to 'hash', and it will be calculated
-void ks_type_set(ks_type self, ks_str key, ks_obj val);
+KS_API void ks_type_set(ks_type self, ks_str key, ks_obj val);
 
 // Set a C-style string key as the attribute for a type
-void ks_type_set_c(ks_type self, char* key, ks_obj val);
+KS_API void ks_type_set_c(ks_type self, char* key, ks_obj val);
 
 // Sets a list of C-entries (without creating new references)
 // result == 0 means no problems
@@ -1828,7 +1828,7 @@ void ks_type_set_c(ks_type self, char* key, ks_obj val);
 //   {"mine", KS_NEWREF(myotherval)},
 //   {NULL, NULL} // end should look like this   
 // })
-int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
+KS_API int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 
 
 
@@ -1836,7 +1836,7 @@ int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
-ks_int ks_int_new(int64_t val);
+KS_API ks_int ks_int_new(int64_t val);
 
 
 
@@ -1844,95 +1844,95 @@ ks_int ks_int_new(int64_t val);
 
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
-ks_float ks_float_new(double val);
+KS_API ks_float ks_float_new(double val);
 
 
 /* COMPLEX */
 
 // Create a new kscript complex from a C-style complex value
 // NOTE: Returns a new reference
-ks_complex ks_complex_new(double complex val);
+KS_API ks_complex ks_complex_new(double complex val);
 
 
 /* STR */
 
 // Create a new kscript string from a C-style NUL-terminated string
 // NOTE: Returns a new reference
-ks_str ks_str_new(char* val);
+KS_API ks_str ks_str_new(char* val);
 
 // Create a new kscript string from a C-style length encoded string
 // NOTE: Returns a new reference
-ks_str ks_str_new_l(char* chr, int len);
+KS_API ks_str ks_str_new_l(char* chr, int len);
 
 // perform a string comparison on 2 strings
-int ks_str_cmp(ks_str A, ks_str B);
+KS_API int ks_str_cmp(ks_str A, ks_str B);
 
 // Escape the string 'A', i.e. replace '\' -> '\\', and newlines to '\n'
 // NOTE: Returns a new reference
-ks_str ks_str_escape(ks_str A);
+KS_API ks_str ks_str_escape(ks_str A);
 
 // Undo the string escaping, i.e. replaces '\n' with a newline
 // NOTE: Returns a new reference
-ks_str ks_str_unescape(ks_str A);
+KS_API ks_str ks_str_unescape(ks_str A);
 
 /* STRING FORMATTING (see ./fmt.c) */
 
 // Perform C-style formatting, with various arguments
 // TODO: document format specifiers
 // NOTE: Returns a reference
-ks_str ks_fmt_c(const char* fmt, ...);
+KS_API ks_str ks_fmt_c(const char* fmt, ...);
 
 // Perform variadic C-style formating, with a list of arguments
 // TODO: document format specifiers
 // NOTE: Returns a reference
-ks_str ks_fmt_vc(const char* fmt, va_list ap);
+KS_API ks_str ks_fmt_vc(const char* fmt, va_list ap);
 
 
 /* TUPLE */
 
 // Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
 // NOTE: Returns a new reference
-ks_tuple ks_tuple_new(int len, ks_obj* elems);
+KS_API ks_tuple ks_tuple_new(int len, ks_obj* elems);
 
 // Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
 // NOTE: This variant does not create references to the objects!, so don't call DECREF on 'elems'
 // NOTE: Returns a new reference
-ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
+KS_API ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
 
 // Create a tuple representing a version
 // NOTE: Returns a new reference
-ks_tuple ks_tuple_new_version(int major, int minor, int patch);
+KS_API ks_tuple ks_tuple_new_version(int major, int minor, int patch);
 
 
 /* LIST */
 
 // Create a new kscript list from an array of elements, or an empty list if `len==0`
 // NOTE: Returns a new reference
-ks_list ks_list_new(int len, ks_obj* elems);
+KS_API ks_list ks_list_new(int len, ks_obj* elems);
 
 // Create a list from iterating through an iterator, draining it completely
 // NOTE: Returns a new reference
-ks_list ks_list_from_iterable(ks_obj obj);
+KS_API ks_list ks_list_from_iterable(ks_obj obj);
 
 // Clear a list, emptying the contents
-void ks_list_clear(ks_list self);
+KS_API void ks_list_clear(ks_list self);
 
 // Push an object on to the end of the list, expanding the list
-void ks_list_push(ks_list self, ks_obj obj);
+KS_API void ks_list_push(ks_list self, ks_obj obj);
 
 // Push 'n' objects on to the end of the list, expanding the list
-void ks_list_pushn(ks_list self, int n, ks_obj* objs);
+KS_API void ks_list_pushn(ks_list self, int n, ks_obj* objs);
 
 // Pop off an object from the end of the list
 // NOTE: Returns a reference
-ks_obj ks_list_pop(ks_list self);
+KS_API ks_obj ks_list_pop(ks_list self);
 
 // Pop off 'n' items into 'dest'
 // NOTE: Returns a reference to each object
-void ks_list_popn(ks_list self, int n, ks_obj* dest);
+KS_API void ks_list_popn(ks_list self, int n, ks_obj* dest);
 
 // Pop off an object from the end of the list, destroying the reference
-void ks_list_popu(ks_list self);
+KS_API void ks_list_popu(ks_list self);
 
 
 /* DICT */
@@ -1941,10 +1941,10 @@ void ks_list_popu(ks_list self);
 // Example:
 // ks_dict_new(3, (ks_obj[]){ key1, val1, key2, val2, key3, val3 })
 // NOTE: Returns a new reference
-ks_dict ks_dict_new(int len, ks_obj* entries);
+KS_API ks_dict ks_dict_new(int len, ks_obj* entries);
 
 // Merge in entries of 'src' into self, replacing any entries in 'self' that existed
-void ks_dict_merge(ks_dict self, ks_dict src);
+KS_API void ks_dict_merge(ks_dict self, ks_dict src);
 
 // Create a new kscript dictionary from an array of C-style strings to values, which will not create new references to values
 // The last key is 'NULL'
@@ -1953,118 +1953,118 @@ void ks_dict_merge(ks_dict self, ks_dict src);
 // Will create a dictionary, and not introduce any memory leaks
 // NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
 //   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
-ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns);
+KS_API ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns);
 
 // Test whether the dictionary has a given key. `hash` is always `hash(key)`. If it is 0, then 
 //   attempt to calculate `hash(key)`. If it is 0, there is no error, but the dictionary is said to
 //   not have the key
 // For efficiency reasons, this allows the caller to precompute the hash from some other source,
 //   so the dictionary doesn't have to
-bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key);
+KS_API bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key);
 
 // Get a value of the dictionary
 // NULL if it does not exist
 // NOTE: Returns a new reference
-ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key);
+KS_API ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key);
 
 // Get a value of the dictionary
 // NULL if it does not exist
 // NOTE: Returns a new reference
-ks_obj ks_dict_get_c(ks_dict self, char* key);
+KS_API ks_obj ks_dict_get_c(ks_dict self, char* key);
 
 // Set a dictionary entry for a key, to a value
 // If the entry already exists, dereference the old value, and replace it with the new value
 // result > 0 means that an item was replaced
 // result == 0 means no item was replaced, and there were no problems
 // result < 0 means there was some internal problem (most likely the key was not hashable)
-int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val);
+KS_API int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val);
 
 // Delete an entry to the dictionary, returning 'true' if it was successful, false if it wasn't
-bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
+KS_API bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
 
 // Sets a list of C-entries (without creating new references)
 // result == 0 means no problems
 // result < 0 means there was some internal problem (most likely the key was not hashable)
 // NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
 //   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
-int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
+KS_API int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
 
 /* ERROR */
 
 // Construct a new error from a string reason
 // NOTE: Returns a new reference
-ks_Error ks_Error_new(ks_str what);
+KS_API ks_Error ks_Error_new(ks_str what);
 
 // create a kscript error from a C style string
 // NOTE: Returns a new reference
-ks_Error ks_Error_new_c(char* what);
+KS_API ks_Error ks_Error_new_c(char* what);
 
 /* CODE */
 
 // Create a new kscript code object, with a given constant list. The constant list can be non-empty,
 //   in which case new constants will be allocated starting at the end. Cannot be NULL
 // NOTE: Returns a new reference
-ks_code ks_code_new(ks_list v_const);
+KS_API ks_code ks_code_new(ks_list v_const);
 
 // Output it to a binary encoded file, returning whether it was successful
-bool ks_code_tofile(ks_code self, char* fname);
+KS_API bool ks_code_tofile(ks_code self, char* fname);
 
 // Attempt to read from a binary file, returning 'NULL' if there was an error
-ks_code ks_code_fromfile(char* fname);
+KS_API ks_code ks_code_fromfile(char* fname);
 
 // Append an array of bytecode to 'self'
-void ks_code_add(ks_code self, int len, ksb* data);
+KS_API void ks_code_add(ks_code self, int len, ksb* data);
 
 // Add a constant to the internal constant list, return the index at which it was added (or already located)
-int ks_code_add_const(ks_code self, ks_obj val);
+KS_API int ks_code_add_const(ks_code self, ks_obj val);
 
 // add a meta token (and hold a reference to the parser)
-void ks_code_add_meta(ks_code self, ks_tok tok);
+KS_API void ks_code_add_meta(ks_code self, ks_tok tok);
 
 /*** ADDING BYTECODES (see ks.h for bytecode definitions) ***/
-void ksca_noop      (ks_code self);
+KS_API void ksca_noop      (ks_code self);
 
-void ksca_push      (ks_code self, ks_obj val);
-void ksca_dup       (ks_code self);
-void ksca_popu      (ks_code self);
+KS_API void ksca_push      (ks_code self, ks_obj val);
+KS_API void ksca_dup       (ks_code self);
+KS_API void ksca_popu      (ks_code self);
 
-void ksca_list      (ks_code self, int n_items);
-void ksca_tuple     (ks_code self, int n_items);
+KS_API void ksca_list      (ks_code self, int n_items);
+KS_API void ksca_tuple     (ks_code self, int n_items);
 
-void ksca_getitem   (ks_code self, int n_items);
-void ksca_setitem   (ks_code self, int n_items);
+KS_API void ksca_getitem   (ks_code self, int n_items);
+KS_API void ksca_setitem   (ks_code self, int n_items);
 
-void ksca_call      (ks_code self, int n_items);
-void ksca_ret       (ks_code self);
-void ksca_throw     (ks_code self);
-void ksca_jmp       (ks_code self, int relamt);
-void ksca_jmpt      (ks_code self, int relamt);
-void ksca_jmpf      (ks_code self, int relamt);
+KS_API void ksca_call      (ks_code self, int n_items);
+KS_API void ksca_ret       (ks_code self);
+KS_API void ksca_throw     (ks_code self);
+KS_API void ksca_jmp       (ks_code self, int relamt);
+KS_API void ksca_jmpt      (ks_code self, int relamt);
+KS_API void ksca_jmpf      (ks_code self, int relamt);
 
-void ksca_try_start (ks_code self, int relamt);
-void ksca_try_end   (ks_code self, int relamt);
+KS_API void ksca_try_start (ks_code self, int relamt);
+KS_API void ksca_try_end   (ks_code self, int relamt);
 
-void ksca_closure   (ks_code self);
-void ksca_new_func  (ks_code self);
+KS_API void ksca_closure   (ks_code self);
+KS_API void ksca_new_func  (ks_code self);
 
-void ksca_make_iter (ks_code self);
-void ksca_iter_next (ks_code self, int relamt);
+KS_API void ksca_make_iter (ks_code self);
+KS_API void ksca_iter_next (ks_code self, int relamt);
 
-void ksca_load      (ks_code self, ks_str name);
-void ksca_load_attr (ks_code self, ks_str name);
-void ksca_store     (ks_code self, ks_str name);
-void ksca_store_attr(ks_code self, ks_str name);
+KS_API void ksca_load      (ks_code self, ks_str name);
+KS_API void ksca_load_attr (ks_code self, ks_str name);
+KS_API void ksca_store     (ks_code self, ks_str name);
+KS_API void ksca_store_attr(ks_code self, ks_str name);
 
-void ksca_bop       (ks_code self, int ksb_bop_type);
-void ksca_uop       (ks_code self, int ksb_uop_type);
+KS_API void ksca_bop       (ks_code self, int ksb_bop_type);
+KS_API void ksca_uop       (ks_code self, int ksb_uop_type);
 
 
 // C-style versions
-void ksca_load_c      (ks_code self, char* name);
-void ksca_load_attr_c (ks_code self, char* name);
-void ksca_store_c     (ks_code self, char* name);
-void ksca_store_attr_c(ks_code self, char* name);
+KS_API void ksca_load_c      (ks_code self, char* name);
+KS_API void ksca_load_attr_c (ks_code self, char* name);
+KS_API void ksca_store_c     (ks_code self, char* name);
+KS_API void ksca_store_attr_c(ks_code self, char* name);
 
 
 /* AST (Abstract Syntax Trees) */
@@ -2072,81 +2072,81 @@ void ksca_store_attr_c(ks_code self, char* name);
 // Create an AST representing a constant value
 // Type should be none, bool, int, or str
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_const(ks_obj val);
+KS_API ks_ast ks_ast_new_const(ks_obj val);
 
 // Create an AST representing a variable reference
 // Type should always be string
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_var(ks_str name);
+KS_API ks_ast ks_ast_new_var(ks_str name);
 
 // Create an AST representing a list constructor
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_list(int n_items, ks_ast* items);
+KS_API ks_ast ks_ast_new_list(int n_items, ks_ast* items);
 
 // Create an AST representing a list constructor
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
+KS_API ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
 
 
 
 // Create an AST representing an attribute reference
 // Type should always be string
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr);
+KS_API ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr);
 
 // Create an AST representing a function call
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
+KS_API ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
 
 // Create an AST representing a subscript
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_subscript(ks_ast obj, int n_args, ks_ast* args);
+KS_API ks_ast ks_ast_new_subscript(ks_ast obj, int n_args, ks_ast* args);
 
 // Create an AST representing a return statement
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_ret(ks_ast val);
+KS_API ks_ast ks_ast_new_ret(ks_ast val);
 
 // Create an AST representing a throw statement
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_throw(ks_ast expr);
+KS_API ks_ast ks_ast_new_throw(ks_ast expr);
 
 
 // Create an AST representing a block of code
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_block(int num, ks_ast* elems);
+KS_API ks_ast ks_ast_new_block(int num, ks_ast* elems);
 
 // Create an AST representing an 'if' construct
 // 'else_body' may be NULL, in which case it is constructed without an 'else' body
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_if(ks_ast cond, ks_ast if_body, ks_ast else_body);
+KS_API ks_ast ks_ast_new_if(ks_ast cond, ks_ast if_body, ks_ast else_body);
 
 // Create an AST representing an 'while' construct
 // 'else_body' may be NULL, in which case it is constructed without an 'else' body
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body);
+KS_API ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body);
 
 
 // Create an AST representing a 'try' block
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name);
+KS_API ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name);
 
 // Create an AST representing a function definition
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body);
+KS_API ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body);
 
 // Create an AST representing a for loop
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_str assign_to);
+KS_API ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_str assign_to);
 
 
 
 // Create a new AST represernting a binary operation on 2 objects
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
+KS_API ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
 
 // Create a new AST represernting a unary operation
 // NOTE: Returns a new reference
-ks_ast ks_ast_new_uop(int uop_type, ks_ast V);
+KS_API ks_ast ks_ast_new_uop(int uop_type, ks_ast V);
 
 
 /* CODE GENERATION */
@@ -2154,7 +2154,7 @@ ks_ast ks_ast_new_uop(int uop_type, ks_ast V);
 // Generate corresponding bytecode for a given AST
 // NOTE: Returns a new reference
 // See `codegen.c` for more info
-ks_code ks_codegen(ks_ast self);
+KS_API ks_code ks_codegen(ks_ast self);
 
 
 /* PARSER */
@@ -2162,40 +2162,40 @@ ks_code ks_codegen(ks_ast self);
 // Create a new parser from some source code
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
+KS_API ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_expr(ks_parser self);
+KS_API ks_ast ks_parser_parse_expr(ks_parser self);
 
 // Parse a single statement out of 'p'
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_stmt(ks_parser self);
+KS_API ks_ast ks_parser_parse_stmt(ks_parser self);
 
 // Parse the entire file out of 'p', returning the AST of the program
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_file(ks_parser self);
+KS_API ks_ast ks_parser_parse_file(ks_parser self);
 
 
 // combine A and B to form a larger meta token
-ks_tok ks_tok_combo(ks_tok A, ks_tok B);
+KS_API ks_tok ks_tok_combo(ks_tok A, ks_tok B);
 
 // convert token to a string with mark
-ks_str ks_tok_expstr(ks_tok tok);
+KS_API ks_str ks_tok_expstr(ks_tok tok);
 
 // convert token to string, just the 2 relevant lines
-ks_str ks_tok_expstr_2(ks_tok tok);
+KS_API ks_str ks_tok_expstr_2(ks_tok tok);
 
 /* CFUNC */
 
 // Create a new C-function wrapper
 // NOTE: Returns a new reference
-ks_cfunc ks_cfunc_new(ks_obj (*func)(int n_args, ks_obj* args));
+KS_API ks_cfunc ks_cfunc_new(ks_obj (*func)(int n_args, ks_obj* args));
 
 // Create a new C-function wrapper with a given signature
 // NOTE: Returns a new reference
-ks_cfunc ks_cfunc_new2(ks_obj (*func)(int n_args, ks_obj* args), char* hrname);
+KS_API ks_cfunc ks_cfunc_new2(ks_obj (*func)(int n_args, ks_obj* args), char* hrname);
 
 
 /* PFUNC */
@@ -2203,11 +2203,11 @@ ks_cfunc ks_cfunc_new2(ks_obj (*func)(int n_args, ks_obj* args), char* hrname);
 // Create a new partial function wrapper
 // NOTE: 'func' must be callable
 // NOTE: Returns a new reference
-ks_pfunc ks_pfunc_new(ks_obj func);
+KS_API ks_pfunc ks_pfunc_new(ks_obj func);
 
 // Fill a given index with an argument
 // NOTE: if 'idx' is already filled, it will be replaced
-void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg);
+KS_API void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg);
 
 
 /* OBJECT INTERFACE (see ./obj.c) */
@@ -2215,30 +2215,30 @@ void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg);
 //   can be called
 
 // Free an object, by either calling its deconstructor or freeing the memory
-void ks_obj_free(ks_obj obj);
+KS_API void ks_obj_free(ks_obj obj);
 
 // Return the length of the object (len(obj)) as an integer.
 // Negative values indicate there was an exception
-int64_t ks_len(ks_obj obj);
+KS_API int64_t ks_len(ks_obj obj);
 
 // Return the hash of the object (hash(obj)) as an integer.
 // A return value of '0' indicates that there was some error with the hash function
 //   (a hash function should never return 0)
-ks_hash_t ks_hash(ks_obj obj);
+KS_API ks_hash_t ks_hash(ks_obj obj);
 
 // Return whether or not `A==B`. If the comparison is undefined, return 'false'
-bool ks_eq(ks_obj A, ks_obj B);
+KS_API bool ks_eq(ks_obj A, ks_obj B);
 
 // Return whether or not 'func' is callable as a function
-bool ks_is_callable(ks_obj func);
+KS_API bool ks_is_callable(ks_obj func);
 
 // Return whether or not 'obj' is iterable, through the `iter()` and `next()` protocol
-bool ks_is_iterable(ks_obj obj);
+KS_API bool ks_is_iterable(ks_obj obj);
 
 
 // Attempt to call 'func' on 'args', returning NULL if there was an error
 // NOTE: Returns a new reference
-ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
+KS_API ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
 
 // the call stack of currently executing items
 extern ks_list ks_call_stk;
@@ -2248,39 +2248,39 @@ extern ks_list ks_call_stk;
 // Throw an object up the call stack
 // NOTE: Throws an error if there is already an object on the call stack
 // NOTE: Always returns NULL
-void* ks_throw(ks_obj obj);
+KS_API void* ks_throw(ks_obj obj);
 
 // Throw an error with a given format string, with an optional 'errtype' (which)
 //   should always be allowed to set the '.what' attribute on
 // NOTE: Throws an error if there is already an object on the call stack
 // NOTE: Always returns NULL
-void* ks_throw_fmt(ks_type errtype, char* fmt, ...);
+KS_API void* ks_throw_fmt(ks_type errtype, char* fmt, ...);
 
 // Attempt to catch an object from the call stack
 // Returns 'NULL' if nothing has been thrown,
 // otherwise, return the object that was thrown, and take it off the thrown location
 // (so now other things can be thrown)
 // NOTE: Returns a new reference, if it was non-NULL
-ks_obj ks_catch();
+KS_API ks_obj ks_catch();
 
 // catches excetion, also setting stack info
-ks_obj ks_catch2(ks_list stk_info);
+KS_API ks_obj ks_catch2(ks_list stk_info);
 
 // catch & ignore any error, resetting the error state
-void ks_catch_ignore();
+KS_API void ks_catch_ignore();
 
 
 // if there was an error, print stack trace and exit
 // only call if there was an error! (this should really only be called by ks_thread's class)
 // TODO: make this more repeatable and general
-void ks_errend();
+KS_API void ks_errend();
 
 
 /* MISC. UTILS/FUNCTIONS */
 
 // Attempt to open and read an entire file indicated by 'fname'.
 // Throw an exception if it failed
-ks_str ks_readfile(char* fname);
+KS_API ks_str ks_readfile(char* fname);
 
 // Implementation of GNU getline function, reading an entire line from a FILE pointer
 // Always ks_free(line) after done with this function, as this function reallocates buffers
@@ -2291,8 +2291,7 @@ ks_str ks_readfile(char* fname);
 // size_t bufsize = 0;
 // int len = ks_getline(&line, &len, fp);
 // ks_free(line);
-int ks_getline(char** lineptr, size_t* n, FILE* fp);
-
+KS_API int ks_getline(char** lineptr, size_t* n, FILE* fp);
 
 
 // structure describing a C-extension initializer

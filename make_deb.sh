@@ -1,6 +1,7 @@
 #!/bin/bash
 # run this to make a debian release
 # NOTE: This will reconfigure the project!
+rm -rf debian/usr
 
 # configure, make, and install (locally), then build it
 ./configure --prefix=/usr --dest-dir=$PWD/debian && \

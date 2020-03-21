@@ -21,7 +21,6 @@ extern "C" {
 #include "ks.h"
 
 
-
 // use this at the end of the module with '__func' as the function which can be called to construct
 //   and return the module
 #define MODULE_INIT(__func) struct ks_module_cext_init __C_module_init__ = (struct ks_module_cext_init) { \

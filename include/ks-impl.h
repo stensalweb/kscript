@@ -26,7 +26,6 @@ extern "C" {
 #include <dlfcn.h>
 
 
-
 // formatting colors
 #define BOLD   "\033[1m"
 #define RESET  "\033[0m"

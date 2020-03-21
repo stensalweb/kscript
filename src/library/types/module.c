@@ -34,21 +34,31 @@ static ks_module attempt_load(char* cname) {
 
     char* ext = strrchr(cname, '.');
 
-    if (strcmp(ext, ".so") == 0) {
+    if (ext != NULL && strcmp(&ext[1], KS_SHARED_END) == 0) {
+        // load the library as a C API
+
         // attempt to load linux shared library
         // now, load it via dlopen
-        void* handle = dlopen(cname, RTLD_LAZY);    
-        if (handle == NULL) return NULL;
+        void* handle = dlopen(cname, RTLD_LAZY | RTLD_GLOBAL);    
+        if (handle == NULL) {
+                ks_debug("[import] '%s' failed: dlerror(): %s", cname, dlerror());
+            return NULL;
+        }
         
         struct ks_module_cext_init* cext_init = (struct ks_module_cext_init*)dlsym(handle, "__C_module_init__");
         
         if (cext_init != NULL) {
             // call the function, and return its result
             ks_module mod = cext_init->init_func();
-            if (!mod) return NULL;
+            if (!mod) {
+                ks_debug("[import] '%s' failed: Exception was thrown by '__C_module_init__->init_func()'", cname);
+                return NULL;
+            }
 
             ks_debug("[import] '%s' succeeded!", cname);
             return mod;
+        } else {
+            ks_debug("[import] '%s' failed: No '__C_module_init__' symbol!", cname);
         }
 
     }

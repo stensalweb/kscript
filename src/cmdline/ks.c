@@ -5,12 +5,9 @@
 
 #include "ks-impl.h"
 
-#include "getopt_long.h"
+#include "ks_getopt.h"
 
-// for getopt
-#include <unistd.h>
-#include <getopt.h>
-
+// for error printing
 #include <errno.h>
 
 // Cfunc wrapper to call
@@ -78,7 +75,7 @@ int main(int argc, char** argv) {
     }
 
     // handle errors ourselves
-    opterr = 0;
+    ks_opterr = 0;
 
     // current option
     int opt = 0;
@@ -100,7 +97,7 @@ int main(int argc, char** argv) {
     }
 
     // the options
-    static struct option long_options[] = {
+    static struct ks_option long_options[] = {
         { "help",    no_argument,       0, 'h' },
         { "verbose", no_argument,       0, 'v' },
         { "expr",    required_argument, 0, 'e' },
@@ -108,9 +105,9 @@ int main(int argc, char** argv) {
     };
 
 
-    optind = 0;
+    ks_optind = 0;
     
-    while ((opt = getopt_long(argc, argv, "+e:hvV", long_options, NULL)) != -1) {
+    while ((opt = ks_getopt_long(argc, argv, "+e:hvV", long_options, NULL)) != -1) {
         if (opt == 'h') {
             // print help
             printf("Usage: %s [options] FILE [args...]\n", argv[0]);
@@ -132,23 +129,23 @@ int main(int argc, char** argv) {
             ks_log_level_set(ks_log_level() - 1);
 
         } else if (opt == 'e') {
-            expr = optarg;
+            expr = ks_optarg;
             break;
 
         } else if (opt == '?') {
             //OPT_ERR("%s: Unknown option '-%c', run with '-h' to see help message", argv[0], optopt);
-            OPT_ERR("%s: Unknown option '%s', run '%s -h' to see help message", argv[0], argv[optind-1], argv[0]);
+            OPT_ERR("%s: Unknown option '%s', run '%s -h' to see help message", argv[0], argv[ks_optind-1], argv[0]);
         } else if (opt == ':') {
-            OPT_ERR("%s: Option '-%c' needs a value, run '%s -h' to see help message", argv[0], optopt, argv[0]);
+            OPT_ERR("%s: Option '-%c' needs a value, run '%s -h' to see help message", argv[0], ks_optopt, argv[0]);
         } else {
-            OPT_ERR("%s: Unknown options passed ('%s')!, run '%s -h' to see help message", argv[0], argv[optind-1], argv[0]);
+            OPT_ERR("%s: Unknown options passed ('%s')!, run '%s -h' to see help message", argv[0], argv[ks_optind-1], argv[0]);
         }
     }
 
     // check if given an expression
-    if (optind < argc && !expr) {
+    if (ks_optind < argc && !expr) {
         // take the file name as the first positional argument
-        fname = argv[optind++];
+        fname = argv[ks_optind++];
     }
 
     if (fname == NULL && expr == NULL) {
@@ -158,8 +155,8 @@ int main(int argc, char** argv) {
     }
 
     // the number of arguments passed to the program
-    int prog_argc = argc - optind;
-    char** prog_argv = argv + optind;
+    int prog_argc = argc - ks_optind;
+    char** prog_argv = argv + ks_optind;
 
 
     ks_str arg0 = NULL;

@@ -26,7 +26,7 @@ static bool is_ident_m(char c) {
 
 // true if the character is whitespace
 static bool is_white(char c) {
-    return c == ' ' || c == '\t' || c == '\n';
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
 
@@ -371,7 +371,7 @@ static void* tokenize(ks_parser self) {
     for (i = 0; i < self->src->len; ) {
 
         // skip whitespace
-        while (self->src->chr[i] && (self->src->chr[i] == ' ' || self->src->chr[i] == '\t')) ADV();
+        while (self->src->chr[i] && (self->src->chr[i] == ' ' || self->src->chr[i] == '\t' || self->src->chr[i] == '\r')) ADV();
 
         // done
         if (i >= self->src->len) break;

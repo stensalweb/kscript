@@ -85,6 +85,9 @@ _newline = "\n"
 SHARED_END = "so"
 STATIC_END = "a"
 
+KS_API_IMPORT = ""
+KS_API_EXPORT = ""
+
 # header file warnings
 defs = [
 
@@ -97,7 +100,11 @@ elif sys.platform in ('darwin', ):
     defs.append("KS__MACOS")
 elif sys.platform in ('win32', 'cygwin'):
     SHARED_END = "dll"
-    SHARED_END = "lib"
+    STATIC_END = "lib"
+
+    KS_API_IMPORT = "__declspec(dllimport)"
+    KS_API_EXPORT = "__declspec(dllexport)"
+
     defs.append("KS__WINDOWS")
 else:
     defs.append("KS__OTHER")
@@ -158,10 +165,18 @@ extern "C" {{
 #define KS_BUILD_{args.build_type.upper()}
 
 
-
 /* platform info */
 
 #define KS_PLATFORM_NAME "{sys.platform}"
+
+#define KS_API_EXPORT {KS_API_EXPORT}
+#define KS_API_IMPORT {KS_API_IMPORT}
+
+#ifdef KS_BUILD
+#define KS_API KS_API_EXPORT
+#else
+#define KS_API KS_API_IMPORT
+#endif
 
 
 /* misc. defines */
@@ -209,9 +224,12 @@ export KS_VERSION_MINOR
 KS_VERSION_PATCH := {args.V[2]}
 export KS_VERSION_PATCH
 
+KS_VERSION       := $(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)
+export KS_VERSION
+
 CC               := {CC}
 export CC
-CFLAGS           := {CFLAGS}
+CFLAGS           := {CFLAGS} -DKS_BUILD
 export CFLAGS
 LDFLAGS          := {LDFLAGS}
 export LDFLAGS
@@ -261,29 +279,32 @@ ks_O             := $(patsubst %.c,$(_tmp)/%.o,$(ks_C))
 
 # -*- RULES -*-
 
-.PHONY: all default clean install uninstall modules
+.PHONY: all default clean install uninstall modules FORCE
+
 
 
 # default target to build
-default: $(ks_BIN) $(libks_STATIC) $(libks_SHARED) modules
+default: $(libks_SHARED) modules $(ks_BIN)
 
 # build everything
 all: default
 
-clean:
+clean: FORCE
 	rm -rf $(wildcard $(_tmp) debian/usr build lib bin *.deb)
 	for subdir in $(STD_MODULES); do \\
 		$(MAKE) -C $$subdir clean ; \\
 	done
 
-modules:
+modules: $(libks_SHARED) FORCE
 	for subdir in $(STD_MODULES); do \\
 		$(MAKE) -C $$subdir ; \\
 	done
 
+# target to force another target
+FORCE:
 
 # rule to install the whole package to PREFIX
-install: default $(libks_so) $(ks_exe) $(libks_src_h)
+install: default $(ks_H) FORCE
 	install -d $(DESTDIR)$(PREFIX)/bin/
 	install -d $(DESTDIR)$(PREFIX)/lib/
 	install -d $(DESTDIR)$(PREFIX)/share/doc/kscript
@@ -291,12 +312,14 @@ install: default $(libks_so) $(ks_exe) $(libks_src_h)
 
 	install -m 755 $(ks_BIN) $(DESTDIR)$(PREFIX)/bin/
 	install -m 644 $(libks_SHARED) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
+	#install -m 644 $(libks_SHARED).$(KS_VERSION) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
 	install -m 644 $(all_H) $(DESTDIR)$(PREFIX)/include/
 	install -m 644 $(wildcard {PWD}/share/doc/*) $(DESTDIR)$(PREFIX)/share/doc/kscript
 
-	mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)
-	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR)
-	ln -s $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION_MAJOR)
+	mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
+
+	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
+	ln -s libks.$(SHARED_END).$(KS_VERSION) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
 
 	gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog
 	mv $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.gz $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.Debian.gz
@@ -309,7 +332,7 @@ install: default $(libks_so) $(ks_exe) $(libks_src_h)
 
 
 # rule to uninstall the whole package from PREFIX
-uninstall:
+uninstall: FORCE
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(notdir $(ks_BIN))
 	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_STATIC)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
 	rm -f $(patsubst %,$(DESTDIR)$(PREFIX)/include/%,$(notdir $(all_H)))
@@ -321,20 +344,17 @@ uninstall:
 # rule to compile a single object file
 $(_tmp)/src/%.o: src/%.c $(all_H)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I{PWD}/include $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) $< -fPIC -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
 # Since `libks_o` contains many files, we use `$^` to mean `all input files together`
 $(libks_SHARED): $(libks_O)
 	@mkdir -p $(dir $@)
-	# -Wl,-soname,libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)
 	$(CC) $(CFLAGS) \\
 		$^ $(LDFLAGS) \\
-		-Wl,-soname,libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) \\
+		-Wl,-soname,libks.so.$(KS_VERSION) \\
 		-shared -o $@
 	strip $@ $(STRIP_OPTS)
-	#strip {PWD}/lib/libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) $(STRIP_OPTS)
-	#ln -s {PWD}/lib/libks.so.$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH) $@
 	{MAKE_success}
 
 # rule to build the static object file (.a)
@@ -347,16 +367,13 @@ $(libks_STATIC): $(libks_O)
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
-$(ks_BIN): $(libks_SHARED) $(libks_STATIC) modules $(ks_O)
+$(ks_BIN): $(libks_SHARED) modules $(ks_O)
 	@mkdir -p $(dir $@)
 	# -Wl,-rpath ./lib
-	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) -lks -lm -ldl -lpthread -lks -o $@
+	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) $(libks_SHARED) -lm -ldl -lpthread -o $@
 	strip $@ $(STRIP_OPTS)
 	{MAKE_success}
 
-
-kscript-$(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)-amd64.deb: default
-	
 
 
 """)
