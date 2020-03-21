@@ -37,8 +37,8 @@ clean:
 install: $(mod_SHARED) $(mod_H)
 	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
-	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/libkscript//modules/$(MOD_NAME)
-	install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/libkscript//modules/$(MOD_NAME)
+	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
+	install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # rule to uninstall the whole package from PREFIX
 uninstall:
@@ -50,6 +50,6 @@ uninstall:
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -shared -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -shared -o $@
 	strip $@ $(STRIP_OPTS)
 	@echo "\n|| Built: $@\n"

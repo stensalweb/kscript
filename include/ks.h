@@ -809,7 +809,7 @@ typedef struct {
 }* ks_none;
 
 // the global singleton none
-extern ks_none KS_NONE;
+KS_API extern ks_none KS_NONE;
 
 // down-casted constants so returning from functions is simpler
 #define KSO_NONE ((ks_obj)KS_NONE)
@@ -825,7 +825,7 @@ typedef struct {
 }* ks_bool;
 
 // the global singletons for 'true' and 'false' respectively
-extern ks_bool KS_TRUE, KS_FALSE;
+KS_API extern ks_bool KS_TRUE, KS_FALSE;
 
 // down-casted constants so returning from functions is simpler
 #define KSO_TRUE ((ks_obj)KS_TRUE)
@@ -852,7 +852,7 @@ typedef struct ks_int {
 
 // array of small integers:
 // KS_SMALL_INTS[val + KS_SMALL_INT_MAX]
-extern struct ks_int KS_SMALL_INTS[];
+KS_API extern struct ks_int KS_SMALL_INTS[];
 
 
 // ks_float - type representing a floating point real number
@@ -865,7 +865,7 @@ typedef struct {
 }* ks_float;
 
 // Global singleton representing the 'NAN' value (not-a-number)
-extern ks_float KS_NAN;
+KS_API extern ks_float KS_NAN;
 
 
 // ks_complex - represents a complex number with a real and imaginary components
@@ -899,7 +899,7 @@ struct ks_str {
 };
 
 // character strings, global singletons for strings with size 1 (or the empty string with size 0)
-extern struct ks_str KS_STR_CHARS[];
+KS_API extern struct ks_str KS_STR_CHARS[];
 
 
 
@@ -1349,7 +1349,7 @@ typedef struct {
 // Only 1 thread may access this at once, and thus it must be locked before use, and unlocked after.
 // NOTE: Don't use `ks_mutex_*` functions on this, use `ks_GIL_*` functions (like `ks_GIL_lock()`)
 //   to manage GIL access
-extern ks_mutex ks_GIL;
+KS_API extern ks_mutex ks_GIL;
 
 // Acquire the Global Interpreter Lock (GIL) for the current thread. If the current thread does not
 //   already have the GIL, this function blocks until it is available
@@ -1582,7 +1582,7 @@ KS_API void ks_str_b_free(ks_str_b* self);
 /* BUILTIN TYPES (see 'types/' directory) */
 
 // these are the built-in types
-extern ks_type 
+KS_API extern ks_type 
     ks_type_type,
     
     ks_type_none,
@@ -1632,7 +1632,7 @@ extern ks_type
 
 /* BUILTIN FUNCTIONS (see ./funcs.c) */
 
-extern ks_cfunc
+KS_API extern ks_cfunc
     ks_F_repr,
     ks_F_hash,
     ks_F_print,
@@ -1672,10 +1672,10 @@ extern ks_cfunc
 ;
 
 // global variables, i.e. the builtin types and a few of the functions
-extern ks_dict ks_globals;
+KS_API extern ks_dict ks_globals;
 
 // the paths to search for things (similar to 'PYTHONPATH')
-extern ks_list ks_paths;
+KS_API extern ks_list ks_paths;
 
 
 /* GENERIC/GENERAL LIBRARY FUNCTIONS */
@@ -2239,9 +2239,6 @@ KS_API bool ks_is_iterable(ks_obj obj);
 // Attempt to call 'func' on 'args', returning NULL if there was an error
 // NOTE: Returns a new reference
 KS_API ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
-
-// the call stack of currently executing items
-extern ks_list ks_call_stk;
 
 /* EXCEPTION HANDLING */
 

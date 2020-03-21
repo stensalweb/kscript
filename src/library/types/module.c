@@ -41,7 +41,7 @@ static ks_module attempt_load(char* cname) {
         // now, load it via dlopen
         void* handle = dlopen(cname, RTLD_LAZY | RTLD_GLOBAL);    
         if (handle == NULL) {
-                ks_debug("[import] '%s' failed: dlerror(): %s", cname, dlerror());
+            ks_debug("[import] '%s' failed: dlerror(): %s", cname, dlerror());
             return NULL;
         }
         
@@ -59,6 +59,7 @@ static ks_module attempt_load(char* cname) {
             return mod;
         } else {
             ks_debug("[import] '%s' failed: No '__C_module_init__' symbol!", cname);
+            return NULL;
         }
 
     }
@@ -90,13 +91,13 @@ ks_module ks_module_import(char* mname) {
     int i;
     for (i = 0; i < ks_paths->len; ++i) {
         // current path we are trying
-        ks_str ctry = ks_fmt_c("%S/%s/libksm_%s.so", ks_paths->elems[i], mname, mname);
+        ks_str ctry = ks_fmt_c("%S/%s/libksm_%s.%s", ks_paths->elems[i], mname, mname, KS_SHARED_END);
 
         mod = attempt_load(ctry->chr);
         KS_DECREF(ctry);
         if (mod != NULL) goto finish;
 
-        ctry = ks_fmt_c("%S/modules/%s/libksm_%s.so", ks_paths->elems[i], mname, mname);
+        ctry = ks_fmt_c("%S/modules/%s/libksm_%s.%s", ks_paths->elems[i], mname, mname, KS_SHARED_END);
 
         mod = attempt_load(ctry->chr);
         KS_DECREF(ctry);

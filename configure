@@ -229,7 +229,7 @@ export KS_VERSION
 
 CC               := {CC}
 export CC
-CFLAGS           := {CFLAGS} -DKS_BUILD
+CFLAGS           := {CFLAGS}
 export CFLAGS
 LDFLAGS          := {LDFLAGS}
 export LDFLAGS
@@ -268,8 +268,10 @@ ks_C             := {files("src/cmdline/*.c")}
 # -*- TARGETS -*-
 
 # target files
-libks_SHARED     := lib/libks.$(SHARED_END)
-libks_STATIC     := lib/libks.$(STATIC_END)
+libks_SHARED     := {PWD}/lib/libks.$(SHARED_END)
+export libks_SHARED
+libks_STATIC     := {PWD}/lib/libks.$(STATIC_END)
+export libks_STATIC
 ks_BIN           := bin/ks
 
 # generated
@@ -344,7 +346,7 @@ uninstall: FORCE
 # rule to compile a single object file
 $(_tmp)/src/%.o: src/%.c $(all_H)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) -DKS_BUILD $< -fPIC -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
 # Since `libks_o` contains many files, we use `$^` to mean `all input files together`
@@ -370,8 +372,15 @@ $(libks_STATIC): $(libks_O)
 $(ks_BIN): $(libks_SHARED) modules $(ks_O)
 	@mkdir -p $(dir $@)
 	# -Wl,-rpath ./lib
-	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) $(libks_SHARED) -lm -ldl -lpthread -o $@
+	# -Wl,-rpath,'$$ORIGIN'
+	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) \\
+		-L../lib \\
+		-Wl,-rpath,'$$ORIGIN' -Wl,-rpath,'$$ORIGIN/../lib' -Wl,-rpath,./lib \\
+		-Wl,-rpath-link,./ \\
+		$(libks_SHARED) -lm -ldl -lpthread \\
+		-o $@
 	strip $@ $(STRIP_OPTS)
+	{"cp $(libks_SHARED) $(dir $@)" if "KS__WINDOWS" in defs else ""}
 	{MAKE_success}
 
 
