@@ -27,11 +27,12 @@ parser.add_argument('--build-type', help='The build type that will be ran', choi
 parser.add_argument('--dest-dir', help='Set the destination local directory (useful for making .deb packages, for example)', default=None)
 parser.add_argument('--prefix', help='Set the prefix directory for installation', default=None)
 
+
 parser.add_argument('-M', nargs='*', help='Modules to build with kscript', default=glob.glob("modules/*"))
 
 # enable/disable features
 parser.add_argument('--enable-trace', '--disable-trace', dest='trace', action=NegateAction, nargs=0, help='Enables/disables \'ks_trace()\', disabling may increase performance', default=True)
-
+parser.add_argument('--enable-rpath', '--disable-rpath', dest='rpath', action=NegateAction, nargs=0, help='Enables/disables the use of local library paths, useful for local installations only. Use `--disable-rpath` for any packages/installed programs', default=True)
 
 
 args = parser.parse_args()
@@ -98,7 +99,7 @@ if sys.platform in ('linux', 'linux2'):
     defs.append("KS__LINUX")
 elif sys.platform in ('darwin', ):
     defs.append("KS__MACOS")
-elif sys.platform in ('win32', 'cygwin'):
+elif sys.platform in ('win32', ):
     SHARED_END = "dll"
     STATIC_END = "lib"
 
@@ -106,6 +107,15 @@ elif sys.platform in ('win32', 'cygwin'):
     KS_API_EXPORT = "__declspec(dllexport)"
 
     defs.append("KS__WINDOWS")
+
+elif sys.platform in ('cygwin', ):
+    SHARED_END = "dll"
+    STATIC_END = "lib"
+
+    KS_API_IMPORT = "__declspec(dllimport)"
+    KS_API_EXPORT = "__declspec(dllexport)"
+
+    defs.append("KS__CYGWIN")
 else:
     defs.append("KS__OTHER")
 
@@ -178,6 +188,8 @@ extern "C" {{
 #define KS_API KS_API_IMPORT
 #endif
 
+#define KS_PREFIX "{PREFIX}"
+
 
 /* misc. defines */
 
@@ -233,6 +245,9 @@ CFLAGS           := {CFLAGS}
 export CFLAGS
 LDFLAGS          := {LDFLAGS}
 export LDFLAGS
+
+# only should be enabled in local builds
+RPATH_FLAGS      := {"-Wl,-rpath,'$$ORIGIN' -Wl,-rpath,'$$ORIGIN/../lib' -Wl,-rpath,./lib -Wl,-rpath-link,./" if args.rpath else ""}
 
 KS_DIR           := {PWD}
 export KS_DIR
@@ -294,41 +309,43 @@ all: default
 clean: FORCE
 	rm -rf $(wildcard $(_tmp) debian/usr build lib bin *.deb)
 	for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir clean ; \\
+		$(MAKE) -C $$subdir clean || exit 1 ; \\
 	done
 
 modules: $(libks_SHARED) FORCE
 	for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir ; \\
+		$(MAKE) -C $$subdir || exit 1 ; \\
 	done
 
 # target to force another target
 FORCE:
 
 # rule to install the whole package to PREFIX
-install: default $(ks_H) FORCE
+install: default $(libks_STATIC) $(ks_H) FORCE
 	install -d $(DESTDIR)$(PREFIX)/bin/
 	install -d $(DESTDIR)$(PREFIX)/lib/
 	install -d $(DESTDIR)$(PREFIX)/share/doc/kscript
 	install -d $(DESTDIR)$(PREFIX)/include/
+	install -d $(DESTDIR)$(PREFIX)/share/man/man1
 
 	install -m 755 $(ks_BIN) $(DESTDIR)$(PREFIX)/bin/
-	install -m 644 $(libks_SHARED) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
-	#install -m 644 $(libks_SHARED).$(KS_VERSION) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
+	install -m 644 $(libks_SHARED).$(KS_VERSION) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
 	install -m 644 $(all_H) $(DESTDIR)$(PREFIX)/include/
 	install -m 644 $(wildcard {PWD}/share/doc/*) $(DESTDIR)$(PREFIX)/share/doc/kscript
+	install -m 644 $(wildcard {PWD}/share/man/man1/*) $(DESTDIR)$(PREFIX)/share/man/man1
 
-	mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
+	#mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
 
 	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
 	ln -s libks.$(SHARED_END).$(KS_VERSION) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
 
 	gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog
 	mv $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.gz $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.Debian.gz
-	#gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.Debian
+
+	gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/man/man1/ks.1
 
 	for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir install ; \\
+		$(MAKE) -C $$subdir install || exit 1 ; \\
 	done
 
 
@@ -336,11 +353,11 @@ install: default $(ks_H) FORCE
 # rule to uninstall the whole package from PREFIX
 uninstall: FORCE
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(notdir $(ks_BIN))
-	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_STATIC)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
+	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_STATIC)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
 	rm -f $(patsubst %,$(DESTDIR)$(PREFIX)/include/%,$(notdir $(all_H)))
 
 	for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir uninstall ; \\
+		$(MAKE) -C $$subdir uninstall || exit 1 ; \\
 	done
 
 # rule to compile a single object file
@@ -355,8 +372,10 @@ $(libks_SHARED): $(libks_O)
 	$(CC) $(CFLAGS) \\
 		$^ $(LDFLAGS) \\
 		-Wl,-soname,libks.so.$(KS_VERSION) \\
-		-shared -o $@
-	strip $@ $(STRIP_OPTS)
+		-shared -o $@.$(KS_VERSION)
+	strip $@.$(KS_VERSION) $(STRIP_OPTS)
+	rm -f $@
+	ln -s libks.$(SHARED_END).$(KS_VERSION) $@
 	{MAKE_success}
 
 # rule to build the static object file (.a)
@@ -371,13 +390,9 @@ $(libks_STATIC): $(libks_O)
 #   explicitly
 $(ks_BIN): $(libks_SHARED) modules $(ks_O)
 	@mkdir -p $(dir $@)
-	# -Wl,-rpath ./lib
-	# -Wl,-rpath,'$$ORIGIN'
 	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) \\
-		-L../lib \\
-		-Wl,-rpath,'$$ORIGIN' -Wl,-rpath,'$$ORIGIN/../lib' -Wl,-rpath,./lib \\
-		-Wl,-rpath-link,./ \\
-		$(libks_SHARED) -lm -ldl -lpthread \\
+		-L../lib -L{PWD}/lib $(RPATH_FLAGS) \\
+		$(libks_SHARED).$(KS_VERSION) -lm -ldl -lpthread \\
 		-o $@
 	strip $@ $(STRIP_OPTS)
 	{"cp $(libks_SHARED) $(dir $@)" if "KS__WINDOWS" in defs else ""}

@@ -30,6 +30,9 @@ static KS_FUNC(cfunc_main) {
         if (!src_code) return NULL;
     }
 
+    ks_printf("%S\n", ks_internal_globals);
+
+
     // 2. construct a parser
     ks_parser p = ks_parser_new(src_code, fname);
     if (!p) return NULL;
@@ -74,13 +77,13 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+
     // handle errors ourselves
     ks_opterr = 0;
 
     // current option
     int opt = 0;
     const ks_version_t* ver = ks_version();
-
 
 
     // the file to run

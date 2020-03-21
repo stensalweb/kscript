@@ -85,7 +85,7 @@ extern "C" {
 
 
 /* system/stdlib headers */
-#if defined(KS__WINDOWS)
+#if defined(KS__WINDOWS) || defined(KS__CYGWIN)
 
 // TODO: actually try and built on windows platform
 
@@ -1673,6 +1673,10 @@ KS_API extern ks_cfunc
 
 // global variables, i.e. the builtin types and a few of the functions
 KS_API extern ks_dict ks_globals;
+
+// internal globals, used by the compiler & interpreter. Users should not be
+//   modifying/using these, as there is no guarantee what it may or may not contain
+KS_API extern ks_dict ks_internal_globals;
 
 // the paths to search for things (similar to 'PYTHONPATH')
 KS_API extern ks_list ks_paths;

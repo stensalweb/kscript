@@ -20,7 +20,6 @@
 #define NX_BCAST_FAST_MDLIN
 
 
-
 // calculate the linear index from a list of indices, in number of elements, including a stride
 // 'stride' should be calculated absolutely; not relative stride
 // NOTE: Returns < 0 in case of an error, or >= 0 with the successful

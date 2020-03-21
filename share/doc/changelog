@@ -1,12 +1,12 @@
+kscript (0.0.1-2) unstable; urgency=medium
+
+  * Updated some debian packaging configuration
+
+ -- Cade Brown <brown.cade@gmail.com>  Fri, 20 Mar 2020 19:05:04 -0400
+
 kscript (0.0.1-1) unstable; urgency=medium
 
   * Made initial debian package
   * kscript version 0.0.1
 
  -- Cade Brown <brown.cade@gmail.com>  Mon, 16 Mar 2020 18:57:00 -0400
-
-kscript (0.0.1-2) unstable; urgency=medium
-
-  * Updated some debian packaging configuration
-
- -- Cade Brown <brown.cade@gmail.com>  Fri, 20 Mar 2020 19:05:04 -0400

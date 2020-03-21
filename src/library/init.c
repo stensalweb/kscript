@@ -6,6 +6,8 @@
 
 #include "ks-impl.h"
 
+#include "whereami.h"
+
 
 // the static version information
 static ks_version_t this_version = (ks_version_t){
@@ -30,7 +32,7 @@ const ks_version_t* ks_version() {
 ks_mutex ks_GIL = NULL;
 
 // global vars
-ks_dict ks_globals = NULL;
+ks_dict ks_globals = NULL, ks_internal_globals = NULL;
 
 // the paths to search
 ks_list ks_paths = NULL;
@@ -104,6 +106,40 @@ bool ks_init() {
 
         ks_free(dup);
     }
+
+    // find out the full path of 'argv[0]'
+    int length = wai_getExecutablePath(NULL, 0, NULL);
+    char* full_path = ks_malloc(length + 1);
+    int dir_length = 0;
+    wai_getExecutablePath(full_path, length, &dir_length);
+    full_path[dir_length] = '\0';
+
+    ks_str full_path_o = ks_str_new(full_path);
+    ks_str lib_path_o = ks_fmt_c("%s/../lib", full_path);
+
+    // add a module lookup path to it
+    ks_str module_path_o = ks_fmt_c("%S/kscript/modules", full_path_o);
+    ks_list_push(ks_paths, (ks_obj)module_path_o);
+    KS_DECREF(module_path_o);
+
+
+    ks_str tmpstr = NULL;
+    #if defined(KS__LINUX) || defined(KS__CYGWIN)
+    // add some default places to look
+    tmpstr = ks_str_new(KS_PREFIX "/lib/kscript/modules");
+    ks_list_push(ks_paths, (ks_obj)tmpstr);
+    KS_DECREF(tmpstr);
+    #endif
+
+    // initialize internal globals
+    ks_internal_globals = ks_dict_new(0, NULL);
+    // set it in the internal global dictionary
+    ks_dict_set_cn(ks_internal_globals, (ks_dict_ent_c[]){
+        {"KSCRIPT_BINARY_DIR", (ks_obj)full_path_o},
+        {"KSCRIPT_LIB_DIR", (ks_obj)lib_path_o},
+        {NULL, NULL}
+    });
+
 
     // initialize globals
     ks_globals = ks_dict_new(0, NULL);
