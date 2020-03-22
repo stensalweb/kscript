@@ -395,7 +395,7 @@ $(ks_BIN): $(libks_SHARED) modules $(ks_O)
 		$(libks_SHARED).$(KS_VERSION) -lm -ldl -lpthread \\
 		-o $@
 	strip $@ $(STRIP_OPTS)
-	{"cp $(libks_SHARED) $(dir $@)" if "KS__WINDOWS" in defs else ""}
+	{"cp $(libks_SHARED).$(KS_VERSION) $(dir $@)" if "KS__WINDOWS" in defs or "KS__CYGWIN" in defs else ""}
 	{MAKE_success}
 
 
