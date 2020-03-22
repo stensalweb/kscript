@@ -905,7 +905,7 @@ static char** match_completion(const char *text, int start, int end) {
 
 // kscript's 'tab' functionality
 int my_tab_func (int count, int key) {
-    printf("COUNT: %i\n", count);
+    //printf("COUNT: %i\n", count);
     rl_menu_complete(count, key);
     return count + 1;
 }
@@ -1028,6 +1028,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     }
     
     KS_DECREF(myc);
+
 }
 
 
@@ -1058,8 +1059,13 @@ static KS_TFUNC(std, run_interactive) {
     if (isTTY) {
         ensure_readline();
 
+        // yield GIL
+        ks_GIL_unlock();
+
         // now, continue to read lines
         while ((cur_line = readline(PROMPT)) != NULL) {
+
+            ks_GIL_lock();
 
             num_lines++;
             // only add non-empty
@@ -1076,18 +1082,27 @@ static KS_TFUNC(std, run_interactive) {
 
             // free it. readline uses 'malloc', so we must use free
             free(cur_line);
-        }
 
-        return KSO_NONE;
+            ks_GIL_unlock();
+        }
+        
+        ks_GIL_lock();
+
     } else {
     // do fallback version
     
     #endif
 
+    // yield GIL
+    ks_GIL_unlock();
+
     // do readline version
     if (isTTY) printf("%s", PROMPT);
 
     while ((len = ks_getline(&cur_line, &alloc_size, stdin)) >= 0) {
+
+        // hold GIL
+        ks_GIL_lock();
 
         num_lines++;
 
@@ -1109,7 +1124,12 @@ static KS_TFUNC(std, run_interactive) {
         KS_DECREF(src_name);
 
         if (isTTY) printf("%s", PROMPT);
+
+        ks_GIL_unlock();
+
     }
+
+    ks_GIL_lock();
 
     // end of the 'else' clause
     #ifdef KS_HAVE_READLINE
