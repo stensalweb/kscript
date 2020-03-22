@@ -1794,6 +1794,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         ADV_1();
 
+        ks_tok in_tok = CTOK();
         if (!TOK_EQ(CTOK(), "in")) {
             KS_DECREF(ident);
             syntax_error(start_tok, "Expected 'in' keyword for the 'for' loop");
@@ -1802,6 +1803,12 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         
         // skip it
         ADV_1();
+
+        if (CTOK().type == KS_TOK_EOF) {
+            KS_DECREF(ident);
+            syntax_error(in_tok, "Unexpected EOF, expected an expression after 'in' keyword");
+            goto kpps_err;
+        }
 
         // now, parse an expression
         ks_ast expr = ks_parser_parse_expr(self);
@@ -1816,6 +1823,12 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         }
 
         SKIP_IRR_S();
+
+        if (CTOK().type == KS_TOK_EOF) {
+            KS_DECREF(ident);
+            syntax_error(start_tok, "Unexpected EOF, expected a loop body for the 'for' loop declared here");
+            goto kpps_err;
+        }
 
         ks_ast body = ks_parser_parse_stmt(self);
         if (!body) {

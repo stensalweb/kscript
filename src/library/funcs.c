@@ -960,6 +960,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     // 1. construct a parser
     ks_parser p = ks_parser_new(expr, src_name);
 
+
     // 2. parse out the entire module (which will also syntax validate)
     ks_ast prog = ks_parser_parse_file(p);
     if (!prog) {
