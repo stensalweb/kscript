@@ -3,7 +3,7 @@ Version: 0.0.1-3
 Section: devel
 Priority: optional
 Architecture: amd64
-Depends: libpthread-stubs0-dev, libc6
+Depends: libpthread-stubs0-dev, libc6, libreadline-dev, libgmp-dev
 Maintainer: Cade Brown <brown.cade@gmail.com>
 Description: Scripting language
  'kscript' is a highly dynamic scripting language with
