@@ -84,6 +84,13 @@ extern "C" {
 #include <ks-config.h>
 
 
+// optional dependencies
+#ifdef KS_HAVE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
+
 /* system/stdlib headers */
 #if defined(KS__WINDOWS) || defined(KS__CYGWIN)
 
@@ -1667,7 +1674,13 @@ KS_API extern ks_cfunc
     ks_F_setattr,
 
     ks_F_getitem,
-    ks_F_setitem
+    ks_F_setitem,
+
+    // specialty
+
+    ks_F_run_file,
+    ks_F_run_expr,
+    ks_F_run_interactive
 
 ;
 
@@ -2244,6 +2257,11 @@ KS_API bool ks_is_iterable(ks_obj obj);
 // NOTE: Returns a new reference
 KS_API ks_obj ks_call(ks_obj func, int n_args, ks_obj* args);
 
+// Attempt to call 'func' on 'args', returning NULL if there was an error
+// NOTE: Sets the local variables to 'locals', which can be NULL to generate a new dictionary
+// NOTE: Returns a new reference
+KS_API ks_obj ks_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals);
+
 /* EXCEPTION HANDLING */
 
 // Throw an object up the call stack
@@ -2292,6 +2310,7 @@ KS_API ks_str ks_readfile(char* fname);
 // size_t bufsize = 0;
 // int len = ks_getline(&line, &len, fp);
 // ks_free(line);
+// NOTE: Returns -1 at the end of file
 KS_API int ks_getline(char** lineptr, size_t* n, FILE* fp);
 
 

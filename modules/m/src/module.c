@@ -185,7 +185,7 @@ T_M_F_1f(round, round);
 // round(val) -> round a value
 T_M_F_1f(trunc, trunc);
 // round(val) -> round a value
-T_M_F_1fc(abs, abs, cabs, if (a0->type == ks_type_complex) { ks_obj ret = (ks_obj)ks_float_new(cabs(((ks_complex)a0)->val)); KS_DECREF(a0); return ret; });
+T_M_F_1fc(abs, fabs, cabs, if (a0->type == ks_type_complex) { ks_obj ret = (ks_obj)ks_float_new(cabs(((ks_complex)a0)->val)); KS_DECREF(a0); return ret; });
 
 
 

@@ -16,9 +16,14 @@ extern "C" {
 #endif
 
 
+// for error printing
+#include <errno.h>
+#include <unistd.h>
+
 // always include the main header
 #include "ks.h"
 
+// other standard defines
 #include <math.h>
 #include <errno.h>
 #include <ctype.h>

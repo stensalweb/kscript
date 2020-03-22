@@ -40,7 +40,11 @@ ks_cfunc
     ks_F_ne = NULL,
 
     ks_F_neg = NULL,
-    ks_F_sqig = NULL
+    ks_F_sqig = NULL,
+
+    ks_F_run_file = NULL,
+    ks_F_run_expr = NULL,
+    ks_F_run_interactive = NULL
 
 ;
 
@@ -61,6 +65,10 @@ ks_cfunc
  * 
  */
 ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
+    return ks_call2(func, n_args, args, NULL);
+}
+// Added version which can accept a local variables dictionary
+ks_obj ks_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
 
     // current thread
     ks_thread this_th = ks_thread_get();
@@ -100,7 +108,7 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
 
         KS_REQ_N_ARGS(n_args, kff->n_param);
 
-        this_stack_frame->locals = ks_dict_new(0, NULL);
+        this_stack_frame->locals = locals ? (ks_dict)KS_NEWREF(locals) : ks_dict_new(0, NULL);
 
         // push on arguments
         int i;
@@ -126,7 +134,7 @@ ks_obj ks_call(ks_obj func, int n_args, ks_obj* args) {
         KS_REQ_N_ARGS(n_args, 0);
 
         // start off empty
-        this_stack_frame->locals = ks_dict_new(0, NULL);
+        this_stack_frame->locals = locals ? (ks_dict)KS_NEWREF(locals) : ks_dict_new(0, NULL);
 
         // actually call it
         ret = ks__exec(cf);
@@ -546,6 +554,9 @@ static KS_FUNC(hash) {
 }
 
 
+// number of bytes written to the stdout
+static int64_t _print_numbytes = 0;
+
 
 /* print(*args) -> none
  *
@@ -583,6 +594,8 @@ static KS_FUNC(print) {
 
     // now print out the buffer
     fwrite(ret->chr, 1, ret->len, stdout);
+
+    _print_numbytes += ret->len + 1;
 
     // we are done with the buffer
     KS_DECREF(ret);
@@ -735,6 +748,377 @@ T_KS_FUNC_UOP(sqig, "~", __sqig__)
 
 
 
+// __std.run_file(fname) -> run and execute a file
+static KS_TFUNC(std, run_file) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str fname = (ks_str)args[0];
+    KS_REQ_TYPE(fname, ks_type_str, "fname");
+
+    // 1. Attempt to read the entire file
+    ks_str src_code = ks_readfile(fname->chr);
+    if (!src_code) return NULL;
+
+    // 2. construct a parser
+    ks_parser p = ks_parser_new(src_code, fname);
+    KS_DECREF(src_code);
+
+    // 3. parse out the entire module (which will also syntax validate)
+    ks_ast prog = ks_parser_parse_file(p);
+    if (!prog) {
+        KS_DECREF(p);
+        return NULL;
+    }
+
+    // 4. generate a bytecode object reprsenting the module
+    ks_code myc = ks_codegen(prog);
+    KS_DECREF(prog);
+    if (!myc) {
+        KS_DECREF(p);    
+        return NULL;
+    }
+
+    // 5. (optional) attempt to set some metadata for the code, if asked
+    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
+    }
+
+    // debug the code it is going to run
+    ks_debug("CODE: %S", myc);
+
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    return ks_call((ks_obj)myc, 0, NULL);
+}
+
+// __std.run_expr(expr) -> run and execute an expression
+static KS_TFUNC(std, run_expr) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str expr = (ks_str)args[0];
+    KS_REQ_TYPE(expr, ks_type_str, "expr");
+
+    ks_str src_name = ks_fmt_c("-e %R", expr);
+
+    // 2. construct a parser
+    ks_parser p = ks_parser_new(expr, src_name);
+    KS_DECREF(expr);
+
+    // 3. parse out the entire module (which will also syntax validate)
+    ks_ast prog = ks_parser_parse_file(p);
+    if (!prog) {
+        KS_DECREF(p);
+        return NULL;
+    }
+
+    // 4. generate a bytecode object reprsenting the module
+    ks_code myc = ks_codegen(prog);
+    KS_DECREF(prog);
+    if (!myc) {
+        KS_DECREF(p);    
+        return NULL;
+    }
+
+    // 5. (optional) attempt to set some metadata for the code, if asked
+    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
+    }
+
+    // debug the code it is going to run
+    ks_debug("CODE: %S", myc);
+
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    ks_obj ret = ks_call((ks_obj)myc, 0, NULL);
+
+    KS_DECREF(myc);
+    return ret;
+}
+
+
+// global interpreter variables
+static ks_dict inter_vars = NULL;
+
+// put readline only code here:
+#ifdef KS_HAVE_READLINE
+
+// RESOURCES ON READLINE:
+// http://web.mit.edu/gnu/doc/html/rlman_2.html
+
+
+// attempt to tab complete match
+static char**  match_gen(const char *text, int state) {
+    // current index through 'inter_vars' and 'globals'
+    static int idx, slen;
+    char *name;
+
+    if (!state) {
+        idx = 0;
+        slen = strlen(text);
+    }
+
+    while (idx < inter_vars->n_entries) {
+        ks_str this_key = (ks_str)inter_vars->entries[idx++].key;
+        if (!this_key) continue;
+        if (this_key->type != ks_type_str) continue;
+
+        // attempt potential match
+        if (strncmp(text, this_key->chr, slen) == 0) {
+            // return a new string
+            char* new_match = malloc(this_key->len + 1);
+            memcpy(new_match, this_key->chr, this_key->len + 1);
+            return new_match;
+        }
+    }
+    // adjusted index for globals
+    #define ADJ_IDX (idx - inter_vars->n_entries)
+    while (ADJ_IDX < ks_globals->n_entries) {
+        ks_str this_key = (ks_str)ks_globals->entries[ADJ_IDX].key;
+        idx++;
+        if (!this_key) continue;
+        if (this_key->type != ks_type_str) continue;
+
+        // attempt potential match
+        if (strncmp(text, this_key->chr, slen) == 0) {
+            // return a new string
+            char* new_match = malloc(this_key->len + 1);
+            memcpy(new_match, this_key->chr, this_key->len + 1);
+            return new_match;
+        }
+    }
+
+    // no matches found
+    return NULL;
+}
+
+
+// full completion function
+static char** match_completion(const char *text, int start, int end) {
+    rl_attempted_completion_over = 1;
+    // TODO: actually be smart about what position in the text we are
+
+    return rl_completion_matches(text, match_gen);
+}
+
+
+// kscript's 'tab' functionality
+int my_tab_func (int count, int key) {
+    printf("COUNT: %i\n", count);
+    rl_menu_complete(count, key);
+    return count + 1;
+}
+
+// ensure readline is enabled
+static void ensure_readline() {
+    static bool isInit = false;
+    if (isInit) return;
+    isInit = true;
+
+    // ensured
+
+    // TODO: initialize it
+    // set the tab completion to our own
+    rl_attempted_completion_function = match_completion;
+
+    //rl_bind_key('\t', rl_possible_completions);
+    //rl_bind_key('\t', my_tab_func);
+}
+
+#endif
+
+
+// handle exception
+static void interactive_handle_exc() {
+    // handle error
+    ks_list exc_info = ks_list_new(0, NULL);
+    ks_obj exc = ks_catch2(exc_info);
+    assert(exc != NULL && "NULL returned with no exception!");
+
+    // error, so rethrow it and return
+    ks_printf(RED BOLD "%T" RESET ": %S\n", exc, exc);
+
+    // print in reverse order
+    ks_printf("Call Stack:\n");
+    
+    int i;
+    for (i = 0; i < exc_info->len; i++) {
+        ks_printf("%*c#%i: In %S\n", 2, ' ', i, exc_info->elems[i]);
+    }
+    
+    ks_printf("In thread %R @ %p\n", ks_thread_get()->name, ks_thread_get());
+
+    KS_DECREF(exc);
+    KS_DECREF(exc_info);
+}
+
+
+// runs a single expression from the interactive 
+static void run_interactive_expr(ks_str expr, ks_str src_name) {
+
+    // 1. construct a parser
+    ks_parser p = ks_parser_new(expr, src_name);
+
+    // 2. parse out the entire module (which will also syntax validate)
+    ks_ast prog = ks_parser_parse_file(p);
+    if (!prog) {
+        KS_DECREF(p);
+        interactive_handle_exc();
+        return;
+    }
+
+    // whether ot not to print the result
+    bool doPrint = false;
+    // if this is true, we should only print if nothing else has printed in that time,
+    //   to avoid double printing
+    bool doPrintIffy = false;
+    int64_t start_nbytes = _print_numbytes;
+
+    // get whether its an actual terminal screen
+    bool isTTY = isatty(STDIN_FILENO);
+
+    // now, check if it is a binary operator or a special case,
+    //   in which case 
+    if (isTTY) if ((prog->kind >= KS_AST_BOP__FIRST && prog->kind <= KS_AST_BOP__LAST) ||
+        (prog->kind >= KS_AST_UOP__FIRST && prog->kind <= KS_AST_UOP__LAST) ||
+        prog->kind == KS_AST_ATTR || prog->kind == KS_AST_VAR || prog->kind == KS_AST_CONST ||
+        prog->kind == KS_AST_SUBSCRIPT || prog->kind == KS_AST_CALL) {
+            doPrint = true;
+            doPrintIffy = prog->kind == KS_AST_CALL;
+            ks_ast new_prog = ks_ast_new_ret(prog);
+            KS_DECREF(prog);
+            prog = new_prog;
+        }
+
+    // 3. generate a bytecode object reprsenting the module
+    ks_code myc = ks_codegen(prog);
+    KS_DECREF(prog);
+    if (!myc) {
+        KS_DECREF(p);    
+        interactive_handle_exc();
+        return;
+    }
+
+    // 4. (optional) attempt to set some metadata for the code, if asked
+    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
+    }
+
+    // debug the code it is going to run
+    ks_debug("CODE: %S", myc);
+
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    ks_obj ret = ks_call2((ks_obj)myc, 0, NULL, inter_vars);
+    if (!ret) {
+        interactive_handle_exc();
+    } else {
+        if (doPrint) {
+            if (doPrintIffy && _print_numbytes != start_nbytes) {
+                // do nothing
+            } else {
+                ks_printf("%R\n", ret);
+            }
+        } 
+        // discard error
+        KS_DECREF(ret);
+    }
+    
+    KS_DECREF(myc);
+}
+
+
+// __std.run_interactive() -> run an interactive shell
+static KS_TFUNC(std, run_interactive) {
+    KS_REQ_N_ARGS(n_args, 0);
+
+    size_t alloc_size = 0;
+    int len = 0;
+    char* cur_line = NULL;
+
+    // how many lines have been processed
+    int num_lines = 0;
+
+    #ifndef KS_HAVE_READLINE
+    ks_warn("Using interactive interpreter, but not compiled with readline!");
+    #endif
+
+
+    // what should prompt every user input line?
+    #define PROMPT " %> "
+
+    // get whether its an actual terminal screen
+    bool isTTY = isatty(STDIN_FILENO);
+
+    // only use readline if it is a TTY and we are compiled with readline support
+    #ifdef KS_HAVE_READLINE
+    if (isTTY) {
+        ensure_readline();
+
+        // now, continue to read lines
+        while ((cur_line = readline(PROMPT)) != NULL) {
+
+            num_lines++;
+            // only add non-empty
+            if (cur_line && *cur_line) add_history(cur_line);
+            else continue;
+
+            // now, compile it
+            ks_str src_name = ks_fmt_c("<interactive prompt #%i>", (int)num_lines);
+            ks_str expr = ks_str_new(cur_line);
+
+            run_interactive_expr(expr, src_name);
+            KS_DECREF(expr);
+            KS_DECREF(src_name);
+
+            // free it. readline uses 'malloc', so we must use free
+            free(cur_line);
+        }
+
+        return KSO_NONE;
+    } else {
+    // do fallback version
+    
+    #endif
+
+    // do readline version
+    if (isTTY) printf("%s", PROMPT);
+
+    while ((len = ks_getline(&cur_line, &alloc_size, stdin)) >= 0) {
+
+        num_lines++;
+
+        // remove last newline
+        if (cur_line[len] == '\n') cur_line[len] = '\0';
+
+        // short cut out if there is nothing
+        if (len == 0) {
+            printf("%s", PROMPT);
+            continue;
+        }
+
+        // now, compile it
+        ks_str src_name = ks_fmt_c("<interactive prompt #%i>", (int)num_lines);
+        ks_str expr = ks_str_new(cur_line);
+
+        run_interactive_expr(expr, src_name);
+        KS_DECREF(expr);
+        KS_DECREF(src_name);
+
+        if (isTTY) printf("%s", PROMPT);
+    }
+
+    // end of the 'else' clause
+    #ifdef KS_HAVE_READLINE
+    }
+    #endif
+
+    return KSO_NONE;
+}
+
 
 // initialize all the functions
 void ks_init_funcs() {
@@ -773,6 +1157,12 @@ void ks_init_funcs() {
     ks_F_getitem = ks_cfunc_new2(getitem_, "getitem(obj, *vals)");
     ks_F_setitem = ks_cfunc_new2(setitem_, "setitem(obj, *args)");
 
+
+    ks_F_run_file = ks_cfunc_new2(std_run_file_, "run_file(fname)");
+    ks_F_run_expr = ks_cfunc_new2(std_run_expr_, "run_expr(expr)");
+    ks_F_run_interactive = ks_cfunc_new2(std_run_interactive_, "run_interactive()");
+
+    inter_vars = ks_dict_new(0, NULL);
 
 }
 

@@ -2110,6 +2110,12 @@ ks_ast ks_parser_parse_file(ks_parser self) {
         SKIP_IRR_S();
     }
 
+    if (blk->children->len == 1) {
+        ks_ast res = (ks_ast)KS_NEWREF(blk->children->elems[0]);
+        KS_DECREF(blk);
+        return res;
+    }
+
     // return the entire block
     return blk;
 

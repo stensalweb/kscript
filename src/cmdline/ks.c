@@ -7,64 +7,6 @@
 
 #include "ks_getopt.h"
 
-// for error printing
-#include <errno.h>
-
-// Cfunc wrapper to call
-static KS_FUNC(cfunc_main) {
-    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
-    ks_str fname = (ks_str)args[0];
-    KS_REQ_TYPE(fname, ks_type_str, "fname");
-
-    ks_str src_code = NULL;
-
-    // 1. read the source code from the file
-    if (n_args == 2) {
-        // use a source code given
-        src_code = (ks_str)args[1];
-        KS_INCREF(src_code);
-    } else {
-
-        // just read an entire file
-        src_code = ks_readfile(fname->chr);
-        if (!src_code) return NULL;
-    }
-
-    // 2. construct a parser
-    ks_parser p = ks_parser_new(src_code, fname);
-    if (!p) return NULL;
-
-    // 3. parse out the entire module (which will also syntax validate)
-    ks_ast prog = ks_parser_parse_file(p);
-    if (!prog) {
-        KS_DECREF(p);    
-        return NULL;
-    }
-
-    // 4. generate a bytecode object reprsenting the module
-    ks_code myc = ks_codegen(prog);
-    if (!myc) {
-        KS_DECREF(p);    
-        KS_DECREF(prog);    
-        return NULL;
-    }
-
-    // 5. (optional) attempt to set some metadata for the code, if asked
-    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
-        if (myc->name_hr) KS_DECREF(myc->name_hr);
-        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
-    }
-
-
-    // debug the code it is going to run
-    ks_debug("CODE: %S", myc);
-
-    // now, call the code object with no arguments, and return the result
-    // If there is an error, it will return NULL, and the thread will call ks_errend(),
-    //   which will print out a stack trace and terminate the program for us
-    return ks_call((ks_obj)myc, 0, NULL);
-}
-
 
 int main(int argc, char** argv) {
 
@@ -130,6 +72,7 @@ int main(int argc, char** argv) {
 
         } else if (opt == 'e') {
             expr = ks_optarg;
+            // stop parsing arguments
             break;
 
         } else if (opt == '?') {
@@ -142,40 +85,12 @@ int main(int argc, char** argv) {
         }
     }
 
-    // check if given an expression
-    if (ks_optind < argc && !expr) {
-        // take the file name as the first positional argument
-        fname = argv[ks_optind++];
-    }
-
-    if (fname == NULL && expr == NULL) {
-        OPT_ERR("%s: Not given a file or expression (with '-e'), run '%s -h' for help", argv[0], argv[0]);
-    } else if (fname != NULL && expr != NULL) {
+    // ensure a maximum of one is given 
+    if (fname != NULL && expr != NULL) {
         OPT_ERR("%s: Given a file AND an expression (with '-e'), but only expected one", argv[0]);
     }
 
-    // the number of arguments passed to the program
-    int prog_argc = argc - ks_optind;
-    char** prog_argv = argv + ks_optind;
-
-
-    ks_str arg0 = NULL;
-    if (fname != NULL) {
-        arg0 = ks_str_new(fname);
-    } else {
-        arg0 = ks_fmt_c("-e %s", expr);
-    }
-    // start with program
-    ks_list prog_args = ks_list_new(1, (ks_obj*)&arg0);
-    KS_DECREF(arg0);
-
-    int i;
-    for (i = 0; i < prog_argc; ++i) {
-        ks_str argi = ks_str_new(prog_argv[i]);
-        ks_list_push(prog_args, (ks_obj)argi);
-        KS_DECREF(argi);
-    }
-
+    // do a little version check to make sure it was compiled with the same dynamic library version
     if (ver->major != KS_VERSION_MAJOR || ver->minor != KS_VERSION_MINOR || ver->patch != KS_VERSION_PATCH) {
         fprintf(stderr, YELLOW "WARN " RESET ": ks_version() gave different result than header (%i.%i.%i v %i.%i.%i)\n", 
             ver->major, ver->minor, ver->patch, 
@@ -183,11 +98,31 @@ int main(int argc, char** argv) {
         );
     }
 
-    //ks_debug("prog_args: %S", prog_args);
+    // check if given an expression
+    if (ks_optind < argc && !expr) {
+        // take the file name as the first positional argument
+        fname = argv[ks_optind++];
+    }
+
+    // default to nothing (i.e. open session)
+    if (fname && *fname == '-') fname = NULL;
+
+    /*if (fname == NULL && expr == NULL) {
+        OPT_ERR("%s: Not given a file or expression (with '-e'), run '%s -h' for help", argv[0], argv[0]);
+    }*/
+
+    // move to the arguments given to the program
+    ks_list prog_args = ks_list_new(0, NULL);
+
+    // temporary string
+    ks_str tmps = NULL;
+
+    // construct a new thread
+    ks_thread main_thread = NULL;
 
     // update globals
     ks_dict_set_cn(ks_globals, (ks_dict_ent_c[]){
-        {"__globals__", KS_NEWREF(ks_globals)},
+        ///{"__globals__", KS_NEWREF(ks_globals)},
         
         {"__path__", KS_NEWREF(ks_paths)},
         {"__argv__", KS_NEWREF(prog_args)},
@@ -195,40 +130,54 @@ int main(int argc, char** argv) {
         {NULL, NULL}
     });
 
-    // construct a main function
-    ks_cfunc my_main = ks_cfunc_new2(cfunc_main_, "__std.main(fname)");
-    ks_thread main_thread = NULL;
 
     if (fname != NULL) {
-        ks_str fname_o = ks_str_new(fname);
-        main_thread = ks_thread_new("main", (ks_obj)my_main, 1, (ks_obj*)&fname_o);
-        KS_DECREF(fname_o);
+        // executing a file
+        tmps = ks_str_new(fname);
+        ks_list_push(prog_args, (ks_obj)tmps);
+        main_thread = ks_thread_new("main", (ks_obj)ks_F_run_file, 1, (ks_obj*)&tmps);
+        KS_DECREF(tmps);
+
     } else if (expr != NULL) {
-        ks_str fname_o = ks_str_new("'-e'");
-        ks_str expr_o = ks_str_new(expr);
-        main_thread = ks_thread_new("main", (ks_obj)my_main, 2, (ks_obj[]){(ks_obj)fname_o, (ks_obj)expr_o});
-        KS_DECREF(fname_o);
-        KS_DECREF(expr_o)
+        // executing an expression
+        tmps = ks_fmt_c("-e %s", expr);
+        ks_list_push(prog_args, (ks_obj)tmps);
+        KS_DECREF(tmps);
+
+        tmps = ks_str_new(expr);
+        main_thread = ks_thread_new("main", (ks_obj)ks_F_run_expr, 1, (ks_obj*)&tmps);
+        KS_DECREF(tmps);
     } else {
-        assert (false && "invalid state; 'fname' and 'expr' are NULL, but I already checked!");
+        // live session
+        tmps = ks_str_new("-");
+        ks_list_push(prog_args, (ks_obj)tmps);
+        KS_DECREF(tmps);
+
+        main_thread = ks_thread_new("main", (ks_obj)ks_F_run_interactive, 0, NULL);
     }
 
-    // stop using our reference
-    KS_DECREF(my_main);
-
-    if (!main_thread) {
-        OPT_ERR("Thread creation failed for thread 'main'");
+    if (main_thread == NULL) {
+        OPT_ERR("Nothing given to do!");
+        return -1;
     }
 
+    // the number of arguments passed to the program
+    int prog_argc = argc - ks_optind;
+    char** prog_argv = argv + ks_optind;
 
-    // start executing the thread
+
+    int i;
+    for (i = 0; i < prog_argc; ++i) {
+        tmps = ks_str_new(prog_argv[i]);
+        ks_list_push(prog_args, (ks_obj)tmps);
+        KS_DECREF(tmps);
+    }
+
+    // execute the code
     ks_thread_start(main_thread);
-
-    // ensure the thread is done
     ks_thread_join(main_thread);
-    //KS_DECREF(main_thread);
 
-    //ks_debug("mem_max: %l", (int64_t)ks_mem_max());
 
+    // return success
     return 0;
 }

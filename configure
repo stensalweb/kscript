@@ -35,6 +35,11 @@ parser.add_argument('--enable-trace', '--disable-trace', dest='trace', action=Ne
 parser.add_argument('--enable-rpath', '--disable-rpath', dest='rpath', action=NegateAction, nargs=0, help='Enables/disables the use of local library paths, useful for local installations only. Use `--disable-rpath` for any packages/installed programs', default=True)
 
 
+parser.add_argument('--with-gmp', '--without-gmp', dest='with_gmp', action=NegateAction, nargs=0, help='Enables/disables using the GNU MP (GMP) library for multiprecision', default=None)
+parser.add_argument('--with-readline', '--without-readline', dest='with_readline', action=NegateAction, nargs=0, help='Enables/disables using the GNU readline library for command line interpreting', default=None)
+
+
+
 args = parser.parse_args()
 
 # -*- Config Vars
@@ -47,11 +52,84 @@ PREFIX    = args.prefix if args.prefix else os.environ.get("PREFIX",    "/usr/lo
 DESTDIR   = args.dest_dir if args.dest_dir else os.environ.get("DESTDIR", "")
 
 PWD       = os.getcwd()
+_tmp      = PWD + "/.tmp"
+
+LIB_FLAGS = ""
+
+
+# list of -D defines
+# for setting something, use 'KEY=VAL'
+defs = [
+	#"KEY=VAL"
+	#"SOMEVAL"
+]
+
+# make the temporary directory
+try:
+	os.mkdir(_tmp)
+except:
+	pass
+
+# -*- Tests
+
+# run a shell command
+def shell(cmd):
+	return os.system(cmd) == 0
+
+def has_c_lib(name, lflag, header_block, body_block):
+	print (f" -- Searching for C library {name}...")
+	print (f" --   Trying with flag '{lflag}', header '{header_block}', with code '{body_block}'")
+
+	fname = _tmp + "/test.c"
+	fp = open(fname, "w")
+	fp.write(f"""
+
+/* testing library '{name}' */
+
+{header_block}
+
+int main(int argc, char** argv) {{
+	{body_block}
+	return 0;
+}}
+	
+""")
+	fp.close()
+
+	haslib = shell(f"{CC} {CFLAGS} {fname} {LDFLAGS} {lflag} -o {_tmp}/a.out") and shell(f"{_tmp}/a.out")
+
+	if not haslib:
+		print (f" --   Not found!")
+	else:
+		# add to variables
+		global LIB_FLAGS
+		LIB_FLAGS += " " + lflag
+		print (f" --   Found!")
+
+	return haslib
+
+# which libraries we have
+hasGMP         = False
+hasREADLINE    = False
+
+# search for libraries
+if args.with_gmp is not False:
+	hasGMP            = has_c_lib("GMP", "-lgmp", "#include <gmp.h>", "mpz_t x; mpz_init(x);")
+	if args.with_gmp and not hasGMP:
+		raise Exception("'--with-gmp' given, but GMP was not found!")
+
+if args.with_readline is not False:
+	hasREADLINE       = has_c_lib("readline", "-lreadline", "#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
+	if args.with_readline and not hasREADLINE:
+		raise Exception("'--with-readline' given, but readline was not found!")
+
+# add them to the defines
+if hasGMP:        defs.append("KS_HAVE_GMP")
+if hasREADLINE:   defs.append("KS_HAVE_READLINE")
 
 
 
 # -*- Generate Files
-
 
 # helper function to glob recursively and create a string of all results
 def files(glob_pat, recursive=True):
@@ -72,6 +150,7 @@ class _WithMessage:
 def genMsg(name, opts={}):
 	print(" --- Configuring")
 
+
 # command to run on 'makefile' target success
 MAKE_success = '@echo "\\n|| Built: $@\\n"'
 
@@ -81,7 +160,6 @@ _newline = "\n"
 ## include/ks-config.h
 
 
-
 # ending for a shared object (i.e. '.so' or '.dll')
 SHARED_END = "so"
 STATIC_END = "a"
@@ -89,10 +167,6 @@ STATIC_END = "a"
 KS_API_IMPORT = ""
 KS_API_EXPORT = ""
 
-# header file warnings
-defs = [
-
-]
 
 # platforms
 if sys.platform in ('linux', 'linux2'):
@@ -372,7 +446,7 @@ $(libks_SHARED): $(libks_O)
 	$(CC) $(CFLAGS) \\
 		$^ $(LDFLAGS) \\
 		-Wl,-soname,libks.so.$(KS_VERSION) \\
-		-shared -o $@.$(KS_VERSION)
+		{LIB_FLAGS} -shared -o $@.$(KS_VERSION)
 	strip $@.$(KS_VERSION) $(STRIP_OPTS)
 	rm -f $@
 	ln -s libks.$(SHARED_END).$(KS_VERSION) $@
