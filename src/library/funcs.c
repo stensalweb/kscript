@@ -849,7 +849,7 @@ static ks_dict inter_vars = NULL;
 
 
 // attempt to tab complete match
-static char**  match_gen(const char *text, int state) {
+static char*  match_gen(const char *text, int state) {
     // current index through 'inter_vars' and 'globals'
     static int idx, slen;
     char *name;
