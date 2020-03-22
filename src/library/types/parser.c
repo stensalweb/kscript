@@ -464,6 +464,7 @@ static void* tokenize(ks_parser self) {
             }
 
 
+
             if (self->src->chr[i] != s_c) {
 
                 ks_tok badtok = (ks_tok){ 
@@ -471,6 +472,8 @@ static void* tokenize(ks_parser self) {
                     .pos = start_i, .len = i - start_i, 
                     .line = start_line, .col = start_col 
                 };
+                printf("START PARSE\n");
+
                 return syntax_error(badtok, "Didn't find ending quote for string literal");
             }
 

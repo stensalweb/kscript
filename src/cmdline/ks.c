@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
     static struct ks_option long_options[] = {
         { "help",    no_argument,       0, 'h' },
         { "verbose", no_argument,       0, 'v' },
+        { "version", no_argument,       0, 'V' },
         { "expr",    required_argument, 0, 'e' },
         { NULL, 0, NULL, 0}
     };
@@ -54,9 +55,11 @@ int main(int argc, char** argv) {
             // print help
             printf("Usage: %s [options] FILE [args...]\n", argv[0]);
             printf("       %s [options] -e 'EXPR' [args...]\n", argv[0]);
+            printf("       %s [options] - [args...]\n", argv[0]);
             printf("\nOptions:\n");
             printf("  -h, --help            Prints this help/usage message\n");
-            printf("  -e [EXPR]             Run an inline expression, instead of a file\n");
+            printf("  -e, --expr [EXPR]     Run an inline expression, instead of a file\n");
+            printf("  -                     Start an interactive REPL shell\n");
             printf("  -v[vv]                Increase verbosity (use '-vvv' for 'TRACE' level)\n");
             printf("  -V, --version         Print out just the version information for kscript\n");
             printf("\nkscript v%i.%i.%i %s %s %s\n", ver->major, ver->minor, ver->patch, ver->build_type, ver->date, ver->time);
@@ -77,9 +80,17 @@ int main(int argc, char** argv) {
 
         } else if (opt == '?') {
             //OPT_ERR("%s: Unknown option '-%c', run with '-h' to see help message", argv[0], optopt);
-            OPT_ERR("%s: Unknown option '%s', run '%s -h' to see help message", argv[0], argv[ks_optind-1], argv[0]);
+            if (!ks_optopt || ks_optopt == '-') {
+                OPT_ERR("%s: Unknown option '%s', run '%s -h' to see help message", argv[0], argv[ks_optind - 1], argv[0]);
+            } else {
+                OPT_ERR("%s: Unknown option '-%c', run '%s -h' to see help message", argv[0], ks_optopt, argv[0]);
+            }
         } else if (opt == ':') {
-            OPT_ERR("%s: Option '-%c' needs a value, run '%s -h' to see help message", argv[0], ks_optopt, argv[0]);
+            if (ks_optopt == '-') {
+                OPT_ERR("%s: Option '%s' needs a value, run '%s -h' to see help message", argv[0], argv[ks_optind - 1], argv[0]);
+            } else {
+                OPT_ERR("%s: Option '-%c' needs a value, run '%s -h' to see help message", argv[0], ks_optopt, argv[0]);
+            }
         } else {
             OPT_ERR("%s: Unknown options passed ('%s')!, run '%s -h' to see help message", argv[0], argv[ks_optind-1], argv[0]);
         }

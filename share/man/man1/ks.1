@@ -2,12 +2,12 @@
 .SH NAME
 kscript \- a dynamic, interpreted, duck-typed language with a large and feature-rich standard library, meant for application development, utilities, and more
 .SH SYNOPSIS
-.B kscript
+.B ks
 [ \fB\-h\fR ] [ \fB\-V\fR ] [ \fB\-v\fR[vv] ]
-[ \fB\-e\fR EXPR | \fIfile\fR ] [args...]
+[ \fB-\fR | \fB\-e\fR EXPR | \fIfile\fR ] [args...]
 .SH DESCRIPTION
-.B kscript
-is the main binary for running kscript-language code (see )
+.B ks
+is the main binary for running kscript-language code (see https://github.com/ChemicalDevelopment/kscript)
 .SH OPTIONS
 .TP
 .BR \-h ", " \-\-help
@@ -22,6 +22,10 @@ Increase the verbosity of the program. Default is 'WARN', then the levels go: 'I
 .TP
 .BR \-e ", " \-\-expr=[EXPR]
 Compiles and runs the argument, treating it as kscript code
+.TP
+.BR \-
+Starts an interactive REPL shell where kscript code can be entered and executed
+
 .SH AUTHOR
 Cade Brown: <brown.cade@gmail.com>, under ChemicalDevelopment: https://chemicaldevelopment.us
 .SH LICENSE

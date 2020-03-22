@@ -748,95 +748,6 @@ T_KS_FUNC_UOP(sqig, "~", __sqig__)
 
 
 
-// __std.run_file(fname) -> run and execute a file
-static KS_TFUNC(std, run_file) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_str fname = (ks_str)args[0];
-    KS_REQ_TYPE(fname, ks_type_str, "fname");
-
-    // 1. Attempt to read the entire file
-    ks_str src_code = ks_readfile(fname->chr);
-    if (!src_code) return NULL;
-
-    // 2. construct a parser
-    ks_parser p = ks_parser_new(src_code, fname);
-    KS_DECREF(src_code);
-
-    // 3. parse out the entire module (which will also syntax validate)
-    ks_ast prog = ks_parser_parse_file(p);
-    if (!prog) {
-        KS_DECREF(p);
-        return NULL;
-    }
-
-    // 4. generate a bytecode object reprsenting the module
-    ks_code myc = ks_codegen(prog);
-    KS_DECREF(prog);
-    if (!myc) {
-        KS_DECREF(p);    
-        return NULL;
-    }
-
-    // 5. (optional) attempt to set some metadata for the code, if asked
-    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
-        if (myc->name_hr) KS_DECREF(myc->name_hr);
-        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
-    }
-
-    // debug the code it is going to run
-    ks_debug("CODE: %S", myc);
-
-    // now, call the code object with no arguments, and return the result
-    // If there is an error, it will return NULL, and the thread will call ks_errend(),
-    //   which will print out a stack trace and terminate the program for us
-    return ks_call((ks_obj)myc, 0, NULL);
-}
-
-// __std.run_expr(expr) -> run and execute an expression
-static KS_TFUNC(std, run_expr) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_str expr = (ks_str)args[0];
-    KS_REQ_TYPE(expr, ks_type_str, "expr");
-
-    ks_str src_name = ks_fmt_c("-e %R", expr);
-
-    // 2. construct a parser
-    ks_parser p = ks_parser_new(expr, src_name);
-    KS_DECREF(expr);
-
-    // 3. parse out the entire module (which will also syntax validate)
-    ks_ast prog = ks_parser_parse_file(p);
-    if (!prog) {
-        KS_DECREF(p);
-        return NULL;
-    }
-
-    // 4. generate a bytecode object reprsenting the module
-    ks_code myc = ks_codegen(prog);
-    KS_DECREF(prog);
-    if (!myc) {
-        KS_DECREF(p);    
-        return NULL;
-    }
-
-    // 5. (optional) attempt to set some metadata for the code, if asked
-    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
-        if (myc->name_hr) KS_DECREF(myc->name_hr);
-        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
-    }
-
-    // debug the code it is going to run
-    ks_debug("CODE: %S", myc);
-
-    // now, call the code object with no arguments, and return the result
-    // If there is an error, it will return NULL, and the thread will call ks_errend(),
-    //   which will print out a stack trace and terminate the program for us
-    ks_obj ret = ks_call((ks_obj)myc, 0, NULL);
-
-    KS_DECREF(myc);
-    return ret;
-}
-
 
 // global interpreter variables
 static ks_dict inter_vars = NULL;
@@ -929,6 +840,7 @@ static void ensure_readline() {
 #endif
 
 
+
 // handle exception
 static void interactive_handle_exc() {
     // handle error
@@ -959,7 +871,10 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
 
     // 1. construct a parser
     ks_parser p = ks_parser_new(expr, src_name);
-
+    if (!p) {
+        interactive_handle_exc();
+        return;
+    }
 
     // 2. parse out the entire module (which will also syntax validate)
     ks_ast prog = ks_parser_parse_file(p);
@@ -1030,6 +945,106 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     
     KS_DECREF(myc);
 
+}
+
+
+
+
+
+
+// __std.run_file(fname) -> run and execute a file
+static KS_TFUNC(std, run_file) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str fname = (ks_str)args[0];
+    KS_REQ_TYPE(fname, ks_type_str, "fname");
+
+    // 1. Attempt to read the entire file
+    ks_str src_code = ks_readfile(fname->chr);
+    if (!src_code) return NULL;
+
+    // 2. construct a parser
+    ks_parser p = ks_parser_new(src_code, fname);
+    KS_DECREF(src_code);
+
+    // 3. parse out the entire module (which will also syntax validate)
+    ks_ast prog = ks_parser_parse_file(p);
+    if (!prog) {
+        KS_DECREF(p);
+        return NULL;
+    }
+
+    // 4. generate a bytecode object reprsenting the module
+    ks_code myc = ks_codegen(prog);
+    KS_DECREF(prog);
+    if (!myc) {
+        KS_DECREF(p);    
+        return NULL;
+    }
+
+    // 5. (optional) attempt to set some metadata for the code, if asked
+    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
+    }
+
+    // debug the code it is going to run
+    ks_debug("CODE: %S", myc);
+
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    return ks_call((ks_obj)myc, 0, NULL);
+}
+
+// __std.run_expr(expr) -> run and execute an expression
+static KS_TFUNC(std, run_expr) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str expr = (ks_str)args[0];
+    KS_REQ_TYPE(expr, ks_type_str, "expr");
+
+    ks_str src_name = ks_fmt_c("-e %R", expr);
+
+    run_interactive_expr(expr, src_name);
+    KS_DECREF(src_name);
+    return KSO_NONE;
+
+/*
+    // 2. construct a parser
+    ks_parser p = ks_parser_new(expr, src_name);
+    KS_DECREF(expr);
+
+    // 3. parse out the entire module (which will also syntax validate)
+    ks_ast prog = ks_parser_parse_file(p);
+    if (!prog) {
+        KS_DECREF(p);
+        return NULL;
+    }
+
+    // 4. generate a bytecode object reprsenting the module
+    ks_code myc = ks_codegen(prog);
+    KS_DECREF(prog);
+    if (!myc) {
+        KS_DECREF(p);    
+        return NULL;
+    }
+
+    // 5. (optional) attempt to set some metadata for the code, if asked
+    if (myc->meta_n > 0 && myc->meta[0].tok.parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->meta[0].tok.parser->src_name);
+    }
+
+    // debug the code it is going to run
+    ks_debug("CODE: %S", myc);
+
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    ks_obj ret = ks_call((ks_obj)myc, 0, NULL);
+
+    KS_DECREF(myc);
+    return ret;
+    */
 }
 
 
@@ -1177,7 +1192,6 @@ void ks_init_funcs() {
 
     ks_F_getitem = ks_cfunc_new2(getitem_, "getitem(obj, *vals)");
     ks_F_setitem = ks_cfunc_new2(setitem_, "setitem(obj, *args)");
-
 
     ks_F_run_file = ks_cfunc_new2(std_run_file_, "run_file(fname)");
     ks_F_run_expr = ks_cfunc_new2(std_run_expr_, "run_expr(expr)");

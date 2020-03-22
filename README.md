@@ -42,21 +42,23 @@ Example (output may differ slightly):
 $ ./bin/ks -h
 Usage: ./bin/ks [options] FILE [args...]
        ./bin/ks [options] -e 'EXPR' [args...]
+       ./bin/ks [options] - [args...]
 
 Options:
   -h, --help            Prints this help/usage message
-  -e [EXPR]             Run an inline expression, instead of a file
+  -e, --expr [EXPR]     Run an inline expression, instead of a file
+  -                     Start an interactive REPL shell
   -v[vv]                Increase verbosity (use '-vvv' for 'TRACE' level)
   -V, --version         Print out just the version information for kscript
 
-kscript v0.0.1 Mar 16 2020 00:29:42
+kscript v0.0.1 release Mar 22 2020 14:12:31
 Cade Brown <brown.cade@gmail.com>
 ```
 
 To run an expression to test, run:
 
 ```bash
-$ ./bin/ks -e 'print (1 + 2**4)'
+$ ./bin/ks -e '1 + 2**4'
 17
 ```
 
@@ -67,11 +69,20 @@ Most of the standard types have been created (`int`, `float`, `str`, `dict`, `Er
 
 A couple of big changes that might be made:
 
-
   * keyword arguments, for example `func(x=4, y=5)`. In kscript, `=` expressions are not just statements, so that would assign to a local variable x and y. I also don't want to add a special case, so I think the best solution for keyword arguments is `func(@x=4, @y=5)`. In my opinion, this is far more readable and explicit, so I think this is what will happen
   * unpacking iterables, for example `for x, y in coll`. This would be very useful, and just cause a few changes. Also, perhaps allow starred unpacking?
   * parsing. Currently, I've written the parser from scratch (see `src/types/parser.c`). It's a huge monster, and has basically been battle tested. However, I am wondering if it would be better to use a parser generator, such as yacc. I will have to see. The biggest flaw with those methods is the fact that error messages are often not as good as what I can generate by hand. But, it would greatly simplify adding new features (probably)
 
+And things left to do:
+
+  * Standard FILE I/O, some sort of os/sys module for file systems, file creation, etc
+  * Standard REQUESTS module, i.e. networking
+  * Somehow figure out slicing with indicies, similar to python (i.e. `arr[1:]`)
+  * Custom user type definitions
+  * Importing other kscript files
+  * kscript-based modules
+  * external C extensions, examples
+  * package manager
 
 ## Examples
 
