@@ -1,5 +1,5 @@
 Package: kscript
-Version: 0.0.1-1
+Version: 0.0.1-3
 Section: devel
 Priority: optional
 Architecture: amd64
