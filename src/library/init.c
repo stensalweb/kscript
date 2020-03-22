@@ -107,6 +107,7 @@ bool ks_init() {
         ks_free(dup);
     }
 
+
     // find out the full path of 'argv[0]'
     int length = wai_getExecutablePath(NULL, 0, NULL);
     char* full_path = ks_malloc(length + 1);
@@ -118,19 +119,22 @@ bool ks_init() {
     ks_str lib_path_o = ks_fmt_c("%s/../lib", full_path);
 
     // add a module lookup path to it
-    ks_str module_path_o = ks_fmt_c("%S/kscript/modules", full_path_o);
+    ks_str module_path_o = ks_fmt_c("%S/kscript/modules", lib_path_o);
     ks_list_push(ks_paths, (ks_obj)module_path_o);
     KS_DECREF(module_path_o);
 
+    module_path_o = ks_fmt_c("%S/kscript", lib_path_o);
+    ks_list_push(ks_paths, (ks_obj)module_path_o);
+    KS_DECREF(module_path_o);
 
     ks_str tmpstr = NULL;
-    #if defined(KS__LINUX) || defined(KS__CYGWIN)
+    //#if defined(KS__LINUX) || defined(KS__CYGWIN)
     // add some default places to look
     tmpstr = ks_str_new(KS_PREFIX "/lib/kscript/modules");
     ks_list_push(ks_paths, (ks_obj)tmpstr);
     KS_DECREF(tmpstr);
-    #endif
-
+    //#endif
+    
     // initialize internal globals
     ks_internal_globals = ks_dict_new(0, NULL);
     // set it in the internal global dictionary

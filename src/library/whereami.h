@@ -6,6 +6,11 @@
 #ifndef WHEREAMI_H
 #define WHEREAMI_H
 
+#define _XOPEN_SOURCE 500
+
+#include <limits.h>
+#include <stdlib.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
