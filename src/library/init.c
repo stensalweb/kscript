@@ -62,6 +62,7 @@ bool ks_init() {
     ks_type_Error_init();
 
     ks_type_thread_init();
+    ks_type_iostream_init();
 
     ks_type_cfunc_init();
     ks_type_kfunc_init();
@@ -169,6 +170,8 @@ bool ks_init() {
         {"KeyError",       KS_NEWREF(ks_type_KeyError)},
         {"OpError",        KS_NEWREF(ks_type_OpError)},
         {"ToDoError",      KS_NEWREF(ks_type_ToDoError)},
+        
+        {"iostream",       KS_NEWREF(ks_type_iostream)},
 
         {"thread",         KS_NEWREF(ks_type_thread)},
 

@@ -1486,6 +1486,64 @@ KS_API ks_module ks_module_new(char* mname);
 KS_API ks_module ks_module_import(char* mname);
 
 
+/* I/O */
+
+// Bitset for the I/O stream capabilities
+enum {
+    KS_IOS_NONE    = 0x0,
+
+    // The I/O stream can read bytes
+    KS_IOS_READ    = 0x1,
+
+    // The I/O stream can write bytes
+    KS_IOS_WRITE   = 0x2,
+
+    // The I/O stream is currently open
+    KS_IOS_OPEN    = 0x4
+
+};
+
+typedef struct {
+    KS_OBJ_BASE
+
+    // the 'KS_IOS_*' enum, see above for comments
+    uint32_t ios_flags;
+
+    // the underlying file pointer
+    FILE* fp;
+
+}* ks_iostream;
+
+// Create a blank 'iostream', with no target
+// NOTE: Use `ks_iostream_open()` to actually get a target
+// NOTE: Returns a new reference
+KS_API ks_iostream ks_iostream_new();
+
+// Attempt to open a created iostream (via ks_iostream_new()), for a given file and mode:
+// TODO: document 'mode'
+// Returns whether the operation was successful, and if not, throws an error
+KS_API bool ks_iostream_open(ks_iostream self, char* fname, char* mode);
+
+// Read a up to a number of bytes from the iostream, consuming them and returning a string with their
+//   bytes
+// If there was a problem, return NULL and throw an error
+// NOTE: Returns a new reference
+KS_API ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz);
+
+// Return the current position in the IOstream, or -1 if there was an error (and throw an error in that case)
+KS_API ks_ssize_t ks_iostream_tell(ks_iostream self);
+
+// Seek to a given position in the file, as an absolute offset
+// NOTE: Returns -1 if there was an error
+KS_API ks_ssize_t ks_iostream_seek(ks_iostream self, ks_ssize_t pos);
+
+// Get the size of the I/O stream, in bytes
+// NOTE: Returns -1 if there was an error
+KS_API ks_ssize_t ks_iostream_size(ks_iostream self);
+
+
+
+
 /* ITERATOR TYPES */
 
 // ks_list_iter - list iterable object
@@ -1606,6 +1664,8 @@ KS_API extern ks_type
     ks_type_Error,
     ks_type_SyntaxError,
     ks_type_MathError,
+    ks_type_ArgError,
+    ks_type_IOError,
     ks_type_KeyError,
     ks_type_SizeError,
     ks_type_AttrError,
@@ -1628,6 +1688,9 @@ KS_API extern ks_type
     ks_type_kfunc,
 
     ks_type_module,
+
+    // I/O
+    ks_type_iostream,
 
     // iterators
     ks_type_list_iter,

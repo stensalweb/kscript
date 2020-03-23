@@ -51,6 +51,7 @@ void ks_type_list_init();
 void ks_type_dict_init();
 void ks_type_Error_init();
 void ks_type_kfunc_init();
+void ks_type_iostream_init();
 
 void ks_type_code_init();
 void ks_type_ast_init();

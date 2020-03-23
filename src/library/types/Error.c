@@ -10,12 +10,14 @@
 
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_Error);
+KS_TYPE_DECLFWD(ks_type_ArgError);
 KS_TYPE_DECLFWD(ks_type_MathError);
 KS_TYPE_DECLFWD(ks_type_SyntaxError);
 KS_TYPE_DECLFWD(ks_type_SizeError);
 KS_TYPE_DECLFWD(ks_type_KeyError);
 KS_TYPE_DECLFWD(ks_type_AttrError);
 KS_TYPE_DECLFWD(ks_type_TypeError);
+KS_TYPE_DECLFWD(ks_type_IOError);
 KS_TYPE_DECLFWD(ks_type_OpError);
 KS_TYPE_DECLFWD(ks_type_ToDoError);
 KS_TYPE_DECLFWD(ks_type_OutOfIterError);
@@ -156,6 +158,9 @@ void ks_type_Error_init() {
     KS_INIT_TYPE_OBJ(ks_type_SyntaxError, "SyntaxError");
     ks_type_add_parent(ks_type_SyntaxError, ks_type_Error);
 
+    KS_INIT_TYPE_OBJ(ks_type_ArgError, "ArgError");
+    ks_type_add_parent(ks_type_ArgError, ks_type_Error);
+
     KS_INIT_TYPE_OBJ(ks_type_MathError, "MathError");
     ks_type_add_parent(ks_type_MathError, ks_type_Error);
 
@@ -173,6 +178,9 @@ void ks_type_Error_init() {
 
     KS_INIT_TYPE_OBJ(ks_type_OpError, "OpError");
     ks_type_add_parent(ks_type_OpError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_IOError, "IOError");
+    ks_type_add_parent(ks_type_IOError, ks_type_Error);
 
     KS_INIT_TYPE_OBJ(ks_type_ToDoError, "ToDoError");
     ks_type_add_parent(ks_type_ToDoError, ks_type_Error);
