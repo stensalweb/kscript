@@ -1,6 +1,5 @@
 #!/usr/bin/ks
 
-f = iostream("README.md")
+f = iostream("out.txt", 'w')
 
-
-print (f.seek(56).read(10))
+f.seek(0).write("Cade")

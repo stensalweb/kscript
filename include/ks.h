@@ -1530,6 +1530,10 @@ KS_API bool ks_iostream_open(ks_iostream self, char* fname, char* mode);
 // NOTE: Returns a new reference
 KS_API ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz);
 
+// attempt to write a string, returning whether it was successful
+// If it was not, an error will be thrown
+KS_API bool ks_iostream_writestr(ks_iostream self, ks_str data);
+
 // Return the current position in the IOstream, or -1 if there was an error (and throw an error in that case)
 KS_API ks_ssize_t ks_iostream_tell(ks_iostream self);
 
