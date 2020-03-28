@@ -149,6 +149,8 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__neg__", __neg__)
         ATTR_CASE("__sqig__", __sqig__)
 
+        ATTR_CASE("__hash__", __hash__)
+
 
         else {
             // some unknown builtin, or just a varible with 2 underscores
@@ -235,6 +237,7 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
     REPL(__free__)
     REPL(__repr__)
     REPL(__str__)
+    REPL(__hash__)
     REPL(__len__)
 
 }

@@ -112,6 +112,8 @@ extern "C" {
 #include <time.h>
 #include <sys/time.h>
 
+#include <signal.h>
+
 #include <pthread.h> 
 
 /*#elif defined(KS__LINUX) || defined(KS__MACOS)*/
@@ -131,7 +133,11 @@ extern "C" {
 #include <time.h>
 #include <sys/time.h>
 
+
+#include <signal.h>
+
 #include <pthread.h> 
+
 
 #endif
 
@@ -660,6 +666,9 @@ struct ks_type {
 
     // type.__len__(self) -> get the length of an item
     ks_obj __len__;
+
+    // type.__hash__(self) -> return the has of an object
+    ks_obj __hash__;
 
 
     // type.__str__(self) -> convert an item to a string
@@ -1524,6 +1533,10 @@ KS_API ks_iostream ks_iostream_new();
 // Returns whether the operation was successful, and if not, throws an error
 KS_API bool ks_iostream_open(ks_iostream self, char* fname, char* mode);
 
+// Attempt to close an iostream
+// Returns whether it was successfull, and if not, throws an error
+KS_API bool ks_iostream_close(ks_iostream self);
+
 // Read a up to a number of bytes from the iostream, consuming them and returning a string with their
 //   bytes
 // If there was a problem, return NULL and throw an error
@@ -1717,6 +1730,7 @@ KS_API extern ks_cfunc
     ks_F_import,
     ks_F_iter,
     ks_F_next,
+    ks_F_open,
 
     // operators
 

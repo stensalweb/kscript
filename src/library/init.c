@@ -37,8 +37,22 @@ ks_dict ks_globals = NULL, ks_internal_globals = NULL;
 // the paths to search
 ks_list ks_paths = NULL;
 
+
+/* signal handlers */
+
+static void handle_signal(int sig_num) {
+
+    // do nothing
+    return;
+    
+}
+
+
 // initialize the whole library
 bool ks_init() {
+
+    // handle signals
+    //signal(SIGINT, handle_signal);
 
     ks_util_init();
 
@@ -187,6 +201,7 @@ bool ks_init() {
         {"__import__",     KS_NEWREF(ks_F_import)},
         {"iter",           KS_NEWREF(ks_F_iter)},
         {"next",           KS_NEWREF(ks_F_next)},
+        {"open",           KS_NEWREF(ks_F_open)},
 
         /* math constants */
 
@@ -195,10 +210,10 @@ bool ks_init() {
         {"PHI",            (ks_obj)ks_float_new(1.6180339887498948482045868343656381177)},
 
         /* misc constants */
-        {"NONE",           KS_NEWREF(KSO_NONE)},
+        {"none",           KS_NEWREF(KSO_NONE)},
         {"NaN",            KS_NEWREF(KS_NAN)},
-        {"TRUE",           KS_NEWREF(KSO_TRUE)},
-        {"FALSE",          KS_NEWREF(KSO_FALSE)},
+        {"true",           KS_NEWREF(KSO_TRUE)},
+        {"false",          KS_NEWREF(KSO_FALSE)},
 
         // end
         {NULL, NULL}

@@ -1,5 +1,13 @@
 #!/usr/bin/ks
+"""
+"""
 
-f = iostream("out.txt", 'w')
+f = open('README.md')
 
-f.seek(0).write("Cade")
+print (f.read())
+
+print (f.seek().read(8))
+
+f.open('configure')
+
+print (f.read())

@@ -89,6 +89,20 @@ static KS_TFUNC(int, free) {
     return KSO_NONE;
 };
 
+// int.__hash__(self) -> hash an integer
+static KS_TFUNC(int, hash) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_int self = (ks_int)args[0];
+    KS_REQ_TYPE(self, ks_type_int, "self");
+
+
+    if (self->val == 0) {
+        return (ks_obj)ks_int_new(1);
+    } else {
+        return KS_NEWREF(self);
+    }
+};
+
 
 // int.__add__(L, R) -> add 2 integers
 static KS_TFUNC(int, add) {
@@ -312,6 +326,8 @@ void ks_type_int_init() {
         {"__new__", (ks_obj)ks_cfunc_new2(int_new_, "int.__new__(obj)")},
         {"__str__", (ks_obj)ks_cfunc_new2(int_str_, "int.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(int_str_, "int.__repr__(self)")},
+        
+        {"__hash__", (ks_obj)ks_cfunc_new2(int_hash_, "int.__hash__(self)")},
         
         {"__free__", (ks_obj)ks_cfunc_new2(int_free_, "int.__free__(self)")},
  

@@ -228,7 +228,8 @@ static void* syntax_error(ks_tok tok, char* fmt, ...) {
             tok.line + 1, tok.col + 1,
             tok.parser->src_name
         );*/
-        // now, add additional metadata about the error, including in-source markup
+
+
         ks_str_b_add_fmt(&SB, "\n%.*s" RED BOLD "%.*s" RESET "%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
             tok.col, sl,
             tok.len, sl + tok.col,
@@ -238,17 +239,14 @@ static void* syntax_error(ks_tok tok, char* fmt, ...) {
             tok.line + 1, tok.col + 1,
             tok.parser->src_name
         );
+
     }
 
     ks_str full_what = ks_str_b_get(&SB);
     ks_str_b_free(&SB);
 
-    ks_Error errval = ks_Error_new(full_what);
+    ks_throw_fmt(ks_type_SyntaxError, "%S", full_what);
     KS_DECREF(full_what);
-
-    // throw our error
-    ks_throw((ks_obj)errval);
-    KS_DECREF(errval);
 
     return NULL;
 }
@@ -332,11 +330,22 @@ static double tok_getfloat(ks_tok tok) {
 // For example, 'Hello\nWorld' replaces the \\ and n with 
 // a literal newline, and removes the quotes around it
 static ks_str tok_getstr(ks_tok tok) {
-    ks_str inside_quotes = ks_str_new_l(tok.parser->src->chr + tok.pos + 1, tok.len - 2);
+    // check if it is a triple quotes
+    if (strncmp(tok.parser->src->chr + tok.pos, "'''", 3) == 0 || strncmp(tok.parser->src->chr + tok.pos, "\"\"\"", 3) == 0) {
+        // single quote
+        ks_str inside_quotes = ks_str_new_l(tok.parser->src->chr + tok.pos + 3, tok.len - 6);
 
-    ks_str res = ks_str_unescape(inside_quotes);
-    KS_DECREF(inside_quotes);
-    return res;
+        ks_str res = ks_str_unescape(inside_quotes);
+        KS_DECREF(inside_quotes);
+        return res;
+    } else {
+        // single quote
+        ks_str inside_quotes = ks_str_new_l(tok.parser->src->chr + tok.pos + 1, tok.len - 2);
+
+        ks_str res = ks_str_unescape(inside_quotes);
+        KS_DECREF(inside_quotes);
+        return res;
+    }
 }
 
 // tokenize a parser; only should be called at initialization
@@ -454,8 +463,19 @@ static void* tokenize(ks_parser self) {
         } else if (c == '\'' || c == '"') {
             char s_c = c;
 
-            ADV();
-            while (self->src->chr[i] && self->src->chr[i] != s_c && self->src->chr[i] != '\n') {
+            // whether or not its triple quoted
+            bool isTriple = false;
+            if (strncmp(&self->src->chr[i], "\"\"\"", 3) == 0 || strncmp(&self->src->chr[i], "'''", 3) == 0) {
+                // claim 3
+                ADV();
+                ADV();
+                ADV();
+                isTriple = true;
+            } else {
+                ADV();
+            }
+
+            while (self->src->chr[i] && self->src->chr[i] != s_c && (self->src->chr[i] != '\n' || isTriple)) {
                 if (self->src->chr[i] == '\\') {
                     // escape code; skip it
                     ADV();
@@ -463,21 +483,39 @@ static void* tokenize(ks_parser self) {
                 ADV();
             }
 
-
-
-            if (self->src->chr[i] != s_c) {
+            if (!self->src->chr[i] || self->src->chr[i] != s_c) {
 
                 ks_tok badtok = (ks_tok){ 
                     .parser = self, .type = KS_TOK_NONE, 
-                    .pos = start_i, .len = i - start_i, 
+                    .pos = start_i, .len = isTriple ? 3 : 1, 
                     .line = start_line, .col = start_col 
                 };
-                printf("START PARSE\n");
+                //printf("HERE: '%s'\n", &self->src->chr[i]);
 
-                return syntax_error(badtok, "Didn't find ending quote for string literal");
+                return syntax_error(badtok, "Didn't find ending quote for string literal beginning here");
             }
 
-            ADV();
+            if (isTriple) {
+                // double check
+                char res[] = {s_c, s_c, s_c};
+                if (strncmp(res, self->src->chr + i, 3) != 0) {
+                    ks_tok badtok = (ks_tok){ 
+                        .parser = self, .type = KS_TOK_NONE, 
+                        .pos = start_i, .len = isTriple ? 3 : 1, 
+                        .line = start_line, .col = start_col 
+                    };
+                    //printf("HERE: '%s'\n", &self->src->chr[i]);
+
+                    return syntax_error(badtok, "Didn't find ending quote for string literal beginning here");
+                }
+                
+                // skip all 3
+                ADV();
+                ADV();
+                ADV();
+            } else {
+                ADV();
+            }
 
             // add the token
             ADDTOK(KS_TOK_STR);
@@ -946,6 +984,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             Out.len -= n_args + 2; \
             Spush(Out, new_call);\
         } else if (top.type == SYT_BOP) { \
+            if (Out.len < 2) KPPE_ERR(top.tok, "Unexpected binary operator"); \
             ks_ast R = Spop(Out); \
             ks_ast L = Spop(Out); \
             ks_ast new_bop = ks_ast_new_bop(top.bop_type, L, R); \
@@ -953,6 +992,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             KS_DECREF(L); KS_DECREF(R); \
             Spush(Out, new_bop); \
         } else if (top.type == SYT_UOP) { \
+            if (Out.len < 1) KPPE_ERR(top.tok, "Unexpected unary operator"); \
             ks_ast V = Spop(Out); \
             ks_ast new_uop = ks_ast_new_uop(top.uop_type, V); \
             new_uop->tok = top.tok; new_uop->tok_expr = ks_tok_combo(top.tok, V->tok_expr); \
@@ -1410,6 +1450,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
         syntax_error(ltok, "Missing ending brackets after here");
         goto kppe_err;
     }
+
     // pop off operators
     while (Ops.len > 0) {
         POP_OP();
@@ -2079,7 +2120,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         return res;
 
-    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
+    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_FLOAT || ctok.type == KS_TOK_OP || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
 
         // parse expression
         return ks_parser_parse_expr(self);

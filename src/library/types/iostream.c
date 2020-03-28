@@ -29,7 +29,7 @@ ks_iostream ks_iostream_new() {
 bool ks_iostream_open(ks_iostream self, char* fname, char* mode) {
 
     if (self->ios_flags & KS_IOS_OPEN) {
-        ks_throw_fmt(ks_type_ArgError, "Attempting to open iostream, but it was already open!");
+        ks_throw_fmt(ks_type_IOError, "Attempting to open iostream, but it was already open!");
         return false;
     }
 
@@ -75,6 +75,21 @@ bool ks_iostream_open(ks_iostream self, char* fname, char* mode) {
     self->ios_flags |= KS_IOS_OPEN;
 
     // success
+    return true;
+}
+
+
+// close an iostream
+bool ks_iostream_close(ks_iostream self) {
+    if (!(self->ios_flags & KS_IOS_OPEN)) {
+        ks_throw_fmt(ks_type_IOError, "Attempted to close an iostream that was not open!");
+        return false;
+    }
+
+    fclose(self->fp);
+    self->fp = NULL;
+    self->ios_flags = KS_IOS_NONE;
+
     return true;
 }
 
@@ -196,7 +211,7 @@ static KS_TFUNC(iostream, new) {
 
     if (!self) return ks_throw_fmt(ks_type_IOError, "ERR CREATING IOS");
 
-    return self;
+    return (ks_obj)self;
 };
 
 
@@ -234,7 +249,6 @@ static KS_TFUNC(iostream, read) {
         }
     }
 
-
     // calculate default of entire file
     if (nbytes <= 0) {
         nbytes = ks_iostream_size(self);
@@ -258,7 +272,6 @@ static KS_TFUNC(iostream, write) {
     }
 
     return KSO_NONE;
-
 };
 
 // iostream.size(self) -> return the size of a file, in bytes
@@ -280,8 +293,9 @@ static KS_TFUNC(iostream, seek) {
     ks_iostream self = (ks_iostream)args[0];
     KS_REQ_TYPE(self, ks_type_iostream, "self");
 
+
     ks_ssize_t posn = 0;
-    if (n_args > 0) {
+    if (n_args > 1) {
         ks_int pos = (ks_int)args[1];
         KS_REQ_TYPE(pos, ks_type_int, "pos");
         posn = pos->val;
@@ -294,18 +308,62 @@ static KS_TFUNC(iostream, seek) {
 }
 
 
+// iostream.open(self, fname, mode='r') -> open the file
+static KS_TFUNC(iostream, open) {
+    KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
+    ks_iostream self = (ks_iostream)args[0];
+    KS_REQ_TYPE(self, ks_type_iostream, "self");
+    ks_str fname = (ks_str)args[1];
+    KS_REQ_TYPE(fname, ks_type_str, "fname");
+
+
+    // get the mode
+    char* my_mode = "r";
+
+    if (n_args == 3) {
+        ks_str mode = (ks_str)args[1];
+        KS_REQ_TYPE(mode, ks_type_str, "mode");
+
+        my_mode = mode->chr;
+    }
+
+    if (!ks_iostream_open(self, fname->chr, my_mode)) {
+        KS_DECREF(self);
+        return NULL;
+    }
+
+    if (!self) return ks_throw_fmt(ks_type_IOError, "ERR CREATING IOS");
+
+    return KSO_NONE;
+}
+
+
+// iostream.close(self) -> close a 
+static KS_TFUNC(iostream, close) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_iostream self = (ks_iostream)args[0];
+    KS_REQ_TYPE(self, ks_type_iostream, "self");
+
+    if (!ks_iostream_close(self)) return NULL;
+
+    return KSO_NONE;
+}
+
+
 // initialize cfunc type
 void ks_type_iostream_init() {
     KS_INIT_TYPE_OBJ(ks_type_iostream, "iostream");
 
     ks_type_set_cn(ks_type_iostream, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new2(iostream_new_, "iostream.__new__(fname=none, mode=none)")},
+        {"__new__", (ks_obj)ks_cfunc_new2(iostream_new_, "iostream.__new__(fname=none, mode='r')")},
         {"__free__", (ks_obj)ks_cfunc_new2(iostream_free_, "iostream.__free__(self)")},
 
         {"write", (ks_obj)ks_cfunc_new2(iostream_write_, "iostream.write(self, data)")},
         {"read", (ks_obj)ks_cfunc_new2(iostream_read_, "iostream.read(self, nbytes=none)")},
         {"size", (ks_obj)ks_cfunc_new2(iostream_size_, "iostream.size(self)")},
         {"seek", (ks_obj)ks_cfunc_new2(iostream_seek_, "iostream.seek(self, pos=0)")},
+        {"open", (ks_obj)ks_cfunc_new2(iostream_open_, "iostream.open(self, fname, mode='r')")},
+        {"close", (ks_obj)ks_cfunc_new2(iostream_close_, "iostream.close(self)")},
 
         {NULL, NULL}   
     });

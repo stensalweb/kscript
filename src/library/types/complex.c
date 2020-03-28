@@ -248,7 +248,7 @@ static KS_TFUNC(complex, pow) {
 static KS_TFUNC(complex, eq) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_obj L = args[0], R = args[1];
-    double vL, vR;
+    double complex vL, vR;
     bool vRes;
 
     T_BOP_STDCASE(vRes = vL == vR; return KSO_BOOL(vRes); );
@@ -261,7 +261,7 @@ static KS_TFUNC(complex, eq) {
 static KS_TFUNC(complex, ne) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_obj L = args[0], R = args[1];
-    double vL, vR;
+    double complex vL, vR;
     bool vRes;
 
     T_BOP_STDCASE(vRes = vL != vR; return KSO_BOOL(vRes); );

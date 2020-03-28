@@ -18,6 +18,7 @@ ks_cfunc
     ks_F_import = NULL,
     ks_F_iter = NULL,
     ks_F_next = NULL,
+    ks_F_open = NULL,
 
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -367,6 +368,21 @@ static KS_FUNC(next) {
 }
 
 
+
+/* open(fname, mode='r') -> iostream
+ *
+ * Attempt to open a filename with a given mode
+ *
+ */
+static KS_FUNC(open) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+
+    // just call constructor
+    return ks_call((ks_obj)ks_type_iostream, n_args, args);
+}
+
+
+
 /* getattr(obj, attr) -> obj
  *
  * Try an get an attribute for an object
@@ -539,6 +555,8 @@ static KS_FUNC(hash) {
     // handle some cases faster
     if (obj->type == ks_type_str) {
         return (ks_obj)ks_int_new(((ks_str)obj)->v_hash);
+    } else if (obj->type->__hash__ != NULL) {
+        return ks_call(obj->type->__hash__, n_args, args);
     } else {
         return (ks_obj)ks_throw_fmt(ks_type_Error, "'%T' object was not hashable!", obj);
     }
@@ -752,6 +770,10 @@ T_KS_FUNC_UOP(sqig, "~", __sqig__)
 // global interpreter variables
 static ks_dict inter_vars = NULL;
 
+
+// what should prompt every user input line?
+#define PROMPT " %> "
+
 // put readline only code here:
 #ifdef KS_HAVE_READLINE
 
@@ -759,43 +781,111 @@ static ks_dict inter_vars = NULL;
 // http://web.mit.edu/gnu/doc/html/rlman_2.html
 
 
+// Autocompleted globals
+// NOTE: We don't want all, because that's excessive
+
+
+// extra buffer size for printing
+#define RLM_BUF 16
+
+
+// number of globals that should be completed
+static const char* global_matches[] = {
+    "true", "false", "none", "NaN",
+
+    "PI", "PHI", "E",
+
+    "bool", "int", "float", "str(",
+
+    "typeof(", "hash(", "print(",
+    "len(", "exit(", "repr(",
+
+    "__import__(", "sleep(",
+    "iter(", "next(", "open("
+
+};
+
+// number of global matches
+#define N_GLOBAL_MATCHES (sizeof(global_matches) / sizeof(global_matches[0]))
+
 // attempt to tab complete match
-static char*  match_gen(const char *text, int state) {
+static char* match_gen(const char *text, int state) {
     // current index through 'inter_vars' and 'globals'
     static int idx, slen;
+    // module attribute idx
+    static int mod_idx;
     char *name;
 
     if (!state) {
         idx = 0;
+        mod_idx = 0;
         slen = strlen(text);
     }
 
-    while (idx < inter_vars->n_entries) {
-        ks_str this_key = (ks_str)inter_vars->entries[idx++].key;
-        if (!this_key) continue;
-        if (this_key->type != ks_type_str) continue;
+    // don't append a space
+    rl_completion_append_character = '\0';
 
-        // attempt potential match
+    // search through local variables
+    while (idx < inter_vars->n_entries) {
+        // get the object
+        ks_str this_key = (ks_str)inter_vars->entries[idx].key;
+        ks_obj this_val = inter_vars->entries[idx].val;
+
+        if (!this_key || this_key->type != ks_type_str) {
+            idx++;
+            continue;
+        }
+
+        // handle modules
+        if (this_val->type == ks_type_module && strchr(text, '.') != NULL) {
+            ks_module this_mod = (ks_module)this_val;
+            char* attr_pos = strchr(text, '.') + 1;
+            int slen = strlen(attr_pos);
+
+            while (mod_idx < this_mod->attr->n_entries) {
+                ks_str mod_key = (ks_str)this_mod->attr->entries[mod_idx].key;
+                ks_obj mod_val = this_mod->attr->entries[mod_idx].val;
+                mod_idx++;
+                if (!mod_key || mod_key->type != ks_type_str) continue;
+
+                // now, compare it
+                if (strncmp(attr_pos, mod_key->chr, slen) == 0) {
+                    // return a new string
+                    char* new_match = malloc(this_key->len + RLM_BUF + slen + 1);
+                    snprintf(new_match, this_key->len + RLM_BUF, "%s.%s%s", this_key->chr, mod_key->chr, ks_is_callable(mod_val) ? "(" : "");
+                    return new_match;
+                }
+            }
+            
+            mod_idx = 0;
+            idx++;
+            continue;
+        }
+
+        idx++;
+
+        // attempt potential match for generic variables
         if (strncmp(text, this_key->chr, slen) == 0) {
             // return a new string
-            char* new_match = malloc(this_key->len + 1);
-            memcpy(new_match, this_key->chr, this_key->len + 1);
+            char* new_match = malloc(this_key->len + RLM_BUF + 1);
+            snprintf(new_match, this_key->len + RLM_BUF, "%s%s", this_key->chr, ks_is_callable(this_val) ? "(" : "");
             return new_match;
         }
     }
+
     // adjusted index for globals
     #define ADJ_IDX (idx - inter_vars->n_entries)
-    while (ADJ_IDX < ks_globals->n_entries) {
-        ks_str this_key = (ks_str)ks_globals->entries[ADJ_IDX].key;
+    while (ADJ_IDX < N_GLOBAL_MATCHES) {
+        char* this_key = (char*)global_matches[ADJ_IDX];
         idx++;
+
         if (!this_key) continue;
-        if (this_key->type != ks_type_str) continue;
 
         // attempt potential match
-        if (strncmp(text, this_key->chr, slen) == 0) {
+        if (strncmp(text, this_key, slen) == 0) {
             // return a new string
-            char* new_match = malloc(this_key->len + 1);
-            memcpy(new_match, this_key->chr, this_key->len + 1);
+            char* new_match = malloc(strlen(this_key) + RLM_BUF + 1);
+            snprintf(new_match, strlen(this_key) + RLM_BUF, "%s", this_key);
             return new_match;
         }
     }
@@ -833,7 +923,10 @@ static void ensure_readline() {
     // set the tab completion to our own
     rl_attempted_completion_function = match_completion;
 
-    //rl_bind_key('\t', rl_possible_completions);
+
+    rl_catch_signals = 1;
+    rl_set_signals();
+
     //rl_bind_key('\t', my_tab_func);
 }
 
@@ -948,8 +1041,18 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
 }
 
 
+// Handle a SIGINT
+void handle_sigint(int signum) {
+    // do nothing
+    #define MSG_SIGINT_RESET "\nUse 'CTRL-D' or 'exit()' to quit the process\n"
+    fwrite(MSG_SIGINT_RESET, 1, sizeof(MSG_SIGINT_RESET) - 1, stdout);
+    //printf("\n"); // Move to a new line
+    rl_on_new_line(); // Regenerate the prompt on a newline
+    rl_replace_line("", 0); // Clear the previous text
+    rl_redisplay();
 
-
+    signal(SIGINT, handle_sigint);
+}
 
 
 // __std.run_file(fname) -> run and execute a file
@@ -965,6 +1068,9 @@ static KS_TFUNC(std, run_file) {
     // 2. construct a parser
     ks_parser p = ks_parser_new(src_code, fname);
     KS_DECREF(src_code);
+    if (!p) {
+        return NULL;
+    }
 
     // 3. parse out the entire module (which will also syntax validate)
     ks_ast prog = ks_parser_parse_file(p);
@@ -1063,10 +1169,6 @@ static KS_TFUNC(std, run_interactive) {
     ks_warn("Using interactive interpreter, but not compiled with readline!");
     #endif
 
-
-    // what should prompt every user input line?
-    #define PROMPT " %> "
-
     // get whether its an actual terminal screen
     bool isTTY = isatty(STDIN_FILENO);
 
@@ -1074,6 +1176,9 @@ static KS_TFUNC(std, run_interactive) {
     #ifdef KS_HAVE_READLINE
     if (isTTY) {
         ensure_readline();
+
+        // handle CTRL-C
+        signal(SIGINT, handle_sigint);
 
         // yield GIL
         ks_GIL_unlock();
@@ -1089,7 +1194,7 @@ static KS_TFUNC(std, run_interactive) {
             else continue;
 
             // now, compile it
-            ks_str src_name = ks_fmt_c("<interactive prompt #%i>", (int)num_lines);
+            ks_str src_name = ks_fmt_c("<prompt #%i>", (int)num_lines);
             ks_str expr = ks_str_new(cur_line);
 
             run_interactive_expr(expr, src_name);
@@ -1169,6 +1274,7 @@ void ks_init_funcs() {
     ks_F_import = ks_cfunc_new2(import_, "import(name)");
     ks_F_iter = ks_cfunc_new2(iter_, "iter(obj)");
     ks_F_next = ks_cfunc_new2(next_, "next(obj)");
+    ks_F_open = ks_cfunc_new2(open_, "open(fname, mode='r')");
 
     ks_F_add = ks_cfunc_new2(add_, "__add__(L, R)");
     ks_F_sub = ks_cfunc_new2(sub_, "__sub__(L, R)");
