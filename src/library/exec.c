@@ -169,6 +169,8 @@ ks_obj ks__exec(ks_code code) {
         VMED_CASE_START(KSB_DUP)
             VMED_CONSUME(ksb, op);
 
+            ks_list_push(self->stk, self->stk->elems[self->stk->len - 1]);
+
         VMED_CASE_END
 
         VMED_CASE_START(KSB_POPU)
@@ -296,7 +298,6 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
-
         VMED_CASE_START(KSB_THROW)
             VMED_CONSUME(ksb, op);
 
@@ -308,6 +309,23 @@ ks_obj ks__exec(ks_code code) {
             goto EXC;
 
         VMED_CASE_END
+
+        VMED_CASE_START(KSB_ASSERT)
+            VMED_CONSUME(ksb, op);
+
+            // throw it
+            ks_obj ass_obj = ks_list_pop(self->stk);
+            int truthy = ks_truthy(ass_obj);
+            KS_DECREF(ass_obj);
+            if (truthy < 0) goto EXC;
+
+            if (!truthy) {
+                ks_throw_fmt(ks_type_AssertError, "'assert' statement failed!");
+                goto EXC;
+            }
+
+        VMED_CASE_END
+
 
         VMED_CASE_START(KSB_JMP)
             VMED_CONSUME(ksb_i32, op_i32);
@@ -322,17 +340,13 @@ ks_obj ks__exec(ks_code code) {
 
             // take the top item off
             ks_obj cond = ks_list_pop(self->stk);
+            int truthy = ks_truthy(cond);
+            KS_DECREF(cond);
+            if (truthy < 0) goto EXC;
 
-            if (cond == KSO_TRUE) {
+            if (truthy) {
                 // do jump
                 c_pc += op_i32.arg;
-            } else if (cond == KSO_FALSE) {
-                // don't jump
-
-            } else {
-                // we need to calculate it, default to true
-                c_pc += op_i32.arg;
-                KS_DECREF(cond);
             }
 
         VMED_CASE_END
@@ -340,20 +354,18 @@ ks_obj ks__exec(ks_code code) {
         VMED_CASE_START(KSB_JMPF)
             VMED_CONSUME(ksb_i32, op_i32);
 
+
             // take the top item off
             ks_obj cond = ks_list_pop(self->stk);
+            int truthy = ks_truthy(cond);
+            
+            if (truthy < 0) goto EXC;
+            KS_DECREF(cond);
 
-            if (cond == KSO_TRUE) {
-                // don't jump
-            } else if (cond == KSO_FALSE) {
+            if (!truthy) {
                 // do jump
                 c_pc += op_i32.arg;
-            } else {
-                // we need to calculate it, default to true
-                c_pc += op_i32.arg;
-                KS_DECREF(cond);
             }
-
 
         VMED_CASE_END
 
@@ -619,6 +631,7 @@ ks_obj ks__exec(ks_code code) {
         T_BOP_CASE(KSB_BOP_MOD, "%", ks_F_mod, {});
         T_BOP_CASE(KSB_BOP_POW, "**", ks_F_pow, {});
 
+        T_BOP_CASE(KSB_BOP_CMP, "<=>", ks_F_cmp, {});
 
         T_BOP_CASE(KSB_BOP_LT, "<", ks_F_lt, {});
         T_BOP_CASE(KSB_BOP_LE, "<=", ks_F_le, {});
@@ -626,7 +639,6 @@ ks_obj ks__exec(ks_code code) {
         T_BOP_CASE(KSB_BOP_GE, ">=", ks_F_ge, {});
         T_BOP_CASE(KSB_BOP_EQ, "==", ks_F_eq, {});
         T_BOP_CASE(KSB_BOP_NE, "!=", ks_F_ne, {});
-
 
         // template for a unary operator case
         // 3rd argument is the 'extra code' to be ran to possibly shortcut it
@@ -645,6 +657,32 @@ ks_obj ks__exec(ks_code code) {
         T_UOP_CASE(KSB_UOP_NEG, "-", ks_F_neg, {})
         T_UOP_CASE(KSB_UOP_SQIG, "~", ks_F_sqig, {})
 
+        VMED_CASE_START(KSB_TRUTHY)
+            VMED_CONSUME(ksb, op);
+
+            ks_obj TOS = ks_list_pop(self->stk);
+            int truthy = ks_truthy(TOS);
+            KS_DECREF(TOS);
+            if (truthy < 0) goto EXC;
+
+
+            ks_list_push(self->stk, truthy == 0 ? KSO_FALSE : KSO_TRUE);
+
+        VMED_CASE_END
+
+
+        VMED_CASE_START(KSB_UOP_NOT)
+            VMED_CONSUME(ksb, op);
+
+            ks_obj TOS = ks_list_pop(self->stk);
+            int truthy = ks_truthy(TOS);
+            KS_DECREF(TOS);
+            if (truthy < 0) goto EXC;
+
+            // invert it
+            ks_list_push(self->stk, truthy == 0 ? KSO_TRUE : KSO_FALSE);
+
+        VMED_CASE_END
 
 
     VMED_END

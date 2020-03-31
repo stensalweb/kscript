@@ -128,9 +128,10 @@ nxi_bcast_iter(nx_ufunc_f ufunc, int n_args, nx_dtype* dtypes, ks_ssize_t* sizeo
     
     
     #ifdef NX_BCAST_FAST_MDLIN
+    // TODO: Fails for some things
 
     // fastpath for arrays which are multidimensional but linear in memory
-    if (isLinear) {
+    if (false && isLinear) {
 
         // the amount of linear elements, which should be the product of the maximum of the dimensions
         ks_ssize_t lin_len = 1;

@@ -207,6 +207,30 @@ static KS_TFUNC(float, pow) {
     } \
 }
 
+// float comparison
+static int my_cmp(double L, double R) {
+    return L > R ? 1 : (L < R ? -1 : 0);
+}
+
+
+// float.__cmp__(L, R) -> cmp 2 floats
+static KS_TFUNC(float, cmp) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+    double vL, vR;
+    int64_t vRes;
+
+    if (L->type == ks_type_float && R->type == ks_type_float) {
+        return (ks_obj)ks_int_new(my_cmp(((ks_float)L)->val, ((ks_float)R)->val));
+    } else if (L->type == ks_type_int && R->type == ks_type_float) {
+        return (ks_obj)ks_int_new(my_cmp(((ks_int)L)->val, ((ks_float)R)->val));
+    } else if (L->type == ks_type_float && R->type == ks_type_int) {
+        return (ks_obj)ks_int_new(my_cmp(((ks_float)L)->val, ((ks_int)R)->val));
+    }
+
+    KS_ERR_BOP_UNDEF("<=>", L, R);
+};
+
 
 // float.__lt__(L, R) -> cmp 2 floats
 static KS_TFUNC(float, lt) {
@@ -348,6 +372,7 @@ void ks_type_float_init() {
         {"__mod__", (ks_obj)ks_cfunc_new2(float_mod_, "float.__mod__(L, R)")},
         {"__pow__", (ks_obj)ks_cfunc_new2(float_pow_, "float.__pow__(L, R)")},
  
+        {"__cmp__", (ks_obj)ks_cfunc_new2(float_cmp_, "float.__cmp__(L, R)")},
         {"__lt__", (ks_obj)ks_cfunc_new2(float_lt_, "float.__lt__(L, R)")},
         {"__le__", (ks_obj)ks_cfunc_new2(float_le_, "float.__le__(L, R)")},
         {"__gt__", (ks_obj)ks_cfunc_new2(float_gt_, "float.__gt__(L, R)")},

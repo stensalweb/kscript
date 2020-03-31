@@ -138,6 +138,19 @@ ks_ast ks_ast_new_throw(ks_ast val) {
 }
 
 
+// construct a new AST representing a assert statement
+ks_ast ks_ast_new_assert(ks_ast val) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_ASSERT;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(1, (ks_obj*)&val);
+
+    return self;
+}
+
 // construct a new AST representing a block
 ks_ast ks_ast_new_block(int num, ks_ast* elems) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);

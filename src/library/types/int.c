@@ -208,6 +208,20 @@ static KS_TFUNC(int, pow) {
     KS_ERR_BOP_UNDEF("**", L, R);
 };
 
+
+// int.__cmp__(L, R) -> cmp 2 integers
+static KS_TFUNC(int, cmp) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        int64_t res = ((ks_int)L)->val - ((ks_int)R)->val;
+        return (ks_obj)ks_int_new(res > 0 ? 1 : (res < 0 ? -1 : 0));
+    }
+
+    KS_ERR_BOP_UNDEF("<=>", L, R);
+};
+
 // int.__lt__(L, R) -> cmp 2 integers
 static KS_TFUNC(int, lt) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -338,6 +352,7 @@ void ks_type_int_init() {
         {"__mod__", (ks_obj)ks_cfunc_new2(int_mod_, "int.__mod__(L, R)")},
         {"__pow__", (ks_obj)ks_cfunc_new2(int_pow_, "int.__pow__(L, R)")},
  
+        {"__cmp__", (ks_obj)ks_cfunc_new2(int_cmp_, "int.__cmp__(L, R)")},
         {"__lt__", (ks_obj)ks_cfunc_new2(int_lt_, "int.__lt__(L, R)")},
         {"__le__", (ks_obj)ks_cfunc_new2(int_le_, "int.__le__(L, R)")},
         {"__gt__", (ks_obj)ks_cfunc_new2(int_gt_, "int.__gt__(L, R)")},

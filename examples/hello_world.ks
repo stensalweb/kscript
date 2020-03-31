@@ -11,9 +11,6 @@ $ ./bin/ks examples/hello_world.ks
 $ ./examples/hello_world.ks
 (if installed to somewhere on the $PATH)
 
-$ cat ./examples/hello_world.ks | ks
-(via indirection)
-
 """
 
 print ("Hello World")

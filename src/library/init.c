@@ -159,6 +159,8 @@ bool ks_init() {
         {NULL, NULL}
     });
 
+    ks_iostream ks__stdout = ks_iostream_new_extern(stdout, "w");
+    ks_iostream ks__stderr = ks_iostream_new_extern(stderr, "w");
 
     // initialize globals
     ks_globals = ks_dict_new(0, NULL);
@@ -202,6 +204,9 @@ bool ks_init() {
         {"iter",           KS_NEWREF(ks_F_iter)},
         {"next",           KS_NEWREF(ks_F_next)},
         {"open",           KS_NEWREF(ks_F_open)},
+        {"sort",           KS_NEWREF(ks_F_sort)},
+        {"map",            KS_NEWREF(ks_F_map)},
+        {"range",          KS_NEWREF(ks_F_range)},
 
         /* math constants */
 
@@ -214,6 +219,13 @@ bool ks_init() {
         {"NaN",            KS_NEWREF(KS_NAN)},
         {"true",           KS_NEWREF(KSO_TRUE)},
         {"false",          KS_NEWREF(KSO_FALSE)},
+
+        /* other globals */
+
+        {"__stdout__",     (ks_obj)ks__stdout},
+        {"__stderr__",     (ks_obj)ks__stderr},
+
+        {"__globals__",    KS_NEWREF(ks_globals)},
 
         // end
         {NULL, NULL}

@@ -106,6 +106,7 @@ void ksca_tuple     (ks_code self, int n_items) KSCA_B_I32(KSB_TUPLE, n_items)
 void ksca_call   (ks_code self, int n_items) KSCA_B_I32(KSB_CALL, n_items)
 void ksca_ret    (ks_code self) KSCA_B(KSB_RET)
 void ksca_throw  (ks_code self) KSCA_B(KSB_THROW)
+void ksca_assert (ks_code self) KSCA_B(KSB_ASSERT)
 void ksca_jmp    (ks_code self, int relamt) KSCA_B_I32(KSB_JMP, relamt)
 void ksca_jmpt   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPT, relamt)
 void ksca_jmpf   (ks_code self, int relamt) KSCA_B_I32(KSB_JMPF, relamt)
@@ -127,6 +128,9 @@ void ksca_store_attr(ks_code self, ks_str name) KSCA_B_I32(KSB_STORE_ATTR, ks_co
 
 void ksca_bop       (ks_code self, int ksb_bop_type) KSCA_B(ksb_bop_type)
 void ksca_uop       (ks_code self, int ksb_uop_type) KSCA_B(ksb_uop_type)
+
+void ksca_truthy    (ks_code self) KSCA_B(KSB_TRUTHY)
+
 
 
 /* C-style funcs */
@@ -495,6 +499,9 @@ static KS_TFUNC(code, str) {
         OP_CASE(KSB_UOP_SQIG, "~")
 
 
+        case KSB_TRUTHY:
+            ks_str_b_add_fmt(&SB, "truthy");
+            break;
 
 
 

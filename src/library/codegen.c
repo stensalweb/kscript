@@ -285,7 +285,6 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
 
     } else if (self->kind == KS_AST_THROW) {
-
         // do a throw
 
         // first, calculate the function
@@ -303,6 +302,24 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // the stack gets rewound, so don't touch this here
         RESET_STK(0);
 
+    } else if (self->kind == KS_AST_ASSERT) {
+        // do a assertion
+
+        // first, calculate the function
+        if (!ast_emit((ks_ast)self->children->elems[0], st, to)) return false;
+
+        // ensure the function emitted one 
+        assert(start_len + 1 == st->stk_len && "'assert' expr was not emitted correctly!");
+
+        // assert the value
+        ksca_assert(to);
+        st->stk_len--;
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // the stack gets rewound, so don't touch this here
+        RESET_STK(0);
 
     } else if (self->kind == KS_AST_BOP_ASSIGN) {
         // assignment operator is a special case
@@ -371,6 +388,85 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
             return false;
         }
 
+
+    } else if (self->kind == KS_AST_BOP_OR) {
+        // handle short-circuiting or
+
+        ks_ast L = (ks_ast)self->children->elems[0], R = (ks_ast)self->children->elems[1];
+
+        // always evaluate L first
+        if (!ast_emit(L, st, to)) return false;
+        assert(st->stk_len == start_len + 1 && "LHS did not emit 1 operands!");
+        ksca_truthy(to);
+
+        // now, if 'L' is true, we want to jump and skip 'R' execution
+
+        // first, duplicate it
+        ksca_dup(to);
+        st->stk_len++;
+
+        // now, jump if true (fill in later)
+        int tj_i = to->bc_n;
+        ksca_jmpt(to, -1);
+        st->stk_len--;
+        int tj_a = to->bc_n;
+
+        // now, delete off that object and just take 'R' as the main one
+        ksca_popu(to);
+        st->stk_len--;
+
+        // now, calculate 'R'
+        if (!ast_emit(R, st, to)) return false;
+        assert(st->stk_len == start_len + 1 && "RHS did not emit 1 operands!");
+        ksca_truthy(to);
+
+        int after_i = to->bc_n;
+
+        // now, we are at the result, so connect the jump to here
+        ksb_i32* tj_p = (ksb_i32*)(&to->bc[tj_i]);
+
+        // store local offset
+        tj_p->arg = (int32_t)(after_i - tj_a);
+
+
+    } else if (self->kind == KS_AST_BOP_AND) {
+        // handle short-circuiting and
+
+        ks_ast L = (ks_ast)self->children->elems[0], R = (ks_ast)self->children->elems[1];
+
+        // always evaluate L first
+        if (!ast_emit(L, st, to)) return false;
+        assert(st->stk_len == start_len + 1 && "LHS did not emit 1 operands!");
+        ksca_truthy(to);
+
+        // now, if 'L' is true, we want to jump and skip 'R' execution
+
+        // first, duplicate it
+        ksca_dup(to);
+        st->stk_len++;
+
+        // now, jump if false (fill in later), this will short circuit it
+        int tj_i = to->bc_n;
+        ksca_jmpf(to, -1);
+        st->stk_len--;
+        int tj_a = to->bc_n;
+
+        // now, delete off that object and just take 'R' as the main one
+        ksca_popu(to);
+        st->stk_len--;
+
+        // now, calculate 'R'
+        if (!ast_emit(R, st, to)) return false;
+        assert(st->stk_len == start_len + 1 && "RHS did not emit 1 operands!");
+        ksca_truthy(to);
+
+        int after_i = to->bc_n;
+
+        // now, we are at the result, so connect the jump to here
+        ksb_i32* tj_p = (ksb_i32*)(&to->bc[tj_i]);
+
+        // store local offset
+        tj_p->arg = (int32_t)(after_i - tj_a);
 
     } else if (KS_AST_BOP__FIRST <= self->kind && self->kind <= KS_AST_BOP__LAST) {
         // handle general binary operators

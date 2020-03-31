@@ -122,7 +122,6 @@ static KS_TFUNC(str, new) {
         return (ks_obj)ks_fmt_c("<'%T' obj @ %p>", obj, obj);
         //return ks_throw_fmt(ks_type_Error, "'%T' object is not convertable to string!", obj);
     }
-
 };
 
 // str.__free__(self) -> free a string object
@@ -168,6 +167,41 @@ static KS_TFUNC(str, add) {
 
     return (ks_obj)ks_fmt_c("%S%S", L, R);
 }
+
+// string comparison function
+// TODO: optimize this?
+static int my_strcmp(ks_str L, ks_str R) {
+    return strcmp(L->chr, R->chr);
+}
+
+
+// str.__cmp__(L, R) -> cmp 2 strings
+static KS_TFUNC(str, cmp) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        int res = my_strcmp((ks_str)L, (ks_str)R);
+        return (ks_obj)ks_int_new(res > 0 ? 1 : (res < 0 ? -1 : 0));
+    }
+
+    KS_ERR_BOP_UNDEF("<=>", L, R);
+};
+
+// str.__eq__(L, R) -> check whether objects are equal
+static KS_TFUNC(str, eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        ks_str sL = (ks_str)L, sR = (ks_str)R;
+        bool res = sL->v_hash == sR->v_hash && sL->len == sR->len && strncmp(sL->chr, sR->chr, sL->len) == 0;
+        return KSO_BOOL(res);
+    }
+
+    KS_ERR_BOP_UNDEF("==", L, R);
+}
+
 
 // search a string for a given character
 static bool my_strnchr(char* coll, int n, char c) {
@@ -289,6 +323,9 @@ void ks_type_str_init() {
         {"__repr__", (ks_obj)ks_cfunc_new2(str_repr_, "str.__repr__(self)")},
 
         {"__add__", (ks_obj)ks_cfunc_new2(str_add_, "str.__add__(L, R)")},
+
+        {"__cmp__", (ks_obj)ks_cfunc_new2(str_cmp_, "str.__cmp__(L, R)")},
+        {"__eq__", (ks_obj)ks_cfunc_new2(str_eq_, "str.__eq__(L, R)")},
 
         {"split", (ks_obj)ks_cfunc_new2(str_split_, "str.split(self, delim=' \\t\\n')")},
         {"find", (ks_obj)ks_cfunc_new2(str_find_, "str.find(self, target)")},

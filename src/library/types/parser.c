@@ -560,6 +560,8 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_OP, "*") CASE_S(KS_TOK_OP, "/")
         CASE_S(KS_TOK_OP, "%") 
 
+        CASE_S(KS_TOK_OP, "<=>")
+
         CASE_S(KS_TOK_OP, "<=")
         CASE_S(KS_TOK_OP, ">=")
         
@@ -567,8 +569,13 @@ static void* tokenize(ks_parser self) {
         CASE_S(KS_TOK_OP, ">") 
         CASE_S(KS_TOK_OP, "==") CASE_S(KS_TOK_OP, "!=")
 
+        CASE_S(KS_TOK_OP, "&&")
+        CASE_S(KS_TOK_OP, "||")
+
         CASE_S(KS_TOK_OP, "~")
         CASE_S(KS_TOK_OP, "=")
+        CASE_S(KS_TOK_OP, "!")
+
 
         else {
             // unexpected character
@@ -831,6 +838,9 @@ typedef struct syop {
         // assignment i.e. A=B, should always be highest other than that
         SYP_ASSIGN,
 
+        // truthiness boolean operators, like &&,||
+        SYP_TRUTHY,
+
         // comparison operators, like <,>,==
         SYP_CMP,
 
@@ -905,9 +915,11 @@ static syop
     syb_add = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_ADD), syb_sub = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_SUB),
     syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV),
     syb_mod = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MOD), syb_pow = SYBOP(SYP_POW, SYA_BOP_RIGHT, KS_AST_BOP_POW),
+    syb_cmp = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_CMP),
     syb_lt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LT), syb_le = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LE), 
     syb_gt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GT), syb_ge = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GE), 
     syb_eq = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_EQ), syb_ne = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_NE),
+    syb_or = SYBOP(SYP_TRUTHY, SYA_BOP_LEFT, KS_AST_BOP_OR), syb_and = SYBOP(SYP_TRUTHY, SYA_BOP_LEFT, KS_AST_BOP_AND),
 
     // special case
     syb_assign = SYBOP(SYP_ASSIGN, SYA_BOP_RIGHT, KS_AST_BOP_ASSIGN)
@@ -917,7 +929,8 @@ static syop
 
 static syop
     syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG),
-    syu_sqig = SYUOP(SYA_UOP_PRE, KS_AST_UOP_SQIG)
+    syu_sqig = SYUOP(SYA_UOP_PRE, KS_AST_UOP_SQIG),
+    syu_not = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NOT)
     
 
 ;
@@ -1201,6 +1214,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
                 KPE_OPCASE(ctok, "-", syu_neg)
                 KPE_OPCASE(ctok, "~", syu_sqig)
+                KPE_OPCASE(ctok, "!", syu_not)
 
                 KPPE_ERR(ctok, "Unexpected operator");
 
@@ -1215,12 +1229,15 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
                     KPE_OPCASE(ctok, "/",  syb_div)
                     KPE_OPCASE(ctok, "%",  syb_mod)
                     KPE_OPCASE(ctok, "**", syb_pow)
+                    KPE_OPCASE(ctok, "<=>",syb_cmp)
                     KPE_OPCASE(ctok, "<",  syb_lt)
                     KPE_OPCASE(ctok, "<=", syb_le)
                     KPE_OPCASE(ctok, ">",  syb_gt)
                     KPE_OPCASE(ctok, ">=", syb_ge)
                     KPE_OPCASE(ctok, "==", syb_eq)
                     KPE_OPCASE(ctok, "!=", syb_ne)
+                    KPE_OPCASE(ctok, "||", syb_or)
+                    KPE_OPCASE(ctok, "&&", syb_and)
                     KPE_OPCASE(ctok, "=",  syb_assign)
                 } else {
                     KPPE_ERR(ctok, "Unexpected operator");
@@ -1585,6 +1602,28 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         ret->tok_expr = ks_tok_combo(start_tok, expr->tok_expr);
 
         return ret;
+
+
+
+    } else if (TOK_EQ(ctok, "assert")) {
+        // assert <expr>
+        ADV_1();
+
+        SKIP_IRR_E();
+
+        // parse out the expression being assert
+        ks_ast expr = ks_parser_parse_expr(self);
+        if (!expr) goto kpps_err;
+
+        ks_ast ret = ks_ast_new_assert(expr);
+        KS_DECREF(expr);
+
+        ret->tok = start_tok;
+
+        ret->tok_expr = ks_tok_combo(start_tok, expr->tok_expr);
+
+        return ret;
+
     } else if (TOK_EQ(ctok, "import")) {
         // import <name>
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """ configure - build configuration script, use like autotools
 
 Usage: 
@@ -12,6 +12,7 @@ $ ./configure && make
 
 import sys
 import os
+import platform
 import glob
 
 import argparse
@@ -126,7 +127,6 @@ if args.with_readline is not False:
 # add them to the defines
 if hasGMP:        defs.append("KS_HAVE_GMP")
 if hasREADLINE:   defs.append("KS_HAVE_READLINE")
-
 
 
 # -*- Generate Files

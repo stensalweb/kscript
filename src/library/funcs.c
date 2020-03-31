@@ -19,6 +19,9 @@ ks_cfunc
     ks_F_iter = NULL,
     ks_F_next = NULL,
     ks_F_open = NULL,
+    ks_F_sort = NULL,
+    ks_F_map = NULL,
+    ks_F_range = NULL,
 
     ks_F_getattr = NULL,
     ks_F_setattr = NULL,
@@ -33,6 +36,7 @@ ks_cfunc
     ks_F_mod = NULL,
     ks_F_pow = NULL,
     
+    ks_F_cmp = NULL,
     ks_F_lt = NULL,
     ks_F_le = NULL,
     ks_F_gt = NULL,
@@ -694,6 +698,13 @@ T_KS_FUNC_BOP(pow, "**", __pow__, {})
 
 
 
+/* __cmp__(L, R) -> obj
+ *
+ * Attempt to calculate 'L<=>R'
+ * 
+ */
+T_KS_FUNC_BOP(cmp, "<=>", __cmp__, {})
+
 
 
 /* __lt__(L, R) -> obj
@@ -789,7 +800,7 @@ static ks_dict inter_vars = NULL;
 #define RLM_BUF 16
 
 
-// number of globals that should be completed
+// globals that should be completed
 static const char* global_matches[] = {
     "true", "false", "none", "NaN",
 
@@ -801,7 +812,11 @@ static const char* global_matches[] = {
     "len(", "exit(", "repr(",
 
     "__import__(", "sleep(",
-    "iter(", "next(", "open("
+    "iter(", "next(", "open(",
+
+    "map(", "sort(",
+
+    "range("
 
 };
 
@@ -1261,8 +1276,223 @@ static KS_TFUNC(std, run_interactive) {
 }
 
 
+
+
+/* sort(objs) -> []
+ *
+ * Return a list of objects, sorted
+ */
+static KS_FUNC(sort) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj objs = args[0];
+    KS_REQ_ITERABLE(objs, "objs");
+
+    // collect into a list
+    ks_list objs_list = ks_list_from_iterable(objs);
+    if (!objs_list) return NULL;
+
+    // construct a copy
+    ks_list res = ks_list_new(objs_list->len, objs_list->elems);
+    KS_DECREF(objs_list);
+
+    // TODO: add more advanced sorts
+
+
+    // cmp(L, R)
+    ks_obj cLR;
+
+    int tries = 0;
+    // bubble sort
+    bool hasChanged = true;
+    while (hasChanged && tries < res->len) {
+        hasChanged = false;
+
+        int i;
+        for (i = 0; i < res->len - 1; ++i) {
+            cLR = cmp_(2, &res->elems[i]);
+            if (!cLR) {
+                KS_DECREF(res);
+                return NULL;
+            }
+
+            if (cLR->type != ks_type_int) {
+                ks_throw_fmt(ks_type_ArgError, "Invalid result from '__cmp__', got type '%T'", cLR);
+                KS_DECREF(res);
+                KS_DECREF(cLR);
+                return NULL;
+            }
+
+            int64_t diff = ((ks_int)cLR)->val;
+            KS_DECREF(cLR);
+
+            if (diff > 0) {
+                // we need to swap these 2
+                ks_obj tmp = res->elems[i];
+                res->elems[i] = res->elems[i + 1];
+                res->elems[i + 1] = tmp;
+                hasChanged = true;
+            }
+
+        }
+
+        tries++;
+    }
+
+    // returned sorted list
+    return (ks_obj)res;
+}
+
+
+/* map(func, objs) -> []
+ *
+ * Return a list of objects, which is the function applied to them
+ */
+static KS_FUNC(map) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj func = args[0];
+    KS_REQ_CALLABLE(func, "func");
+    ks_obj objs = args[1];
+    KS_REQ_ITERABLE(objs, "objs");
+
+    // convert to an iterable
+    ks_obj iter_objs = iter_(1, &objs);
+    if (!iter_objs) return NULL;
+
+    // construct the results
+    ks_list res = ks_list_new(0, NULL);
+
+
+    // now, iterate through and map each object
+    while (true) {
+        ks_obj next_obj = next_(1, &iter_objs);
+        if (!next_obj) {
+            // try and handle iterator
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
+                // stop iterating, and ignore the error
+                ks_catch_ignore();
+                break;
+            }
+
+            // there was a legitimate error
+            KS_DECREF(res);
+            return NULL;
+        }
+
+        ks_obj out = ks_call(func, 1, &next_obj);
+        KS_DECREF(next_obj);
+
+        if (!out) {
+            KS_DECREF(res);
+            return NULL;
+        }
+
+        // add to results
+        ks_list_push(res, out);
+        KS_DECREF(out);
+
+    }
+
+    return (ks_obj)res;
+}
+
+
+// ks_range_iter - the result given by 'range'
+typedef struct {
+    KS_OBJ_BASE
+
+    // the start stop and step of the range
+    int64_t start, stop, step;
+
+    // current value
+    int64_t cur;
+
+}* ks_range_iter;
+
+
+// range iter type
+KS_TYPE_DECLFWD(ks_type_range_iter);
+
+
+// range_iter.__next__(self) -> return the next object, or throw a 'OutOfIterError'
+static KS_TFUNC(range_iter, next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_range_iter self = (ks_range_iter)args[0];
+    KS_REQ_TYPE(self, ks_type_range_iter, "self");
+
+    // check out of ranges
+    if (self->step > 0 && self->cur >= self->stop) return ks_throw_fmt(ks_type_OutOfIterError, "");
+    if (self->step < 0 && self->cur <= self->stop) return ks_throw_fmt(ks_type_OutOfIterError, "");
+
+    // construct the result
+    ks_int res = ks_int_new(self->cur);
+
+    // go forward
+    self->cur += self->step;
+
+    // return our result
+    return (ks_obj)res;
+}
+
+
+/* range(stop)
+ * range(start, stop, step=1)
+ */
+static KS_FUNC(range) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
+    KS_REQ_TYPE(args[0], ks_type_int, (n_args == 1 ? "stop" : "start"));
+    if (n_args > 1) {
+        KS_REQ_TYPE(args[1], ks_type_int, "stop");
+    }
+    if (n_args > 2) {
+        KS_REQ_TYPE(args[2], ks_type_int, "step");
+    }
+
+    // construct it
+    ks_range_iter res = KS_ALLOC_OBJ(ks_range_iter);
+    KS_INIT_OBJ(res, ks_type_range_iter);
+
+    res->start = 0;
+    res->step = 1;
+
+    if (n_args == 1) {
+        res->stop = ((ks_int)args[0])->val;
+    } else {
+        res->start = ((ks_int)args[0])->val;
+        res->stop = ((ks_int)args[1])->val;
+        if (n_args > 2) {
+            res->step = ((ks_int)args[2])->val;
+            if (res->step == 0) {
+                ks_throw_fmt(ks_type_ArgError, "'step' is supposed to be non-zero!");
+                KS_DECREF(res);
+                return NULL;
+            }
+            /*if (res->step < 0) {
+                // swap start and stop
+                int64_t tmp = res->start;
+                res->start = res->stop;
+                res->stop = tmp;
+            }*/
+        }
+    }
+
+    // start at beginning
+    res->cur = res->start;
+
+    return (ks_obj)res;
+}
+
+
 // initialize all the functions
 void ks_init_funcs() {
+
+    // range_iter type
+    KS_INIT_TYPE_OBJ(ks_type_range_iter, "range_iter");
+    ks_type_set_cn(ks_type_range_iter, (ks_dict_ent_c[]){
+        {"__next__", (ks_obj)ks_cfunc_new2(range_iter_next_, "range_iter.__next__(self)")},
+
+        {NULL, NULL}   
+    });
+
 
     ks_F_repr = ks_cfunc_new2(repr_, "repr(obj)");
     ks_F_hash = ks_cfunc_new2(hash_, "hash(obj)");
@@ -1275,6 +1505,9 @@ void ks_init_funcs() {
     ks_F_iter = ks_cfunc_new2(iter_, "iter(obj)");
     ks_F_next = ks_cfunc_new2(next_, "next(obj)");
     ks_F_open = ks_cfunc_new2(open_, "open(fname, mode='r')");
+    ks_F_sort = ks_cfunc_new2(sort_, "sort(objs)");
+    ks_F_map = ks_cfunc_new2(map_, "map(func, objs)");
+    ks_F_range = ks_cfunc_new2(range_, "range(start_or_stop, stop, step=1)");
 
     ks_F_add = ks_cfunc_new2(add_, "__add__(L, R)");
     ks_F_sub = ks_cfunc_new2(sub_, "__sub__(L, R)");
@@ -1283,6 +1516,7 @@ void ks_init_funcs() {
     ks_F_mod = ks_cfunc_new2(mod_, "__mod__(L, R)");
     ks_F_pow = ks_cfunc_new2(pow_, "__pow__(L, R)");
 
+    ks_F_cmp = ks_cfunc_new2(cmp_, "__cmp__(L, R)");
     ks_F_lt = ks_cfunc_new2(lt_, "__lt__(L, R)");
     ks_F_le = ks_cfunc_new2(le_, "__le__(L, R)");
     ks_F_gt = ks_cfunc_new2(gt_, "__gt__(L, R)");

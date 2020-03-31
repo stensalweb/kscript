@@ -259,6 +259,10 @@ enum {
     // 1:[op]
     KSB_THROW,
 
+    // Pop off the TOS, and 'assert' it is true, or throw an exception
+    // 1:[op]
+    KSB_ASSERT,
+
     // Enter a 'try' block, which will cause the code to jump to +relamt if an exception is thrown
     // NOTE: The relative amount is from the point which the TRY_START instruction is encountered;
     //   not where the exception was thrown
@@ -355,6 +359,8 @@ enum {
     // the '~' operator (i.e. ~a)
     KSB_UOP_SQIG,
 
+    // the '!' operator (i.e. !a), which always converts to boolean
+    KSB_UOP_NOT,
 
     /*** BINARY ***/
     // All of these operators pop 2 items off, attempt to do the operation on them using
@@ -374,6 +380,9 @@ enum {
     // the '**' operator
     KSB_BOP_POW,
 
+    // the '<=>' operator
+    KSB_BOP_CMP,
+
     // the '<' operator
     KSB_BOP_LT,
     // the '<=' operator
@@ -387,6 +396,8 @@ enum {
     // the '!=' operator
     KSB_BOP_NE,
 
+    // Convert TOS to its truthy value
+    KSB_TRUTHY
 
 };
 
@@ -671,6 +682,10 @@ struct ks_type {
     ks_obj __hash__;
 
 
+    // type.__bool__(self) -> convert an item to a boolean
+    ks_obj __bool__;
+
+
     // type.__str__(self) -> convert an item to a string
     ks_obj __str__;
 
@@ -727,6 +742,8 @@ struct ks_type {
     // type.__pow__(A, B) -> return A ** B
     ks_obj __pow__;
 
+    // type.__cmp__(A, B) -> return A <=> B
+    ks_obj __cmp__;
     // type.__lt__(A, B) -> return A < B
     ks_obj __lt__;
     // type.__le__(A, B) -> return A <= B
@@ -1106,11 +1123,12 @@ enum {
     // result is 'children[0]'
     KS_AST_RET,
 
-
     // Represents a throw statement
     // expression is 'children[0]'
     KS_AST_THROW,
 
+    // Represents an assertion, which requires 'children[0]' to evaluate to true
+    KS_AST_ASSERT,
 
     // Represents a block of other ASTs
     // all children are in 'children'
@@ -1175,6 +1193,9 @@ enum {
     // binary '**'
     KS_AST_BOP_POW,
 
+    // binary '<=>'
+    KS_AST_BOP_CMP,
+
     // binary '<'
     KS_AST_BOP_LT,
     // binary '<='
@@ -1188,6 +1209,12 @@ enum {
     // binary '!='
     KS_AST_BOP_NE,
 
+    // binary (short circuit) 'or'
+    KS_AST_BOP_OR,
+    // binary (short circuit) 'or'
+    KS_AST_BOP_AND,
+
+
     // binary '=' (special case, only assignable things area allowed on the left side)
     KS_AST_BOP_ASSIGN,
 
@@ -1198,6 +1225,8 @@ enum {
     KS_AST_UOP_NEG,
     // unary '~'
     KS_AST_UOP_SQIG,
+    // unary '!'
+    KS_AST_UOP_NOT
 
 };
 
@@ -1211,7 +1240,7 @@ enum {
 #define KS_AST_UOP__FIRST KS_AST_UOP_NEG
 
 // the last AST kind that is a unary operator
-#define KS_AST_UOP__LAST KS_AST_UOP_SQIG
+#define KS_AST_UOP__LAST KS_AST_UOP_NOT
 
 
 
@@ -1508,7 +1537,11 @@ enum {
     KS_IOS_WRITE   = 0x2,
 
     // The I/O stream is currently open
-    KS_IOS_OPEN    = 0x4
+    KS_IOS_OPEN    = 0x4,
+
+    // The I/O stream is an external stream, of which the kscript object is just a wrapper over
+    // For example, stdout/stderr/stdin are wrapped as extern I/O streams
+    KS_IOS_EXTERN  = 0x8,
 
 };
 
@@ -1527,6 +1560,10 @@ typedef struct {
 // NOTE: Use `ks_iostream_open()` to actually get a target
 // NOTE: Returns a new reference
 KS_API ks_iostream ks_iostream_new();
+
+// Create an IOstream wrapper around an already existing file pointer, with the mode it was created with
+// NOTE: Returns a new reference
+KS_API ks_iostream ks_iostream_new_extern(FILE* fp, char* mode);
 
 // Attempt to open a created iostream (via ks_iostream_new()), for a given file and mode:
 // TODO: document 'mode'
@@ -1687,6 +1724,7 @@ KS_API extern ks_type
     ks_type_SizeError,
     ks_type_AttrError,
     ks_type_TypeError,
+    ks_type_AssertError,
     ks_type_OpError,
     ks_type_ToDoError,
 
@@ -1731,6 +1769,9 @@ KS_API extern ks_cfunc
     ks_F_iter,
     ks_F_next,
     ks_F_open,
+    ks_F_sort,
+    ks_F_map,
+    ks_F_range,
 
     // operators
 
@@ -1741,6 +1782,7 @@ KS_API extern ks_cfunc
     ks_F_mod,
     ks_F_pow,
 
+    ks_F_cmp,
     ks_F_lt,
     ks_F_le,
     ks_F_gt,
@@ -2136,6 +2178,7 @@ KS_API void ksca_setitem   (ks_code self, int n_items);
 KS_API void ksca_call      (ks_code self, int n_items);
 KS_API void ksca_ret       (ks_code self);
 KS_API void ksca_throw     (ks_code self);
+KS_API void ksca_assert    (ks_code self);
 KS_API void ksca_jmp       (ks_code self, int relamt);
 KS_API void ksca_jmpt      (ks_code self, int relamt);
 KS_API void ksca_jmpf      (ks_code self, int relamt);
@@ -2157,6 +2200,7 @@ KS_API void ksca_store_attr(ks_code self, ks_str name);
 KS_API void ksca_bop       (ks_code self, int ksb_bop_type);
 KS_API void ksca_uop       (ks_code self, int ksb_uop_type);
 
+KS_API void ksca_truthy    (ks_code self);
 
 // C-style versions
 KS_API void ksca_load_c      (ks_code self, char* name);
@@ -2207,6 +2251,10 @@ KS_API ks_ast ks_ast_new_ret(ks_ast val);
 // Create an AST representing a throw statement
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_throw(ks_ast expr);
+
+// Create an AST representing an assertion
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_assert(ks_ast expr);
 
 
 // Create an AST representing a block of code
@@ -2333,6 +2381,14 @@ KS_API bool ks_is_callable(ks_obj func);
 // Return whether or not 'obj' is iterable, through the `iter()` and `next()` protocol
 KS_API bool ks_is_iterable(ks_obj obj);
 
+// Return whether or not 'obj' is a 'truthy' value, which is primarily defined by:
+//  * the value of 'obj', if 'obj' is a boolean
+//  * if 'obj' is non-zero if 'obj' is a numeric type
+//  * if 'len(obj)' is non-zero if it is an iterable
+//  * if 'type(obj).__bool__(self)' is defined, it is called, and its result is used
+// The result is -1 if there was a failure/exception in attempting to convert 'obj' to a boolean,
+// 0 if it was falsy, and 1 if it was truthy
+KS_API int ks_truthy(ks_obj obj);
 
 // Attempt to call 'func' on 'args', returning NULL if there was an error
 // NOTE: Returns a new reference

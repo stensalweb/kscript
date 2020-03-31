@@ -92,6 +92,38 @@ bool ks_is_iterable(ks_obj obj) {
     return obj->type->__iter__ != NULL || obj->type->__next__ != NULL;
 }
 
+// Return truthyness value
+int ks_truthy(ks_obj obj) {
+    if (obj->type == ks_type_bool) {
+        return obj == KSO_TRUE ? 1 : 0;
+    } else if (obj->type == ks_type_none) {
+        return 0;
+    } else if (obj->type == ks_type_int) {
+        return ((ks_int)obj)->val != 0 ? 1 : 0;
+    } else if (obj->type == ks_type_float) {
+        return ((ks_float)obj)->val != 0 ? 1 : 0;
+    } else if (obj->type == ks_type_complex) {
+        return ((ks_complex)obj)->val != 0 ? 1 : 0;
+    } else if (obj->type == ks_type_str) {
+        return ((ks_str)obj)->len > 0 ? 1 : 0;
+    } else if (obj->type == ks_type_list) {
+        return ((ks_list)obj)->len > 0 ? 1 : 0;
+    } else if (obj->type == ks_type_tuple) {
+        return ((ks_tuple)obj)->len > 0 ? 1 : 0;
+    } else if (obj->type == ks_type_dict) {
+        // TODO: perhaps check if any of the entries were deleted?
+        return ((ks_dict)obj)->n_entries > 0 ? 1 : 0;
+    } else if(obj->type->__bool__ != NULL) {
+        ks_obj ret = ks_call(obj->type->__bool__, 1, &obj);
+        if (!ret) return -1;
+        int res = ks_truthy(ret);
+        KS_DECREF(ret);
+        return res;
+    }
+
+    ks_throw_fmt(ks_type_TypeError, "'%T' object could not be converted to bool!", obj);
+    return -1;
+}
 
 // throw an object up the call stack, and return 'NULL'
 void* ks_throw(ks_obj obj) {

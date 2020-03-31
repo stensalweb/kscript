@@ -15,6 +15,17 @@ ks_bool KS_TRUE, KS_FALSE;
 
 /* member functions */
 
+// bool.__new__(obj) -> construct a boolean from an object
+static KS_TFUNC(bool, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj obj = args[0];
+
+    int truthy = ks_truthy(obj);
+    if (truthy < 0) return NULL;
+
+    return KSO_BOOL(truthy);
+};
+
 
 // bool.__free__(self) -> do nothing, as bools should never be freed
 static KS_TFUNC(bool, free) {
@@ -44,13 +55,12 @@ static KS_TFUNC(bool, str) {
 };
 
 
-
-
 // initialize bool type
 void ks_type_bool_init() {
     KS_INIT_TYPE_OBJ(ks_type_bool, "bool");
 
     ks_type_set_cn(ks_type_bool, (ks_dict_ent_c[]){
+        {"__new__", (ks_obj)ks_cfunc_new2(bool_new_, "bool.__new__(obj)")},
         {"__str__", (ks_obj)ks_cfunc_new2(bool_str_, "bool.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(bool_str_, "bool.__repr__(self)")},
 
