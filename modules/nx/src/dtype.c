@@ -197,5 +197,6 @@ int nx_dtype_inits(nx_dtype dtype, int N, void* data_ptr) {
     }
 
     return 0;
-
 }
+
+

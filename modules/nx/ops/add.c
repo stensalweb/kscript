@@ -127,8 +127,33 @@ KS_TFUNC(nx, add) {
         }
         return (ks_obj)D;
 
+    } else if (ks_is_iterable(B)) {
+        nx_array Barr = (nx_array)ks_call(nx_type_array, 1, &B);
+        if (!Barr) return NULL;
+
+        // now, attempt to add it
+        nx_dtype rAB = nx_dtype_opres(A->dtype, Barr->dtype);
+        if (!rAB) return NULL;
+
+        nx_array D = nx_array_new(A->Ndim, A->dims, NULL, rAB);
+        if (!D) return NULL;
+
+        // now, try and add it
+        if (nx_op_add(
+            A->dtype, A->data_ptr, A->Ndim, A->dims, A->strides,
+            Barr->dtype, Barr->data_ptr, Barr->Ndim, Barr->dims, Barr->strides,
+            D->dtype, D->data_ptr, D->Ndim, D->dims, D->strides
+        ) != 0) {
+            KS_DECREF(D);
+            return NULL;
+        }
+
+        KS_DECREF(Barr);
+        return (ks_obj)D;
+
     } else {
         // otherwise, attempt to convert to an array
+
         nx_dtype detec = nx_dtype_obj(B);
         if (!detec) return NULL;
 

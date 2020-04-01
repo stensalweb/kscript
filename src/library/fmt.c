@@ -91,26 +91,29 @@ static int bfmt_f64(char* buf, int n, double val, bfmt_arg arg) {
     if (is_neg) val = -val;
 
     int bp = 0;
+    // add the sign back
+    if (is_neg) buf[bp++] = '-';
+    else if (arg.do_sign) buf[bp++] = '+';
 
     // whole number part
     int64_t whole = (int64_t)val;
     
+    bfmt_arg whole_arg = BFMT_ARG_DEFAULT;
+
     // format an integer
-    bp += bfmt_i64(buf + bp, n - bp, whole, arg);
+    bp += bfmt_i64(buf + bp, n - bp, whole, whole_arg);
 
     buf[bp++] = '.';
 
+    int my_width = arg.width;
 
     // the fractional part
-    int64_t frac = (uint64_t)(10000 * (val - whole));
-    bfmt_arg frac_arg = (bfmt_arg){ .width = 4, .base = arg.base, .do_sign = false };
+    int64_t frac = (uint64_t)(pow(10, my_width) * (val - whole));
+    bfmt_arg frac_arg = (bfmt_arg){ .width = my_width, .base = arg.base, .do_sign = false, .zero_pad = true };
 
     // add on fractional part
     bp += bfmt_i64(buf + bp, n - bp, frac, frac_arg);
 
-    // add the sign back
-    if (is_neg) buf[bp++] = '-';
-    else if (arg.do_sign) buf[bp++] = '+';
 
     return bp;
 }
@@ -315,6 +318,11 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             // NOTE: by the C standard, floats are upcasted to doubles, so this is fine
             // print out a double
             double v_lf = va_arg(ap, double);
+
+            // parse out argument specifiers
+            barg.do_sign = strchr(field, '+');
+
+            barg.width = 2;
 
             int amt = bfmt_f64(tmp, 255, v_lf, barg);
 

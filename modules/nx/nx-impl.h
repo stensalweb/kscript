@@ -234,6 +234,16 @@ nx_bin_set(ks_obj src, nx_dtype dtype, void* ptr) {
 }
 
 
+// Append a binary object, treated as a given type, to a string builder
+static inline bool
+nx_appstr(ks_str_b* SB, nx_dtype dtype, void* ptr) {
+    if (dtype == NX_DTYPE_FP32) {
+        ks_str_b_add_fmt(SB, "%+.3f", *(float*)ptr);
+    } else {
+        ks_str_b_add_c(SB, "<err>");
+    }
+
+}
 
 /** INTERNAL ROUTINES: do not call **/
 void nx_init__array();

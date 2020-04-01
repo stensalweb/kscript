@@ -245,8 +245,6 @@ static KS_TFUNC(array, new) {
         dtype = NX_DTYPE_FP32;
     } 
 
-
-
     return (ks_obj)nx_array_from_obj(elems, dtype);
 }
 
@@ -340,6 +338,42 @@ static KS_TFUNC(array, setitem) {
 }
 
 
+static void my_tostr() {
+
+}
+
+
+// nx.array.__str__(self) -> convert to string
+static KS_TFUNC(array, str) {
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+    nx_array self = (nx_array)args[0];
+    KS_REQ_TYPE(self, nx_type_array, "self");
+
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+    ks_str_b_add(&SB, 1, "[");
+    
+    // now, generate it out
+    if (self->Ndim == 1) {
+        // special cases
+        int i;
+        for (i = 0; i < self->dims[0]; ++i) {
+            if (i) ks_str_b_add(&SB, 2, "  ");
+            nx_appstr(&SB, self->dtype, (void*)(self->strides[0] * nx_dtype_sizeof(self->dtype) * i + (uintptr_t)self->data_ptr));
+        }
+    }
+
+    ks_str_b_add(&SB, 1, "]");
+
+    ks_str res = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+
+    return (ks_obj)res;
+
+}
+
+
+
 
 // nx.array.shape(self) -> return the shape of the array
 static KS_TFUNC(array, shape) {
@@ -372,7 +406,7 @@ void nx_init__array() {
         {"__free__",        (ks_obj)ks_cfunc_new2(array_free_, "nx.array.__free__(self)")},
 
         {"__repr__",       (ks_obj)ks_cfunc_new2(array_repr_, "nx.array.__repr__(self)")},
-        {"__str__",        (ks_obj)ks_cfunc_new2(array_repr_, "nx.array.__str__(self)")},
+        {"__str__",        (ks_obj)ks_cfunc_new2(array_str_, "nx.array.__str__(self)")},
 
         {"__getitem__",    (ks_obj)ks_cfunc_new2(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
         {"__setitem__",    (ks_obj)ks_cfunc_new2(array_setitem_, "nx.array.__setitem__(self, *idxs)")},
