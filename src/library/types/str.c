@@ -108,9 +108,9 @@ int ks_str_cmp(ks_str A, ks_str B) {
     else return memcmp(A->chr, B->chr, A->len);
 }
 
-// str.__new__(obj) -> convert any object to a string
+// str.__new__(obj, *args) -> convert any object to a string
 static KS_TFUNC(str, new) {
-    KS_REQ_N_ARGS(n_args, 1);
+    KS_REQ_N_ARGS_MIN(n_args, 1);
     ks_obj obj = args[0];
 
     if (obj->type == ks_type_str) {
@@ -301,7 +301,6 @@ static KS_TFUNC(str, join) {
     int ct = 0;
     while (true) {
         ks_obj next_obj = ks_F_next->func(1, &iter_obj);
-
         if (!next_obj) {
             if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
                 // handle end of iterator
@@ -321,11 +320,16 @@ static KS_TFUNC(str, join) {
         }
 
         // append to the result
-        ks_str_b_add_str(&SB, next_obj);
+        if (!ks_str_b_add_str(&SB, next_obj)) {
+            KS_DECREF(next_obj);
+            ks_str_b_free(&SB);
+            return NULL;
+        }
 
         KS_DECREF(next_obj);
     }
     
+    // done with iterator
     KS_DECREF(iter_obj)
 
     // get result
@@ -397,7 +401,7 @@ void ks_type_str_init() {
 
     // set properties
     ks_type_set_cn(ks_type_str, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new2(str_new_, "str.__new__(obj)")},
+        {"__new__", (ks_obj)ks_cfunc_new2(str_new_, "str.__new__(obj, *args)")},
         {"__free__", (ks_obj)ks_cfunc_new2(str_free_, "str.__free__(self)")},
 
         {"__len__", (ks_obj)ks_cfunc_new2(str_len_, "str.__len__(self)")},

@@ -206,6 +206,7 @@ bool ks_init() {
         {"next",           KS_NEWREF(ks_F_next)},
         {"open",           KS_NEWREF(ks_F_open)},
         {"sort",           KS_NEWREF(ks_F_sort)},
+        {"filter",         KS_NEWREF(ks_F_filter)},
         {"map",            KS_NEWREF(ks_F_map)},
         {"range",          KS_NEWREF(ks_F_range)},
 

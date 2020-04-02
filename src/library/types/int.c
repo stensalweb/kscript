@@ -50,6 +50,20 @@ static int my_getdig(char c) {
     }
 }
 
+
+// return the character representing the given digit, or NUL if there was a problem
+static char my_getdigchar(int dig) {
+    if (dig >= 0 && dig < 10) {
+        return dig + '0';
+    } else if (dig < MAX_BASE) {
+        // use lowercase letters
+        return (dig - 10) + 'a';
+    } else {
+        // errro: invalid digit
+        return 0;
+    }
+}
+
 // int.__new__(obj, base=10) -> convert 'obj' to a int
 static KS_TFUNC(int, new) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
@@ -112,17 +126,73 @@ static KS_TFUNC(int, new) {
 };
 
 
-// int.__str__(self) -> free an int object
+// int.__str__(self, base=10) -> convert to a string
 static KS_TFUNC(int, str) {
-    KS_REQ_N_ARGS(n_args, 1);
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
     ks_int self = (ks_int)args[0];
     KS_REQ_TYPE(self, ks_type_int, "self");
 
-    // print it out
-    char cstr[256];
-    snprintf(cstr, 255, "%lli", (long long int)self->val);
+    int base = 10;
+    if (n_args > 1) {
+        ks_int base_o = (ks_int)args[1];
+        KS_REQ_TYPE(base_o, ks_type_int, "base");
+        base = base_o->val;
+        if (base < 2 || base > MAX_BASE) return ks_throw_fmt(ks_type_ArgError, "Invalid base '%i' (only handles base 2 through %i)", base, MAX_BASE);
+    }
 
-    return (ks_obj)ks_str_new(cstr);
+    // temporary buffer
+    char tmp[256];
+
+    int64_t val = self->val;
+    bool doSign = val < 0;
+    if (val < 0) val = -val;
+
+    int i = 0;
+
+    // add string
+    if (doSign) tmp[i++] = '-';
+
+    // add prefix specifier
+    if (base == 10) {
+        // do nothing
+    } else if (base == 16) {
+        tmp[i++] = '0';
+        tmp[i++] = 'x';
+    } else if (base == 8) {
+        tmp[i++] = '0';
+        tmp[i++] = 'o';
+    } else if (base == 2) {
+        tmp[i++] = '0';
+        tmp[i++] = 'b';
+    } else {
+        return ks_throw_fmt(ks_type_ArgError, "Invalid base '%i' for int->str conversion", base);
+    }
+
+
+    int startRev = i;
+
+    do {
+        char myc = my_getdigchar(val % base);
+        if (!myc) return ks_throw_fmt(ks_type_ArgError, "Internal invalid format for base %i integer", base);
+        val /= base;
+
+        tmp[i++] = myc;
+
+    } while (i < 250 && val > 0);
+
+
+    // NUL-terminate
+    tmp[i] = '\0';
+
+    int len = i;
+    // now, reverse it
+    for (i = startRev; 2 * (i - startRev) < len - startRev; ++i) {
+        char t = tmp[i];
+        tmp[i] = tmp[len - i - 1 + startRev];
+        tmp[len - i - 1 + startRev] = t;
+    }
+
+    return (ks_obj)ks_str_new_l(tmp, len);
 
 };
 

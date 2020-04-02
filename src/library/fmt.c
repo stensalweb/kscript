@@ -488,6 +488,7 @@ ks_str ks_fmt_c(const char* fmt, ...) {
 // initialize the string builder
 void ks_str_b_init(ks_str_b* self) {
     self->len = 0;
+    self->max_len = 0;
     self->data = NULL;
 }
 
@@ -506,7 +507,10 @@ void ks_str_b_add(ks_str_b* self, int len, char* data) {
     self->len += len;
 
     // make sure we have enough data for the entire string
-    self->data = ks_realloc(self->data, self->len + 1);
+    if (self->len >= self->max_len) {
+        self->max_len = self->len * 3 / 2 + 16;
+        self->data = ks_realloc(self->data, self->max_len + 1);
+    }
 
     // copy in the new data
     memcpy(&self->data[pos], data, len);

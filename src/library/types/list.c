@@ -201,6 +201,92 @@ static KS_TFUNC(list, add) {
     KS_ERR_BOP_UNDEF("+", L, R);
 };
 
+
+
+// list.__mul__(L, R) -> multiply a list by an integer constant
+static KS_TFUNC(list, mul) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_list && R->type == ks_type_int) {
+        ks_list lL = (ks_list)L;
+        int64_t iR = ((ks_int)R)->val;
+
+        ks_list res = ks_list_new(0, NULL);
+        int i;
+        for (i = 0; i < (iR); ++i) {
+            ks_list_pushn(res, lL->len, lL->elems);
+        }
+
+        return (ks_obj)res;
+    }
+
+    KS_ERR_BOP_UNDEF("*", L, R);
+};
+
+
+
+
+// list.__eq__(L, R) -> check if everything is equal
+static KS_TFUNC(list, eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_list && R->type == ks_type_list) {
+        
+        ks_list lL = (ks_list)L, lR = (ks_list)R;
+        if (lL->len != lR->len) return KSO_FALSE;
+
+        int i;
+        for (i = 0; i < lL->len; ++i) {
+            ks_obj lreq = ks_F_eq->func(2, (ks_obj[]){ lL->elems[i], lR->elems[i] });
+            if (!lreq) return NULL;
+            int truthy = ks_truthy(lreq);
+            KS_DECREF(lreq);
+            if (!truthy) return KSO_FALSE;
+
+        }
+
+        // all were equal
+        return KSO_TRUE;
+
+    }
+
+    KS_ERR_BOP_UNDEF("==", L, R);
+};
+
+
+
+// list.__ne__(L, R) -> check if anything is different
+static KS_TFUNC(list, ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_list && R->type == ks_type_list) {
+        
+        ks_list lL = (ks_list)L, lR = (ks_list)R;
+        if (lL->len != lR->len) return KSO_TRUE;
+
+        int i;
+        for (i = 0; i < lL->len; ++i) {
+            ks_obj lreq = ks_F_eq->func(2, (ks_obj[]){ lL->elems[i], lR->elems[i] });
+            if (!lreq) return NULL;
+            int truthy = ks_truthy(lreq);
+            KS_DECREF(lreq);
+            if (!truthy) return KSO_TRUE;
+
+        }
+
+        // all were equal
+        return KSO_FALSE;
+    }
+
+    KS_ERR_BOP_UNDEF("!=", L, R);
+};
+
+
+
+
 // list.__getitem__(self, idx) -> get the item in a list
 static KS_TFUNC(list, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -319,6 +405,10 @@ void ks_type_list_init() {
         {"__len__", (ks_obj)ks_cfunc_new2(list_len_, "list.__len__(self)")},
 
         {"__add__", (ks_obj)ks_cfunc_new2(list_add_, "list.__add__(L, R)")},
+        {"__mul__", (ks_obj)ks_cfunc_new2(list_mul_, "list.__mul__(L, R)")},
+
+        {"__eq__", (ks_obj)ks_cfunc_new2(list_eq_, "list.__eq__(L, R)")},
+        {"__ne__", (ks_obj)ks_cfunc_new2(list_ne_, "list.__ne__(L, R)")},
 
         {"__iter__", (ks_obj)ks_cfunc_new2(list_iter_, "list.__iter__(self)")},
 

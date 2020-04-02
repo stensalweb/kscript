@@ -1678,6 +1678,9 @@ typedef struct {
     // the current length of the string builder
     int len;
 
+    // the max length 'data' can hold currently
+    int max_len;
+
     // the current character data for the string builder
     char* data;
 
@@ -1781,6 +1784,7 @@ KS_API extern ks_cfunc
     ks_F_next,
     ks_F_open,
     ks_F_sort,
+    ks_F_filter,
     ks_F_map,
     ks_F_range,
 

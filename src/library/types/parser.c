@@ -678,7 +678,7 @@ ks_parser ks_parser_new(ks_str src_code, ks_str src_name) {
 static bool tok_iskw(ks_tok tok) {
     return 
         TOK_EQ(tok, "if") || TOK_EQ(tok, "else") || TOK_EQ(tok, "elif") || 
-        TOK_EQ(tok, "while") || 
+        TOK_EQ(tok, "while") || TOK_EQ(tok, "func") || 
         TOK_EQ(tok, "for") || 
         TOK_EQ(tok, "try") || TOK_EQ(tok, "catch") || TOK_EQ(tok, "throw") ||
         TOK_EQ(tok, "true") || TOK_EQ(tok, "false")
@@ -2035,11 +2035,8 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             if (catch_blk) KS_DECREF(catch_blk);
             if (catch_name) KS_DECREF(catch_name);
 
-
-
             // return the constructed result
             return res;
-
 
         } else {
             KS_DECREF(body);

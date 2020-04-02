@@ -20,6 +20,7 @@ ks_cfunc
     ks_F_next = NULL,
     ks_F_open = NULL,
     ks_F_sort = NULL,
+    ks_F_filter = NULL,
     ks_F_map = NULL,
     ks_F_range = NULL,
 
@@ -814,7 +815,7 @@ static const char* global_matches[] = {
     "__import__(", "sleep(",
     "iter(", "next(", "open(",
 
-    "map(", "sort(",
+    "map(", "filter(", "sort(",
 
     "range("
 
@@ -1007,7 +1008,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     if (isTTY) if ((prog->kind >= KS_AST_BOP__FIRST && prog->kind <= KS_AST_BOP__LAST) ||
         (prog->kind >= KS_AST_UOP__FIRST && prog->kind <= KS_AST_UOP__LAST) ||
         prog->kind == KS_AST_ATTR || prog->kind == KS_AST_VAR || prog->kind == KS_AST_CONST ||
-        prog->kind == KS_AST_SUBSCRIPT || prog->kind == KS_AST_CALL) {
+        prog->kind == KS_AST_SUBSCRIPT || prog->kind == KS_AST_CALL || prog->kind == KS_AST_LIST || prog->kind == KS_AST_TUPLE) {
             doPrint = true;
             doPrintIffy = prog->kind == KS_AST_CALL;
             ks_ast new_prog = ks_ast_new_ret(prog);
@@ -1276,69 +1277,230 @@ static KS_TFUNC(std, run_interactive) {
 }
 
 
+// swap 2 indices in the result/keys lists
+// NOTE: Assumes result is named 'res' and keys are named 'keys'
+#define SORT_SWAP(_i, _j) {               \
+    int ii = (_i);                         \
+    int jj = (_j);                         \
+    tmp = res->elems[ii];                  \
+    res->elems[ii] = res->elems[jj];       \
+    res->elems[jj] = tmp;                  \
+    if (keys != res) {                     \
+        tmp = keys->elems[ii];             \
+        keys->elems[ii] = keys->elems[jj]; \
+        keys->elems[jj] = tmp;             \
+    }                                      \
+}
 
 
-/* sort(objs) -> []
- *
- * Return a list of objects, sorted
- */
-static KS_FUNC(sort) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_obj objs = args[0];
-    KS_REQ_ITERABLE(objs, "objs");
+// sort 'res' based on keys, using bubble sort
+// BUBBLE SORT:
+// The most basic sorting algorithm, which continues to sweep the array until
+//   the array is in order, swapping elements which are in the wrong order
+// O(N^2) - for out of order input
+// O(N) - for already sorted input
+static bool my_sort_bubble(ks_list res, ks_list keys) {
 
-    // collect into a list
-    ks_list objs_list = ks_list_from_iterable(objs);
-    if (!objs_list) return NULL;
-
-    // construct a copy
-    ks_list res = ks_list_new(objs_list->len, objs_list->elems);
-    KS_DECREF(objs_list);
-
-    // TODO: add more advanced sorts
-
+    // temporary object used for swapping
+    ks_obj tmp;
 
     // cmp(L, R)
     ks_obj cLR;
 
+    // calculate where it should be correct from
+    int base_i = 0;
+
+    // and cap the number of tries
     int tries = 0;
-    // bubble sort
+
+    // iterator
+    int i;
+
+    // whether or not anything has changed
     bool hasChanged = true;
-    while (hasChanged && tries < res->len) {
+
+    while (hasChanged && tries <= res->len) {
+        // keep track of whether anything has been changed
         hasChanged = false;
 
-        int i;
-        for (i = 0; i < res->len - 1; ++i) {
-            cLR = cmp_(2, &res->elems[i]);
-            if (!cLR) {
-                KS_DECREF(res);
-                return NULL;
-            }
+        for (i = base_i; i < res->len - 1; ++i) {
+            // do L <=> R
+            cLR = cmp_(2, &keys->elems[i]);
+            if (!cLR) return false;
 
+            // Ensure an integer was given
             if (cLR->type != ks_type_int) {
                 ks_throw_fmt(ks_type_ArgError, "Invalid result from '__cmp__', got type '%T'", cLR);
-                KS_DECREF(res);
                 KS_DECREF(cLR);
-                return NULL;
+                return false;
             }
 
+            // calculate the difference and free that object
             int64_t diff = ((ks_int)cLR)->val;
             KS_DECREF(cLR);
 
+            // if they are out of order, swap them so that they are
             if (diff > 0) {
-                // we need to swap these 2
-                ks_obj tmp = res->elems[i];
-                res->elems[i] = res->elems[i + 1];
-                res->elems[i + 1] = tmp;
                 hasChanged = true;
+                SORT_SWAP(i, i + 1);
+            } else if (!hasChanged) {
+                // up the minimum sorted place
+                base_i = i;
+            }
+        }
+    }
+    
+    // no error
+    return true;
+}
+
+/* sort(objs, func=none) -> []
+ *
+ * Return a list of objects, sorted by their result of a function (default: identity function)
+ */
+static KS_FUNC(sort) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+    ks_obj objs = args[0];
+    KS_REQ_ITERABLE(objs, "objs");
+
+
+    // collect into a list
+    ks_list res = ks_list_from_iterable(objs);
+    if (!res) return NULL;
+
+    // the keys to sort by (default==objs)
+    ks_list keys = NULL;
+
+    // check for a function
+    if (n_args > 1 && args[1] != KSO_NONE) {
+        // there was a transformation function that should be applied
+        ks_obj func = args[1];
+
+        // construct a new array
+        keys = ks_list_new(0, NULL);
+        
+        // apply function to each element
+        int i;
+        for (i = 0; i < res->len; ++i) {
+            ks_obj this_obj = ks_call(func, 1, &res->elems[i]);
+            if (!this_obj) {
+                KS_DECREF(keys);
+                KS_DECREF(res);
+                return NULL;
             }
 
+            ks_list_push(keys, this_obj);
+            KS_DECREF(this_obj);
         }
 
-        tries++;
+    } else {
+        // nothing supplied, so just use the identity function (make a new reference to the input keys)
+        keys = (ks_list)KS_NEWREF(res);
+    }
+
+    // TODO: switch between bubble/qsort/etc
+    bool status = my_sort_bubble(res, keys);
+
+    // done with the keys array
+    KS_DECREF(keys);
+
+    // check for errors
+    if (!status) {
+        KS_DECREF(res);
+        return NULL;
     }
 
     // returned sorted list
+    return (ks_obj)res;
+}
+
+
+
+/* filter(objs, func=none) -> []
+ *
+ * Return a list of objects for which a function returns true (default: identity)
+ */
+static KS_FUNC(filter) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+    ks_obj objs = args[0];
+    KS_REQ_ITERABLE(objs, "objs");
+
+    // the function, or NULL if there was none
+    ks_obj func = NULL;
+
+    // get the function from the argument
+    if (n_args > 1 && args[1] != KSO_NONE) {
+        func = args[1];
+    }
+
+    // convert to an iterator
+    ks_obj objs_iter = iter_(1, &objs);
+    if (!objs_iter) return NULL;
+
+    // the results which pass the filter
+    ks_list res = ks_list_new(0, NULL);
+
+    // traverse the iterator
+    while (true) {
+        ks_obj next_obj = next_(1, &objs_iter);
+        if (!next_obj) {
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
+                // we have hit the end, so stop executing
+                ks_catch_ignore();
+                break;
+            }
+
+            // error has occured
+            KS_DECREF(objs_iter);
+            KS_DECREF(res);
+            return NULL;
+        }
+    
+        if (func) {
+            // apply a function
+            ks_obj filt_val = ks_call(func, 1, &next_obj);
+            if (!filt_val) {
+                // error
+                KS_DECREF(next_obj);
+                KS_DECREF(objs_iter);
+                KS_DECREF(res);
+                return NULL;
+            }
+
+            // now, see if it is truthy
+            int truthy = ks_truthy(filt_val);
+            KS_DECREF(filt_val);
+
+            if (truthy < 0) {
+                KS_DECREF(next_obj);
+                KS_DECREF(objs_iter);
+                KS_DECREF(res);
+                return NULL;
+            } else if (truthy) {
+                ks_list_push(res, next_obj);
+            }
+
+        } else {
+            // just use the object itself
+            int truthy = ks_truthy(next_obj);
+            if (truthy < 0) {
+                KS_DECREF(next_obj);
+                KS_DECREF(objs_iter);
+                KS_DECREF(res);
+                return NULL;
+            } else if (truthy) {
+                ks_list_push(res, next_obj);
+            }
+        }
+
+        // we are done using this object
+        KS_DECREF(next_obj);
+
+    }
+
+    // done with the iterator
+    KS_DECREF(objs_iter);
+
     return (ks_obj)res;
 }
 
@@ -1361,7 +1523,6 @@ static KS_FUNC(map) {
     // construct the results
     ks_list res = ks_list_new(0, NULL);
 
-
     // now, iterate through and map each object
     while (true) {
         ks_obj next_obj = next_(1, &iter_objs);
@@ -1375,6 +1536,7 @@ static KS_FUNC(map) {
 
             // there was a legitimate error
             KS_DECREF(res);
+            KS_DECREF(iter_objs);
             return NULL;
         }
 
@@ -1383,6 +1545,7 @@ static KS_FUNC(map) {
 
         if (!out) {
             KS_DECREF(res);
+            KS_DECREF(iter_objs);
             return NULL;
         }
 
@@ -1391,6 +1554,9 @@ static KS_FUNC(map) {
         KS_DECREF(out);
 
     }
+
+    // done with iterator
+    KS_DECREF(iter_objs);
 
     return (ks_obj)res;
 }
@@ -1505,8 +1671,11 @@ void ks_init_funcs() {
     ks_F_iter = ks_cfunc_new2(iter_, "iter(obj)");
     ks_F_next = ks_cfunc_new2(next_, "next(obj)");
     ks_F_open = ks_cfunc_new2(open_, "open(fname, mode='r')");
-    ks_F_sort = ks_cfunc_new2(sort_, "sort(objs)");
+    ks_F_sort = ks_cfunc_new2(sort_, "sort(objs, func=none)");
+    ks_F_filter = ks_cfunc_new2(filter_, "filter(objs, func=none)");
+
     ks_F_map = ks_cfunc_new2(map_, "map(func, objs)");
+
     ks_F_range = ks_cfunc_new2(range_, "range(start_or_stop, stop, step=1)");
 
     ks_F_add = ks_cfunc_new2(add_, "__add__(L, R)");
