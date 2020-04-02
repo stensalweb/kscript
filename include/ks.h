@@ -1539,11 +1539,16 @@ enum {
     // The I/O stream is currently open
     KS_IOS_OPEN    = 0x4,
 
+    // The I/O stream is a binary stream
+    KS_IOS_BINARY  = 0x8,
+
     // The I/O stream is an external stream, of which the kscript object is just a wrapper over
     // For example, stdout/stderr/stdin are wrapped as extern I/O streams
-    KS_IOS_EXTERN  = 0x8,
+    KS_IOS_EXTERN  = 0x16,
 
 };
+
+
 
 typedef struct {
     KS_OBJ_BASE
@@ -1565,6 +1570,10 @@ KS_API ks_iostream ks_iostream_new();
 // NOTE: Returns a new reference
 KS_API ks_iostream ks_iostream_new_extern(FILE* fp, char* mode);
 
+// Attempt to change an I/O stream's mode
+// NOTE: Returns whether it was successful
+KS_API bool ks_iostream_change(ks_iostream self, char* mode);
+
 // Attempt to open a created iostream (via ks_iostream_new()), for a given file and mode:
 // TODO: document 'mode'
 // Returns whether the operation was successful, and if not, throws an error
@@ -1573,6 +1582,8 @@ KS_API bool ks_iostream_open(ks_iostream self, char* fname, char* mode);
 // Attempt to close an iostream
 // Returns whether it was successfull, and if not, throws an error
 KS_API bool ks_iostream_close(ks_iostream self);
+
+
 
 // Read a up to a number of bytes from the iostream, consuming them and returning a string with their
 //   bytes

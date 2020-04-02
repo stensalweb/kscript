@@ -57,4 +57,10 @@ assert ct == f.size()
 print ("ct:", ct, "size():", f.size())
 
 
+import sys
+
+
+print (sys.stdin.read())
+
+
 

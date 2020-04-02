@@ -174,7 +174,6 @@ static int my_strcmp(ks_str L, ks_str R) {
     return strcmp(L->chr, R->chr);
 }
 
-
 // str.__cmp__(L, R) -> cmp 2 strings
 static KS_TFUNC(str, cmp) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -287,6 +286,89 @@ static KS_TFUNC(str, find) {
 };
 
 
+// str.join(self, objs) -> join an iterable by a seperator
+static KS_TFUNC(str, join) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self = (ks_str)args[0];
+    ks_obj objs = args[1];
+
+    ks_obj iter_obj = ks_F_iter->func(1, &objs);
+    if (!iter_obj) return NULL;
+
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    int ct = 0;
+    while (true) {
+        ks_obj next_obj = ks_F_next->func(1, &iter_obj);
+
+        if (!next_obj) {
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
+                // handle end of iterator
+                ks_catch_ignore();
+                break;
+            } else {
+                // otherwise, legitimate error
+                ks_str_b_free(&SB);
+                KS_DECREF(iter_obj)
+                return NULL;
+            }
+        }
+
+        // add seperator
+        if (ct++ > 0) {
+            ks_str_b_add(&SB, self->len, self->chr);
+        }
+
+        // append to the result
+        ks_str_b_add_str(&SB, next_obj);
+
+        KS_DECREF(next_obj);
+    }
+    
+    KS_DECREF(iter_obj)
+
+    // get result
+    ks_str res = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+
+    return (ks_obj)res;
+};
+
+
+
+// str.substr(self, start=0, len=none)
+static KS_TFUNC(str, substr) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
+    ks_str self = (ks_str)args[0];
+
+    int64_t start = 0;
+    int64_t len = self->len;
+
+    if (n_args > 1) {
+        ks_int start_o = (ks_int)args[1];
+        KS_REQ_TYPE(start_o, ks_type_int, "start");
+        start = start_o->val;
+    }
+
+    if (n_args > 2) {
+        ks_int len_o = (ks_int)args[2];
+        KS_REQ_TYPE(len_o, ks_type_int, "len");
+        len = len_o->val;
+    }
+
+
+    // real values
+    int64_t rS = start, rL = len;
+
+    if (rS < 0) rS += self->len;
+    if (rS < 0 || rS >= self->len) return ks_throw_fmt(ks_type_ArgError, "Invalid 'start': %l was out of range!", start);
+
+    if (len > self->len - rS) len = self->len - rS;
+
+    return (ks_obj)ks_str_new_l(self->chr + rS, len);
+};
+
 
 
 
@@ -327,8 +409,15 @@ void ks_type_str_init() {
         {"__cmp__", (ks_obj)ks_cfunc_new2(str_cmp_, "str.__cmp__(L, R)")},
         {"__eq__", (ks_obj)ks_cfunc_new2(str_eq_, "str.__eq__(L, R)")},
 
+
+        {"substr", (ks_obj)ks_cfunc_new2(str_substr_, "str.substr(self, start=0, len=none)")},
+
         {"split", (ks_obj)ks_cfunc_new2(str_split_, "str.split(self, delim=' \\t\\n')")},
         {"find", (ks_obj)ks_cfunc_new2(str_find_, "str.find(self, target)")},
+
+
+        {"join", (ks_obj)ks_cfunc_new2(str_join_, "str.join(self, objs)")},
+
 
         {NULL, NULL},
     });

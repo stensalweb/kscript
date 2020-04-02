@@ -159,6 +159,7 @@ bool ks_init() {
         {NULL, NULL}
     });
 
+    ks_iostream ks__stdin  = ks_iostream_new_extern(stdin, "r");
     ks_iostream ks__stdout = ks_iostream_new_extern(stdout, "w");
     ks_iostream ks__stderr = ks_iostream_new_extern(stderr, "w");
 
@@ -222,6 +223,7 @@ bool ks_init() {
 
         /* other globals */
 
+        {"__stdin__",      (ks_obj)ks__stdin},
         {"__stdout__",     (ks_obj)ks__stdout},
         {"__stderr__",     (ks_obj)ks__stderr},
 

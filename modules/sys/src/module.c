@@ -67,8 +67,13 @@ static ks_module get_module() {
         })},
 
         /* functions */
-        {"shell",        (ks_obj)ks_cfunc_new2(sys_shell_, "sys.shell(cmd)")},
+        {"shell",           (ks_obj)ks_cfunc_new2(sys_shell_, "sys.shell(cmd)")},
         
+        /* wrappers */
+        {"stdin",          (ks_obj)ks_iostream_new_extern(stdin, "r")},
+        {"stdout",         (ks_obj)ks_iostream_new_extern(stdout, "w")},
+        {"stderr",         (ks_obj)ks_iostream_new_extern(stderr, "w")},
+
 
         {NULL, NULL}
     });

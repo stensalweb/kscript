@@ -1688,13 +1688,15 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         SKIP_IRR_S();
 
-        if (CTOK().type == KS_TOK_EOF) {
-            KS_DECREF(cond);
-            syntax_error(start_tok, "Unexpected EOF");
-            goto kpps_err;
-        } else if (CTOK().type == KS_TOK_COMMA) {
+        if (CTOK().type == KS_TOK_COMMA) {
             // skip the comma, its just for shortness
             ADV_1();
+        }
+
+        if (CTOK().type == KS_TOK_EOF) {
+            KS_DECREF(cond);
+            syntax_error(start_tok, "Unexpected EOF while parsing 'if'");
+            goto kpps_err;
         }
         
 
@@ -1803,10 +1805,10 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
         SKIP_IRR_E();
 
+
         // parse out the conditional
         ks_ast cond = ks_parser_parse_expr(self);
         if (!cond) goto kpps_err;
-
 
         // the body of the if block
         ks_ast body = NULL;
@@ -1814,16 +1816,19 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         // the 'else' section, which can be NULL if there is none
         ks_ast else_blk = NULL;
 
-        SKIP_IRR_S();
 
-        if (CTOK().type == KS_TOK_EOF) {
-            KS_DECREF(cond);
-            syntax_error(start_tok, "Unexpected EOF");
-            goto kpps_err;
-        } else if (CTOK().type == KS_TOK_COMMA) {
+        SKIP_IRR_S();
+        if (CTOK().type == KS_TOK_COMMA) {
             // skip the comma, its just for shortness
             ADV_1();
         }
+        if (CTOK().type == KS_TOK_EOF) {
+            KS_DECREF(cond);
+            syntax_error(start_tok, "Unexpected EOF while parsing 'while'");
+            goto kpps_err;
+        }
+
+
 
         // attempt to parse the body
         body = ks_parser_parse_stmt(self);
@@ -1947,15 +1952,16 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         ks_ast catch_blk = NULL;
 
         SKIP_IRR_S();
-
-        if (CTOK().type == KS_TOK_EOF) {
-            syntax_error(start_tok, "Unexpected EOF");
-            goto kpps_err;
-        } else if (CTOK().type == KS_TOK_COMMA) {
+        if (CTOK().type == KS_TOK_COMMA) {
             // skip the comma, its just for shortness
             ADV_1();
         }
 
+        if (CTOK().type == KS_TOK_EOF) {
+            syntax_error(start_tok, "Unexpected EOF while parsing 'try'");
+            goto kpps_err;
+        }
+        
         // attempt to parse the body
         body = ks_parser_parse_stmt(self);
         if (!body) {
@@ -1965,13 +1971,16 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         SKIP_IRR_E();
 
         if (CTOK().type == KS_TOK_EOF) {
-            syntax_error(CTOK(), "Unexpected EOF");
+            syntax_error(CTOK(), "Unexpected EOF while parsing 'try'");
             goto kpps_err;
         } else if (CTOK().type == KS_TOK_COMMA) {
             // skip the comma, its just for shortness
             ADV_1();
             SKIP_IRR_E();
-
+            if (CTOK().type == KS_TOK_EOF) {
+                syntax_error(CTOK(), "Unexpected EOF while parsing 'try'");
+                goto kpps_err;
+            }
         } else {
             SKIP_IRR_S();
 

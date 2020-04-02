@@ -33,12 +33,35 @@ ks_int ks_int_new(int64_t val) {
 
 /* member functions */
 
+// the maximum base supported
+#define MAX_BASE (my_getdig('z') + 1)
 
+// Return the digit value (irrespective of base), or -1 if there was a problem
+static int my_getdig(char c) {
+    if (isdigit(c)) {
+        return c - '0';
+    } else if (c >= 'a' && c <= 'z') {
+        return (c - 'a') + 10;
+    } else if (c >= 'A' && c <= 'Z') {
+        return (c - 'A') + 10;
+    } else {
+        // errro: invalid digit
+        return -1;
+    }
+}
 
-
-// int.__new__(obj) -> convert 'obj' to a int
+// int.__new__(obj, base=10) -> convert 'obj' to a int
 static KS_TFUNC(int, new) {
-    KS_REQ_N_ARGS(n_args, 1);
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+
+    int base = 10;
+
+    if (n_args >= 2) {
+        ks_int base_o = (ks_int)args[1];
+        KS_REQ_TYPE(base_o, ks_type_int, "base");
+        base = base_o->val;
+        if (base < 2 || base > MAX_BASE) return ks_throw_fmt(ks_type_ArgError, "Invalid base '%i' (only handles base 2 through %i)", base, MAX_BASE);
+    }
 
     ks_obj obj = args[0];
     if (obj->type == ks_type_int) {
@@ -48,9 +71,41 @@ static KS_TFUNC(int, new) {
     } else if (obj->type == ks_type_complex) {
         return (ks_obj)ks_int_new(round(((ks_complex)obj)->val));
     } else if (obj->type == ks_type_str) {
-        // TODO: error check and see if it was a valid float
-        int64_t val = atoll(((ks_str)obj)->chr);
-        return (ks_obj)ks_int_new(val);
+        // TODO:
+        // Support other bases
+
+        // read formats:
+        // DIGITS+
+        // DIGITS+(eE)(+-)?DIGITS+
+
+        char* cstr = ((ks_str)obj)->chr;
+        int len = ((ks_str)obj)->len;
+
+        // current value
+        int64_t c_val = 0;
+
+        int i = 0;
+
+        // parse out main signifier
+        while (i < len) {
+            int dig = my_getdig(cstr[i]);
+            // check for invalid/out of range digit
+            if (dig < 0 || dig >= base) return ks_throw_fmt(ks_type_ArgError, "Invalid format for base %i integer: %R", base, obj);
+            c_val = base * c_val + dig;
+            i++;
+        }
+
+        // parse out the first amount of digits
+        while (i < len && isdigit(cstr[i])) {
+            c_val = 10 * c_val + (cstr[i] - '0');
+            i++;
+        }
+
+        // incorrect: extra non-digit character
+        if (cstr[i]) return ks_throw_fmt(ks_type_ArgError, "Invalid format for base %i integer: %R", base, obj);
+
+
+        return (ks_obj)ks_int_new(c_val);
     } else {
         KS_ERR_CONV(obj, ks_type_int);
     }

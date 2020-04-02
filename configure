@@ -462,7 +462,7 @@ $(libks_STATIC): $(libks_O)
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
-$(ks_BIN): $(libks_SHARED) modules $(ks_O)
+$(ks_BIN): $(libks_SHARED) $(ks_O)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) \\
 		-L../lib -L{PWD}/lib $(RPATH_FLAGS) \\

@@ -16,7 +16,9 @@ KS_TYPE_DECLFWD(ks_type_iostream);
 static uint32_t mode_to_flags(char* mode) {
 
     /**/ if (strcmp(mode, "r") == 0) return KS_IOS_READ;
+    else if (strcmp(mode, "rb") == 0) return KS_IOS_READ | KS_IOS_BINARY;
     else if (strcmp(mode, "w") == 0) return KS_IOS_WRITE;
+    else if (strcmp(mode, "wb") == 0) return KS_IOS_WRITE | KS_IOS_BINARY;
     else if (strcmp(mode, "rw") == 0) return KS_IOS_READ | KS_IOS_WRITE;
 
     ks_throw_fmt(ks_type_ArgError, "Invalid mode for iostream: '%s'", mode);
@@ -35,7 +37,8 @@ ks_iostream ks_iostream_new() {
     return self;
 }
 
-KS_API ks_iostream ks_iostream_new_extern(FILE* fp, char* mode) {
+// Create a wrapper around an external file stream
+ks_iostream ks_iostream_new_extern(FILE* fp, char* mode) {
     uint32_t ios_flags = mode_to_flags(mode);
     if (!ios_flags) return NULL;
 
@@ -51,47 +54,19 @@ KS_API ks_iostream ks_iostream_new_extern(FILE* fp, char* mode) {
     return self;
 }
 
-
 // open an 'iostream' with a given target, and mode
 // returns success
 bool ks_iostream_open(ks_iostream self, char* fname, char* mode) {
-
     if (self->ios_flags & KS_IOS_OPEN) {
         ks_throw_fmt(ks_type_IOError, "Attempting to open iostream, but it was already open!");
         return false;
     }
 
     // reset
-    self->ios_flags = KS_IOS_NONE;
+    self->ios_flags = mode_to_flags(mode);
+    if (!self->ios_flags) return NULL;
 
-    bool isRead = strchr(mode, 'r'), isWrite = strchr(mode, 'w');
-
-    // current temporary position
-    int tp = 0;
-    // temporary buffer to generate the appropriate C-mode
-    char tmp[256];
-
-    // now, populate it
-    if (isRead && isWrite) {
-        tmp[tp++] = 'r';
-        tmp[tp++] = '+';
-        self->ios_flags |= KS_IOS_READ | KS_IOS_WRITE;
-    } else if (isRead && !isWrite) {
-        tmp[tp++] = 'r';
-        self->ios_flags |= KS_IOS_READ;
-    } else if (!isRead && isWrite) {
-        tmp[tp++] = 'w';
-        self->ios_flags |= KS_IOS_WRITE;
-    } else {
-        // neither were given, default to reading
-        tmp[tp++] = 'r';
-        self->ios_flags |= KS_IOS_READ;
-    }
-
-    // NUL-terminate
-    tmp[tp] = '\0';
-
-    self->fp = fopen(fname, tmp);
+    self->fp = fopen(fname, mode);
 
     if (!self->fp) {
         self->ios_flags = KS_IOS_NONE;
@@ -103,6 +78,56 @@ bool ks_iostream_open(ks_iostream self, char* fname, char* mode) {
 
     // success
     return true;
+}
+
+// Attempt to change the mode
+bool ks_iostream_change(ks_iostream self, char* mode) {
+    uint32_t flags = mode_to_flags(mode);
+    if (!flags) return false;
+
+    if (!self->fp || !(self->ios_flags & KS_IOS_OPEN)) {
+        ks_throw_fmt(ks_type_IOError, "Failing to reopen %R; it isn't currently open", self);
+        return false;
+    }
+
+    FILE* new_fp = freopen(NULL, mode, self->fp);
+
+    if (!new_fp) {
+        ks_throw_fmt(ks_type_IOError, "Failed to reopen %R: %s", self, strerror(errno));
+        return false;
+    } else {
+        self->fp = new_fp;
+        self->ios_flags = flags | KS_IOS_OPEN;
+    }
+
+    return true;
+}
+
+// Return an entire line
+ks_str ks_iostream_getline(ks_iostream self, char* delims) {
+    int c;
+
+    if (!(self->ios_flags & KS_IOS_OPEN)) return ks_throw_fmt(ks_type_IOError, "Attempted to read line from iostream that was not open!");
+    if (!(self->ios_flags & KS_IOS_READ)) return ks_throw_fmt(ks_type_IOError, "Attempted to read line from iostream that was not open for reading!");
+
+    // release GIL
+    ks_GIL_unlock();
+
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    // keep reading characters until newline is hit
+    while ((c = fgetc(self->fp)) != EOF && strchr(delims, c) == NULL) {
+        // append character
+        ks_str_b_add(&SB, 1, &c);
+    }
+
+    // claim back
+    ks_GIL_lock();
+    
+    ks_str res = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+    return res;
 }
 
 
@@ -122,18 +147,26 @@ bool ks_iostream_close(ks_iostream self) {
 
 // read a string of a given size from the iostream
 ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz) {
+
     if (!(self->ios_flags & KS_IOS_OPEN)) return ks_throw_fmt(ks_type_IOError, "Attempted to read string from iostream that was not open!");
     if (!(self->ios_flags & KS_IOS_READ)) return ks_throw_fmt(ks_type_IOError, "Attempted to read string from iostream that was not open for reading!");
 
     // allocate temporary buffer
     char* tmp = ks_malloc(sz + 1);
 
+    // allow other things access
+    ks_GIL_unlock();
+
     size_t actual_bytes = fread(tmp, 1, sz, self->fp);
     if (actual_bytes != sz) {
         // discrepancy
+        ks_warn("Problem reading string!");
     }
 
     tmp[actual_bytes] = '\0';
+
+    // acquire back
+    ks_GIL_lock();
 
     ks_str res = ks_str_new(tmp);
     ks_free(tmp);
@@ -155,10 +188,16 @@ bool ks_iostream_writestr(ks_iostream self, ks_str data) {
 
     ks_size_t sz = data->len;
 
+    // release GIL
+    ks_GIL_unlock();
+
     size_t actual_bytes = fwrite(data->chr, 1, sz, self->fp);
     if (actual_bytes != sz) {
         // discrepancy
     }
+
+    // acquire back
+    ks_GIL_lock();
 
     return true;
 
@@ -207,7 +246,6 @@ ks_ssize_t ks_iostream_size(ks_iostream self) {
 
     return endpos;
 }
-
 
 
 /* member functions */
@@ -267,18 +305,48 @@ static KS_TFUNC(iostream, bool) {
     ks_iostream self = (ks_iostream)args[0];
     KS_REQ_TYPE(self, ks_type_iostream, "self");
 
+    // if it's not open, or NULL fp
     if (!(self->ios_flags & KS_IOS_OPEN) || !self->fp) return KSO_FALSE;
+
+    // if its at the end of the file
+    if (feof(self->fp)) return KSO_FALSE;
 
     if (self->ios_flags & KS_IOS_READ) {
         ks_ssize_t sz = ks_iostream_size(self);
-        if (sz < 0) return NULL;
+        
+        if (sz < 0) {
+            // handle indefinite streams
+            if (ks_thread_get()->exc) return NULL;
+            else {
+                return KSO_TRUE;
+            }
+        }
+
 
         return KSO_BOOL(ftell(self->fp) < sz);
     } else {
         return KSO_TRUE;
     }
+}
 
 
+
+// iostream.getline(self, delim='\n') -> return the next line
+static KS_TFUNC(iostream, getline) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+    ks_iostream self = (ks_iostream)args[0];
+    KS_REQ_TYPE(self, ks_type_iostream, "self");
+
+    char* delim = "\n";
+
+    if (n_args == 2) {
+        ks_str delim_o = (ks_str)args[1];
+        KS_REQ_TYPE(delim_o, ks_type_str, "delim");
+
+        delim = delim_o->chr;
+    }
+
+    return (ks_obj)ks_iostream_getline(self, delim);    
 }
 
 // iostream.read(self, nbytes=none) -> read 'n' bytes (or, by default, the entire file)
@@ -305,11 +373,20 @@ static KS_TFUNC(iostream, read) {
     // calculate default of entire file
     if (nbytes <= 0) {
         nbytes = ks_iostream_size(self);
-        if (nbytes < 0) return NULL;
+        if (nbytes < 0) {
+            
+            if (ks_thread_get()->exc) return NULL;
+            else {
+                // read line
+                return (ks_obj)ks_iostream_getline(self, "\n");
+            }
+        }
+
     }
 
     return (ks_obj)ks_iostream_readstr_n(self, nbytes);
 };
+
 
 // iostream.write(self, data) -> write an object
 static KS_TFUNC(iostream, write) {
@@ -326,6 +403,23 @@ static KS_TFUNC(iostream, write) {
 
     return KSO_NONE;
 };
+
+
+// iostream.change(self, mode) -> attempt to change the mode
+static KS_TFUNC(iostream, change) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_iostream self = (ks_iostream)args[0];
+    KS_REQ_TYPE(self, ks_type_iostream, "self");
+    ks_str mode = (ks_str)args[1];
+    KS_REQ_TYPE(mode, ks_type_str, "mode");
+
+    if (!ks_iostream_change(self, mode->chr)) {
+        return NULL;
+    }
+
+    return KS_NEWREF(self);
+}
+
 
 // iostream.size(self) -> return the size of a file, in bytes
 static KS_TFUNC(iostream, size) {
@@ -400,7 +494,6 @@ static KS_TFUNC(iostream, open) {
     return KSO_NONE;
 }
 
-
 // iostream.flush(self) -> flush the object
 static KS_TFUNC(iostream, flush) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -425,7 +518,6 @@ static KS_TFUNC(iostream, close) {
     return KSO_NONE;
 }
 
-
 // initialize cfunc type
 void ks_type_iostream_init() {
     KS_INIT_TYPE_OBJ(ks_type_iostream, "iostream");
@@ -435,8 +527,13 @@ void ks_type_iostream_init() {
         {"__free__", (ks_obj)ks_cfunc_new2(iostream_free_, "iostream.__free__(self)")},
         {"__bool__", (ks_obj)ks_cfunc_new2(iostream_bool_, "iostream.__bool__(self)")},
 
+        {"getline", (ks_obj)ks_cfunc_new2(iostream_getline_, "iostream.getline(self, delim='\\n')")},
+
         {"write", (ks_obj)ks_cfunc_new2(iostream_write_, "iostream.write(self, data)")},
         {"read", (ks_obj)ks_cfunc_new2(iostream_read_, "iostream.read(self, nbytes=none)")},
+
+        {"change", (ks_obj)ks_cfunc_new2(iostream_change_, "iostream.change(self, mode)")},
+
         {"size", (ks_obj)ks_cfunc_new2(iostream_size_, "iostream.size(self)")},
         {"tell", (ks_obj)ks_cfunc_new2(iostream_tell_, "iostream.tell(self)")},
         {"seek", (ks_obj)ks_cfunc_new2(iostream_seek_, "iostream.seek(self, pos=0)")},
@@ -446,6 +543,5 @@ void ks_type_iostream_init() {
 
         {NULL, NULL}   
     });
-
 }
 
