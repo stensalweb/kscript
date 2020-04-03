@@ -13,6 +13,7 @@ ks_cfunc
     ks_F_print = NULL,
     ks_F_len = NULL,
     ks_F_sleep = NULL,
+    ks_F_ctime = NULL,
     ks_F_exit = NULL,
     ks_F_typeof = NULL,
     ks_F_import = NULL,
@@ -259,6 +260,21 @@ static KS_FUNC(typeof) {
 
     return KS_NEWREF(obj->type);
 }
+
+
+/* ctime() -> float
+ *
+ * Return the time (in seconds) since the UNIX epoch
+ *
+ */
+static KS_FUNC(ctime) {
+    KS_REQ_N_ARGS(n_args, 0);
+
+    struct timeval curtime;
+    gettimeofday(&curtime, NULL);
+    return (ks_obj)ks_float_new((curtime.tv_sec) + 1.0e-6 * (curtime.tv_usec));
+}
+
 
 /* sleep(dur=0) -> float
  *
@@ -807,12 +823,13 @@ static const char* global_matches[] = {
 
     "PI", "PHI", "E",
 
-    "bool", "int", "float", "str(",
+    "bool", "int", "float", "str",
+
 
     "typeof(", "hash(", "print(",
     "len(", "exit(", "repr(",
 
-    "__import__(", "sleep(",
+    "__import__(", "sleep(", "ctime("
     "iter(", "next(", "open(",
 
     "map(", "filter(", "sort(",
@@ -927,6 +944,20 @@ int my_tab_func (int count, int key) {
     return count + 1;
 }
 
+
+// Handle a SIGINT
+static void 
+handle_sigint(int signum) {
+    // do nothing
+    #define MSG_SIGINT_RESET "\nUse 'CTRL-D' or 'exit()' to quit the process\n"
+    fwrite(MSG_SIGINT_RESET, 1, sizeof(MSG_SIGINT_RESET) - 1, stdout);
+    rl_on_new_line(); // Regenerate the prompt on a newline
+    rl_replace_line("", 0); // Clear the previous text
+    rl_redisplay();
+
+    signal(SIGINT, handle_sigint);
+}
+
 // ensure readline is enabled
 static void ensure_readline() {
     static bool isInit = false;
@@ -939,9 +970,11 @@ static void ensure_readline() {
     // set the tab completion to our own
     rl_attempted_completion_function = match_completion;
 
-
-    rl_catch_signals = 1;
-    rl_set_signals();
+    // disable their signal handling
+    rl_catch_signals = 0;
+    rl_clear_signals();
+   
+    signal(SIGINT, handle_sigint);
 
     //rl_bind_key('\t', my_tab_func);
 }
@@ -1040,12 +1073,20 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     ks_obj ret = ks_call2((ks_obj)myc, 0, NULL, inter_vars);
     if (!ret) {
         interactive_handle_exc();
+
     } else {
         if (doPrint) {
             if (doPrintIffy && _print_numbytes != start_nbytes) {
                 // do nothing
             } else {
-                ks_printf("%R\n", ret);
+                //ks_printf("%R\n", ret);
+                ks_obj repr_obj = repr_(1, &ret);
+                if (repr_obj) {
+                    print_(1, &repr_obj);
+                    KS_DECREF(repr_obj);
+                } else {
+                    ks_catch_ignore();
+                }
             }
         } 
         // discard error
@@ -1055,21 +1096,6 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     KS_DECREF(myc);
 
 }
-
-
-// Handle a SIGINT
-void handle_sigint(int signum) {
-    // do nothing
-    #define MSG_SIGINT_RESET "\nUse 'CTRL-D' or 'exit()' to quit the process\n"
-    fwrite(MSG_SIGINT_RESET, 1, sizeof(MSG_SIGINT_RESET) - 1, stdout);
-    //printf("\n"); // Move to a new line
-    rl_on_new_line(); // Regenerate the prompt on a newline
-    rl_replace_line("", 0); // Clear the previous text
-    rl_redisplay();
-
-    signal(SIGINT, handle_sigint);
-}
-
 
 // __std.run_file(fname) -> run and execute a file
 static KS_TFUNC(std, run_file) {
@@ -1193,16 +1219,13 @@ static KS_TFUNC(std, run_interactive) {
     if (isTTY) {
         ensure_readline();
 
-        // handle CTRL-C
-        signal(SIGINT, handle_sigint);
-
         // yield GIL
-        ks_GIL_unlock();
+       // ks_GIL_unlock();
 
         // now, continue to read lines
         while ((cur_line = readline(PROMPT)) != NULL) {
 
-            ks_GIL_lock();
+            //ks_GIL_lock();
 
             num_lines++;
             // only add non-empty
@@ -1220,10 +1243,10 @@ static KS_TFUNC(std, run_interactive) {
             // free it. readline uses 'malloc', so we must use free
             free(cur_line);
 
-            ks_GIL_unlock();
+           // ks_GIL_unlock();
         }
         
-        ks_GIL_lock();
+       // ks_GIL_lock();
 
     } else {
     // do fallback version
@@ -1299,6 +1322,28 @@ static KS_TFUNC(std, run_interactive) {
 //   the array is in order, swapping elements which are in the wrong order
 // O(N^2) - for out of order input
 // O(N) - for already sorted input
+// PERF:
+/*
+:: sort(range(N))
+1 0.000011921
+8 0.00000906
+64 0.00003314
+512 0.000265121
+4096 0.001962185
+32768 0.014616966
+262144 0.056243896
+2097152 0.441668034
+
+:: sort(range(N, 0, -1))
+1 0.000010967
+8 0.00001502
+64 0.000622988
+512 0.025257826
+4096 1.322135925
+... DID NOT FINISH
+
+
+*/
 static bool my_sort_bubble(ks_list res, ks_list keys) {
 
     // temporary object used for swapping
@@ -1354,6 +1399,130 @@ static bool my_sort_bubble(ks_list res, ks_list keys) {
     return true;
 }
 
+
+// merge subsets of the array
+static bool my_sort_merge__child(ks_list res, ks_list keys, int start_l, int stop_l, int start_r, int stop_r) {
+    // left and right positions
+    int lp = start_l;
+    int rp = start_r;
+
+    int total_num = stop_r - start_l;
+    // where the results go
+    int n_o = 0;
+    ks_obj* reso = ks_malloc(sizeof(*reso) * total_num);
+    ks_obj* keyso = ks_malloc(sizeof(*keyso) * total_num);
+
+    // keep going
+    while (lp < stop_l && rp < stop_r) {
+        // compare
+        ks_int cLR = (ks_int)cmp_(2, (ks_obj[]){ keys->elems[lp], keys->elems[rp] });
+        if (!cLR) {
+            ks_free(reso);
+            ks_free(keyso);
+            return false;
+        }
+
+        // Ensure an integer was given
+        if (cLR->type != ks_type_int) {
+            ks_throw_fmt(ks_type_ArgError, "Invalid result from '__cmp__', got type '%T'", cLR);
+            ks_free(reso);
+            ks_free(keyso);
+            KS_DECREF(cLR);
+            return false;
+        }
+
+        // get comparison value
+        int64_t cmp = cLR->val;
+        KS_DECREF(cLR);
+
+        // push the lowest object
+        n_o++;
+
+        // now, advance the merge
+        if (cmp <= 0) {
+            // already sorted correctly
+            reso[n_o - 1] = res->elems[lp];
+            keyso[n_o - 1] = keys->elems[lp];
+            lp++;
+        } else {
+            reso[n_o - 1] = res->elems[rp];
+            keyso[n_o - 1] = keys->elems[rp];
+            rp++;
+        }
+    }
+
+    // now, copy over the rest which are in sorted order
+    while (lp < stop_l) {
+        n_o++;
+        reso[n_o - 1] = res->elems[lp];
+        keyso[n_o - 1] = keys->elems[lp];
+        lp++;
+    }
+
+    // and from the right hand
+    while (rp < stop_r) {
+        n_o++;
+        reso[n_o - 1] = res->elems[rp];
+        keyso[n_o - 1] = keys->elems[rp];
+        rp++;
+    }
+
+    // copy over sorted subset
+    int res_i = start_l, reso_i = 0;
+    while (reso_i < n_o) {
+        res->elems[res_i] = reso[reso_i];
+        keys->elems[res_i] = keyso[reso_i];
+        reso_i++;
+        res_i++;
+    }
+
+    ks_free(reso);
+    ks_free(keyso);
+
+    return true;
+}
+
+// sort 'res' based on 'keys' according to merge sort, returning success
+// NOTE: O(NlogN) performance
+// PERF NUMS:
+/*
+
+:: sort(range(N))
+1 0.000007868
+8 0.000010967
+64 0.000052214
+512 0.000505924
+4096 0.004536152
+32768 0.028655052
+262144 0.247076988
+2097152 2.21036315
+
+:: sort(range(N, 0, -1))
+1 0.000010967
+8 0.000011921
+64 0.000066996
+512 0.000627041
+4096 0.006075144
+32768 0.028308868
+262144 0.242085934
+2097152 2.167088032
+
+*/
+static bool my_sort_merge(ks_list res, ks_list keys, int start, int stop) {
+    if (start < stop - 1) {
+        int mid = start + (stop - start) / 2;
+
+        // recursively sort
+        if (!my_sort_merge(res, keys, start, mid)) return false;
+        if (!my_sort_merge(res, keys, mid, stop)) return false;
+
+        // merge them together
+        if (!my_sort_merge__child(res, keys, start, mid, mid, stop)) return false;
+    }
+
+    return true;
+}
+
 /* sort(objs, func=none) -> []
  *
  * Return a list of objects, sorted by their result of a function (default: identity function)
@@ -1399,7 +1568,9 @@ static KS_FUNC(sort) {
     }
 
     // TODO: switch between bubble/qsort/etc
-    bool status = my_sort_bubble(res, keys);
+    //bool status = my_sort_bubble(res, keys);
+    // merge sort is the obvious choice; it is quite fast
+    bool status = my_sort_merge(res, keys, 0, res->len);
 
     // done with the keys array
     KS_DECREF(keys);
@@ -1666,6 +1837,7 @@ void ks_init_funcs() {
     ks_F_len = ks_cfunc_new2(len_, "len(obj)");
     ks_F_exit = ks_cfunc_new2(exit_, "exit(code=0)");
     ks_F_sleep = ks_cfunc_new2(sleep_, "sleep(dur=0)");
+    ks_F_ctime = ks_cfunc_new2(ctime_, "ctime()");
     ks_F_typeof = ks_cfunc_new2(typeof_, "typeof(obj)");
     ks_F_import = ks_cfunc_new2(import_, "import(name)");
     ks_F_iter = ks_cfunc_new2(iter_, "iter(obj)");

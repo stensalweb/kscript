@@ -9,9 +9,22 @@
 
 #include "ks-impl.h"
 
+// str_iter - string iterator class
+typedef struct {
+    KS_OBJ_BASE
+
+    // objt it is iterating on
+    ks_str obj;
+
+    // current position
+    int pos;
+
+}* str_iter;
+
 
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_str);
+KS_TYPE_DECLFWD(type_str_iter);
 
 // string characters
 struct ks_str KS_STR_CHARS[256];
@@ -285,6 +298,21 @@ static KS_TFUNC(str, find) {
     return (ks_obj)ks_int_new(-1);
 };
 
+// str.__iter__(self) -> return an iterator
+static KS_TFUNC(str, iter) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+
+    str_iter self_iter = KS_ALLOC_OBJ(str_iter);
+    KS_INIT_OBJ(self_iter, type_str_iter);
+
+    // initialize type-specific things
+    self_iter->pos = 0;
+    self_iter->obj = (ks_str)KS_NEWREF(self);
+
+    return (ks_obj)self_iter;
+};
 
 // str.join(self, objs) -> join an iterable by a seperator
 static KS_TFUNC(str, join) {
@@ -374,6 +402,41 @@ static KS_TFUNC(str, substr) {
 };
 
 
+/* str_iter */
+
+
+// str_iter.__next__(self) -> get next character
+static KS_TFUNC(str_iter, next) {
+    KS_REQ_N_ARGS(n_args, 1);
+    str_iter self = (str_iter)args[0];
+    KS_REQ_TYPE(self, type_str_iter, "self");
+
+    // hit the end
+    if (self->pos >= self->obj->len) return ks_throw_fmt(ks_type_OutOfIterError, "");
+
+    int gpos = self->pos++;
+
+    // return a single character string
+    return KS_NEWREF(&KS_STR_CHARS[self->obj->chr[gpos]]);
+}
+
+
+// str_iter.__free__(self) -> free the string iterator
+static KS_TFUNC(str_iter, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    str_iter self = (str_iter)args[0];
+    KS_REQ_TYPE(self, type_str_iter, "self");
+
+    KS_DECREF(self->obj);
+
+    // nothing else is needed because the string is allocated with enough bytes for all the characters    
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+
+}
+
 
 
 // initialize string type
@@ -405,6 +468,7 @@ void ks_type_str_init() {
         {"__free__", (ks_obj)ks_cfunc_new2(str_free_, "str.__free__(self)")},
 
         {"__len__", (ks_obj)ks_cfunc_new2(str_len_, "str.__len__(self)")},
+        {"__iter__", (ks_obj)ks_cfunc_new2(str_iter_, "str.__iter__(self)")},
 
         {"__repr__", (ks_obj)ks_cfunc_new2(str_repr_, "str.__repr__(self)")},
 
@@ -425,5 +489,16 @@ void ks_type_str_init() {
 
         {NULL, NULL},
     });
+
+    KS_INIT_TYPE_OBJ(type_str_iter, "str_iter");
+
+    // set properties
+    ks_type_set_cn(type_str_iter, (ks_dict_ent_c[]){
+        {"__free__", (ks_obj)ks_cfunc_new2(str_iter_free_, "str_iter.__free__(self)")},
+        {"__next__", (ks_obj)ks_cfunc_new2(str_iter_next_, "str_iter.__next__(self)")},
+
+        {NULL, NULL},
+    });
+
 }
 

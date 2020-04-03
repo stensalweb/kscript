@@ -143,9 +143,9 @@ static KS_TFUNC(int, str) {
     // temporary buffer
     char tmp[256];
 
-    int64_t val = self->val;
-    bool doSign = val < 0;
-    if (val < 0) val = -val;
+    int64_t _val = self->val;
+    bool doSign = _val < 0;
+    uint64_t val = _val;
 
     int i = 0;
 
@@ -173,6 +173,7 @@ static KS_TFUNC(int, str) {
 
     do {
         char myc = my_getdigchar(val % base);
+
         if (!myc) return ks_throw_fmt(ks_type_ArgError, "Internal invalid format for base %i integer", base);
         val /= base;
 

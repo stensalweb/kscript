@@ -65,6 +65,7 @@ bool ks_init() {
     ks_type_none_init();
     ks_type_bool_init();
     ks_type_int_init();
+    ks_type_long_init();
     ks_type_float_init();
 
     ks_type_str_init();
@@ -171,6 +172,7 @@ bool ks_init() {
 
         {"bool",           KS_NEWREF(ks_type_bool)},
         {"int",            KS_NEWREF(ks_type_int)},
+        {"long",           KS_NEWREF(ks_type_long)},
         {"float",          KS_NEWREF(ks_type_float)},
         {"complex",        KS_NEWREF(ks_type_complex)},
         
@@ -199,6 +201,7 @@ bool ks_init() {
         {"exit",           KS_NEWREF(ks_F_exit)},
         {"print",          KS_NEWREF(ks_F_print)},
         {"len",            KS_NEWREF(ks_F_len)},
+        {"ctime",          KS_NEWREF(ks_F_ctime)},
         {"sleep",          KS_NEWREF(ks_F_sleep)},
         {"typeof",         KS_NEWREF(ks_F_typeof)},
         {"__import__",     KS_NEWREF(ks_F_import)},

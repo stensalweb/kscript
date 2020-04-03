@@ -16,7 +16,6 @@ double ks_time() {
     return (curtime.tv_sec - ks_start_time.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_start_time.tv_usec);
 }
 
-
 // sleep for a given duration
 void ks_sleep(double dur) {
 

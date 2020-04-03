@@ -91,6 +91,15 @@ extern "C" {
 #endif
 
 
+// try for the full GMP
+#ifdef KS_HAVE_GMP
+#include <gmp.h>
+#else
+// include our fallback
+#include <ks_mini-gmp.h>
+#endif
+
+
 /* system/stdlib headers */
 #if defined(KS__WINDOWS) || defined(KS__CYGWIN)
 
@@ -877,7 +886,6 @@ typedef struct ks_int {
 
 }* ks_int;
 
-
 // number of small integers to cache internally
 // all integers with abs(x) <= KS_SMALL_INT_MAX
 // are stored here
@@ -886,6 +894,16 @@ typedef struct ks_int {
 // array of small integers:
 // KS_SMALL_INTS[val + KS_SMALL_INT_MAX]
 KS_API extern struct ks_int KS_SMALL_INTS[];
+
+
+// ks_long - type representing an arbitrary precision integer in kscript
+typedef struct {
+    KS_OBJ_BASE
+
+    // the actual integer value
+    mpz_t val;
+
+}* ks_long;
 
 
 // ks_float - type representing a floating point real number
@@ -1721,6 +1739,7 @@ KS_API extern ks_type
     ks_type_none,
     ks_type_bool,
     ks_type_int,
+    ks_type_long,
     ks_type_float,
     ks_type_complex,
     ks_type_str,
@@ -1776,6 +1795,7 @@ KS_API extern ks_cfunc
     ks_F_hash,
     ks_F_print,
     ks_F_exit,
+    ks_F_ctime,
     ks_F_sleep,
     ks_F_len,
     ks_F_typeof,
@@ -1992,6 +2012,18 @@ KS_API int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 // Create a new kscript int from a C-style integer value
 // NOTE: Returns a new reference
 KS_API ks_int ks_int_new(int64_t val);
+
+
+/* LONG */
+
+// Create a new kscript long from a C-style integer value
+// NOTE: Returns a new reference
+KS_API ks_long ks_long_new(int64_t val);
+
+
+// Create a new kscript long from a string in a given base (default base should be 10)
+// NOTE: Returns a new reference
+KS_API ks_long ks_long_new_str(char* str, int base);
 
 
 

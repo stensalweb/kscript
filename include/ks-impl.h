@@ -43,6 +43,7 @@ void ks_type_type_init();
 void ks_type_none_init();
 void ks_type_bool_init();
 void ks_type_int_init();
+void ks_type_long_init();
 void ks_type_float_init();
 void ks_type_complex_init();
 void ks_type_str_init();

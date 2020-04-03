@@ -295,6 +295,64 @@ static bool tok_isop(int type) {
     return type == KS_TOK_OP;
 }
 
+// get the value of a constant token
+static ks_obj tok_getval(ks_tok tok) {
+    char tmp[256];
+
+    if (tok.type == KS_TOK_INT) {
+        // parse out an integer (or long)
+        if (tok.parser->src->chr[tok.pos + tok.len - 1] == 'L') {
+            // it is a long constant
+            char* new_tmp = ks_malloc(tok.len + 1);
+            strncpy(new_tmp, tok.parser->src->chr + tok.pos, tok.len);
+            new_tmp[tok.len - 1] = '\0';
+
+            ks_long res = ks_long_new_str(new_tmp, 10);
+            ks_free(new_tmp);
+            return (ks_obj)res;
+        } else {
+            // normal integer constant
+            strncpy(tmp, tok.parser->src->chr + tok.pos, tok.len);
+            tmp[tok.len] = '\0';
+
+            long long int val = 0;
+
+            // ensure it was parsed
+            if (sscanf(tmp, "%lli", &val) != 1) return syntax_error(tok, "Invalid format for an integer literal");
+            return (ks_obj)ks_int_new(val);
+        }
+    } else if (tok.type == KS_TOK_FLOAT) {
+
+        if (tok.parser->src->chr[tok.pos + tok.len - 1] == 'i') {
+            // it is a long constant
+            strncpy(tmp, tok.parser->src->chr + tok.pos, tok.len);
+            tmp[tok.len - 1] = '\0';
+            
+            double val = 0;
+
+            // ensure it was parsed
+            if (sscanf(tmp, "%lf", &val) != 1) return syntax_error(tok, "Invalid format for an complex literal");
+            return (ks_obj)ks_complex_new(I * val);
+
+        } else {
+            // normal integer constant
+            strncpy(tmp, tok.parser->src->chr + tok.pos, tok.len);
+            tmp[tok.len] = '\0';
+
+            double val = 0;
+
+            // ensure it was parsed
+            if (sscanf(tmp, "%lf", &val) != 1) return syntax_error(tok, "Invalid format for an float literal");
+            return (ks_obj)ks_float_new(val);
+        }
+
+    } else {
+        // should not be called here
+        return syntax_error(tok, "Internal error in tok_getval... This is embarrassing!");
+    }
+
+}
+
 
 // generates an integer from the token, assuming it is an integer literal
 static int64_t tok_getint(ks_tok tok) {
@@ -418,10 +476,11 @@ static void* tokenize(ks_parser self) {
                 while (isdigit(self->src->chr[i])) {
                     ADV();
                 }
-
+                bool isImag = false;
                 if (self->src->chr[i] == 'i') {
                     // imaginary component
                     ADV();
+                    isImag = true;
                 }
 
                 if (self->src->chr[i] && is_ident_m(self->src->chr[i])) {
@@ -430,7 +489,7 @@ static void* tokenize(ks_parser self) {
                         .pos = start_i, .len = i - start_i, 
                         .line = start_line, .col = start_col 
                     };
-                    return syntax_error(badtok, "Unexpected characters after imaginary literal");
+                    return syntax_error(badtok, "Unexpected characters after %s literal", isImag ? "imaginary" : "float");
                 }
 
                 ADDTOK(KS_TOK_FLOAT);
@@ -453,7 +512,8 @@ static void* tokenize(ks_parser self) {
                     // still consider this a float
                     ADDTOK(KS_TOK_FLOAT);
                 } else {
-
+                    // handle long int
+                    if (self->src->chr[i] == 'L') ADV();
                     // we are parsing an integer, so we're fininshed
                     ADDTOK(KS_TOK_INT);
                 }
@@ -1086,7 +1146,8 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
             // convert token to actual int value
-            ks_int new_int = ks_int_new(tok_getint(ctok));
+            ks_int new_int = (ks_int)tok_getval(ctok);
+            if (!new_int) goto kppe_err;
 
             // transform it into an AST
             ks_ast new_ast = ks_ast_new_const((ks_obj)new_int);
@@ -1100,34 +1161,19 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             // push an integer onto the value stack
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
+            // convert token to actual float value
+            ks_float new_float = (ks_int)tok_getval(ctok);
+            if (!new_float) goto kppe_err;
 
-            ks_ast new_ast = NULL;
-            if ((self->src->chr + ctok.pos)[ctok.len - 1] == 'i') {
-                // imaginary constant
-                ks_complex new_complex = ks_complex_new(I * tok_getfloat(ctok));
+            // transform it into an AST
+            ks_ast new_ast = ks_ast_new_const((ks_obj)new_float);
+            KS_DECREF(new_float);
 
-                // transform it into an AST
-                new_ast = ks_ast_new_const((ks_obj)new_complex);
-                KS_DECREF(new_complex);
-
-                new_ast->tok = new_ast->tok_expr = ctok;
-
-            } else {
-                // normal float constant
-                // convert token to actual int value
-                ks_float new_float = ks_float_new(tok_getfloat(ctok));
-
-                // transform it into an AST
-                new_ast = ks_ast_new_const((ks_obj)new_float);
-                KS_DECREF(new_float);
-
-                new_ast->tok = new_ast->tok_expr = ctok;
-
-            }
-
+            new_ast->tok = new_ast->tok_expr = ctok;
 
             // push it on the output stack
             Spush(Out, new_ast);
+
         } else if (ctok.type == KS_TOK_STR) {
             // push a string onto the value stack
             if (tok_isval(ltok.type)) KPPE_ERR(ctok, "Invalid Syntax, 2 value types not expected like this"); 
