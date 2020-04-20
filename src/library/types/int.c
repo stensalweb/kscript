@@ -145,7 +145,7 @@ static KS_TFUNC(int, str) {
 
     int64_t _val = self->val;
     bool doSign = _val < 0;
-    uint64_t val = _val;
+    uint64_t val = doSign ? -_val : _val;
 
     int i = 0;
 
