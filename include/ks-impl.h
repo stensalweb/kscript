@@ -17,14 +17,17 @@ extern "C" {
 
 
 // for error printing
-#include <errno.h>
-#include <unistd.h>
 
 // always include the main header
 #include "ks.h"
 
+
+#define _POSIX_C_SOURCE 199309L
+
 // other standard defines
 #include <math.h>
+#include <errno.h>
+#include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
 #include <stddef.h>

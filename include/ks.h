@@ -80,12 +80,17 @@
 extern "C" {
 #endif
 
+// TODO: add these to configure scripts
+#define _POSIX_C_SOURCE 199309L
+
+
 // generated files
 #include <ks-config.h>
 
 
 // optional dependencies
 #ifdef KS_HAVE_READLINE
+#include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #endif

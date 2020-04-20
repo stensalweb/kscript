@@ -120,7 +120,7 @@ if args.with_gmp is not False:
 		raise Exception("'--with-gmp' given, but GMP was not found!")
 
 if args.with_readline is not False:
-	hasREADLINE       = has_c_lib("readline", "-lreadline", "#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
+	hasREADLINE       = has_c_lib("readline", "-lreadline", "#include <stdio.h>\n#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
 	if args.with_readline and not hasREADLINE:
 		raise Exception("'--with-readline' given, but readline was not found!")
 
