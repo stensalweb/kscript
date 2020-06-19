@@ -35,9 +35,9 @@ parser.add_argument('-M', nargs='*', help='Modules to build with kscript', defau
 parser.add_argument('--enable-trace', '--disable-trace', dest='trace', action=NegateAction, nargs=0, help='Enables/disables \'ks_trace()\', disabling may increase performance', default=True)
 parser.add_argument('--enable-rpath', '--disable-rpath', dest='rpath', action=NegateAction, nargs=0, help='Enables/disables the use of local library paths, useful for local installations only. Use `--disable-rpath` for any packages/installed programs', default=True)
 
-
 parser.add_argument('--with-gmp', '--without-gmp', dest='with_gmp', action=NegateAction, nargs=0, help='Enables/disables using the GNU MP (GMP) library for multiprecision', default=None)
 parser.add_argument('--with-readline', '--without-readline', dest='with_readline', action=NegateAction, nargs=0, help='Enables/disables using the GNU readline library for command line interpreting', default=None)
+parser.add_argument('--with-curl', '--without-curl', dest='with_curl', action=NegateAction, nargs=0, help='Enables/disables using the CURL library for network operations', default=None)
 
 
 
@@ -112,6 +112,7 @@ int main(int argc, char** argv) {{
 # which libraries we have
 hasGMP         = False
 hasREADLINE    = False
+hasCURL        = False
 
 # search for libraries
 if args.with_gmp is not False:
@@ -124,9 +125,16 @@ if args.with_readline is not False:
 	if args.with_readline and not hasREADLINE:
 		raise Exception("'--with-readline' given, but readline was not found!")
 
+if args.with_curl is not False:
+	hasCURL           = has_c_lib("curl", "-lcurl", "#include <curl/curl.h>", "curl_global_init(CURL_GLOBAL_ALL);")
+	if args.with_curl and not hasCURL:
+		raise Exception("'--with-curl' given, but curl was not found!")
+
+
 # add them to the defines
 if hasGMP:        defs.append("KS_HAVE_GMP")
 if hasREADLINE:   defs.append("KS_HAVE_READLINE")
+if hasCURL:       defs.append("KS_HAVE_CURL")
 
 
 # -*- Generate Files

@@ -1162,7 +1162,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
             // convert token to actual float value
-            ks_float new_float = (ks_int)tok_getval(ctok);
+            ks_float new_float = (ks_float)tok_getval(ctok);
             if (!new_float) goto kppe_err;
 
             // transform it into an AST

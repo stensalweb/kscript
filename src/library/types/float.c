@@ -94,7 +94,7 @@ static KS_TFUNC(float, hash) {
         return (ks_obj)ks_int_new(floor(self->val));
     }
 
-    ks_hash_t res = ks_hash_bytes(sizeof(self->val), &self->val);
+    ks_hash_t res = ks_hash_bytes(sizeof(self->val), (uint8_t*)&self->val);
     if (res == 0) res = 1;
 
     // return a hash of the raw bytes

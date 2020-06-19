@@ -119,7 +119,7 @@ ks_str ks_iostream_getline(ks_iostream self, char* delims) {
     // keep reading characters until newline is hit
     while ((c = fgetc(self->fp)) != EOF && strchr(delims, c) == NULL) {
         // append character
-        ks_str_b_add(&SB, 1, &c);
+        ks_str_b_add(&SB, 1, (char*)&c);
     }
 
     // claim back

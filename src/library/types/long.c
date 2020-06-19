@@ -140,7 +140,7 @@ static KS_TFUNC(long, hash) {
         return (ks_obj)ks_int_new(self_int == 0 ? 1 : self_int);
     }
     // otherwise, just hash bytes
-    return (ks_obj)ks_int_new(ks_hash_bytes(sizeof(*self->val->_mp_d) * self->val->_mp_size, self->val->_mp_d));
+    return (ks_obj)ks_int_new(ks_hash_bytes(sizeof(*self->val->_mp_d) * self->val->_mp_size, (uint8_t*)self->val->_mp_d));
 };
 
 // long.__free__(self) -> free an long object
