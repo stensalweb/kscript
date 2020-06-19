@@ -663,6 +663,7 @@ void ks_type_dict_init() {
     ks_type_set_cn(ks_type_dict, (ks_dict_ent_c[]){
         {"__new__", (ks_obj)ks_cfunc_new2(dict_new_, "dict.__new__(self, *keyvals)")},
         {"__str__", (ks_obj)ks_cfunc_new2(dict_str_, "dict.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(dict_str_, "dict.__repr__(self)")},
         {"__free__", (ks_obj)ks_cfunc_new2(dict_free_, "dict.__free__(self)")},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(dict_getitem_, "dict.__getitem__(self, key)")},

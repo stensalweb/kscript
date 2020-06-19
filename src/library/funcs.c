@@ -22,7 +22,10 @@ ks_cfunc
     ks_F_open = NULL,
     ks_F_sort = NULL,
     ks_F_filter = NULL,
+    ks_F_any = NULL,
+    ks_F_all = NULL,
     ks_F_map = NULL,
+    ks_F_sum = NULL,
     ks_F_range = NULL,
 
     ks_F_getattr = NULL,
@@ -832,7 +835,9 @@ static const char* global_matches[] = {
     "__import__(", "sleep(", "ctime("
     "iter(", "next(", "open(",
 
-    "map(", "filter(", "sort(",
+    "any(", "all(", 
+    "map(", "sum(", 
+    "filter(", "sort(",
 
     "range("
 
@@ -1733,6 +1738,196 @@ static KS_FUNC(map) {
 }
 
 
+
+/* any(objs) -> bool
+ *
+ * Return whether any object in 'objs' evaluates to truthy
+ * 
+ */
+static KS_FUNC(any) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj objs = args[0];
+    KS_REQ_ITERABLE(objs, "objs");
+
+    // convert to an iterable
+    ks_obj iter_objs = iter_(1, &objs);
+    if (!iter_objs) return NULL;
+
+    // now, iterate through and map each object
+    while (true) {
+        ks_obj next_obj = next_(1, &iter_objs);
+        if (!next_obj) {
+            // try and handle iterator
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
+                // stop iterating, and ignore the error,
+                ks_catch_ignore();
+
+                break;
+            }
+
+            // there was a legitimate error
+            KS_DECREF(iter_objs);
+            return NULL;
+        }
+
+        // get whether the next object was truthy
+        int tres = ks_truthy(next_obj);
+        KS_DECREF(next_obj);
+
+        // handle error
+        if (tres < 0) {
+            KS_DECREF(iter_objs);
+            return NULL;
+        }
+
+        // if it was truthy, return true since one was found
+        if (tres) {
+            KS_DECREF(iter_objs);
+            return KSO_TRUE;
+        }
+
+    }
+
+    // done with iterator
+    KS_DECREF(iter_objs);
+
+    // none were truthy
+    return KSO_FALSE;
+}
+
+
+
+/* all(objs) -> bool
+ *
+ * Return whether all objects in 'objs' evaluates to truthy
+ * 
+ */
+static KS_FUNC(all) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj objs = args[0];
+    KS_REQ_ITERABLE(objs, "objs");
+
+    // convert to an iterable
+    ks_obj iter_objs = iter_(1, &objs);
+    if (!iter_objs) return NULL;
+
+    // now, iterate through and map each object
+    while (true) {
+        ks_obj next_obj = next_(1, &iter_objs);
+        if (!next_obj) {
+            // try and handle iterator
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
+                // stop iterating, and ignore the error,
+                ks_catch_ignore();
+
+                break;
+            }
+
+            // there was a legitimate error
+            KS_DECREF(iter_objs);
+            return NULL;
+        }
+
+        // get whether the next object was truthy
+        int tres = ks_truthy(next_obj);
+        KS_DECREF(next_obj);
+
+        // handle error
+        if (tres < 0) {
+            KS_DECREF(iter_objs);
+            return NULL;
+        }
+
+        // if it wasn't truthy, then all weren't so return false
+        if (!tres) {
+            KS_DECREF(iter_objs);
+            return KSO_FALSE;
+        }
+
+    }
+
+    // done with iterator
+    KS_DECREF(iter_objs);
+
+    // none were truthy
+    return KSO_TRUE;
+}
+
+
+
+/* sum(objs, initial=none) -> []
+ *
+ * Return the sum of a list of objects. If `initial` is given, then begin the summation with that number
+ * Otherwise, begin with `objs[0]`
+ * 
+ */
+static KS_FUNC(sum) {
+    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
+    ks_obj objs = args[0];
+    KS_REQ_ITERABLE(objs, "objs");
+
+    // calculate the result
+    ks_obj res = NULL;
+    if (n_args >= 2) res = KS_NEWREF(args[1]);
+
+    // convert to an iterable
+    ks_obj iter_objs = iter_(1, &objs);
+    if (!iter_objs) return NULL;
+
+    // whether or not the first item for the result has been gotten
+    // (only false if there was not an initial object given)
+    bool hasGrabbedFirst = res != NULL;
+
+    // now, iterate through and map each object
+    while (true) {
+        ks_obj next_obj = next_(1, &iter_objs);
+        if (!next_obj) {
+            // try and handle iterator
+            if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
+                // stop iterating, and ignore the error,
+                ks_catch_ignore();
+                KS_DECREF(iter_objs);
+
+                // if an object has been grabbed, return that, otherwise return nothing
+                return hasGrabbedFirst ? res : KSO_NONE;
+            }
+
+            // there was a legitimate error
+            if (res) KS_DECREF(res);
+            KS_DECREF(iter_objs);
+            return NULL;
+        }
+
+        if (!hasGrabbedFirst) {
+            // no object has been generated yet, so just take the first as initial
+            res = next_obj;
+            hasGrabbedFirst = true;
+        } else {
+            // otherwise, add it
+            ks_obj out = ks_call((ks_obj)ks_F_add, 2, (ks_obj[]){res, next_obj});
+            KS_DECREF(next_obj);
+            KS_DECREF(res);
+
+            // check for errors
+            if (!out) {
+                KS_DECREF(iter_objs);
+                return NULL;
+            }
+
+            // assign the result to the new output
+            res = out;
+
+        }
+    }
+
+    // done with iterator
+    KS_DECREF(iter_objs);
+
+    return (ks_obj)res;
+}
+
+
+
 // ks_range_iter - the result given by 'range'
 typedef struct {
     KS_OBJ_BASE
@@ -1846,7 +2041,11 @@ void ks_init_funcs() {
     ks_F_sort = ks_cfunc_new2(sort_, "sort(objs, func=none)");
     ks_F_filter = ks_cfunc_new2(filter_, "filter(objs, func=none)");
 
+    ks_F_any = ks_cfunc_new2(any_, "any(objs)");
+    ks_F_all = ks_cfunc_new2(all_, "all(objs)");
+
     ks_F_map = ks_cfunc_new2(map_, "map(func, objs)");
+    ks_F_sum = ks_cfunc_new2(sum_, "sum(objs, initial=none)");
 
     ks_F_range = ks_cfunc_new2(range_, "range(start_or_stop, stop, step=1)");
 

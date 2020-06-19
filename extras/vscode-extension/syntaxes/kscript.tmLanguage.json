@@ -1,0 +1,93 @@
+ {
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "kscript",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#supports"
+		},
+		{
+			"include": "#constants"
+		},
+		{
+			"include": "#variables"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [{
+				"name": "comment.line.number-sign.kscript",
+				"match": "#.*"
+			}]
+		},
+
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.kscript",
+				"match": "\\b(if|elif|else|for|while)!"
+			},{
+				"name": "keyword.builtin.kscript",
+				"match": "\\b(print|int|float)!"
+			},{
+				"name": "keyword.operator.kscript",
+				"match": "(\\+|\\-|\\*|\\/|\\^|\\%|\\<\\=\\>|\\=\\=|\\>\\=|\\<\\=|\\!\\=|\\<|\\>)"
+			}]
+		},
+
+		"supports": {
+			"patterns": [{
+				"name": "support.function.kscript",
+				"match": "\\b(TTT)!"
+			}]
+		},
+		
+		"strings": {
+			"name": "string.quoted.double.kscript",
+			"begin": "\"^\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "string.quoted.double.kscript",
+					"begin": "\"\"\"",
+					"beginCaptures": {
+						"0": {
+							"name": "string.quoted.double.kscript"
+						}
+					},
+					"end": "\"\"\"",
+					"endCaptures": {
+						"0": {
+							"name": "string.quoted.double.kscript"
+						}
+					}
+				},
+				{
+					"name": "constant.character.escape.kscript",
+					"match": "\\\\."
+				}
+			]
+		},
+		"constants": {
+			"patterns": [{
+				"name": "constant.numeric.integer.kscript",
+				"match": "(\\.[0-9]+|[0-9]+(\\.[0-9]*)?)"
+			}]
+		},
+		"variables": {
+			"patterns": [{
+				"name": "variable.other.kscript",
+				"match": "([a-zA-Z][a-zA-Z_]+)"
+			}]
+		}
+
+	},
+	"scopeName": "source.kscript"
+}

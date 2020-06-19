@@ -8,6 +8,15 @@
 #include "ks-impl.h"
 
 
+/* floating point utility functions */
+
+// determine whether a double is an integral value
+static bool my_isint(double v) {
+    return v == floor(v);
+}
+
+
+
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_float);
 
@@ -70,6 +79,29 @@ static KS_TFUNC(float, str) {
 
     return (ks_obj)ks_str_new_l(cstr, len);
 };
+
+
+// float.__hash__(self) -> return the hash of a floating point object
+static KS_TFUNC(float, hash) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_float self = (ks_float)args[0];
+    KS_REQ_TYPE(self, ks_type_float, "self");
+
+    // hash it like an integer if possible
+    if (self->val == 0) {
+        return (ks_obj)ks_int_new(1);
+    } else if (my_isint(self->val)) {
+        return (ks_obj)ks_int_new(floor(self->val));
+    }
+
+    ks_hash_t res = ks_hash_bytes(sizeof(self->val), &self->val);
+    if (res == 0) res = 1;
+
+    // return a hash of the raw bytes
+    return (ks_obj)ks_int_new(res);
+};
+
+
 
 // float.__free__(self) -> free an float object
 static KS_TFUNC(float, free) {
@@ -166,12 +198,6 @@ static KS_TFUNC(float, mod) {
 
     KS_ERR_BOP_UNDEF("%", L, R);
 };
-
-
-// determine whether a double is an integral value
-static bool my_isint(double v) {
-    return v == floor(v);
-}
 
 // float.__pow__(L, R) -> exponent
 static KS_TFUNC(float, pow) {
@@ -344,6 +370,15 @@ static KS_TFUNC(float, isnan) {
     return KSO_BOOL(self->val != self->val);
 }
 
+// float.isint(self) -> return if it is an integer value
+static KS_TFUNC(float, isint) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_float self = (ks_float)args[0];
+    KS_REQ_TYPE(self, ks_type_float, "self");
+
+    return KSO_BOOL(my_isint(self->val));
+}
+
 
 
 // initialize float type
@@ -362,6 +397,7 @@ void ks_type_float_init() {
 
         {"__str__", (ks_obj)ks_cfunc_new2(float_str_, "float.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(float_str_, "float.__repr__(self)")},
+        {"__hash__", (ks_obj)ks_cfunc_new2(float_hash_, "float.__hash__(self)")},
         
         {"__free__", (ks_obj)ks_cfunc_new2(float_free_, "float.__free__(self)")},
  
@@ -384,6 +420,7 @@ void ks_type_float_init() {
         {"__sqig__", (ks_obj)ks_cfunc_new2(float_sqig_, "float.__sqig__(self)")},
 
         {"isnan", (ks_obj)ks_cfunc_new2(float_isnan_, "float.isnan(self)")},
+        {"isint", (ks_obj)ks_cfunc_new2(float_isint_, "float.isint(self)")},
 
 
         {"nan", KS_NEWREF(KS_NAN)},

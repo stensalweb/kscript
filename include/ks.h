@@ -1810,7 +1810,10 @@ KS_API extern ks_cfunc
     ks_F_open,
     ks_F_sort,
     ks_F_filter,
+    ks_F_any,
+    ks_F_all,
     ks_F_map,
+    ks_F_sum,
     ks_F_range,
 
     // operators

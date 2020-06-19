@@ -53,9 +53,8 @@ static ks_long my_longcopy(ks_long other) {
     return self;
 }
 
-
-
-// return a kscript int from it
+// convert a long into an integer,
+// or return false otherwise
 static bool my_getint(ks_long self, int64_t* ret) {
     if (mpz_fits_slong_p(self->val)) {
         *ret = mpz_get_si(self->val);
@@ -124,6 +123,24 @@ static KS_TFUNC(long, str) {
     ks_free(new_str);
 
     return (ks_obj)res;
+};
+
+
+// long.__hash__(self) -> calculate the hash of a long object
+static KS_TFUNC(long, hash) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_long self = (ks_long)args[0];
+    KS_REQ_TYPE(self, ks_type_long, "self");
+
+    int64_t self_int;
+
+    // attempt to hash it like a normal integer
+    if (my_getint(self, &self_int)) {
+        // fits integer, so return that hash
+        return (ks_obj)ks_int_new(self_int == 0 ? 1 : self_int);
+    }
+    // otherwise, just hash bytes
+    return (ks_obj)ks_int_new(ks_hash_bytes(sizeof(*self->val->_mp_d) * self->val->_mp_size, self->val->_mp_d));
 };
 
 // long.__free__(self) -> free an long object
@@ -603,6 +620,7 @@ void ks_type_long_init() {
         {"__new__", (ks_obj)ks_cfunc_new2(long_new_, "long.__new__(obj)")},
         {"__str__", (ks_obj)ks_cfunc_new2(long_str_, "long.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(long_str_, "long.__repr__(self)")},
+        {"__hash__", (ks_obj)ks_cfunc_new2(long_hash_, "long.__hash__(self)")},
         
         {"__free__", (ks_obj)ks_cfunc_new2(long_free_, "long.__free__(self)")},
 

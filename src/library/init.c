@@ -210,8 +210,13 @@ bool ks_init() {
         {"open",           KS_NEWREF(ks_F_open)},
         {"sort",           KS_NEWREF(ks_F_sort)},
         {"filter",         KS_NEWREF(ks_F_filter)},
+        {"any",            KS_NEWREF(ks_F_any)},
+        {"all",            KS_NEWREF(ks_F_all)},
+        {"sum",            KS_NEWREF(ks_F_sum)},
         {"map",            KS_NEWREF(ks_F_map)},
         {"range",          KS_NEWREF(ks_F_range)},
+
+        /* operators */
 
         /* math constants */
 
