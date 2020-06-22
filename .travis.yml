@@ -13,7 +13,7 @@ dist: xenial
 
 # install dependencies
 before_install:
-  - if [ "$TRAVIS_OS_NAME" = "linux"  ]; then sudo apt install python3 libgmp-dev libreadline-dev libcurl4-openssl-dev; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux"  ]; then sudo apt -y install python3 libgmp-dev libreadline-dev libcurl4-openssl-dev; fi
   - if [ "$TRAVIS_OS_NAME" = "osx"    ]; then brew install python gmp readline curl; fi
 
 jobs:
@@ -26,5 +26,11 @@ jobs:
       script: tar -czvf kscript-build-$TRAVIS_COMMIT.tar.gz lib include bin
     - stage: upload
       script: curl --upload-file kscript-build-$TRAVIS_COMMIT.tar.gz https://transfer.sh/kscript-build-$TRAVIS_COMMIT.tar.gz
+
+
+
+addons:
+  apt:
+    update: true
 
 
