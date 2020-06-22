@@ -9,7 +9,7 @@ python: 3.7
 # supported OSes
 os:
   - linux
-  - osx
+#  - osx
 
 # Ubuntu distribution
 dist: xenial
@@ -17,7 +17,7 @@ dist: xenial
 # install dependencies
 before_install:
   - if [ "$TRAVIS_OS_NAME" = "linux"  ]; then sudo apt -y update; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux"  ]; then sudo apt -y install python3.8 libgmp-dev libreadline-dev libcurl4-openssl-dev; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux"  ]; then sudo apt -y install libgmp-dev libreadline-dev libcurl4-openssl-dev; fi
   - if [ "$TRAVIS_OS_NAME" = "osx"    ]; then brew install python gmp readline curl; fi
 
 jobs:
