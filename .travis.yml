@@ -1,10 +1,11 @@
 # kscript .travis.yml
 
-# C language, but call it generic because its a custom build process
-language: generic
+# C language, but this is required for the correct versions of stuff
+language: python
 
 # use Python3.7
 python: 3.7
+env: PYTHON_VERSION=3.7.1
 
 # supported OSes
 os:
@@ -23,7 +24,7 @@ before_install:
 jobs:
   include:
     - stage: configure
-      script: ./configure --with-readline --with-curl --with-gmp
+      script: python3.7 ./configure --with-readline --with-curl --with-gmp
     - stage: build
       script: make -j8
     - stage: tar

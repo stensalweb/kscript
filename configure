@@ -17,6 +17,8 @@ import glob
 
 import argparse
 
+print ("Python Version: " + str(sys.version))
+
 class NegateAction(argparse.Action):
     def __call__(self, parser, ns, values, option):
         setattr(ns, self.dest, not option[2:].startswith('disable') and not option[2:].startswith('without') and not option[2:].startswith('no'))
