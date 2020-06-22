@@ -175,8 +175,8 @@ ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz) {
 
 }
 
-// write a string into an iostream, return success
-bool ks_iostream_writestr(ks_iostream self, ks_str data) {
+// write a C-style string into an iostream, return success
+bool ks_iostream_writestr_c(ks_iostream self, char* data, int len) {
     if (!(self->ios_flags & KS_IOS_OPEN)) {
         ks_throw_fmt(ks_type_IOError, "Attempted to write string to iostream that was not open!");
         return false;
@@ -186,13 +186,11 @@ bool ks_iostream_writestr(ks_iostream self, ks_str data) {
         return false;
     }
 
-    ks_size_t sz = data->len;
-
     // release GIL
     ks_GIL_unlock();
 
-    size_t actual_bytes = fwrite(data->chr, 1, sz, self->fp);
-    if (actual_bytes != sz) {
+    size_t actual_bytes = fwrite(data, 1, len, self->fp);
+    if (actual_bytes != len) {
         // discrepancy
     }
 
@@ -201,6 +199,10 @@ bool ks_iostream_writestr(ks_iostream self, ks_str data) {
 
     return true;
 
+}
+// write a string into an iostream, return success
+bool ks_iostream_writestr(ks_iostream self, ks_str data) {
+    return ks_iostream_writestr_c(self, data->chr, data->len);
 }
 
 

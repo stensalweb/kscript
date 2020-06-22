@@ -91,6 +91,7 @@ static KS_TFUNC(Result, getattr) {
     ks_str attr = (ks_str)args[1];
     KS_REQ_TYPE(attr, ks_type_str, "attr");
 
+    // attempt to get one of the attributes
     if (attr->len == 3 && strncmp(attr->chr, "url", 3) == 0) {
         return KS_NEWREF(self->url);
     } else if (attr->len == 11 && strncmp(attr->chr, "status_code", 11) == 0) {
@@ -122,6 +123,29 @@ static size_t my_curlwrite(void* ptr, size_t size, size_t nmemb, void* _strb) {
 }
 
 
+// custom callback for curl's writing from a stream, for use as a stream writer
+// i.e. in the download() function
+static size_t my_curlwrite_stream(void* ptr, size_t size, size_t nmemb, void* _ios) {
+    ks_iostream ios = (ks_iostream)_ios;
+
+    // add to the string (which will require a lock, since it uses the memory manager
+    ks_GIL_lock();
+    int res = ks_iostream_writestr_c(ios, (char*)ptr, size * nmemb);
+    int amt_to_ret = size * nmemb;
+    // mark error if something went wrong
+    if (!res) {
+        amt_to_ret = 0;
+    }
+    ks_GIL_unlock();
+
+    return amt_to_ret;
+}
+
+
+
+
+
+
 // build a URL form key,value pairs in 'data'...
 // i.e. key=value&key1=value1&...
 // NOTE: You must use `ks_free` on the result
@@ -139,6 +163,8 @@ static char* my_buildurl(ks_dict data) {
                 ks_str_b_add_c(&SB, "&");
             }
 
+            // TODO: convert to string, then run `curl_easy_escape` on the result
+            //   per each key & value
             ks_str_b_add_str(&SB, data->entries[i].key);
             ks_str_b_add_c(&SB, "=");
             ks_str_b_add_str(&SB, data->entries[i].val);
@@ -157,6 +183,8 @@ static char* my_buildurl(ks_dict data) {
 
     return res_charp;
 }
+
+
 
 
 /* req.GET(url, data=none) -> req.Result
@@ -280,6 +308,82 @@ static KS_TFUNC(req, POST) {
 }
 
 
+/* req.download(url, dest, data=none) -> req.Result
+ *
+ * Perform a GET request for a given URL, download the result into 'fname', which is a filename
+ * 
+ * Returns the normal results... Except .text gives the file name to which it was downloaded to
+ *
+ */
+static KS_TFUNC(req, download) {
+    KS_REQ_N_ARGS(n_args, 2);
+
+    ks_str url = (ks_str)args[0];
+    KS_REQ_TYPE(url, ks_type_str, "url");
+    ks_obj dest_arg = args[1];
+    ks_iostream dest = NULL;
+    if (ks_type_issub(dest_arg->type, ks_type_iostream)) {
+        // do nothing; already a correct type
+        dest = (ks_iostream)KS_NEWREF(dest_arg);
+    } else if (ks_type_issub(dest_arg->type, ks_type_str)) {
+        // open the file in write mode
+        dest = ks_iostream_new();
+
+        // try to open and check for errors
+        if (!ks_iostream_open(dest, ((ks_str)dest_arg)->chr, "w")) {
+            KS_DECREF(dest);
+            return NULL;
+        }
+
+    } else {
+        // throw an error
+        KS_REQ_TYPE(dest_arg, ks_type_iostream, "dest");
+    }
+
+    // set the URL and allow redirects
+    curl_easy_setopt(curl_lib, CURLOPT_URL, url->chr);
+    curl_easy_setopt(curl_lib, CURLOPT_FOLLOWLOCATION, 1L);
+
+    // set CURL up to write the result into the given destination stream
+    curl_easy_setopt(curl_lib, CURLOPT_WRITEFUNCTION, my_curlwrite_stream);
+    curl_easy_setopt(curl_lib, CURLOPT_WRITEDATA, dest);
+
+    // unlock the GIL while the web request is coming through
+    ks_GIL_unlock();
+
+    // actually perform the action
+    CURLcode result_code = curl_easy_perform(curl_lib);
+
+    // acquire lock to continue processing
+    ks_GIL_lock();
+
+    // handle an error if one occured
+    if (result_code  != CURLE_OK) {
+        KS_DECREF(dest);
+        if (!ks_thread_get()->exc) return ks_throw_fmt(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
+        else return NULL;
+    }
+
+    // query the HTTP code
+    long http_code = 0;
+    curl_easy_getinfo (curl_lib, CURLINFO_RESPONSE_CODE, &http_code);
+
+    // construct the result we want to return
+    req_Result res = NULL;
+    if (dest_arg->type == ks_type_str) {
+        res = req_make_Result(url, http_code, dest_arg);
+    } else {
+        res = req_make_Result(url, http_code, dest_arg);
+    }
+    
+    
+    KS_DECREF(dest);
+    return (ks_obj)res;
+}
+
+
+
+
 // now, export them all
 static ks_module get_module() {
     
@@ -321,7 +425,8 @@ static ks_module get_module() {
         {"Result",     (ks_obj)req_type_Result},
 
         {"GET",        (ks_obj)ks_cfunc_new2(req_GET_, "req.GET(url, data=none)")},
-        {"POST",       (ks_obj)ks_cfunc_new2(req_POST_, "req.POST(post, data=none)")},
+        {"POST",       (ks_obj)ks_cfunc_new2(req_POST_, "req.POST(url, data=none)")},
+        {"download",   (ks_obj)ks_cfunc_new2(req_download_, "req.download(url, dest, data=none)")},
 
         {NULL, NULL}
     });

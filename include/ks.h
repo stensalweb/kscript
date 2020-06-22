@@ -1614,6 +1614,13 @@ KS_API bool ks_iostream_close(ks_iostream self);
 // NOTE: Returns a new reference
 KS_API ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz);
 
+
+
+
+// attempt to write a C-style string, returning whether it was successful
+// If it was not, an error will be thrown
+KS_API bool ks_iostream_writestr_c(ks_iostream self, char* data, int len);
+
 // attempt to write a string, returning whether it was successful
 // If it was not, an error will be thrown
 KS_API bool ks_iostream_writestr(ks_iostream self, ks_str data);
