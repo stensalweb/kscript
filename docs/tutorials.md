@@ -1,6 +1,6 @@
 # Tutorials
 
-## 1. Hello World
+## Hello World
 
 This tutorial is the classic ["Hello World"](https://en.wikipedia.org/wiki/%22Hello,_World!%22_program) program, in kscript.
 
@@ -65,7 +65,7 @@ Hello World
 ```
 
 
-## 2. Project Euler #1
+## Project Euler #1
 
 This tutorial is an implementation of the [Project Euler Problem #1](https://projecteuler.net/problem=1) in kscript.
 
