@@ -25,7 +25,7 @@
 //   printed, so this is not useful for debugging
 //#define VME__GOTO
 
-// yield the GIl temporarily
+// yield the GIL temporarily and immediately take it back before continuing to execute
 #define VME_YIELDGIL { ks_GIL_unlock(); ks_GIL_lock(); }
 
 // disable yielding GIL

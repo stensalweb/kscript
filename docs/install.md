@@ -1,18 +1,30 @@
 
-# Linux
+# Installation
+
+## Linux
 
 
-Check [here](https://github.com/ChemicalDevelopment/kscript/releases) for releases. Every 
+To install on a Linux platform:
+
+Check [here](https://github.com/ChemicalDevelopment/kscript/releases) for releases of the software. You can download the `.deb`, `.rpm` or another package that fits your OS. Then, either double click or install how you would any other package you download.
+
+
+If you have another platform not supported by those, you can download the `kscript_build_bin.tar.gz`, which just contains the files neccessary for it. Then, run:
+
+`$ sudo tar -C /usr/local -zxvf kscript_build_bin.tar.gz`
+
+This should install the package to `/usr/local` (default location for external packages), and then print a list of all the files it installed
 
 
 
-# MacOS
+## MacOS
 
 
 
-# From Source
 
-## Requirements
+## From Source
+
+### Requirements
 
 The requirements for building from source are:
 
@@ -34,7 +46,7 @@ MacOS (homebrew): `brew install python gmp readline curl`
 Windows: Set up Cygwin packages for all of them (I can't remember the names, but they should all be included as Cygwin packages that you can select for installation)
 
 
-## Building
+### Building
 
 
 You can always see and download the source code [here](https://github.com/ChemicalDevelopment/kscript/releases). It's recommended to download one of the releases, and unzip that.
@@ -77,7 +89,7 @@ You can run `./bin/ks FILENAME.ks` to execute a file
 Or, you can run `./bin/ks -h` to print out help/usage information
 
 
-## Installation
+### Installation
 
 Once you have confirmed kscript is working, you can run `sudo make install`, which will install it to `/usr/local` (to select a different location, use `./configure --prefix=NEWLOCATION`)
 

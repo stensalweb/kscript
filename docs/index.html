@@ -13,7 +13,42 @@
       new Docute({
         target: '#docute',
         theme: 'dark',
+
+        /* top-of-page navigation */
+        nav: [
+          {
+            title: 'Home',
+            link: '/'
+          },
+          {
+            title: 'GitHub',
+            link: 'https://github.com/ChemicalDevelopment/kscript'
+          }
+        ],
+
+        /* side-of-page navigation */
+        sidebar: [
+          {
+            title: 'Installation',
+              link: '/install'
+          },
+          {
+            title: 'Tutorials',
+              link: '/tutorials'
+          },
+          // An external link
+          {
+            title: 'GitHub',
+            link: 'https://github.com/egoist/docute'
+          }
+        ]
       })
+
+      document.onload = function() {
+        Prism.languages.kscript = Prism.languages.extend('python', {});
+      }
+
+
     </script>
   </body>
 </html>
