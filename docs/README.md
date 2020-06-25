@@ -1,26 +1,37 @@
 # kscript
 
-## What is EZC?
+## What is kscript?
 
-EZC is programming language meant to enable fast calculations of multiprecision floats, but with RPN syntax, and without memory management.
+kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more!
 
-It is sort of like a calculator language, but with for, if, function definitions, and more advanced features.
+The plan is for kscript to be able to be used for writing system utilities, websites, GUI applications, graphing applications, and anything else you can imagine.
 
-Also, the EZC std libraries have many functions dealing with more advanced functionality than even `math.h` or most system math libraries have.
-
-EZC supports all trigonometric functions to full precision, many obscure functions (Gamma, Zeta, Bessel, etc), as well as extensions of common functions to all real numbers, such as factorial (via Gamma function).
+Learn more here: [https://chemicaldevelopment.us/kscript](https://chemicaldevelopment.us/kscript)
 
 
-### Who is it for?
+## What makes it different?
 
-This programming language is for people who want a unique computing experience, and like exploring interesting ideas in PLT (Programming Language Theory).
+kscript is guided by a simple philosophy:
 
-This language isn't for everyone. It is meant to be easy, but it is not meant for GUIs, elaborate printing, writing libraries in, or anything like that. It is meant to be a calculator like language which is performant, and easy to distribute on any operating system with a C99 compiler.
+  * kscript's syntax should result in code that is easy to read, write, and modify
+  * Functions, classes, and modules should be designed and documented so that programmers only need to check docs once; Their usage should be easy to remember, and hard to mess up
+  * Installing, using, and modifying programs should be independent of any specific OS; All packages should support all platforms transparently
+  * Anything that most programmers need should be in the standard library. This is probably the broadest category, and includes things such as:
+    * A single standard for large, dense data storage - implemented in the `nx` module
+    * Tensor (i.e. Vector, Matrix) math - implemented in the `nx` module
+    * Multi-media functionality (reading/writing/encoding/decoding audio & video) - implemented in the `mm` module (TODO)
+
+When kscript (or modules) don't live up to these expectations, it has failed. Please send a message to [brown.cade@gmail.com](mailto:brown.cade@gmail.com) if you encounter any hardships
+
+With that being said, kscript is the dialectical synthesis of programming languages like Python (thesis) and Golang (antithesis). We have seen what is good with Python (duck typing, packaging systems), and what problems Golang has addressed (application infrastructure, even more simplicity). And now, kscript is a logical evolution of current programming language trends.
+
+It also seeks to be light-weight where possible, so that it can be easily embeddable in other applications requiring user input (`libkscript`)
+
+## How can I get started?
+
+You can check the [docs](https://chemicaldevelopment.us/kscript) (where you are now). Check out the section on [installing kscript](/install) and find your platform.
+
+Once you have kscript installed, feel free to check out the [introduction tutorials](/tutorials)
 
 
-## How can I use it?
-
-Well, just follow the [quick start guide](./#/quickstart), and go along!
-
-It is mainly terminal based, but I plan to make an IDE in the future.
 

@@ -1,14 +1,23 @@
 # kscript (ks)
 
-kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more!
+kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more! Learn more here: [https://chemicaldevelopment.us/kscript](https://chemicaldevelopment.us/kscript)
 
 It works currently, but is missing a large part of normal functionality, such as file I/O, OS integration, and the extra packages I promise.
 
 Current Efforts:
 
-  * Implementing the math library (`m`)
-  * Implementing the numerics library (`nx`), with NumPy-like tensor support
+  * Implementing the standard library & packages
+    * Numeric library (`nx`), with NumPy-like tensor support
+    * Sockets library (`sock`), for UNIX socket-based networking
+    * Requests library (`req`), for `GET`, `POST` requests
+    * GUI Application Toolkit packages
+    * OpenGL/GLFW/etc solution packages
   * Maybe implementing some niceties like python has with tuple unpacking (i.e. `for key, val in dict:`)
+  * Better documentation & tutorials. Maybe even videos at some point
+  * Example applications
+  * Central packaging & build system, similar to `pip` for Python
+    * This system should all be integrated, and available on all systems
+
 
 ## About
 

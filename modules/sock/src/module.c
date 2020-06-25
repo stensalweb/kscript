@@ -1,11 +1,11 @@
-/* soc/src/module.c - the kscript's requests library
+/* sock/src/module.c - the kscript's requests library
  *
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
 // always begin by defining the module information
-#define MODULE_NAME "soc"
+#define MODULE_NAME "sock"
 
 // include this since this is a module.
 #include "ks-module.h"
@@ -16,7 +16,7 @@
 #include <netinet/in.h> 
 #include <errno.h>
 
-// A req.Result object, representing a result from a web request
+// sock.Socket - class describing a Socket object
 typedef struct {
     KS_OBJ_BASE
 
@@ -36,17 +36,17 @@ typedef struct {
     struct sockaddr_in sa_addr;
 
 
-}* soc_Socket;
+}* sock_Socket;
 
 
 // declare the array type as residing in this file
-KS_TYPE_DECLFWD(soc_type_Socket);
+KS_TYPE_DECLFWD(sock_type_Socket);
 
 
 // create a new socket
-static soc_Socket make_Socket() {
-    soc_Socket self = KS_ALLOC_OBJ(soc_Socket);
-    KS_INIT_OBJ(self, soc_type_Socket);
+static sock_Socket make_Socket() {
+    sock_Socket self = KS_ALLOC_OBJ(sock_Socket);
+    KS_INIT_OBJ(self, sock_type_Socket);
 
     // not currently bound or listening
     self->is_bound = false;
@@ -88,9 +88,9 @@ static soc_Socket make_Socket() {
 }
 
 // create a new socket, just wrapping existing resources
-static soc_Socket wrap_Socket(int sockfd, int af_type, int socket_type, bool is_bound, bool is_listening) {
-    soc_Socket self = KS_ALLOC_OBJ(soc_Socket);
-    KS_INIT_OBJ(self, soc_type_Socket);
+static sock_Socket wrap_Socket(int sockfd, int af_type, int socket_type, bool is_bound, bool is_listening) {
+    sock_Socket self = KS_ALLOC_OBJ(sock_Socket);
+    KS_INIT_OBJ(self, sock_type_Socket);
 
     // not currently bound or listening
     self->is_bound = is_bound;
@@ -150,8 +150,8 @@ static KS_TFUNC(Socket, new) {
  */
 static KS_TFUNC(Socket, free) {
     KS_REQ_N_ARGS(n_args, 1);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
 
     // if the socket is valid, close it down
     if (self->sockfd >= 0) close(self->sockfd);
@@ -170,8 +170,8 @@ static KS_TFUNC(Socket, free) {
  */
 static KS_TFUNC(Socket, connect) {
     KS_REQ_N_ARGS(n_args, 3);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
     ks_str address = (ks_str)args[1];
     KS_REQ_TYPE(address, ks_type_str, "address");
     ks_int port = (ks_int)args[2];
@@ -212,8 +212,8 @@ static KS_TFUNC(Socket, connect) {
  */
 static KS_TFUNC(Socket, bind) {
     KS_REQ_N_ARGS(n_args, 3);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
     ks_str address = (ks_str)args[1];
     KS_REQ_TYPE(address, ks_type_str, "address");
     ks_int port = (ks_int)args[2];
@@ -252,8 +252,8 @@ static KS_TFUNC(Socket, bind) {
  */
 static KS_TFUNC(Socket, listen) {
     KS_REQ_N_ARGS(n_args, 2);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
     ks_int num = (ks_int)args[1];
     KS_REQ_TYPE(num, ks_type_int, "num");
 
@@ -280,8 +280,8 @@ static KS_TFUNC(Socket, listen) {
  */
 static KS_TFUNC(Socket, accept) {
     KS_REQ_N_ARGS(n_args, 1);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
 
     // make sure it's valid
     if (!self->is_bound) {
@@ -324,8 +324,8 @@ static KS_TFUNC(Socket, accept) {
  */
 static KS_TFUNC(Socket, send) {
     KS_REQ_N_ARGS(n_args, 2);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
     ks_obj msg_obj = args[1];
     ks_str msg_str = NULL;
 
@@ -375,8 +375,8 @@ static KS_TFUNC(Socket, send) {
  */
 static KS_TFUNC(Socket, recv) {
     KS_REQ_N_ARGS(n_args, 2);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
     ks_int sz = (ks_int)args[1];
     KS_REQ_TYPE(sz, ks_type_int, "sz");
 
@@ -418,8 +418,8 @@ static KS_TFUNC(Socket, recv) {
  */
 static KS_TFUNC(Socket, get_name) {
     KS_REQ_N_ARGS(n_args, 1);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
 
     // make sure it's valid
     if (!self->is_bound) {
@@ -444,8 +444,8 @@ static KS_TFUNC(Socket, get_name) {
  */
 static KS_TFUNC(Socket, get_port) {
     KS_REQ_N_ARGS(n_args, 1);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
 
     // make sure it's valid
     if (!self->is_bound) {
@@ -462,8 +462,8 @@ static KS_TFUNC(Socket, get_port) {
  */
 static KS_TFUNC(Socket, handle_forever) {
     KS_REQ_N_ARGS(n_args, 1);
-    soc_Socket self = (soc_Socket)args[0];
-    KS_REQ_TYPE(self, soc_type_Socket, "self");
+    sock_Socket self = (sock_Socket)args[0];
+    KS_REQ_TYPE(self, sock_type_Socket, "self");
 
     if (!self->is_bound) {
         return ks_throw_fmt(ks_type_IOError, "Attempted to listen without being bound");
@@ -502,25 +502,25 @@ static ks_module get_module() {
     
     ks_module mod = ks_module_new(MODULE_NAME);
 
-    KS_INIT_TYPE_OBJ(soc_type_Socket, "soc.Socket");
+    KS_INIT_TYPE_OBJ(sock_type_Socket, "sock.Socket");
 
-    ks_type_set_cn(soc_type_Socket, (ks_dict_ent_c[]){
-        {"__new__",             (ks_obj)ks_cfunc_new2(Socket_new_, "soc.Socket.__new__(self)")},
-        {"__free__",            (ks_obj)ks_cfunc_new2(Socket_free_, "soc.Socket.__free__(self)")},
+    ks_type_set_cn(sock_type_Socket, (ks_dict_ent_c[]){
+        {"__new__",             (ks_obj)ks_cfunc_new2(Socket_new_, "sock.Socket.__new__(self)")},
+        {"__free__",            (ks_obj)ks_cfunc_new2(Socket_free_, "sock.Socket.__free__(self)")},
 
-        {"connect",             (ks_obj)ks_cfunc_new2(Socket_connect_, "soc.Socket.connect(self, address, port)")},
-        {"bind",                (ks_obj)ks_cfunc_new2(Socket_bind_, "soc.Socket.bind(self, address, port)")},
+        {"connect",             (ks_obj)ks_cfunc_new2(Socket_connect_, "sock.Socket.connect(self, address, port)")},
+        {"bind",                (ks_obj)ks_cfunc_new2(Socket_bind_, "sock.Socket.bind(self, address, port)")},
         
-        {"listen",              (ks_obj)ks_cfunc_new2(Socket_listen_, "soc.Socket.listen(self, num)")},
-        {"accept",              (ks_obj)ks_cfunc_new2(Socket_accept_, "soc.Socket.accept(self)")},
+        {"listen",              (ks_obj)ks_cfunc_new2(Socket_listen_, "sock.Socket.listen(self, num)")},
+        {"accept",              (ks_obj)ks_cfunc_new2(Socket_accept_, "sock.Socket.accept(self)")},
 
-        {"send",                (ks_obj)ks_cfunc_new2(Socket_send_, "soc.Socket.send(self, msg)")},
-        {"recv",                (ks_obj)ks_cfunc_new2(Socket_recv_, "soc.Socket.recv(self, sz)")},
+        {"send",                (ks_obj)ks_cfunc_new2(Socket_send_, "sock.Socket.send(self, msg)")},
+        {"recv",                (ks_obj)ks_cfunc_new2(Socket_recv_, "sock.Socket.recv(self, sz)")},
 
-        {"get_name",            (ks_obj)ks_cfunc_new2(Socket_get_name_, "soc.Socket.get_name(self)")},
-        {"get_port",            (ks_obj)ks_cfunc_new2(Socket_get_port_, "soc.Socket.get_port(self)")},
+        {"get_name",            (ks_obj)ks_cfunc_new2(Socket_get_name_, "sock.Socket.get_name(self)")},
+        {"get_port",            (ks_obj)ks_cfunc_new2(Socket_get_port_, "sock.Socket.get_port(self)")},
 
-        {"handle_forever",      (ks_obj)ks_cfunc_new2(Socket_handle_forever_, "soc.Socket.handle_forever(self)")},
+        {"handle_forever",      (ks_obj)ks_cfunc_new2(Socket_handle_forever_, "sock.Socket.handle_forever(self)")},
 
         /*
         {"__getitem__",    (ks_obj)ks_cfunc_new2(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
@@ -533,7 +533,7 @@ static ks_module get_module() {
 
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
         /* constants */
-        {"Socket",     (ks_obj)soc_type_Socket},
+        {"Socket",     (ks_obj)sock_type_Socket},
 
         {NULL, NULL}
     });

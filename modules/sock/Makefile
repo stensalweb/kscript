@@ -1,9 +1,9 @@
-# soc/Makefile - socket library makefile
+# sock/Makefile - socket library makefile
 # NOTE: Do not call this by itself, run from the main directory `make modules`
 
 # -*- VARS -*-
 
-MOD_NAME       := soc
+MOD_NAME       := sock
 
 
 # -*- FILES -*-

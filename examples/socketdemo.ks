@@ -9,7 +9,7 @@ TODO:
 """
 
 # import the 'soc' library, which handles sockets
-import soc
+import sock
 
 # determine whether it is a server or client, give an error otherwise
 is_server = len(__argv__) > 1 && (__argv__[1] == 'server' || [print("Invalid argument"), exit(1)])
@@ -18,7 +18,7 @@ if is_server {
     # host & bind server
     print (" -*- SERVER -*- ")
 
-    S = soc.Socket()
+    S = sock.Socket()
     S.bind("localhost", 8080)
     S.listen(3)
 
@@ -35,7 +35,7 @@ if is_server {
     # connect via client protocl
     print (" -*- CLIENT  -*- ")
 
-    S = soc.Socket()
+    S = sock.Socket()
     S.connect("localhost", 8080)
 
     while true {
