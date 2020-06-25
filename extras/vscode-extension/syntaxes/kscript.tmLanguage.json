@@ -61,10 +61,10 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.kscript",
-				"match": "\\b(if|else|elif|while|for|assert)"
+				"match": "\\b(if|else|elif|while|for|assert)\\b"
 			},{
 				"name": "keyword.builtin.kscript",
-				"match": "\\b(import|self|this|class|typeof)"
+				"match": "\\b(import|self|this|class|typeof)\\b"
 			},{
 				"name": "keyword.operator.kscript",
 				"match": "(\\!|\\@|\\$|\\%|\\^|\\*|\\-|\\+|\\||\\:|\\=\\=|\\=|\\|\\||\\&\\&)"

@@ -323,6 +323,8 @@ static KS_TFUNC(str, iter) {
 static KS_TFUNC(str, join) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+
     ks_obj objs = args[1];
 
     ks_obj iter_obj = ks_F_iter->func(1, &objs);
@@ -373,6 +375,59 @@ static KS_TFUNC(str, join) {
 };
 
 
+// str.format(self, *objs) -> format a string with given arguments
+static KS_TFUNC(str, format) {
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+    ks_str self = (ks_str)args[0];
+    KS_REQ_TYPE(self, ks_type_str, "self");
+    
+    ks_str_b SB;
+    ks_str_b_init(&SB);
+
+    // argument pointer
+    int argp = 1;
+
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+
+        // parse for a '%'
+        if (self->chr[i] == '%') {
+            i++;
+            int argsUsed = 0;
+            if (self->chr[i] == '%') {
+                // literal
+                ks_str_b_add(&SB, 1, "%");
+            } else if (self->chr[i] == 's') {
+                // convert to string
+                if (argp >= n_args) {
+                    ks_str_b_free(&SB);
+                    return ks_throw_fmt(ks_type_ArgError, "Extra '%%s' given; ran out of format arguments");
+                }
+                ks_str_b_add_str(&SB, args[argp++]);
+            } else if (self->chr[i] == 'r') {
+                // convert to string
+                if (argp >= n_args) {
+                    ks_str_b_free(&SB);
+                    return ks_throw_fmt(ks_type_ArgError, "Extra '%%r' given; ran out of format arguments");
+                }
+                ks_str_b_add_repr(&SB, args[argp++]);
+            } else {
+                ks_str_b_free(&SB);
+                return ks_throw_fmt(ks_type_ArgError, "Unknown format code '%%%c' given", self->chr[i]);
+            }
+        } else {
+
+            ks_str_b_add(&SB, 1, &self->chr[i]);
+        }
+    }
+
+    // get result
+    ks_str res = ks_str_b_get(&SB);
+    ks_str_b_free(&SB);
+
+    return (ks_obj)res;
+};
 
 // str.substr(self, start=0, len=none)
 static KS_TFUNC(str, substr) {
@@ -490,6 +545,8 @@ void ks_type_str_init() {
 
 
         {"join", (ks_obj)ks_cfunc_new2(str_join_, "str.join(self, objs)")},
+
+        {"format", (ks_obj)ks_cfunc_new2(str_format_, "str.format(self, *objs)")},
 
 
         {NULL, NULL},
