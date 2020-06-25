@@ -1359,6 +1359,24 @@ typedef struct {
 }* ks_pfunc;
 
 
+// ks_Enum - base class for an enumeration
+// other Enumerations may derive from this class, like for example:
+// SideEnum derives from Enum,
+// and SideEnum.LEFT and SideEnum.RIGHT are elements
+// the Enum type itself has an attribute "_enum_dict", which is a dictionary mapping 
+//   string keys to enum elements
+typedef struct {
+    KS_OBJ_BASE
+
+    // the enumeration index, for converting to an integer
+    int enum_idx;
+
+    // the name of this particular enum value
+    ks_str name;
+
+}* ks_Enum;
+
+
 // ks_Error - base class for an error. 
 // NOTE: do not confuse this with 'ks_error' - that is a printing macro
 typedef struct {
@@ -1773,6 +1791,10 @@ KS_API extern ks_type
     ks_type_OpError,
     ks_type_ToDoError,
 
+    // enum types
+    ks_type_Enum,
+
+
     // special error; used to signal the end of an iterator
     ks_type_OutOfIterError,
 
@@ -2068,6 +2090,9 @@ KS_API ks_str ks_str_new_l(char* chr, int len);
 
 // perform a string comparison on 2 strings
 KS_API int ks_str_cmp(ks_str A, ks_str B);
+
+// comparison between a kscript string and a C-style string
+KS_API int ks_str_cmp_c(ks_str A, char* cB);
 
 // Escape the string 'A', i.e. replace '\' -> '\\', and newlines to '\n'
 // NOTE: Returns a new reference

@@ -54,6 +54,7 @@ void ks_type_tuple_init();
 void ks_type_list_init();
 void ks_type_dict_init();
 void ks_type_Error_init();
+void ks_type_Enum_init();
 void ks_type_kfunc_init();
 void ks_type_iostream_init();
 

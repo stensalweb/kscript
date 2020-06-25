@@ -75,6 +75,7 @@ bool ks_init() {
     ks_type_list_init();
     ks_type_dict_init();
     ks_type_Error_init();
+    ks_type_Enum_init();
 
     ks_type_thread_init();
     ks_type_iostream_init();
@@ -190,6 +191,9 @@ bool ks_init() {
         {"OpError",        KS_NEWREF(ks_type_OpError)},
         {"ToDoError",      KS_NEWREF(ks_type_ToDoError)},
         
+        {"Enum",           KS_NEWREF(ks_type_Enum)},
+
+
         {"iostream",       KS_NEWREF(ks_type_iostream)},
 
         {"thread",         KS_NEWREF(ks_type_thread)},

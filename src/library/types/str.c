@@ -121,6 +121,11 @@ int ks_str_cmp(ks_str A, ks_str B) {
     else return memcmp(A->chr, B->chr, A->len);
 }
 
+int ks_str_cmp_c(ks_str A, char* cB) {
+    return strcmp(A->chr, cB);
+}
+
+
 // str.__new__(obj, *args) -> convert any object to a string
 static KS_TFUNC(str, new) {
     KS_REQ_N_ARGS_MIN(n_args, 1);

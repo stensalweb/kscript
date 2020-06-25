@@ -1,6 +1,7 @@
- {
+{
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
 	"name": "kscript",
+	"scopeName": "source.kscript",
 	"patterns": [
 		{
 			"include": "#comments"
@@ -24,6 +25,34 @@
 	"repository": {
 		"comments": {
 			"patterns": [{
+				"name": "comment.block.kscript",
+					"begin": "^\"\"\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.kscript"
+						}
+					},
+					"end": "\"\"\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.kscript"
+						}
+					}
+			},{
+				"name": "comment.block.kscript",
+					"begin": "^'''",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.kscript"
+						}
+					},
+					"end": "'''",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.kscript"
+						}
+					}
+			},{
 				"name": "comment.line.number-sign.kscript",
 				"match": "#.*"
 			}]
@@ -32,13 +61,13 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.kscript",
-				"match": "\\b(if|elif|else|for|while)!"
+				"match": "\\b(if|else|elif|while|for|assert)"
 			},{
 				"name": "keyword.builtin.kscript",
-				"match": "\\b(print|int|float)!"
+				"match": "\\b(import|self|this|class|typeof)"
 			},{
 				"name": "keyword.operator.kscript",
-				"match": "(\\+|\\-|\\*|\\/|\\^|\\%|\\<\\=\\>|\\=\\=|\\>\\=|\\<\\=|\\!\\=|\\<|\\>)"
+				"match": "(\\!|\\@|\\$|\\%|\\^|\\*|\\-|\\+|\\||\\:|\\=\\=|\\=|\\|\\||\\&\\&)"
 			}]
 		},
 
@@ -50,44 +79,42 @@
 		},
 		
 		"strings": {
-			"name": "string.quoted.double.kscript",
-			"begin": "\"^\"",
-			"end": "\"",
-			"patterns": [
-				{
-					"name": "string.quoted.double.kscript",
-					"begin": "\"\"\"",
-					"beginCaptures": {
-						"0": {
-							"name": "string.quoted.double.kscript"
-						}
-					},
-					"end": "\"\"\"",
-					"endCaptures": {
-						"0": {
-							"name": "string.quoted.double.kscript"
-						}
+			"patterns": [{
+				"name": "string.quoted.double.kscript",
+				"begin": "\"",
+				"end": "\"",
+				"patterns": [
+					{
+						"name": "constant.character.escape.kscript",
+						"match": "\\\\."
 					}
-				},
-				{
-					"name": "constant.character.escape.kscript",
-					"match": "\\\\."
-				}
-			]
+				]
+			}, {
+				"name": "string.quoted.single.kscript",
+				"begin": "'",
+				"end": "'",
+				"patterns": [
+					{
+						"name": "constant.character.escape.kscript",
+						"match": "\\\\."
+					}
+				]
+			}]
 		},
+
 		"constants": {
 			"patterns": [{
 				"name": "constant.numeric.integer.kscript",
 				"match": "(\\.[0-9]+|[0-9]+(\\.[0-9]*)?)"
 			}]
 		},
+
 		"variables": {
 			"patterns": [{
 				"name": "variable.other.kscript",
-				"match": "([a-zA-Z][a-zA-Z_]+)"
+				"match": "[a-zA-Z][a-zA-Z_]*"
 			}]
 		}
 
-	},
-	"scopeName": "source.kscript"
+	}
 }
