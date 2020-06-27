@@ -2,6 +2,15 @@
 
 This file contains more detailed building/installation information for kscript.
 
+You can build with no requirements, but for standard releases, the following packages are required for a full build including standard modules:
+
+Packages: `gmp`, `readline`, `curl`, `glfw3`, `X11`
+
+Linux (Ubuntu): `sudo apt install libgmp-dev libreadline-dev libcurl4-openssl-dev libglfw3-dev libx11-dev`
+
+MacOS: `brew install gmp readline curl glfw`
+
+
 Most of this information is detailed in `./Makefile` as well
 
 To build, run these commands:
@@ -35,6 +44,4 @@ The installation structure looks like:
         * `libks.so.VER` (i.e. `libks.so.0.0.1`, for a specific version)
         * `modules/` a folder of actual modules (see below for their format)
         
-### Modules
-
 

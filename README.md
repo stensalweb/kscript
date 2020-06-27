@@ -97,6 +97,8 @@ And things left to do:
 
 See the `examples/` folder for examples. Here are some of the basics:
 
+You can also see demos of libraries in `modules/<module>/demos` (e.g. `modules/cnk/demos`)
+
 ### Hello World
 
 This is the classic Hello World example

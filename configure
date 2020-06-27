@@ -12,6 +12,7 @@ $ ./configure && make
 
 import sys
 import os
+import subprocess
 import platform
 import glob
 
@@ -79,9 +80,19 @@ except:
 def shell(cmd):
 	return os.system(cmd) == 0
 
-def has_c_lib(name, lflag, header_block, body_block):
+# run a shell command and get its (success, stdout)
+def shell_output(cmd, simplify=True):
+	res = subprocess.run(cmd.split(" "), stdout=subprocess.PIPE)
+	src = res.stdout.decode('utf-8').strip()
+	if simplify:
+		src = src.replace("\n", " ")
+	return res.returncode == 0, src
+
+def has_c_lib(name, cflag, lflag, header_block, body_block):
 	print (f" -- Searching for C library {name}...")
-	print (f" --   Trying with flag '{lflag}', header '{header_block}', with code '{body_block}'")
+	print (f" --   Trying with:\n      cflag: '{cflag}'\n      lflag '{lflag}'\n      header '{header_block}'\n      code '{body_block}'")
+	global LIB_FLAGS
+	global CFLAGS
 
 	fname = _tmp + "/test.c"
 	fp = open(fname, "w")
@@ -99,15 +110,21 @@ int main(int argc, char** argv) {{
 """)
 	fp.close()
 
-	haslib = shell(f"{CC} {CFLAGS} {fname} {LDFLAGS} {lflag} -o {_tmp}/a.out") and shell(f"{_tmp}/a.out")
+	haslib = shell(f"{CC} {CFLAGS} {cflag} {fname} {LDFLAGS} {lflag} -o {_tmp}/a.out") and shell(f"{_tmp}/a.out")
 
 	if not haslib:
 		print (f" --   Not found!")
 	else:
 		# add to variables
-		global LIB_FLAGS
-		LIB_FLAGS += " " + lflag
+		# remove definitions
+		cflag = " ".join(filter(lambda arg: not arg.startswith("-D"), cflag.split(" ")))
+
+
+		CFLAGS       += " " + cflag
+		LIB_FLAGS    += " " + lflag
+
 		print (f" --   Found!")
+
 
 	return haslib
 
@@ -119,23 +136,23 @@ hasGLFW3        = False
 
 # search for libraries
 if args.with_gmp is not False:
-	hasGMP            = has_c_lib("GMP", "-lgmp", "#include <gmp.h>", "mpz_t x; mpz_init(x);")
+	hasGMP            = has_c_lib("GMP", shell_output("pkg-config --cflags gmp")[-1], shell_output("pkg-config --static --libs gmp")[-1], "#include <gmp.h>", "mpz_t x; mpz_init(x);")
 	if args.with_gmp and not hasGMP:
 		raise Exception("'--with-gmp' given, but GMP was not found!")
 
 if args.with_readline is not False:
-	hasREADLINE       = has_c_lib("readline", "-lreadline", "#include <stdio.h>\n#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
+	hasREADLINE       = has_c_lib("readline", shell_output("pkg-config --cflags readline")[-1], shell_output("pkg-config --static --libs readline")[-1], "#include <stdio.h>\n#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
 	if args.with_readline and not hasREADLINE:
 		raise Exception("'--with-readline' given, but readline was not found!")
 
 if args.with_curl is not False:
-	hasCURL           = has_c_lib("curl", "-lcurl", "#include <curl/curl.h>", "curl_global_init(CURL_GLOBAL_ALL);")
+	hasCURL           = has_c_lib("curl", shell_output("curl-config --cflags")[-1], shell_output("curl-config --libs")[-1], "#include <curl/curl.h>", "curl_global_init(CURL_GLOBAL_ALL);")
 	if args.with_curl and not hasCURL:
 		raise Exception("'--with-curl' given, but curl was not found!")
 
 
 if args.with_glfw3 is not False:
-	hasGLFW3          = has_c_lib("glfw3", "-lglfw -lX11", "#include <GLFW/glfw3.h>", "glfwInit(); glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);")
+	hasGLFW3          = has_c_lib("glfw3", shell_output("pkg-config --cflags glfw3")[-1], shell_output("pkg-config --static --libs glfw3")[-1], "#include <GLFW/glfw3.h>", "glfwInit(); glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);")
 	if args.with_glfw3 and not hasGLFW3:
 		raise Exception("'--with-glfw3' given, but GLFW3 was not found!")
 
