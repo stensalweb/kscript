@@ -53,13 +53,6 @@ static int  _NK_max_verbuf = 512 * 1024,
 #include "./ext/nuklear_glfw_gl3.h"
 
 
-/* LIB FUNCTIONS */
-
-// error callback to be used by GLFW
-static void _GLFW_errorcb(int er, const char* d) {
-    ks_warn("GLFW: %s [code: %d]", er, d);
-}
-
 
 
 /* WRAPPER TYPES */
@@ -102,6 +95,19 @@ typedef struct {
 // declare an iterable type to wrap it
 KS_TYPE_DECLFWD(cNk_type_iter_Context);
 
+/* LIB FUNCTIONS */
+
+// error callback to be used by GLFW
+static void _GLFW_errorcb(int er, const char* d) {
+    ks_warn("GLFW: %s [code: %d]", er, d);
+}
+
+// key function call back from GLFW
+static void _GLFW_keycb(GLFWwindow *win, unsigned int codepoint) {
+    cNk_Context ctx = (cNk_Context)glfwGetWindowUserPointer(win);
+    nk_input_unicode(ctx->ctx, codepoint);
+}
+
 
 /* Context class */
 
@@ -122,6 +128,10 @@ static KS_TFUNC(Context, new) {
     // construct a new GLFW window with the given parameters
     self->window = glfwCreateWindow(width, height, title->chr, NULL, NULL);
     glfwMakeContextCurrent(self->window);
+    glfwSetCharCallback(self->window, _GLFW_keycb);
+
+    // set user data to the context object
+    glfwSetWindowUserPointer(self->window, self);
 
     // create a context from the GLFW window
     self->ctx = nk_glfw3_init(self->window, NK_GLFW3_INSTALL_CALLBACKS);
@@ -260,6 +270,7 @@ static KS_TFUNC(Context, frame_start) {
     KS_REQ_TYPE(self, cNk_type_Context, "self");
 
     // update GLFW things
+
     glfwPollEvents();
     nk_glfw3_new_frame();
 
@@ -300,8 +311,6 @@ static KS_TFUNC(Context, frame_end) {
 }
 
 
-
-
 /* Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE) -> bool
  *
  * Construct a window with a given title, at a given position. Return true if it is visible
@@ -340,11 +349,92 @@ static KS_TFUNC(Context, end) {
 /***  LAYOUT FUNCTIONS  ***/
 
 
-
-/* Context.layout_row_static(self, height, item_width, cols=1) -> bool
+/* Context.layout_set_min_row_height(self, height) -> none
  *
- * Create a button, returning true if pressed
- * 
+ * Set the minimum row height
+ */
+static KS_TFUNC(Context, layout_set_min_row_height) {
+    KS_REQ_N_ARGS(n_args, 2);
+    cNk_Context self;
+    double height;
+    if (!ks_parse_params(n_args, args, "self%* height%f", &self, cNk_type_Context, &height)) return NULL;
+
+    // call internal library function
+    nk_layout_set_min_row_height(self->ctx, height);
+
+    return KSO_NONE;
+}
+
+/* Context.layout_reset_min_row_height(self) -> none
+ *
+ * Reset the minimum row height to its default calculated value (font_height + text_padding + padding)
+ */
+static KS_TFUNC(Context, layout_reset_min_row_height) {
+    KS_REQ_N_ARGS(n_args, 1);
+    cNk_Context self;
+    if (!ks_parse_params(n_args, args, "self%*", &self, cNk_type_Context)) return NULL;
+
+    // call internal library function
+    nk_layout_reset_min_row_height(self->ctx);
+
+    return KSO_NONE;
+}
+
+/* Context.layout_widget_bounds(self) -> (x, y, w, h)
+ *
+ * Return the bounding rectangle (as a tuple) of the next row
+ */
+static KS_TFUNC(Context, layout_widget_bounds) {
+    KS_REQ_N_ARGS(n_args, 1);
+    cNk_Context self;
+    if (!ks_parse_params(n_args, args, "self%*", &self, cNk_type_Context)) return NULL;
+
+    // call internal library function
+    struct nk_rect res = nk_layout_widget_bounds(self->ctx);
+
+    // construct tuple
+    return (ks_obj)ks_build_tuple("%f %f %f %f", res.x, res.y, res.w, res.h);
+}
+
+
+/* Context.layout_ratio_from_pixel(self, pixel_width) -> ratio
+ *
+ * Return the window aspect ratio from a given pixel width
+ */
+static KS_TFUNC(Context, layout_ratio_from_pixel) {
+    KS_REQ_N_ARGS(n_args, 2);
+    cNk_Context self;
+    double pixel_width;
+    if (!ks_parse_params(n_args, args, "self%* pixel_width%f", &self, cNk_type_Context, &pixel_width)) return NULL;
+
+    // call internal library function
+    double res = nk_layout_ratio_from_pixel(self->ctx, pixel_width);
+
+    return (ks_obj)ks_float_new(res);
+}
+
+
+/* Context.layout_row_dynamic(self, height, cols=1) -> none
+ *
+ * Create a dynamic row, given a height and a number of columns
+ */
+static KS_TFUNC(Context, layout_row_dynamic) {
+    KS_REQ_N_ARGS_RANGE(n_args, 2, 3);
+    cNk_Context self;
+    double height;
+    int64_t cols = 1;
+    if (!ks_parse_params(n_args, args, "self%* height%f ?cols%i64", &self, cNk_type_Context, &height, &cols)) return NULL;
+
+    // call internal library function
+    nk_layout_row_dynamic(self->ctx, height, cols);
+
+    return KSO_NONE;
+}
+
+
+/* Context.layout_row_static(self, height, item_width, cols=1) -> none
+ *
+ * Create a row with a static item width
  */
 static KS_TFUNC(Context, layout_row_static) {
     KS_REQ_N_ARGS_RANGE(n_args, 3, 4);
@@ -359,15 +449,149 @@ static KS_TFUNC(Context, layout_row_static) {
     return KSO_NONE;
 }
 
+/* Context.layout_row_begin(self, fmt, row_height, cols=1) -> none
+ *
+ * Create a layout row with a given format & row height & coumns
+ */
+static KS_TFUNC(Context, layout_row_begin) {
+    KS_REQ_N_ARGS_RANGE(n_args, 3, 4);
+    cNk_Context self;
+    int64_t fmt, cols = 1;
+    double row_height;
+    if (!ks_parse_params(n_args, args, "self%* fmt%i64 row_height%f ?cols%i64", &self, cNk_type_Context, &fmt, &row_height, &cols)) return NULL;
+
+    // call internal library function
+    nk_layout_row_begin(self->ctx, fmt, row_height, cols);
+
+    return KSO_NONE;
+}
+
+/* Context.layout_row_push(self, value) -> none
+ *
+ * Set either the window ratio, or fixed width depending on `fmt` in `layout_row_begin()` call
+ */
+static KS_TFUNC(Context, layout_row_push) {
+    KS_REQ_N_ARGS(n_args, 2);
+    cNk_Context self;
+    double value;
+    if (!ks_parse_params(n_args, args, "self%* value%f", &self, cNk_type_Context, &value)) return NULL;
+
+    // call internal library function
+    nk_layout_row_push(self->ctx, value);
+
+    return KSO_NONE;
+}
+
+/* Context.layout_row_end(self) -> none
+ *
+ * End the layout row started with `layout_row_begin()`
+ */
+static KS_TFUNC(Context, layout_row_end) {
+    KS_REQ_N_ARGS(n_args, 1);
+    cNk_Context self;
+    if (!ks_parse_params(n_args, args, "self%*", &self, cNk_type_Context)) return NULL;
+
+    // call internal library function
+    nk_layout_row_end(self->ctx);
+
+    return KSO_NONE;
+}
+
+
+/* Context.layout_row(self, fmt, height, col_sizes) -> none
+ *
+ * Specifies row columns sizes or ratio (depending on enums) from the tuple `ratio`
+ *   'fmt': either NK_DYNAMIC or NK_STATIC
+ * 
+ */
+static KS_TFUNC(Context, layout_row) {
+    KS_REQ_N_ARGS(n_args, 4);
+    cNk_Context self;
+    int64_t fmt;
+    double height;
+    ks_obj col_sizes;
+    if (!ks_parse_params(n_args, args, "self%* fmt%i64 height%f col_sizes%iter", &self, cNk_type_Context, &fmt, &height, &col_sizes)) return NULL;
+
+    ks_list col_sizes_l = ks_list_from_iterable(col_sizes);
+    if (!col_sizes_l) return NULL;
+
+
+    // convert to C floats
+    float* ratio_arr = ks_malloc(sizeof(*ratio_arr) * col_sizes_l->len);
+    int i;
+    for (i = 0; i < col_sizes_l->len; ++i) {
+
+        double cf;
+        if (!ks_num_get_double(col_sizes_l->elems[i], &cf)) {
+            KS_DECREF(col_sizes_l);
+            ks_free(ratio_arr);
+            return NULL;
+        }
+
+        ratio_arr[i] = cf;
+    }
+
+    // call internal library function
+    nk_layout_row(self->ctx, fmt, height, col_sizes_l->len, ratio_arr);
+
+    // free tmp resources
+    ks_free(ratio_arr);
+    KS_DECREF(col_sizes_l);
+
+    return KSO_NONE;
+}
 
 
 
-/* Context.button(self, label) -> bool
+
+
+
+
+
+/* Context.edit_string(self, edit_type, cur_str, max_len) -> new_str
+ *
+ * Edits a string (returns new string)
+ * 
+ */
+static KS_TFUNC(Context, edit_string) {
+    KS_REQ_N_ARGS(n_args, 4);
+    cNk_Context self;
+    int64_t edit_type, max_len;
+    ks_str cur_str;
+    if (!ks_parse_params(n_args, args, "self%* edit_type%i64 cur_str%s max_len%i64", &self, cNk_type_Context, &edit_type, &cur_str, &max_len)) return NULL;
+
+    // create a modifiable buffer
+    char* strbuf = ks_malloc(max_len + 1);
+    int strbuf_len = cur_str->len + 1;
+    memcpy(strbuf, cur_str->chr, cur_str->len);
+    strbuf[cur_str->len] = '\0';
+
+    // call internal library function
+    int64_t new_flags = nk_edit_string_zero_terminated(self->ctx, edit_type, strbuf, max_len, nk_filter_ascii);
+
+    // construct output string
+    ks_str res = ks_str_new(strbuf);
+
+    // free tmp resources
+    ks_free(strbuf);
+
+    return (ks_obj)res;
+}
+
+
+
+
+
+
+
+
+
+/* Context.button_label(self, label) -> bool
  *
  * Create a button, returning true if pressed
  * 
  */
-static KS_TFUNC(Context, button) {
+static KS_TFUNC(Context, button_label) {
     KS_REQ_N_ARGS(n_args, 2);
     cNk_Context self;
     ks_str label;
@@ -517,31 +741,44 @@ static ks_module get_module() {
     ks_module mod = ks_module_new(MODULE_NAME);
 
     // create a context wrapper
-    KS_INIT_TYPE_OBJ(cNk_type_Context, "cnk.Context");
-    KS_INIT_TYPE_OBJ(cNk_type_iter_Context, "cnk.iter_Context");
+    KS_INIT_TYPE_OBJ(cNk_type_Context, "Context");
+    KS_INIT_TYPE_OBJ(cNk_type_iter_Context, "iter_Context");
 
 
     // create Context type
     ks_type_set_cn(cNk_type_Context, (ks_dict_ent_c[]){
-        {"__new__",       (ks_obj)ks_cfunc_new2(Context_new_, "cnk.Context.__new__()")},
-        {"__free__",      (ks_obj)ks_cfunc_new2(Context_free_, "cnk.Context.__free__(self)")},
+        {"__new__",       (ks_obj)ks_cfunc_new2(Context_new_, "Context.__new__()")},
+        {"__free__",      (ks_obj)ks_cfunc_new2(Context_free_, "Context.__free__(self)")},
 
-        {"__getattr__",   (ks_obj)ks_cfunc_new2(Context_getattr_, "cnk.Context.__getattr__(self, attr)")},
-        {"__setattr__",   (ks_obj)ks_cfunc_new2(Context_setattr_, "cnk.Context.__setattr__(self, attr, val)")},
+        {"__getattr__",   (ks_obj)ks_cfunc_new2(Context_getattr_, "Context.__getattr__(self, attr)")},
+        {"__setattr__",   (ks_obj)ks_cfunc_new2(Context_setattr_, "Context.__setattr__(self, attr, val)")},
 
-        {"__iter__",      (ks_obj)ks_cfunc_new2(Context_iter_, "cnk.Context.__iter__(self)")},
+        {"__iter__",      (ks_obj)ks_cfunc_new2(Context_iter_, "Context.__iter__(self)")},
 
-        {"frame_start",   (ks_obj)ks_cfunc_new2(Context_frame_start_, "cnk.Context.frame_start(self)")},
-        {"frame_end",     (ks_obj)ks_cfunc_new2(Context_frame_end_, "cnk.Context.frame_end(self)")},
+        {"frame_start",   (ks_obj)ks_cfunc_new2(Context_frame_start_, "Context.frame_start(self)")},
+        {"frame_end",     (ks_obj)ks_cfunc_new2(Context_frame_end_, "Context.frame_end(self)")},
 
         /* direct C API bindings */
 
-        {"begin",                  (ks_obj)ks_cfunc_new2(Context_begin_, "cnk.Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE)")},
-        {"end",                    (ks_obj)ks_cfunc_new2(Context_end_, "cnk.Context.end(self)")},
+        {"begin",                    (ks_obj)ks_cfunc_new2(Context_begin_, "Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE)")},
+        {"end",                      (ks_obj)ks_cfunc_new2(Context_end_, "Context.end(self)")},
 
-        {"layout_row_static",      (ks_obj)ks_cfunc_new2(Context_layout_row_static_, "cnk.Context.layout_row_static(self, height, item_width, cols=1)")},
 
-        {"button",                 (ks_obj)ks_cfunc_new2(Context_button_, "cnk.Context.button(self, label)")},
+        {"layout_set_min_height",    (ks_obj)ks_cfunc_new2(Context_layout_set_min_row_height_,   "Context.layout_set_min_row_height(self, height)")},
+        {"layout_reset_min_height",  (ks_obj)ks_cfunc_new2(Context_layout_reset_min_row_height_, "Context.layout_reset_min_row_height(self)")},
+
+        {"layout_widget_bounds",     (ks_obj)ks_cfunc_new2(Context_layout_widget_bounds_,        "Context.layout_widget_bounds(self)")},
+
+        {"layout_ratio_from_pixel",  (ks_obj)ks_cfunc_new2(Context_layout_ratio_from_pixel_,     "Context.layout_ratio_from_pixel(self, pixel_width)")},
+
+        {"layout_row_dynamic",       (ks_obj)ks_cfunc_new2(Context_layout_row_dynamic_,          "Context.layout_row_dynamic(self, height, cols=1)")},
+        {"layout_row_static",        (ks_obj)ks_cfunc_new2(Context_layout_row_static_,           "Context.layout_row_static(self, height, item_width, cols=1)")},
+
+
+        {"edit_string",              (ks_obj)ks_cfunc_new2(Context_edit_string_,        "Context.edit_string(self, edit_type, cur_str, max_len)")},
+
+
+        {"button_label",                 (ks_obj)ks_cfunc_new2(Context_button_label_, "Context.button_label(self, label)")},
 
 
         {NULL, NULL},
@@ -549,9 +786,9 @@ static ks_module get_module() {
 
     // create Context type
     ks_type_set_cn(cNk_type_iter_Context, (ks_dict_ent_c[]){
-        {"__free__",      (ks_obj)ks_cfunc_new2(iter_Context_free_, "cnk.iter_Context.__free__(self)")},
+        {"__free__",      (ks_obj)ks_cfunc_new2(iter_Context_free_, "iter_Context.__free__(self)")},
 
-        {"__next__",         (ks_obj)ks_cfunc_new2(iter_Context_next_, "cnk.iter_Context.__next__(self)")},
+        {"__next__",         (ks_obj)ks_cfunc_new2(iter_Context_next_, "iter_Context.__next__(self)")},
 
         {NULL, NULL},
     });
@@ -660,7 +897,31 @@ static ks_module get_module() {
     });
     ks_module_add_enum_members(mod, E_Button);
 
+    ks_type E_Edit  = ks_Enum_create_c("Edit", (struct ks_enum_entry_c[]){
+        KS_EEF(NK_EDIT_DEFAULT),
+        KS_EEF(NK_EDIT_READ_ONLY),
+        KS_EEF(NK_EDIT_AUTO_SELECT),
+        KS_EEF(NK_EDIT_SIG_ENTER),
+        KS_EEF(NK_EDIT_ALLOW_TAB),
+        KS_EEF(NK_EDIT_NO_CURSOR),
+        KS_EEF(NK_EDIT_SELECTABLE),
+        KS_EEF(NK_EDIT_CLIPBOARD),
+        KS_EEF(NK_EDIT_CTRL_ENTER_NEWLINE),
+        KS_EEF(NK_EDIT_NO_HORIZONTAL_SCROLL),
+        KS_EEF(NK_EDIT_ALWAYS_INSERT_MODE),
+        KS_EEF(NK_EDIT_MULTILINE),
+        KS_EEF(NK_EDIT_GOTO_END_ON_ACTIVATE),
 
+        // combinations
+
+        KS_EEF(NK_EDIT_SIMPLE),
+        KS_EEF(NK_EDIT_FIELD),
+        KS_EEF(NK_EDIT_BOX),
+        KS_EEF(NK_EDIT_EDITOR),
+
+        {NULL, -1}
+    });
+    ks_module_add_enum_members(mod, E_Edit);
 
 /*
     win = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Demo", NULL, NULL);

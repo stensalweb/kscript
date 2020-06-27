@@ -303,6 +303,31 @@ static KS_TFUNC(str, find) {
     return (ks_obj)ks_int_new(-1);
 };
 
+
+
+// str.contains(self, target) -> return whether 'target' is contained in 'self'
+static KS_TFUNC(str, contains) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self, target;
+    if (!ks_parse_params(n_args, args, "self%s target%s", &self, &target)) return NULL;
+
+
+    // impossible to find it
+    if (target->len > self->len) return KSO_FALSE;
+
+    int i;
+    // search for it
+    for (i = 0; i + target->len <= self->len; ++i) {
+        if (strncmp(self->chr + i, target->chr, target->len) == 0) {
+            return KSO_TRUE;
+        }
+    }
+
+    // none found
+    return KSO_FALSE;
+};
+
+
 // str.__iter__(self) -> return an iterator
 static KS_TFUNC(str, iter) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -456,6 +481,53 @@ static KS_TFUNC(str, substr) {
 };
 
 
+// str.__getitem__(self, idx) -> str
+// Return the string index
+// TODO: also apply slices
+static KS_TFUNC(str, getitem) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str self;
+    int64_t idx;
+    if (!ks_parse_params(n_args, args, "self%s idx%i64", &self, &idx)) return NULL;
+
+    // ensure negative indices are wrapped once
+    if (idx < 0) idx += self->len;
+
+    // do bounds check
+    if (idx < 0 || idx >= self->len) KS_ERR_KEY(self, args[1]);
+
+    // return characters
+    return KS_NEWREF(&KS_STR_CHARS[self->chr[idx]]);
+};
+
+
+
+/** is* funcs **/
+
+// str.isdigit(self) -> bool
+// Returns whether the the string contains only digits
+// for the empty string, return false
+static KS_TFUNC(str, isdigit) {
+    KS_REQ_N_ARGS(n_args, 1)
+    ks_str self;
+    if (!ks_parse_params(n_args, args, "self%s", &self)) return NULL;
+
+    // empty string is false
+    if (self->len == 0) return KSO_FALSE;
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        // if we found a non-digit character, return false
+        char c = self->chr[i];
+        if (!(c >= '0' && c <= '9')) return KSO_FALSE;
+    }
+
+    // all were digits
+    return KSO_TRUE;
+
+};
+
+
 /* str_iter */
 
 
@@ -531,16 +603,21 @@ void ks_type_str_init() {
         {"__cmp__", (ks_obj)ks_cfunc_new2(str_cmp_, "str.__cmp__(L, R)")},
         {"__eq__", (ks_obj)ks_cfunc_new2(str_eq_, "str.__eq__(L, R)")},
 
+        {"__getitem__", (ks_obj)ks_cfunc_new2(str_getitem_, "str.__getitem__(self, idx)")},
+
 
         {"substr", (ks_obj)ks_cfunc_new2(str_substr_, "str.substr(self, start=0, len=none)")},
 
         {"split", (ks_obj)ks_cfunc_new2(str_split_, "str.split(self, delim=' \\t\\n')")},
         {"find", (ks_obj)ks_cfunc_new2(str_find_, "str.find(self, target)")},
+        {"contains", (ks_obj)ks_cfunc_new2(str_contains_, "str.contains(self, target)")},
 
 
         {"join", (ks_obj)ks_cfunc_new2(str_join_, "str.join(self, objs)")},
 
         {"format", (ks_obj)ks_cfunc_new2(str_format_, "str.format(self, *objs)")},
+
+        {"isdigit", (ks_obj)ks_cfunc_new2(str_isdigit_, "str.isdigit(self)")},
 
 
         {NULL, NULL},

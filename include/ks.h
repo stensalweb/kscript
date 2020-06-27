@@ -2305,9 +2305,20 @@ KS_API ks_str ks_fmt_vc(const char* fmt, va_list ap);
 //   %s: ks_str*
 //   %i64: int64_t*
 //   %f: double*
+//   %any: any type
+//   %iter: any iterable
 //   %*: ks_type, ks_obj*
 // Prefix an argument for optional arguments
 KS_API bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...);
+
+
+/* BUILDING */
+
+// Build a tuple from C-style variables
+// For example, `ks_build_tuple("%i %f", 2, 3.0)` returns (2, 3.0)
+// NOTE: Returns a new reference, or NULL if there was an error thrown
+KS_API ks_tuple ks_build_tuple(const char* fmt, ...);
+
 
 
 /* TUPLE */

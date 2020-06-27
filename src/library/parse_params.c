@@ -161,6 +161,50 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             }
 
             *val_p = arg;
+
+        } else if (strcmp(argspec, "any") == 0) {
+            // should be (any type)
+            ks_obj* val_p = va_arg(ap, ks_obj*);
+
+            if (args_i >= n_args) {
+                if (isQuest) {
+                    // can skip
+                } else {
+                    continue;
+                    ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
+                    return false;
+                }
+            }
+
+            // claim this argument
+            ks_obj arg = args[args_i++];
+
+            *val_p = arg;
+        } else if (strcmp(argspec, "iter") == 0) {
+            // should be (iterable)
+            ks_obj* val_p = va_arg(ap, ks_obj*);
+
+            if (args_i >= n_args) {
+                if (isQuest) {
+                    // can skip
+                } else {
+                    continue;
+                    ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
+                    return false;
+                }
+            }
+
+            // claim this argument
+            ks_obj arg = args[args_i++];
+
+            // if it's not integral, throw an error
+            if (!ks_is_iterable(arg)) {
+                ks_throw_fmt(ks_type_TypeError, "Incorrect type for '%.*s', expected an iterable, but got '%T'", name_len, &fmt[name_i], arg);
+                return false;
+            }
+
+            *val_p = arg;
+
         } else {
             ks_error("Incorrect usage of ks_parse_params()! (unknown argspec)");
             exit(1);

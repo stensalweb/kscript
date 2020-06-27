@@ -305,6 +305,31 @@ static KS_TFUNC(list, getitem) {
     return KS_NEWREF(self->elems[idx]);
 };
 
+
+
+// list.__setitem__(self, idx, val) -> set an item in the list
+static KS_TFUNC(list, setitem) {
+    KS_REQ_N_ARGS(n_args, 3);
+    ks_list self = NULL;
+    int64_t idx = 0;
+    ks_obj val;
+    if (!ks_parse_params(n_args, args, "self%* idx%i64 val%any", &self, ks_type_list, &idx, &val)) return NULL;
+
+    // ensure negative indices are wrapped once
+    if (idx < 0) idx += self->len;
+
+    // do bounds check
+    if (idx < 0 || idx >= self->len) KS_ERR_KEY(self, args[1]);
+
+    // remove old reference
+    KS_DECREF(self->elems[idx]);
+    self->elems[idx] = KS_NEWREF(val);
+
+    // return the item specified
+    return KS_NEWREF(self->elems[idx]);
+};
+
+
 // list.__iter__(self) -> return an iterator
 static KS_TFUNC(list, iter) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -414,6 +439,7 @@ void ks_type_list_init() {
         {"pop", (ks_obj)ks_cfunc_new2(list_pop_, "list.pop(self)")},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(list_getitem_, "list.__getitem__(self, idx)")},
+        {"__setitem__", (ks_obj)ks_cfunc_new2(list_setitem_, "list.__setitem__(self, idx, val)")},
 
         {NULL, NULL}   
     });
