@@ -31,6 +31,13 @@ ks_int ks_int_new(int64_t val) {
     return self;
 }
 
+
+// convert to 64 bit integer
+bool ks_int_geti64(ks_int self, int64_t* out) {
+    *out = self->val;
+    return true;
+}
+
 /* member functions */
 
 // the maximum base supported
@@ -120,6 +127,8 @@ static KS_TFUNC(int, new) {
 
 
         return (ks_obj)ks_int_new(c_val);
+    } else if (ks_type_issub(obj->type, ks_type_Enum)) {
+        return (ks_obj)ks_int_new(((ks_Enum)obj)->enum_idx);
     } else {
         KS_ERR_CONV(obj, ks_type_int);
     }
@@ -335,6 +344,38 @@ static KS_TFUNC(int, pow) {
 };
 
 
+// int.__binor__(L, R) -> bitwise-or 2 integers
+static KS_TFUNC(int, binor) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        int64_t res = ((ks_int)L)->val | ((ks_int)R)->val;
+        // ensure it is above 0
+        if (res < 0) res += ((ks_int)R)->val;
+        return (ks_obj)ks_int_new(res);
+    }
+
+    KS_ERR_BOP_UNDEF("|", L, R);
+};
+
+// int.__binand__(L, R) -> bitwise-or 2 integers
+static KS_TFUNC(int, binand) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_int && R->type == ks_type_int) {
+        int64_t res = ((ks_int)L)->val & ((ks_int)R)->val;
+        // ensure it is above 0
+        if (res < 0) res += ((ks_int)R)->val;
+        return (ks_obj)ks_int_new(res);
+    }
+
+    KS_ERR_BOP_UNDEF("&", L, R);
+};
+
+
+
 // int.__cmp__(L, R) -> cmp 2 integers
 static KS_TFUNC(int, cmp) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -477,6 +518,9 @@ void ks_type_int_init() {
         {"__div__", (ks_obj)ks_cfunc_new2(int_div_, "int.__div__(L, R)")},
         {"__mod__", (ks_obj)ks_cfunc_new2(int_mod_, "int.__mod__(L, R)")},
         {"__pow__", (ks_obj)ks_cfunc_new2(int_pow_, "int.__pow__(L, R)")},
+
+        {"__binor__", (ks_obj)ks_cfunc_new2(int_binor_, "int.__binor__(L, R)")},
+        {"__binand__", (ks_obj)ks_cfunc_new2(int_binand_, "int.__binand__(L, R)")},
  
         {"__cmp__", (ks_obj)ks_cfunc_new2(int_cmp_, "int.__cmp__(L, R)")},
         {"__lt__", (ks_obj)ks_cfunc_new2(int_lt_, "int.__lt__(L, R)")},

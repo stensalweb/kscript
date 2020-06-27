@@ -40,6 +40,9 @@ ks_cfunc
     ks_F_div = NULL,
     ks_F_mod = NULL,
     ks_F_pow = NULL,
+
+    ks_F_binor = NULL,
+    ks_F_binand = NULL,
     
     ks_F_cmp = NULL,
     ks_F_lt = NULL,
@@ -480,9 +483,12 @@ static KS_FUNC(getitem) {
 
     ks_obj obj = args[0];
 
-
-    if (obj->type->__getitem__ != NULL) {
-
+    if (obj->type == ks_type_type && ((ks_type)obj)->__getitem__ != NULL) {
+        // if 'obj' is a type,
+        // call obj.__getitem__(obj, *args)
+        return ks_call(((ks_type)obj)->__getitem__, n_args, args);
+    } else if (obj->type->__getitem__ != NULL) {
+        // default:
         // call type(obj).__getitem__(*args)
         return ks_call(obj->type->__getitem__, n_args, args);
     }
@@ -715,6 +721,23 @@ T_KS_FUNC_BOP(mod, "%", __mod__, {})
  * 
  */
 T_KS_FUNC_BOP(pow, "**", __pow__, {})
+
+
+/* __binor__(L, R) -> obj
+ *
+ * Attempt to calculate 'L|R'
+ * 
+ */
+T_KS_FUNC_BOP(binor, "|", __binor__, { })
+
+
+
+/* __binand__(L, R) -> obj
+ *
+ * Attempt to calculate 'L|R'
+ * 
+ */
+T_KS_FUNC_BOP(binand, "&", __binand__, {})
 
 
 
@@ -2055,6 +2078,9 @@ void ks_init_funcs() {
     ks_F_div = ks_cfunc_new2(div_, "__div__(L, R)");
     ks_F_mod = ks_cfunc_new2(mod_, "__mod__(L, R)");
     ks_F_pow = ks_cfunc_new2(pow_, "__pow__(L, R)");
+
+    ks_F_binor = ks_cfunc_new2(binor_, "__binor__(L, R)");
+    ks_F_binand = ks_cfunc_new2(binand_, "__binand__(L, R)");
 
     ks_F_cmp = ks_cfunc_new2(cmp_, "__cmp__(L, R)");
     ks_F_lt = ks_cfunc_new2(lt_, "__lt__(L, R)");

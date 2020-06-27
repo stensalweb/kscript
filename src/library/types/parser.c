@@ -521,7 +521,9 @@ static void* tokenize(ks_parser self) {
             }
 
         } else if (c == '\'' || c == '"') {
+            // keep track of starting position 
             char s_c = c;
+            int o_i = i;
 
             // whether or not its triple quoted
             bool isTriple = false;
@@ -535,7 +537,7 @@ static void* tokenize(ks_parser self) {
                 ADV();
             }
 
-            while (self->src->chr[i] && self->src->chr[i] != s_c && (self->src->chr[i] != '\n' || isTriple)) {
+            while (self->src->chr[i] && (isTriple ? strncmp(&self->src->chr[i], &self->src->chr[o_i], 3) != 0 : self->src->chr[i] != s_c) && (self->src->chr[i] != '\n' || isTriple)) {
                 if (self->src->chr[i] == '\\') {
                     // escape code; skip it
                     ADV();
@@ -631,6 +633,9 @@ static void* tokenize(ks_parser self) {
 
         CASE_S(KS_TOK_OP, "&&")
         CASE_S(KS_TOK_OP, "||")
+
+        CASE_S(KS_TOK_OP, "&")
+        CASE_S(KS_TOK_OP, "|")
 
         CASE_S(KS_TOK_OP, "~")
         CASE_S(KS_TOK_OP, "=")
@@ -901,6 +906,9 @@ typedef struct syop {
         // truthiness boolean operators, like &&,||
         SYP_TRUTHY,
 
+        // bitwise operators, like |,&
+        SYP_BITWISE,
+
         // comparison operators, like <,>,==
         SYP_CMP,
 
@@ -975,10 +983,13 @@ static syop
     syb_add = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_ADD), syb_sub = SYBOP(SYP_ADDSUB, SYA_BOP_LEFT, KS_AST_BOP_SUB),
     syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV),
     syb_mod = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MOD), syb_pow = SYBOP(SYP_POW, SYA_BOP_RIGHT, KS_AST_BOP_POW),
+    syb_binor = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_BINOR), syb_binand = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_BINAND),
     syb_cmp = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_CMP),
+
     syb_lt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LT), syb_le = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LE), 
-    syb_gt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GT), syb_ge = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GE), 
+    syb_gt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GT), syb_ge = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_GE),
     syb_eq = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_EQ), syb_ne = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_NE),
+
     syb_or = SYBOP(SYP_TRUTHY, SYA_BOP_LEFT, KS_AST_BOP_OR), syb_and = SYBOP(SYP_TRUTHY, SYA_BOP_LEFT, KS_AST_BOP_AND),
 
     // special case
@@ -1284,6 +1295,10 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
                     KPE_OPCASE(ctok, "!=", syb_ne)
                     KPE_OPCASE(ctok, "||", syb_or)
                     KPE_OPCASE(ctok, "&&", syb_and)
+
+                    KPE_OPCASE(ctok, "|", syb_binor)
+                    KPE_OPCASE(ctok, "&", syb_binand)
+
                     KPE_OPCASE(ctok, "=",  syb_assign)
                 } else {
                     KPPE_ERR(ctok, "Unexpected operator");

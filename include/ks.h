@@ -394,6 +394,11 @@ enum {
     // the '**' operator
     KSB_BOP_POW,
 
+    // the '|' operator
+    KSB_BOP_BINOR,
+    // the '|' operator
+    KSB_BOP_BINAND,
+    
     // the '<=>' operator
     KSB_BOP_CMP,
 
@@ -526,6 +531,10 @@ typedef struct ks_dict* ks_dict;
 
 // Require that an object is iterable
 #define KS_REQ_ITERABLE(_obj, _name) KS_REQ(ks_is_iterable(_obj) == true, "'%T' object was not iterable", _obj)
+
+// Require that an object is indexable
+#define KS_REQ_INDEXABLE(_obj, _name) KS_REQ((_obj)->type->__getitem__ != NULL, "'%T' object was not indexable", _obj)
+
 
 // throw a type conversion error
 #define KS_ERR_CONV(_obj, _totype) { \
@@ -756,6 +765,11 @@ struct ks_type {
     // type.__pow__(A, B) -> return A ** B
     ks_obj __pow__;
 
+    // type.__binor__(A, B) -> return A | B
+    ks_obj __binor__;
+    // type.__binand__(A, B) -> return A & B
+    ks_obj __binand__;
+
     // type.__cmp__(A, B) -> return A <=> B
     ks_obj __cmp__;
     // type.__lt__(A, B) -> return A < B
@@ -776,6 +790,7 @@ struct ks_type {
 
     // type.__sqig__(A) -> return ~A
     ks_obj __sqig__;
+
 
 };
 
@@ -1216,6 +1231,12 @@ enum {
     // binary '**'
     KS_AST_BOP_POW,
 
+    // binary '|'
+    KS_AST_BOP_BINOR,
+    // binary '&'
+    KS_AST_BOP_BINAND,
+
+
     // binary '<=>'
     KS_AST_BOP_CMP,
 
@@ -1363,8 +1384,7 @@ typedef struct {
 // other Enumerations may derive from this class, like for example:
 // SideEnum derives from Enum,
 // and SideEnum.LEFT and SideEnum.RIGHT are elements
-// the Enum type itself has an attribute "_enum_dict", which is a dictionary mapping 
-//   string keys to enum elements
+// the Enum type itself has a list "_enum_keys", which is a list of string keys to the enum
 typedef struct {
     KS_OBJ_BASE
 
@@ -1563,6 +1583,11 @@ KS_API ks_module ks_module_new(char* mname);
 // NOTE: throws an error if not found
 // NOTE: Returns a new reference
 KS_API ks_module ks_module_import(char* mname);
+
+
+// Append all enum values directly to the module object
+KS_API void ks_module_add_enum_members(ks_module self, ks_type enumtype);
+
 
 
 /* I/O */
@@ -1854,6 +1879,9 @@ KS_API extern ks_cfunc
     ks_F_mod,
     ks_F_pow,
 
+    ks_F_binor,
+    ks_F_binand,
+
     ks_F_cmp,
     ks_F_lt,
     ks_F_le,
@@ -2017,6 +2045,10 @@ KS_API void ks_type_add_parent(ks_type self, ks_type parent);
 // NOTE: Returns a new referece
 KS_API ks_obj ks_type_get(ks_type self, ks_str key);
 
+// Get an attribute for the given type, from a C-style string
+// NOTE: Returns a new referece
+KS_API ks_obj ks_type_get_c(ks_type self, char* key);
+
 // Get a member function (self.attr), with the first argument filled as 'obj'
 //   as the instance
 // NOTE: Returns a new referece
@@ -2051,6 +2083,11 @@ KS_API int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 KS_API ks_int ks_int_new(int64_t val);
 
 
+// Attempt to convert a ks_int to a native int, returning whether it was successful.
+// If it wasn't successful, an error will be thrown
+KS_API bool ks_int_geti64(ks_int self, int64_t* out);
+
+
 /* LONG */
 
 // Create a new kscript long from a C-style integer value
@@ -2062,6 +2099,10 @@ KS_API ks_long ks_long_new(int64_t val);
 // NOTE: Returns a new reference
 KS_API ks_long ks_long_new_str(char* str, int base);
 
+
+//
+// NOTE: if the long object would not fit in an int64_t, it throws an error and returns false
+KS_API bool ks_long_getint64(ks_long self, int64_t* ret);
 
 
 /* FLOAT */
@@ -2076,6 +2117,21 @@ KS_API ks_float ks_float_new(double val);
 // Create a new kscript complex from a C-style complex value
 // NOTE: Returns a new reference
 KS_API ks_complex ks_complex_new(double complex val);
+
+
+/* GENERIC NUMERICS */
+
+
+// Attempt to convert 'self' to a double, and set 'out' to the value
+// This works with int/long/float, complex numbers will throw an error
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_getdouble(ks_obj self, double* out);
+
+// Attempt to convert 'self' to a int64_t, and set 'out' to the value
+// This works with int/long, float and complex numbers will throw an error
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_getint64(ks_obj self, int64_t* out);
+
 
 
 /* STR */
@@ -2192,11 +2248,13 @@ KS_API bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key);
 // Get a value of the dictionary
 // NULL if it does not exist
 // NOTE: Returns a new reference
+// NOTE: Does not throw an error if it does not exist
 KS_API ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key);
 
 // Get a value of the dictionary
 // NULL if it does not exist
 // NOTE: Returns a new reference
+// NOTE: Does not throw an error if it does not exist
 KS_API ks_obj ks_dict_get_c(ks_dict self, char* key);
 
 // Set a dictionary entry for a key, to a value
@@ -2215,6 +2273,45 @@ KS_API bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
 // NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
 //   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
 KS_API int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
+
+
+
+/* ENUM */
+
+// Construct an enum member from a given argument
+// NOTE: Returns a new reference
+KS_API ks_Enum ks_Enum_new(ks_type enumtype, ks_obj arg);
+
+// Construct an enum member from a C-style string
+// NOTE: Returns a new reference
+KS_API ks_Enum ks_Enum_new_c(ks_type enumtype, char* arg);
+
+// entry for constructing an enum entry in C
+struct ks_enum_entry_c {
+
+    // the name of the enum member
+    char* name;
+
+    // the index of the enum member, or -1 for auto
+    int idx;
+};
+
+
+// Create an enum entry for an actual C-declared enum
+#define KS_ENUM_ENTRY_FILL(_enum) ((struct ks_enum_entry_c){ #_enum, (int)(_enum) })
+#define KS_EEF KS_ENUM_ENTRY_FILL
+
+// Create a new enum type from C-style arguments
+// for example, ks_Enum_create_c("Side", (struct ks_enum_entry_c[]){
+//   {"NONE",   -1},   
+//   {"LEFT",   -1},   
+//   {"RIGHT",  -1},   
+//   {NULL,     -1},   
+// }
+// NOTE: Returns a new reference
+KS_API ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents);
+
+
 
 
 /* ERROR */

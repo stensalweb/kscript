@@ -60,9 +60,32 @@ ks_obj ks_type_get(ks_type self, ks_str key) {
     if (key->len == 8 && strncmp(key->chr, "__dict__", 8) == 0) return KS_NEWREF(self->attr);
 
     // get from the internal dictionary
-    return ks_dict_get(self->attr, hash, (ks_obj)key);
+    ks_obj res = ks_dict_get(self->attr, hash, (ks_obj)key);
+    if (!res) {
+
+        int i;
+        for (i = 0; i < self->__parents__->len; ++i) {
+            ks_type cpar = (ks_type)self->__parents__->elems[i];
+            ks_obj tr = ks_type_get(cpar, key);
+            if (tr != NULL) return tr;
+        }
+
+        // nothing found
+        return NULL;
+    } else {
+        // just return the result
+        return res;
+    }
+
 }
 
+// get an attribute, with C-style string
+ks_obj ks_type_get_c(ks_type self, char* key) {
+    ks_str key_str = ks_str_new(key);
+    ks_obj res = ks_type_get(self, key_str);
+    KS_DECREF(key_str);
+    return res;
+}
 
 // return a memberfunction of self.attr(obj, *)
 ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj) {
@@ -139,6 +162,9 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__div__", __div__)
         ATTR_CASE("__mod__", __mod__)
         ATTR_CASE("__pow__", __pow__)
+        
+        ATTR_CASE("__binor__", __binor__)
+        ATTR_CASE("__binand__", __binand__)
 
         ATTR_CASE("__cmp__", __cmp__)
         ATTR_CASE("__lt__", __lt__)
@@ -215,6 +241,9 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
     REPL(__div__)
     REPL(__mod__)
     REPL(__pow__)
+    
+    REPL(__binor__)
+    REPL(__binand__)
 
     REPL(__cmp__)
     REPL(__lt__)

@@ -42,6 +42,19 @@ ks_long ks_long_new_str(char* str, int base) {
     return self;
 }
 
+// convert a long into an integer,
+// or return false otherwise
+bool ks_long_getint64(ks_long self, int64_t* ret) {
+    if (mpz_fits_slong_p(self->val)) {
+        *ret = mpz_get_si(self->val);
+        return true;
+    } else {
+        *ret = -1;
+        return false;
+    }
+}
+
+
 // construct a copy of a long
 static ks_long my_longcopy(ks_long other) {
     ks_long self = KS_ALLOC_OBJ(ks_long);
@@ -64,6 +77,7 @@ static bool my_getint(ks_long self, int64_t* ret) {
         return false;
     }
 }
+
 
 
 
@@ -124,6 +138,7 @@ static KS_TFUNC(long, str) {
 
     return (ks_obj)res;
 };
+
 
 
 // long.__hash__(self) -> calculate the hash of a long object

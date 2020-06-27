@@ -371,9 +371,11 @@ static KS_TFUNC(req, download) {
     // construct the result we want to return
     req_Result res = NULL;
     if (dest_arg->type == ks_type_str) {
-        res = req_make_Result(url, http_code, dest_arg);
+        res = req_make_Result(url, http_code, (ks_str)dest_arg);
     } else {
-        res = req_make_Result(url, http_code, dest_arg);
+        ks_str dest_arg_str = ks_str_new("");
+        res = req_make_Result(url, http_code, dest_arg_str);
+        KS_DECREF(dest_arg_str);
     }
     
     

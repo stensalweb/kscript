@@ -230,11 +230,9 @@ void ks_catch_ignore() {
     if (cth->exc != NULL) {
         KS_DECREF(cth->exc);
         cth->exc = NULL;
-
-        if (cth->exc_info != NULL) {
-            KS_DECREF(cth->exc_info);
-            cth->exc_info = NULL;
-        }
     }
-
+    if (cth->exc_info != NULL) {
+        KS_DECREF(cth->exc_info);
+        cth->exc_info = NULL;
+    }
 }

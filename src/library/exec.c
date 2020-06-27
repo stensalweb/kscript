@@ -631,6 +631,9 @@ ks_obj ks__exec(ks_code code) {
         T_BOP_CASE(KSB_BOP_MOD, "%", ks_F_mod, {});
         T_BOP_CASE(KSB_BOP_POW, "**", ks_F_pow, {});
 
+        T_BOP_CASE(KSB_BOP_BINOR, "|", ks_F_binor, {});
+        T_BOP_CASE(KSB_BOP_BINAND, "&", ks_F_binand, {});
+
         T_BOP_CASE(KSB_BOP_CMP, "<=>", ks_F_cmp, {});
 
         T_BOP_CASE(KSB_BOP_LT, "<", ks_F_lt, {});

@@ -14,7 +14,10 @@
 // system socket library
 #include <sys/socket.h> 
 #include <netinet/in.h> 
+#include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h> // for open
+#include <unistd.h> // for close
 
 // sock.Socket - class describing a Socket object
 typedef struct {
@@ -312,7 +315,7 @@ static KS_TFUNC(Socket, accept) {
     }
 
     // construct a tuple with (socket, address)
-    return ks_tuple_new_n(2, (ks_obj[]){ wrap_Socket(sockfd_conn, addr_conn.sin_family, self->socket_type, true, false), ks_str_new(tmpstr) });
+    return (ks_obj)ks_tuple_new_n(2, (ks_obj[]){ (ks_obj)wrap_Socket(sockfd_conn, addr_conn.sin_family, self->socket_type, true, false), (ks_obj)ks_str_new(tmpstr) });
 }
 
 
@@ -385,7 +388,7 @@ static KS_TFUNC(Socket, recv) {
         return ks_throw_fmt(ks_type_IOError, "Cant recv before the socket is bound!");
     }
 
-    void* tmpbuf = ks_malloc(sz->val);
+    char* tmpbuf = ks_malloc(sz->val);
     ssize_t sum_sz = 0;
 
 
@@ -452,7 +455,7 @@ static KS_TFUNC(Socket, get_port) {
         return ks_throw_fmt(ks_type_IOError, "Cant get the port before the socket is bound!");
     }
 
-    return (ks_int)ks_int_new((int)ntohs(self->sa_addr.sin_port));
+    return (ks_obj)ks_int_new((int)ntohs(self->sa_addr.sin_port));
 }
 
 /* Socket.handle_forever(self)

@@ -128,7 +128,7 @@ KS_TFUNC(nx, add) {
         return (ks_obj)D;
 
     } else if (ks_is_iterable(B)) {
-        nx_array Barr = (nx_array)ks_call(nx_type_array, 1, &B);
+        nx_array Barr = (nx_array)ks_call((ks_obj)nx_type_array, 1, &B);
         if (!Barr) return NULL;
 
         // now, attempt to add it

@@ -95,7 +95,9 @@ ks_module ks_module_import(char* mname) {
 
         mod = attempt_load(ctry->chr);
         KS_DECREF(ctry);
+
         if (mod != NULL) goto finish;
+        if (ks_thread_get()->exc) goto finish;
 
         ctry = ks_fmt_c("%S/modules/%s/libksm_%s.%s", ks_paths->elems[i], mname, mname, KS_SHARED_END);
 
@@ -111,7 +113,8 @@ ks_module ks_module_import(char* mname) {
     if (mod == NULL) {
         // not found, throw error
         KS_DECREF(mod_key);
-        return ks_throw_fmt(ks_type_Error, "Failed to import module '%s': No such module!", mname);
+        if (ks_thread_get()->exc) return NULL;
+        else return ks_throw_fmt(ks_type_Error, "Failed to import module '%s': No such module!", mname);
     } else {
         // add it to the dictionary, and return
         ks_dict_set(mod_cache, mod_key->v_hash, (ks_obj)mod_key, (ks_obj)mod);
@@ -119,6 +122,40 @@ ks_module ks_module_import(char* mname) {
         return mod;
     }
 
+
+}
+
+// add member types
+void ks_module_add_enum_members(ks_module self, ks_type enumtype) {
+    if (!ks_type_issub(enumtype, ks_type_Enum)) {
+        ks_throw_fmt(ks_type_TypeError, "Attempted to add a type that was not an enum with a module!");
+        return;
+    }
+
+    // get the enum keys array
+    ks_list e_keys = (ks_list)ks_type_get_c(enumtype, "_enum_keys");
+    if (!e_keys) return;
+    if (e_keys->type != ks_type_list) {
+        ks_throw_fmt(ks_type_TypeError, "While adding enum to module: '_enum_keys' (type: %T) was not a list!", e_keys);
+        KS_DECREF(e_keys);
+        return;
+    }
+
+    int i;
+    for (i = 0; i < e_keys->len; ++i) {
+        ks_str e_key = (ks_str)e_keys->elems[i];
+        if (e_key->type != ks_type_str) {
+            KS_DECREF(e_keys);
+            ks_throw_fmt(ks_type_TypeError, "Internal problem with enum; '_enum_keys' (which was %R) contained a non-string", e_keys);
+            return;
+        }
+
+        // add a reference in the module
+        ks_obj e_elem = ks_dict_get(enumtype->attr, e_key->v_hash, (ks_obj)e_key);
+        ks_dict_set(self->attr, e_key->v_hash, (ks_obj)e_key, e_elem);
+        KS_DECREF(e_elem);
+    }
+    KS_DECREF(e_keys);
 
 }
 
