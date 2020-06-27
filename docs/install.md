@@ -67,7 +67,7 @@ Once in that folder, run:
 
 If you want to customize the installation, you can run `./configure --help` for more options.
 
-For example, to build with absolutely no outside libraries, run `./configure --without-curl --without-gmp --without-readline` first. The help menu gives you more options as well
+For example, to build with absolutely no outside libraries, run `./configure --without-curl --without-gmp --without-readline --without-glfw3` first. The help menu gives you more options as well
 
 
 Once the configuration script has been ran, then run:
