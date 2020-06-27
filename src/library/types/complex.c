@@ -32,55 +32,27 @@ static KS_TFUNC(complex, new) {
     if (n_args == 0) {
         return (ks_obj)ks_complex_new(0);
     } else if (n_args == 1) {
-        ks_obj real = args[0];
-
-        if (real->type == ks_type_complex) {
-            return KS_NEWREF(real);
-        } else if (real->type == ks_type_float) {
-            return (ks_obj)ks_complex_new(((ks_float)real)->val);
-        } else if (real->type == ks_type_int) {
-            return (ks_obj)ks_complex_new(((ks_int)real)->val);
-        } else {
-            KS_ERR_CONV(real, ks_type_complex);
-        }
-    } else {
-        // n_args == 2
-        ks_obj real = args[0], imag = args[1];
-
-        double real_d = 0.0, imag_d = 0.0;
-
-
-        // add 1 * real
-
-        if (real->type == ks_type_complex) {
-            // add together
-            real_d += creal(((ks_complex)real)->val);
-            imag_d += cimag(((ks_complex)real)->val);
-        } else if (real->type == ks_type_float) {
-            real_d += ((ks_float)real)->val;
-        } else if (real->type == ks_type_int) {
-            real_d += ((ks_int)real)->val;
-        } else {
-            KS_ERR_CONV(real, ks_type_complex);
-        }
-
-        // add 1i * imag
-
-        if (real->type == ks_type_complex) {
-            // add together
-            real_d -= cimag(((ks_complex)imag)->val);
-            imag_d += creal(((ks_complex)imag)->val);
-        } else if (imag->type == ks_type_float) {
-            imag_d += ((ks_float)imag)->val;
-        } else if (imag->type == ks_type_int) {
-            imag_d += ((ks_int)imag)->val;
-        } else {
-            KS_ERR_CONV(imag, ks_type_complex);
+        double complex real_v;
+        if (
+            !ks_num_get_double_complex(args[0], &real_v)
+        ) {
+            return NULL;
         }
 
         // now, construct it
-        return (ks_obj)ks_complex_new(real_d + I * imag_d);
+        return (ks_obj)ks_complex_new(real_v);
+    } else {
+        // n_args == 2
+        double complex real_v, imag_v;
+        if (
+            !ks_num_get_double_complex(args[0], &real_v) || 
+            !ks_num_get_double_complex(args[1], &imag_v)
+        ) {
+            return NULL;
+        }
 
+        // now, construct it
+        return (ks_obj)ks_complex_new(real_v + I * imag_v);
     }
 
 };
@@ -144,144 +116,6 @@ static KS_TFUNC(complex, free) {
 };
 
 
-// standard cases (i.e. TL <op> TR)
-// each operand is converted to a complex first
-// use 'vL' and 'vR' as arguments, assign result to 'vRes'
-#define T_BOP_STDCASE(...) { \
-    if (L->type == ks_type_complex) { \
-        vL = ((ks_complex)L)->val; \
-    } else if (L->type == ks_type_float) { \
-        vL = ((ks_float)L)->val; \
-    } else if (L->type == ks_type_int) { \
-        vL = ((ks_int)L)->val; \
-    } else { \
-        goto _err; \
-    } \
-    if (R->type == ks_type_complex) { \
-        vR = ((ks_complex)R)->val; \
-    } else if (R->type == ks_type_float) { \
-        vR = ((ks_float)R)->val; \
-    } else if (R->type == ks_type_int) { \
-        vR = ((ks_int)R)->val; \
-    } else { \
-        goto _err; \
-    } \
-    { __VA_ARGS__; }; \
-    return (ks_obj)ks_complex_new(vRes); \
-    _err: ; \
-}
-
-// complex.__add__(L, R) -> add 2 numbers
-static KS_TFUNC(complex, add) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR, vRes;
-
-
-    T_BOP_STDCASE(vRes = vL + vR);
-
-
-    KS_ERR_BOP_UNDEF("+", L, R);
-};
-
-// complex.__sub__(L, R) -> subtract 2 numbers
-static KS_TFUNC(complex, sub) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL - vR);
-
-    KS_ERR_BOP_UNDEF("-", L, R);
-};
-
-
-// complex.__mul__(L, R) -> multiply 2 numbers
-static KS_TFUNC(complex, mul) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL * vR);
-
-    KS_ERR_BOP_UNDEF("*", L, R);
-};
-
-// complex.__div__(L, R) -> divide 2 numbers
-static KS_TFUNC(complex, div) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL / vR);
-
-    KS_ERR_BOP_UNDEF("/", L, R);
-};
-
-/*
-// complex.__mod__(L, R) -> modular
-static KS_TFUNC(complex, mod) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = fmod(vL, vR));
-
-    KS_ERR_BOP_UNDEF("%", L, R);
-};
-*/
-
-// complex.__pow__(L, R) -> exponent
-static KS_TFUNC(complex, pow) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = cpow(vL, vR));
-
-    KS_ERR_BOP_UNDEF("**", L, R);
-};
-
-
-
-// complex.__eq__(L, R) -> cmp 2 floats
-static KS_TFUNC(complex, eq) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR;
-    bool vRes;
-
-    T_BOP_STDCASE(vRes = vL == vR; return KSO_BOOL(vRes); );
-
-    KS_ERR_BOP_UNDEF("==", L, R);
-};
-
-
-// complex.__ne__(L, R) -> cmp 2 floats
-static KS_TFUNC(complex, ne) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double complex vL, vR;
-    bool vRes;
-
-    T_BOP_STDCASE(vRes = vL != vR; return KSO_BOOL(vRes); );
-
-    KS_ERR_BOP_UNDEF("!=", L, R);
-};
-
-
-// complex.__neg__(V) -> negative float
-static KS_TFUNC(complex, neg) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_obj V = args[0];
-
-    if (V->type == ks_type_complex) {
-        return (ks_obj)ks_complex_new(-((ks_complex)V)->val);
-    }
-
-    KS_ERR_UOP_UNDEF("-", V);
-};
-
 // complex.__sqig__(V) -> return complex conjugate
 static KS_TFUNC(complex, sqig) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -334,36 +168,95 @@ static KS_TFUNC(complex, setattr) {
     // check standards:
     if (attr->len == 4 && strncmp(attr->chr, "real", 4) == 0) {
         double val_d = 0.0;
-        if (val->type == ks_type_int) {
-            val_d = ((ks_int)val)->val;
-        } else if (val->type == ks_type_float) {
-            val_d = ((ks_float)val)->val;
-        } else {
-            KS_REQ_TYPE(val, ks_type_float, "val");
-        }
+        if (!ks_num_get_double(val, &val_d)) return NULL;
 
         // set
-        self->val = val_d +  I * cimag(self->val);
+        self->val = val_d + I * cimag(self->val);
 
         return KSO_NONE;
     } else if (attr->len == 4 && strncmp(attr->chr, "imag", 4) == 0) {
         double val_d = 0.0;
-        if (val->type == ks_type_int) {
-            val_d = ((ks_int)val)->val;
-        } else if (val->type == ks_type_float) {
-            val_d = ((ks_float)val)->val;
-        } else {
-            KS_REQ_TYPE(val, ks_type_float, "val");
-        }
-
-        // set
-        self->val = creal(self->val) +  I * val_d;
+        if (!ks_num_get_double(val, &val_d)) return NULL;
+        self->val = creal(self->val) + I * val_d;
 
         return KSO_NONE;
     }
 
     KS_ERR_ATTR(self, attr);
 };
+
+
+
+
+/** MATH FUNCS **/
+
+static KS_TFUNC(complex, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_add(args[0], args[1]);
+};
+static KS_TFUNC(complex, sub) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_sub(args[0], args[1]);
+};
+static KS_TFUNC(complex, mul) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_mul(args[0], args[1]);
+};
+static KS_TFUNC(complex, div) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_div(args[0], args[1]);
+};
+static KS_TFUNC(complex, mod) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_mod(args[0], args[1]);
+};
+static KS_TFUNC(complex, pow) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_pow(args[0], args[1]);
+};
+
+static KS_TFUNC(complex, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    return ks_num_neg(args[0]);
+};
+
+static KS_TFUNC(complex, cmp) {
+    KS_REQ_N_ARGS(n_args, 2);
+    complex res;
+    if (!ks_num_cmp(args[0], args[1], &res)) return NULL;
+    return (ks_obj)ks_complex_new(res);
+};
+
+static KS_TFUNC(complex, lt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_lt(args[0], args[1]);
+};
+static KS_TFUNC(complex, le) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_le(args[0], args[1]);
+};
+static KS_TFUNC(complex, gt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_gt(args[0], args[1]);
+};
+static KS_TFUNC(complex, ge) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_ge(args[0], args[1]);
+};
+static KS_TFUNC(complex, eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    bool res;
+    if (!ks_num_eq(args[0], args[1], &res)) return NULL;
+    return KSO_BOOL(res);
+};
+static KS_TFUNC(complex, ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    bool res;
+    if (!ks_num_eq(args[0], args[1], &res)) return NULL;
+    return KSO_BOOL(!res);
+};
+
+
 
 
 
@@ -383,17 +276,24 @@ void ks_type_complex_init() {
         {"__repr__", (ks_obj)ks_cfunc_new2(complex_str_, "complex.__repr__(self)")},
         
         {"__free__", (ks_obj)ks_cfunc_new2(complex_free_, "complex.__free__(self)")},
- 
-        {"__add__", (ks_obj)ks_cfunc_new2(complex_add_, "complex.__add__(L, R)")},
-        {"__sub__", (ks_obj)ks_cfunc_new2(complex_sub_, "complex.__sub__(L, R)")},
-        {"__mul__", (ks_obj)ks_cfunc_new2(complex_mul_, "complex.__mul__(L, R)")},
-        {"__div__", (ks_obj)ks_cfunc_new2(complex_div_, "complex.__div__(L, R)")},
-        {"__pow__", (ks_obj)ks_cfunc_new2(complex_pow_, "complex.__pow__(L, R)")},
- 
-        {"__eq__", (ks_obj)ks_cfunc_new2(complex_eq_, "complex.__eq__(L, R)")},
-        {"__ne__", (ks_obj)ks_cfunc_new2(complex_ne_, "complex.__ne__(L, R)")},
 
-        {"__neg__", (ks_obj)ks_cfunc_new2(complex_neg_, "complex.__neg__(self)")},
+        {"__add__",       (ks_obj)ks_cfunc_new2(complex_add_, "complex.__add__(L, R)")},
+        {"__sub__",       (ks_obj)ks_cfunc_new2(complex_sub_, "complex.__sub__(L, R)")},
+        {"__mul__",       (ks_obj)ks_cfunc_new2(complex_mul_, "complex.__mul__(L, R)")},
+        {"__div__",       (ks_obj)ks_cfunc_new2(complex_div_, "complex.__div__(L, R)")},
+        {"__mod__",       (ks_obj)ks_cfunc_new2(complex_mod_, "complex.__mod__(L, R)")},
+        {"__pow__",       (ks_obj)ks_cfunc_new2(complex_pow_, "complex.__pow__(L, R)")},
+        {"__neg__",       (ks_obj)ks_cfunc_new2(complex_neg_, "complex.__neg__(L)")},
+
+        {"__cmp__",       (ks_obj)ks_cfunc_new2(complex_cmp_, "complex.__cmp__(L, R)")},
+        {"__lt__",        (ks_obj)ks_cfunc_new2(complex_lt_, "complex.__lt__(L, R)")},
+        {"__le__",        (ks_obj)ks_cfunc_new2(complex_le_, "complex.__le__(L, R)")},
+        {"__gt__",        (ks_obj)ks_cfunc_new2(complex_gt_, "complex.__gt__(L, R)")},
+        {"__ge__",        (ks_obj)ks_cfunc_new2(complex_ge_, "complex.__ge__(L, R)")},
+        {"__eq__",        (ks_obj)ks_cfunc_new2(complex_eq_, "complex.__eq__(L, R)")},
+        {"__ne__",        (ks_obj)ks_cfunc_new2(complex_ne_, "complex.__ne__(L, R)")},
+
+
         {"__sqig__", (ks_obj)ks_cfunc_new2(complex_sqig_, "complex.__sqig__(self)")},
 
         {"i", (ks_obj)ks_complex_new(I)},

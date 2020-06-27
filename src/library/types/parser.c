@@ -301,7 +301,16 @@ static ks_obj tok_getval(ks_tok tok) {
 
     if (tok.type == KS_TOK_INT) {
         // parse out an integer (or long)
-        if (tok.parser->src->chr[tok.pos + tok.len - 1] == 'L') {
+        // it is a long constant
+        char* new_tmp = ks_malloc(tok.len + 1);
+        strncpy(new_tmp, tok.parser->src->chr + tok.pos, tok.len);
+        new_tmp[tok.len] = '\0';
+
+        ks_int res = ks_int_new_s(new_tmp, 10);
+        ks_free(new_tmp);
+        return (ks_obj)res;
+
+        /*if (tok.parser->src->chr[tok.pos + tok.len - 1] == 'L') {
             // it is a long constant
             char* new_tmp = ks_malloc(tok.len + 1);
             strncpy(new_tmp, tok.parser->src->chr + tok.pos, tok.len);
@@ -320,7 +329,7 @@ static ks_obj tok_getval(ks_tok tok) {
             // ensure it was parsed
             if (sscanf(tmp, "%lli", &val) != 1) return syntax_error(tok, "Invalid format for an integer literal");
             return (ks_obj)ks_int_new(val);
-        }
+        }*/
     } else if (tok.type == KS_TOK_FLOAT) {
 
         if (tok.parser->src->chr[tok.pos + tok.len - 1] == 'i') {

@@ -58,12 +58,16 @@ static ks_obj cvtNum(ks_obj obj, int minTY) {
         return KS_NEWREF(obj);
     } else if (minTY == TY_FLOAT) {
         if (obj->type == ks_type_int) {
-            return (ks_obj)ks_float_new(((ks_int)obj)->val);
+            double out;
+            if (!ks_num_get_double(obj, &out)) return NULL;
+            return (ks_obj)ks_float_new(out);
         }
         return KS_NEWREF(obj);
     } else if (minTY == TY_COMPLEX) {
         if (obj->type == ks_type_int) {
-            return (ks_obj)ks_complex_new(((ks_int)obj)->val);
+            double complex out;
+            if (!ks_num_get_double_complex(obj, &out)) return NULL;
+            return (ks_obj)ks_complex_new(out);
         } else if (obj->type == ks_type_float) {
             return (ks_obj)ks_complex_new(((ks_float)obj)->val);
         }

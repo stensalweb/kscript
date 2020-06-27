@@ -32,7 +32,6 @@ void ks_obj_free(ks_obj obj) {
     }
 }
 
-
 // calculate len(obj)
 int64_t ks_len(ks_obj obj) {
     if (obj->type == ks_type_str) {
@@ -46,18 +45,17 @@ int64_t ks_len(ks_obj obj) {
     return -1;
 }
 
-
 // calculate hash(obj)
-ks_hash_t ks_hash(ks_obj obj) {
+bool ks_hash(ks_obj obj, ks_hash_t* out) {
     if (obj->type == ks_type_str) {
-        return ((ks_str)obj)->v_hash;
-    } else if (obj->type == ks_type_int) {
-        int64_t v = ((ks_int)obj)->val;
-        return (ks_hash_t)(v == 0 ? 1 : v);
+        *out = ((ks_str)obj)->v_hash;
+        return true;
+    } else if (obj->type == ks_type_bool || obj->type == ks_type_int || obj->type == ks_type_float || obj->type == ks_type_complex) {
+        return ks_num_hash(obj, out);
+    } else {
+        // TODO; try ks_F_hash
+        return false;
     }
-
-    // no hash, so return 0
-    return 0;
 }
 
 // return A==B
@@ -99,7 +97,7 @@ int ks_truthy(ks_obj obj) {
     } else if (obj->type == ks_type_none) {
         return 0;
     } else if (obj->type == ks_type_int) {
-        return ((ks_int)obj)->val != 0 ? 1 : 0;
+        return ks_int_sgn((ks_int)obj) != 0;
     } else if (obj->type == ks_type_float) {
         return ((ks_float)obj)->val != 0 ? 1 : 0;
     } else if (obj->type == ks_type_complex) {

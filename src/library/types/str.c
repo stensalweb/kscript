@@ -437,16 +437,10 @@ static KS_TFUNC(str, substr) {
     int64_t start = 0;
     int64_t len = self->len;
 
-    if (n_args > 1) {
-        ks_int start_o = (ks_int)args[1];
-        KS_REQ_TYPE(start_o, ks_type_int, "start");
-        start = start_o->val;
-    }
-
-    if (n_args > 2) {
-        ks_int len_o = (ks_int)args[2];
-        KS_REQ_TYPE(len_o, ks_type_int, "len");
-        len = len_o->val;
+    if (n_args == 2) {
+        if (!ks_parse_params(n_args-1, args+1, "start%i64", &start)) return NULL;
+    } else if (n_args == 3) {
+        if (!ks_parse_params(n_args-1, args+1, "start%i64 len%i64", &start, &len)) return NULL;
     }
 
 

@@ -65,7 +65,6 @@ bool ks_init() {
     ks_type_none_init();
     ks_type_bool_init();
     ks_type_int_init();
-    ks_type_long_init();
     ks_type_float_init();
 
     ks_type_str_init();
@@ -173,7 +172,6 @@ bool ks_init() {
 
         {"bool",           KS_NEWREF(ks_type_bool)},
         {"int",            KS_NEWREF(ks_type_int)},
-        {"long",           KS_NEWREF(ks_type_long)},
         {"float",          KS_NEWREF(ks_type_float)},
         {"complex",        KS_NEWREF(ks_type_complex)},
         

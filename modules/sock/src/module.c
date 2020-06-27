@@ -173,13 +173,11 @@ static KS_TFUNC(Socket, free) {
  */
 static KS_TFUNC(Socket, connect) {
     KS_REQ_N_ARGS(n_args, 3);
-    sock_Socket self = (sock_Socket)args[0];
-    KS_REQ_TYPE(self, sock_type_Socket, "self");
-    ks_str address = (ks_str)args[1];
-    KS_REQ_TYPE(address, ks_type_str, "address");
-    ks_int port = (ks_int)args[2];
-    KS_REQ_TYPE(port, ks_type_int, "port");
-
+    sock_Socket self = NULL;
+    ks_str address = NULL;
+    int64_t port = 0;
+    if (!ks_parse_params(n_args, args, "self%* address%s port%i64", &self, sock_type_Socket, &address, &port)) return NULL;
+    
     // the server address
     struct sockaddr_in serv_addr;
 
@@ -187,7 +185,7 @@ static KS_TFUNC(Socket, connect) {
     serv_addr.sin_family = self->af_type;
 
     // set the port as well
-    serv_addr.sin_port = htons((uint16_t)port->val);
+    serv_addr.sin_port = htons((uint16_t)port);
 
     // try to resolve the address
     // (TODO: perhaps make this a function?)
@@ -215,18 +213,16 @@ static KS_TFUNC(Socket, connect) {
  */
 static KS_TFUNC(Socket, bind) {
     KS_REQ_N_ARGS(n_args, 3);
-    sock_Socket self = (sock_Socket)args[0];
-    KS_REQ_TYPE(self, sock_type_Socket, "self");
-    ks_str address = (ks_str)args[1];
-    KS_REQ_TYPE(address, ks_type_str, "address");
-    ks_int port = (ks_int)args[2];
-    KS_REQ_TYPE(port, ks_type_int, "port");
+    sock_Socket self = NULL;
+    ks_str address = NULL;
+    int64_t port = 0;
+    if (!ks_parse_params(n_args, args, "self%* address%s port%i64", &self, sock_type_Socket, &address, &port)) return NULL;
 
     // set the family type to the AF type that the socket was created with
     self->sa_addr.sin_family = self->af_type;
 
     // set the port as well
-    self->sa_addr.sin_port = htons((uint16_t)port->val);
+    self->sa_addr.sin_port = htons((uint16_t)port);
 
     // try to resolve the address
     // (TODO: perhaps make this a function?)
@@ -255,10 +251,9 @@ static KS_TFUNC(Socket, bind) {
  */
 static KS_TFUNC(Socket, listen) {
     KS_REQ_N_ARGS(n_args, 2);
-    sock_Socket self = (sock_Socket)args[0];
-    KS_REQ_TYPE(self, sock_type_Socket, "self");
-    ks_int num = (ks_int)args[1];
-    KS_REQ_TYPE(num, ks_type_int, "num");
+    sock_Socket self = NULL;
+    int64_t num = 0;
+    if (!ks_parse_params(n_args, args, "self%* num%i64", &self, sock_type_Socket, &num)) return NULL;
 
     // make sure it's valid
     if (!self->is_bound) {
@@ -266,7 +261,7 @@ static KS_TFUNC(Socket, listen) {
     }
 
     // attempt to listen to that number of connections at a time
-    if (listen(self->sockfd, num->val) < 0) { 
+    if (listen(self->sockfd, num) < 0) { 
         return ks_throw_fmt(ks_type_IOError, "Could not listen on socket! (reason: %s)", strerror(errno));
     }
     
@@ -378,22 +373,22 @@ static KS_TFUNC(Socket, send) {
  */
 static KS_TFUNC(Socket, recv) {
     KS_REQ_N_ARGS(n_args, 2);
-    sock_Socket self = (sock_Socket)args[0];
-    KS_REQ_TYPE(self, sock_type_Socket, "self");
-    ks_int sz = (ks_int)args[1];
-    KS_REQ_TYPE(sz, ks_type_int, "sz");
+    sock_Socket self = NULL;
+    int64_t sz = 0;
+    if (!ks_parse_params(n_args, args, "self%* sz%i64", &self, sock_type_Socket, &sz)) return NULL;
+
 
     // make sure it's valid
     if (!self->is_bound) {
         return ks_throw_fmt(ks_type_IOError, "Cant recv before the socket is bound!");
     }
 
-    char* tmpbuf = ks_malloc(sz->val);
+    char* tmpbuf = ks_malloc(sz);
     ssize_t sum_sz = 0;
 
 
     do {
-        ssize_t actual_sz = recv(self->sockfd, &tmpbuf[sum_sz], sz->val - sum_sz, 0);
+        ssize_t actual_sz = recv(self->sockfd, &tmpbuf[sum_sz], sz - sum_sz, 0);
 
         if (actual_sz < 0) {
             ks_free(tmpbuf);
@@ -402,7 +397,7 @@ static KS_TFUNC(Socket, recv) {
 
         sum_sz += actual_sz;
 
-    } while (sum_sz < sz->val);
+    } while (sum_sz < sz);
 
 
     // convert to a string

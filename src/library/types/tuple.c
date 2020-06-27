@@ -125,21 +125,18 @@ static KS_TFUNC(tuple, iter) {
 // tuple.__getitem__(self, idx) -> get the item in a tuple
 static KS_TFUNC(tuple, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
-    ks_tuple self = (ks_tuple)args[0];
-    KS_REQ_TYPE(self, ks_type_tuple, "self");
-    ks_int idx = (ks_int)args[1];
-    KS_REQ_TYPE(idx, ks_type_int, "idx");
-
-    int64_t idxi = idx->val;
+    ks_tuple self = NULL;
+    int64_t idx = 0;
+    if (!ks_parse_params(n_args, args, "self%* idx%i64", &self, ks_type_tuple, &idx)) return NULL;
 
     // ensure negative indices are wrapped once
-    if (idxi < 0) idxi += self->len;
+    if (idx < 0) idx += self->len;
 
     // do bounds check
-    if (idxi < 0 || idxi >= self->len) KS_ERR_KEY(self, idx);
+    if (idx < 0 || idx >= self->len) KS_ERR_KEY(self, args[1]);
 
     // return the item specified
-    return KS_NEWREF(self->elems[idxi]);
+    return KS_NEWREF(self->elems[idx]);
 };
 
 

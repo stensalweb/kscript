@@ -112,17 +112,15 @@ KS_TYPE_DECLFWD(cNk_type_iter_Context);
  */
 static KS_TFUNC(Context, new) {
     KS_REQ_N_ARGS(n_args, 3);
-    ks_int width = (ks_int)args[0], height = (ks_int)args[1];
-    KS_REQ_TYPE(width, ks_type_int, "width");
-    KS_REQ_TYPE(height, ks_type_int, "height");
-    ks_str title = (ks_str)args[2];
-    KS_REQ_TYPE(title, ks_type_str, "title");
+    int64_t width, height;
+    ks_str title;
+    if (!ks_parse_params(n_args, args, "width%i64 height%i64 title%s", &width, &height, &title)) return NULL;
 
     cNk_Context self = KS_ALLOC_OBJ(cNk_Context);
     KS_INIT_OBJ(self, cNk_type_Context);
 
     // construct a new GLFW window with the given parameters
-    self->window = glfwCreateWindow(width->val, height->val, title->chr, NULL, NULL);
+    self->window = glfwCreateWindow(width, height, title->chr, NULL, NULL);
     glfwMakeContextCurrent(self->window);
 
     // create a context from the GLFW window
@@ -233,7 +231,7 @@ static KS_TFUNC(Context, setattr) {
 
         int i;
         for (i = 0; i < 2; ++i) {
-            if (!ks_num_getint64(val_list->elems[i], &sizes[i])) {
+            if (!ks_num_get_int64(val_list->elems[i], &sizes[i])) {
                 KS_DECREF(val_list);
                 return ks_throw_fmt(ks_type_ArgError, "Attribute 'size' must be an iterable of size 2, containing the integers '(width, height)'");
             }
@@ -311,29 +309,11 @@ static KS_TFUNC(Context, frame_end) {
  */
 static KS_TFUNC(Context, begin) {
     KS_REQ_N_ARGS_RANGE(n_args, 6, 7);
-    cNk_Context self = (cNk_Context)args[0];
-    KS_REQ_TYPE(self, cNk_type_Context, "self");
-
-    ks_str title = (ks_str)args[1];
-    KS_REQ_TYPE(title, ks_type_str, "title");
-
-    // parse float parameters
+    cNk_Context self;
+    ks_str title;
     double x, y, w, h;
-
-    // and flags parameters
     int64_t flags = 0;
-
-    if (
-        !ks_num_getdouble(args[2], &x) 
-     || !ks_num_getdouble(args[3], &y) 
-     || !ks_num_getdouble(args[4], &w) 
-     || !ks_num_getdouble(args[5], &h)
-     || (n_args >= 7 && !ks_num_getint64(args[6], &flags))
-    ) {
-         return NULL;
-    }
-
-    // NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE
+    if (!ks_parse_params(n_args, args, "self%* title%s x%f y%f w%f h%f ?flags%i64", &self, cNk_type_Context, &title, &x, &y, &w, &h, &flags)) return NULL;
 
     // begin the window process, with given parameters
     int res = nk_begin(self->ctx, title->chr, nk_rect(x, y, w, h), flags);
@@ -348,8 +328,8 @@ static KS_TFUNC(Context, begin) {
  */
 static KS_TFUNC(Context, end) {
     KS_REQ_N_ARGS(n_args, 1);
-    cNk_Context self = (cNk_Context)args[0];
-    KS_REQ_TYPE(self, cNk_type_Context, "self");
+    cNk_Context self;
+    if (!ks_parse_params(n_args, args, "self%*", &self, cNk_type_Context)) return NULL;
 
     nk_end(self->ctx);
    
@@ -368,20 +348,10 @@ static KS_TFUNC(Context, end) {
  */
 static KS_TFUNC(Context, layout_row_static) {
     KS_REQ_N_ARGS_RANGE(n_args, 3, 4);
-    cNk_Context self = (cNk_Context)args[0];
-    KS_REQ_TYPE(self, cNk_type_Context, "self");
-
-    // declare parameters & convert arguments
+    cNk_Context self;
     double height;
     int64_t item_width, cols = 1;
-
-    if (
-        !ks_num_getdouble(args[1], &height) ||
-        !ks_num_getint64(args[2], &item_width) ||
-        (n_args < 4 || !ks_num_getint64(args[3], &cols))
-    ) {
-        return NULL;
-    }
+    if (!ks_parse_params(n_args, args, "self%* height%f item_width%i64 ?cols%i64", &self, cNk_type_Context, &height, &item_width, &cols)) return NULL;
 
     // call internal library function
     nk_layout_row_static(self->ctx, height, item_width, cols);
@@ -399,10 +369,9 @@ static KS_TFUNC(Context, layout_row_static) {
  */
 static KS_TFUNC(Context, button) {
     KS_REQ_N_ARGS(n_args, 2);
-    cNk_Context self = (cNk_Context)args[0];
-    KS_REQ_TYPE(self, cNk_type_Context, "self");
-    ks_str label = (ks_str)args[1];
-    KS_REQ_TYPE(label, ks_type_str, "label");
+    cNk_Context self;
+    ks_str label;
+    if (!ks_parse_params(n_args, args, "self%* label%s", &self, cNk_type_Context, &label)) return NULL;
 
     int res = nk_button_label(self->ctx, label->chr);
 

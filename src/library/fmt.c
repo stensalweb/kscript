@@ -574,15 +574,22 @@ bool ks_str_b_add_str(ks_str_b* self, ks_obj obj) {
 
         return true;
     } else if (obj->type == ks_type_int) {
-        int64_t v_int = ((ks_int)obj)->val;
 
-        char tmp[256];
+        if (((ks_int)obj)->isLong) {
+
+            // let it fall through and just call the function for it
+
+        } else {
+            int64_t v_int = ((ks_int)obj)->v_i64;
+
+            char tmp[256];
+            int amt = bfmt_i64(tmp, 255, v_int, BFMT_ARG_DEFAULT);
+            
+            // add to the string builder
+            ks_str_b_add(self, amt, tmp);
+            return true;
+        }
         
-        int amt = bfmt_i64(tmp, 255, v_int, BFMT_ARG_DEFAULT);
-        
-        // add to the string builder
-        ks_str_b_add(self, amt, tmp);
-        return true;
     }
 
     // attempt to get the repr

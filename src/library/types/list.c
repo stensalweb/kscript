@@ -208,9 +208,10 @@ static KS_TFUNC(list, mul) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_obj L = args[0], R = args[1];
 
-    if (L->type == ks_type_list && R->type == ks_type_int) {
+    if (L->type == ks_type_list && ks_num_is_integral(R)) {
         ks_list lL = (ks_list)L;
-        int64_t iR = ((ks_int)R)->val;
+        int64_t iR;
+        if (!ks_num_get_int64(R, &iR)) return NULL;
 
         ks_list res = ks_list_new(0, NULL);
         int i;
@@ -290,21 +291,18 @@ static KS_TFUNC(list, ne) {
 // list.__getitem__(self, idx) -> get the item in a list
 static KS_TFUNC(list, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
-    ks_list self = (ks_list)args[0];
-    KS_REQ_TYPE(self, ks_type_list, "self");
-    ks_int idx = (ks_int)args[1];
-    KS_REQ_TYPE(idx, ks_type_int, "idx");
-
-    int64_t idxi = idx->val;
+    ks_list self = NULL;
+    int64_t idx = 0;
+    if (!ks_parse_params(n_args, args, "self%* idx%i64", &self, ks_type_list, &idx)) return NULL;
 
     // ensure negative indices are wrapped once
-    if (idxi < 0) idxi += self->len;
+    if (idx < 0) idx += self->len;
 
     // do bounds check
-    if (idxi < 0 || idxi >= self->len) KS_ERR_KEY(self, idx);
+    if (idx < 0 || idx >= self->len) KS_ERR_KEY(self, args[1]);
 
     // return the item specified
-    return KS_NEWREF(self->elems[idxi]);
+    return KS_NEWREF(self->elems[idx]);
 };
 
 // list.__iter__(self) -> return an iterator

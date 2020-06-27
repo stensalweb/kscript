@@ -294,14 +294,10 @@ static KS_FUNC(sleep) {
     double dur_d = 0.0;
 
     if (n_args == 1) {
-        ks_obj dur = args[0];
-        if (dur->type == ks_type_int) {
-            dur_d = ((ks_int)dur)->val;
-        } else if (dur->type == ks_type_float) {
-            dur_d = ((ks_float)dur)->val;
-        } else {
-            return ks_throw_fmt(ks_type_Error, "'dur' was not a numeric quantity; expected an 'int' or a 'float', but got '%T'", dur);
-        }
+
+        // get the duration
+        if (!ks_num_get_double(args[0], &dur_d)) return NULL;
+
     }
 
     double s_time = ks_time();
@@ -331,7 +327,12 @@ static KS_FUNC(exit) {
     if (n_args == 1) {
         ks_int obj = (ks_int)args[0];
         KS_REQ_TYPE(obj, ks_type_int, "code");
-        exit((int)obj->val);
+        if (obj->isLong) {
+            ks_warn("Tried to exit with long integer... You should be using one that can fit in 64 bits");
+            exit(1);
+        } else {
+            exit((int)obj->v_i64);
+        }
     } else {
         exit(0);
     }
@@ -1409,7 +1410,7 @@ static bool my_sort_bubble(ks_list res, ks_list keys) {
             }
 
             // calculate the difference and free that object
-            int64_t diff = ((ks_int)cLR)->val;
+            int diff = ks_int_sgn((ks_int)cLR);
             KS_DECREF(cLR);
 
             // if they are out of order, swap them so that they are
@@ -1460,7 +1461,7 @@ static bool my_sort_merge__child(ks_list res, ks_list keys, int start_l, int sto
         }
 
         // get comparison value
-        int64_t cmp = cLR->val;
+        int64_t cmp = ks_int_sgn(cLR);
         KS_DECREF(cLR);
 
         // push the lowest object
@@ -1955,11 +1956,11 @@ static KS_FUNC(sum) {
 typedef struct {
     KS_OBJ_BASE
 
-    // the start stop and step of the range
-    int64_t start, stop, step;
+    // start, stop, and step of the range
+    ks_int start, stop, step;
 
     // current value
-    int64_t cur;
+    ks_int cur;
 
 }* ks_range_iter;
 
@@ -1974,15 +1975,24 @@ static KS_TFUNC(range_iter, next) {
     ks_range_iter self = (ks_range_iter)args[0];
     KS_REQ_TYPE(self, ks_type_range_iter, "self");
 
-    // check out of ranges
-    if (self->step > 0 && self->cur >= self->stop) return ks_throw_fmt(ks_type_OutOfIterError, "");
-    if (self->step < 0 && self->cur <= self->stop) return ks_throw_fmt(ks_type_OutOfIterError, "");
+    // check out ranges & their relations to make sure we are in bounds
+    int sgn = ks_int_sgn(self->step);
+    int cmp = ks_int_cmp(self->cur, self->stop);
 
-    // construct the result
-    ks_int res = ks_int_new(self->cur);
+    if (sgn > 0 && cmp >= 0) return ks_throw_fmt(ks_type_OutOfIterError, "");
+    if (sgn < 0 && cmp <= 0) return ks_throw_fmt(ks_type_OutOfIterError, "");
 
-    // go forward
-    self->cur += self->step;
+    // create a new cur
+    ks_int new_cur = (ks_int)ks_F_add->func(2, (ks_obj[]){ (ks_obj)self->cur, (ks_obj)self->step });
+    if (!new_cur) {
+        KS_DECREF(new_cur);
+        return NULL;
+    }
+
+    // what we should return as the result
+    // (and, transfer the reference to the return reference, since self->cur is about to be overriden)
+    ks_int res = self->cur;
+    self->cur = new_cur;
 
     // return our result
     return (ks_obj)res;
@@ -2006,32 +2016,25 @@ static KS_FUNC(range) {
     ks_range_iter res = KS_ALLOC_OBJ(ks_range_iter);
     KS_INIT_OBJ(res, ks_type_range_iter);
 
-    res->start = 0;
-    res->step = 1;
-
     if (n_args == 1) {
-        res->stop = ((ks_int)args[0])->val;
+        res->start = ks_int_new(0);
+        res->step = ks_int_new(1);
+        res->stop = (ks_int)KS_NEWREF(args[0]);
     } else {
-        res->start = ((ks_int)args[0])->val;
-        res->stop = ((ks_int)args[1])->val;
+        res->start = (ks_int)KS_NEWREF(args[0]);
+        res->stop = (ks_int)KS_NEWREF(args[1]);
         if (n_args > 2) {
-            res->step = ((ks_int)args[2])->val;
-            if (res->step == 0) {
+            res->step = (ks_int)KS_NEWREF(args[2]);
+            if (ks_int_sgn(res->step) == 0) {
                 ks_throw_fmt(ks_type_ArgError, "'step' is supposed to be non-zero!");
                 KS_DECREF(res);
                 return NULL;
             }
-            /*if (res->step < 0) {
-                // swap start and stop
-                int64_t tmp = res->start;
-                res->start = res->stop;
-                res->stop = tmp;
-            }*/
         }
     }
 
     // start at beginning
-    res->cur = res->start;
+    res->cur = (ks_int)KS_NEWREF(res->start);
 
     return (ks_obj)res;
 }

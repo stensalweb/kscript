@@ -901,8 +901,14 @@ KS_API extern ks_bool KS_TRUE, KS_FALSE;
 typedef struct ks_int {
     KS_OBJ_BASE
 
-    // the actual integer value
-    int64_t val;
+    // union between the 64 bit integer value
+    union {
+        int64_t v_i64;
+        mpz_t v_mpz;
+    };
+
+    // whether or not the integer requires `v_mpz` (i.e. is bigger than a standard 64 bit integer)
+    bool isLong;
 
 }* ks_int;
 
@@ -914,17 +920,6 @@ typedef struct ks_int {
 // array of small integers:
 // KS_SMALL_INTS[val + KS_SMALL_INT_MAX]
 KS_API extern struct ks_int KS_SMALL_INTS[];
-
-
-// ks_long - type representing an arbitrary precision integer in kscript
-typedef struct {
-    KS_OBJ_BASE
-
-    // the actual integer value
-    mpz_t val;
-
-}* ks_long;
-
 
 // ks_float - type representing a floating point real number
 typedef struct {
@@ -1794,7 +1789,6 @@ KS_API extern ks_type
     ks_type_none,
     ks_type_bool,
     ks_type_int,
-    ks_type_long,
     ks_type_float,
     ks_type_complex,
     ks_type_str,
@@ -2082,27 +2076,29 @@ KS_API int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 // NOTE: Returns a new reference
 KS_API ks_int ks_int_new(int64_t val);
 
-
-// Attempt to convert a ks_int to a native int, returning whether it was successful.
-// If it wasn't successful, an error will be thrown
-KS_API bool ks_int_geti64(ks_int self, int64_t* out);
-
-
-/* LONG */
-
-// Create a new kscript long from a C-style integer value
+// Create a new kscript int from a string in base 'base'
 // NOTE: Returns a new reference
-KS_API ks_long ks_long_new(int64_t val);
+KS_API ks_int ks_int_new_s(char* str, int base);
 
-
-// Create a new kscript long from a string in a given base (default base should be 10)
+// Create a new integer from an MPZ
 // NOTE: Returns a new reference
-KS_API ks_long ks_long_new_str(char* str, int base);
+KS_API ks_int ks_int_new_mpz(mpz_t val);
 
+// Create a new integer from an MPZ, that can use the `val` and clear if it
+//   is not required
+// NOTE: Don't call `mpz_clear(val)`; kscript now owns that
+// NOTE: Returns a new reference
+KS_API ks_int ks_int_new_mpz_n(mpz_t val);
 
-//
-// NOTE: if the long object would not fit in an int64_t, it throws an error and returns false
-KS_API bool ks_long_getint64(ks_long self, int64_t* ret);
+// Return the sign of self, i.e. { -1, 0, 1 }
+KS_API int ks_int_sgn(ks_int self);
+
+// Compare 2 integers, returning a comparator
+KS_API int ks_int_cmp(ks_int L, ks_int R);
+
+// Compare to a C-style integer
+KS_API int ks_int_cmp_c(ks_int L, int64_t R);
+
 
 
 /* FLOAT */
@@ -2119,19 +2115,148 @@ KS_API ks_float ks_float_new(double val);
 KS_API ks_complex ks_complex_new(double complex val);
 
 
-/* GENERIC NUMERICS */
+/* GENERIC NUMERICS (i.e. work with all numeric types) */
+
+
+// Attempt to hash 'self'
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_hash(ks_obj self, ks_hash_t* out);
+
+// Return whether a given object would fit an int64_t
+// Supported types:
+//   + bool
+//   + int
+//   - int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_fits_int64(ks_obj self);
+
+// Return whether a given object is a numeric type
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_is_numeric(ks_obj self);
+
+// Return whether a given object is an integral type
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_is_integral(ks_obj self);
+
+
+// Attempt to convert 'self' to a boolean, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_bool(ks_obj self, bool* out);
+
+// Attempt to convert 'self' to a int64_t, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   - int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_int64(ks_obj self, int64_t* out);
+
+
+// Attempt to convert 'self' to a mpz_t (which is already initialized)
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_mpz(ks_obj self, mpz_t out);
 
 
 // Attempt to convert 'self' to a double, and set 'out' to the value
-// This works with int/long/float, complex numbers will throw an error
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   - complex
+//   + complex (real only)
 // NOTE: If there was a problem, return false and throw an error
-KS_API bool ks_num_getdouble(ks_obj self, double* out);
+KS_API bool ks_num_get_double(ks_obj self, double* out);
 
-// Attempt to convert 'self' to a int64_t, and set 'out' to the value
-// This works with int/long, float and complex numbers will throw an error
+// Attempt to convert 'self' to a double complex, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+//   + complex (real only)
 // NOTE: If there was a problem, return false and throw an error
-KS_API bool ks_num_getint64(ks_obj self, int64_t* out);
+KS_API bool ks_num_get_double_complex(ks_obj self, double complex* out);
 
+
+// Get the sign of a numeric object
+KS_API bool ks_num_sgn(ks_obj self, int* out);
+
+// compare 2 numeric objects
+KS_API bool ks_num_cmp(ks_obj L, ks_obj R, int* out);
+
+// compare 2 numeric objects
+KS_API bool ks_num_eq(ks_obj L, ks_obj R, bool* out);
+
+
+/* OPS */
+
+// Compute L+R
+KS_API ks_obj ks_num_add(ks_obj L, ks_obj R);
+// Compute L-R
+KS_API ks_obj ks_num_sub(ks_obj L, ks_obj R);
+// Compute L*R
+KS_API ks_obj ks_num_mul(ks_obj L, ks_obj R);
+// Compute L/R
+KS_API ks_obj ks_num_div(ks_obj L, ks_obj R);
+// Compute L%R
+KS_API ks_obj ks_num_mod(ks_obj L, ks_obj R);
+// Compute L**R
+KS_API ks_obj ks_num_pow(ks_obj L, ks_obj R);
+
+// Compute -L
+KS_API ks_obj ks_num_neg(ks_obj L);
+
+
+// Compute L<R
+KS_API ks_obj ks_num_lt(ks_obj L, ks_obj R);
+// Compute L<=R
+KS_API ks_obj ks_num_le(ks_obj L, ks_obj R);
+// Compute L>R
+KS_API ks_obj ks_num_gt(ks_obj L, ks_obj R);
+// Compute L>=R
+KS_API ks_obj ks_num_ge(ks_obj L, ks_obj R);
+
+
+// Compute L|R
+KS_API ks_obj ks_num_binor(ks_obj L, ks_obj R);
+// Compute L&R
+KS_API ks_obj ks_num_binand(ks_obj L, ks_obj R);
 
 
 /* STR */
@@ -2158,6 +2283,7 @@ KS_API ks_str ks_str_escape(ks_str A);
 // NOTE: Returns a new reference
 KS_API ks_str ks_str_unescape(ks_str A);
 
+
 /* STRING FORMATTING (see ./fmt.c) */
 
 // Perform C-style formatting, with various arguments
@@ -2169,6 +2295,19 @@ KS_API ks_str ks_fmt_c(const char* fmt, ...);
 // TODO: document format specifiers
 // NOTE: Returns a reference
 KS_API ks_str ks_fmt_vc(const char* fmt, va_list ap);
+
+
+/* ARGUMENT PARSING */
+
+// parsing helper for cfuncs, i.e.:
+// ks_parse_params(n_args, args, "self%* num%i64 rest%+ ?opt%i64", &self, type_self_must_be_sub_class_of, &num, &iterable, &optional);
+// opts:
+//   %s: ks_str*
+//   %i64: int64_t*
+//   %f: double*
+//   %*: ks_type, ks_obj*
+// Prefix an argument for optional arguments
+KS_API bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...);
 
 
 /* TUPLE */
@@ -2551,10 +2690,9 @@ KS_API void ks_obj_free(ks_obj obj);
 // Negative values indicate there was an exception
 KS_API int64_t ks_len(ks_obj obj);
 
-// Return the hash of the object (hash(obj)) as an integer.
-// A return value of '0' indicates that there was some error with the hash function
-//   (a hash function should never return 0)
-KS_API ks_hash_t ks_hash(ks_obj obj);
+// Calculate the hash of an object
+// Returns whether it was successful, and if it wasn't, an error was thrown
+KS_API bool ks_hash(ks_obj obj, ks_hash_t* out);
 
 // Return whether or not `A==B`. If the comparison is undefined, return 'false'
 KS_API bool ks_eq(ks_obj A, ks_obj B);

@@ -88,11 +88,14 @@ def shell_output(cmd, simplify=True):
 		src = src.replace("\n", " ")
 	return res.returncode == 0, src
 
+# test for a C library, and add relevant details to variables if so
 def has_c_lib(name, cflag, lflag, header_block, body_block):
-	print (f" -- Searching for C library {name}...")
-	print (f" --   Trying with:\n      cflag: '{cflag}'\n      lflag '{lflag}'\n      header '{header_block}'\n      code '{body_block}'")
 	global LIB_FLAGS
 	global CFLAGS
+
+	print (f" -- Searching for C library {name}...")
+	print (f" --   Trying with:\n      cflag: '{cflag}'\n      lflag '{lflag}'\n      header '{header_block}'\n      code '{body_block}'")
+
 
 	fname = _tmp + "/test.c"
 	fp = open(fname, "w")
@@ -119,7 +122,6 @@ int main(int argc, char** argv) {{
 		# remove definitions
 		cflag = " ".join(filter(lambda arg: not arg.startswith("-D"), cflag.split(" ")))
 
-
 		CFLAGS       += " " + cflag
 		LIB_FLAGS    += " " + lflag
 
@@ -127,6 +129,54 @@ int main(int argc, char** argv) {{
 
 
 	return haslib
+
+
+# adds a C check to the CFLAGS, useful for defining sizeof macros
+def add_c_check(name, header_block, body_block):
+	global CFLAGS
+	global defs
+
+	print (f" -- Running C check {name}...")
+
+	fname = _tmp + "/test.c"
+	fp = open(fname, "w")
+	fp.write(f"""
+
+/* C check */
+
+{header_block}
+
+int main(int argc, char** argv) {{
+	{body_block}
+	return 0;
+}}
+	
+""")
+	fp.close()
+
+	# now, compile and run
+	s0 = shell(f"{CC} {CFLAGS} {fname} {LDFLAGS} -o {_tmp}/a.out")
+	if not s0:
+		raise Exception(f"Compilation failed for C check '{name}'")
+
+	print (f"{CC} {CFLAGS} {fname} {LDFLAGS} -o {_tmp}/a.out")
+	s1, out = shell_output(f"{_tmp}/a.out")
+
+	if not s1:
+		raise Exception(f"Execution failed for C check '{name}'")
+
+	print (f" --   Done, got: '{out}'")
+
+	cfl_args = out.split(" ")
+
+	for arg in cfl_args:
+		if arg.startswith("-D"):
+			defs = defs + [arg[2:].replace("=", " ", 1)]
+		else:
+			# add output to CFLAGS
+			CFLAGS       += " " + arg
+
+
 
 # which libraries we have
 hasGMP         = False
@@ -167,6 +217,10 @@ else:             args.M = list(filter(lambda mod: mod not in ("modules/req", ),
 
 if hasGLFW3:      defs.append("KS_HAVE_GLFW3")
 else: args.M = list(filter(lambda mod: mod not in ("modules/cnk", ), args.M))
+
+
+# check for integer sizes
+add_c_check("IntSizes", "#include <stdio.h>\n#include <stdint.h>", 'printf("-DSIZEOF_INT32_T=%zu -DSIZEOF_INT64_T=%zu -DSIZEOF_SIGNED_LONG=%zu -DSIZEOF_UNSIGNED_LONG=%zu\\n", sizeof(int32_t), sizeof(int64_t), sizeof(unsigned long), sizeof(signed long));')
 
 
 # -*- Generate Files

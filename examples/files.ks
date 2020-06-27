@@ -24,7 +24,6 @@ assert typeof(f) == iostream && "Type was not iostream!"
 
 
 
-
 # read the buffer (by default, the entire files)
 s = f.read()
 # it should be the entire file
@@ -42,6 +41,7 @@ f.seek()
 
 # assert it is truthy, which it should be
 assert f && "the file was not valid after a reset!"
+
 
 
 # basic iteration through characters

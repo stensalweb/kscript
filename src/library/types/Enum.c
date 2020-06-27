@@ -220,144 +220,39 @@ static KS_TFUNC(Enum, hash) {
 
 
 
-// Enum.__binor__(L, R) -> bitwise-or 2 Enum vals
+static KS_TFUNC(Enum, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_add(args[0], args[1]);
+};
+static KS_TFUNC(Enum, sub) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_sub(args[0], args[1]);
+};
+static KS_TFUNC(Enum, mul) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_mul(args[0], args[1]);
+};
+static KS_TFUNC(Enum, div) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_div(args[0], args[1]);
+};
+static KS_TFUNC(Enum, mod) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_mod(args[0], args[1]);
+};
+static KS_TFUNC(Enum, pow) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_pow(args[0], args[1]);
+};
+
 static KS_TFUNC(Enum, binor) {
     KS_REQ_N_ARGS(n_args, 2);
-
-
-    // attempt to convert to integers
-    int64_t Li, Ri;
-    if (
-        !ks_num_getint64(args[0], &Li) ||
-        !ks_num_getint64(args[1], &Ri)
-    ) {
-        KS_ERR_BOP_UNDEF("|", args[0], args[1]);
-    } else {
-        return (ks_obj)ks_int_new(Li | Ri);
-    }
+    return ks_num_binor(args[0], args[1]);
 };
-
-// Enum.__binand__(L, R) -> bitwise-or 2 Enum vals
 static KS_TFUNC(Enum, binand) {
     KS_REQ_N_ARGS(n_args, 2);
-
-    // attempt to convert to integers
-    int64_t Li, Ri;
-    if (
-        !ks_num_getint64(args[0], &Li) ||
-        !ks_num_getint64(args[1], &Ri)
-    ) {
-        KS_ERR_BOP_UNDEF("&", args[0], args[1]);
-    } else {
-        return (ks_obj)ks_int_new(Li & Ri);
-    }
+    return ks_num_binand(args[0], args[1]);
 };
-
-
-// compare 2 integer/enum values, and return result in 'res', returning success
-static bool my_enumcmp(ks_obj L, ks_obj R, int* res) {
-    int64_t Li, Ri;
-    if (
-        !ks_num_getint64(L, &Li) ||
-        !ks_num_getint64(R, &Ri)
-    ) {
-        return false;
-    }
-
-    // compare Li <=> Ri
-    *res = Li==Ri?0:(Li>Ri ? 1 : -1);
-
-    return true;
-
-}
-
-
-// Enum.__cmp__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, cmp) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF("<=>", args[0], args[1]);
-    } else {
-        return (ks_obj)ks_int_new(rcmp);
-    }
-};
-
-// Enum.__lt__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, lt) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF("<", args[0], args[1]);
-    } else {
-        return KSO_BOOL(rcmp < 0);
-    }
-};
-
-// Enum.__le__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, le) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF("<=", args[0], args[1]);
-    } else {
-        return KSO_BOOL(rcmp <= 0);
-    }
-};
-
-// Enum.__gt__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, gt) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF(">", args[0], args[1]);
-    } else {
-        return KSO_BOOL(rcmp > 0);
-    }
-};
-
-// Enum.__ge__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, ge) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF(">=", args[0], args[1]);
-    } else {
-        return KSO_BOOL(rcmp >= 0);
-    }
-};
-
-// Enum.__eq__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, eq) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF("==", args[0], args[1]);
-    } else {
-        return KSO_BOOL(rcmp == 0);
-    }
-};
-
-// Enum.__ne__(L, R) -> cmp 2 Enum vals
-static KS_TFUNC(Enum, ne) {
-    KS_REQ_N_ARGS(n_args, 2);
-    
-    int rcmp = 0;
-    if (!my_enumcmp(args[0], args[1], &rcmp)) {
-        KS_ERR_BOP_UNDEF("!=", args[0], args[1]);
-    } else {
-        return KSO_BOOL(rcmp != 0);
-    }
-};
-
-
-
 
 // initialize Enum type
 void ks_type_Enum_init() {
@@ -379,9 +274,19 @@ void ks_type_Enum_init() {
         {"get",          (ks_obj)p_get_},
 
         {"__hash__",     (ks_obj)ks_cfunc_new2(Enum_hash_, "Enum.__hash__(self)")},
-        
-        {"__binor__",    (ks_obj)ks_cfunc_new2(Enum_binor_, "Enum.__binor__(L, R)")},
+
+
+        {"__add__",      (ks_obj)ks_cfunc_new2(Enum_add_, "Enum.__add__(L, R)")},
+        {"__sub__",      (ks_obj)ks_cfunc_new2(Enum_sub_, "Enum.__sub__(L, R)")},
+        {"__mul__",      (ks_obj)ks_cfunc_new2(Enum_mul_, "Enum.__mul__(L, R)")},
+        {"__div__",      (ks_obj)ks_cfunc_new2(Enum_div_, "Enum.__div__(L, R)")},
+        {"__mod__",      (ks_obj)ks_cfunc_new2(Enum_mod_, "Enum.__mod__(L, R)")},
+        {"__pow__",      (ks_obj)ks_cfunc_new2(Enum_pow_, "Enum.__pow__(L, R)")},
+        {"__binor__",    (ks_obj)ks_cfunc_new2(Enum_binor_,"Enum.__binor__(L, R)")},
         {"__binand__",   (ks_obj)ks_cfunc_new2(Enum_binand_, "Enum.__binand__(L, R)")},
+
+
+        /*
 
         {"__cmp__",      (ks_obj)ks_cfunc_new2(Enum_cmp_, "Enum.__cmp__(L, R)")},
         {"__lt__",       (ks_obj)ks_cfunc_new2(Enum_lt_, "Enum.__lt__(L, R)")},
@@ -390,6 +295,7 @@ void ks_type_Enum_init() {
         {"__ge__",       (ks_obj)ks_cfunc_new2(Enum_ge_, "Enum.__ge__(L, R)")},
         {"__eq__",       (ks_obj)ks_cfunc_new2(Enum_eq_, "Enum.__eq__(L, R)")},
         {"__ne__",       (ks_obj)ks_cfunc_new2(Enum_ne_, "Enum.__ne__(L, R)")},
+        */
 
         {NULL, NULL}   
     });

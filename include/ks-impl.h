@@ -46,7 +46,6 @@ void ks_type_type_init();
 void ks_type_none_init();
 void ks_type_bool_init();
 void ks_type_int_init();
-void ks_type_long_init();
 void ks_type_float_init();
 void ks_type_complex_init();
 void ks_type_str_init();
@@ -90,6 +89,8 @@ static inline ks_hash_t ks_hash_bytes(int len, uint8_t* data) {
     // return out result, making sure it is never 0
     return res == 0 ? 1 : res;
 }
+
+
 
 #ifdef __cplusplus
 }

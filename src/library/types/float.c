@@ -46,12 +46,11 @@ static KS_TFUNC(float, new) {
 
     ks_obj obj = args[0];
 
-    if (obj->type == ks_type_float) {
-        return KS_NEWREF(obj);
-    } else if (obj->type == ks_type_int) {
-        return (ks_obj)ks_float_new(((ks_int)obj)->val);
-    } else if (obj->type == ks_type_complex) {
-        return (ks_obj)ks_float_new(((ks_complex)obj)->val);
+    if (ks_num_is_numeric(obj)) {
+        double val;
+        if (!ks_num_get_double(obj, &val)) return NULL;
+        return (ks_obj)ks_float_new(val);
+
     } else if (obj->type == ks_type_str) {
         // TODO: error check and see if it was a valid float
         double val = atof(((ks_str)obj)->chr);
@@ -122,230 +121,6 @@ static KS_TFUNC(float, free) {
 };
 
 
-// standard cases (i.e. float OP float, int OP float, float OP int)
-// use 'vL' and 'vR' as arguments, assign result to 'vRes'
-#define T_BOP_STDCASE(...) { \
-    if (L->type == ks_type_float && R->type == ks_type_float) { \
-        vL = ((ks_float)L)->val; \
-        vR = ((ks_float)R)->val; \
-        { __VA_ARGS__; } \
-        return (ks_obj)ks_float_new(vRes); \
-    } else if (L->type == ks_type_float && R->type == ks_type_int) { \
-        vL = ((ks_float)L)->val; \
-        vR = ((ks_int)R)->val; \
-        { __VA_ARGS__; } \
-        return (ks_obj)ks_float_new(vRes); \
-    } else if (L->type == ks_type_int && R->type == ks_type_float) { \
-        vL = ((ks_int)L)->val; \
-        vR = ((ks_float)R)->val; \
-        { __VA_ARGS__; } \
-        return (ks_obj)ks_float_new(vRes); \
-    } \
-}
-
-// float.__add__(L, R) -> add 2 numbers
-static KS_TFUNC(float, add) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL + vR);
-
-    KS_ERR_BOP_UNDEF("+", L, R);
-};
-
-// float.__sub__(L, R) -> subtract 2 numbers
-static KS_TFUNC(float, sub) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL - vR);
-
-    KS_ERR_BOP_UNDEF("-", L, R);
-};
-
-
-// float.__mul__(L, R) -> multiply 2 numbers
-static KS_TFUNC(float, mul) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL * vR);
-
-    KS_ERR_BOP_UNDEF("*", L, R);
-};
-
-// float.__div__(L, R) -> divide 2 numbers
-static KS_TFUNC(float, div) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = vL / vR);
-
-    KS_ERR_BOP_UNDEF("/", L, R);
-};
-
-// float.__mod__(L, R) -> modular
-static KS_TFUNC(float, mod) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR, vRes;
-
-    T_BOP_STDCASE(vRes = fmod(vL, vR); if (vRes < 0) vRes += vR;);
-
-    KS_ERR_BOP_UNDEF("%", L, R);
-};
-
-// float.__pow__(L, R) -> exponent
-static KS_TFUNC(float, pow) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR, vRes;
-
-    T_BOP_STDCASE(if (!my_isint(vR) && vL < 0) { return ks_throw_fmt(ks_type_MathError, "Cannot raise negative number to a fractional power"); } vRes = pow(vL, vR));
-
-    KS_ERR_BOP_UNDEF("**", L, R);
-};
-
-
-
-// comparison cases (i.e. float OP float, int OP float, float OP int)
-// use 'vL' and 'vR' as arguments, assign boolean result to 'vRes'
-#define T_BOP_CMPCASE(...) { \
-    if (L->type == ks_type_float && R->type == ks_type_float) { \
-        vL = ((ks_float)L)->val; \
-        vR = ((ks_float)R)->val; \
-        { __VA_ARGS__; } \
-        return KSO_BOOL(vRes); \
-    } else if (L->type == ks_type_int && R->type == ks_type_float) { \
-        vL = ((ks_int)L)->val; \
-        vR = ((ks_float)R)->val; \
-        { __VA_ARGS__; } \
-        return KSO_BOOL(vRes); \
-    } else if (L->type == ks_type_float && R->type == ks_type_int) { \
-        vL = ((ks_float)L)->val; \
-        vR = ((ks_int)R)->val; \
-        { __VA_ARGS__; } \
-        return KSO_BOOL(vRes); \
-    } \
-}
-
-// float comparison
-static int my_cmp(double L, double R) {
-    return L > R ? 1 : (L < R ? -1 : 0);
-}
-
-
-// float.__cmp__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, cmp) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    int64_t vRes;
-
-    if (L->type == ks_type_float && R->type == ks_type_float) {
-        return (ks_obj)ks_int_new(my_cmp(((ks_float)L)->val, ((ks_float)R)->val));
-    } else if (L->type == ks_type_int && R->type == ks_type_float) {
-        return (ks_obj)ks_int_new(my_cmp(((ks_int)L)->val, ((ks_float)R)->val));
-    } else if (L->type == ks_type_float && R->type == ks_type_int) {
-        return (ks_obj)ks_int_new(my_cmp(((ks_float)L)->val, ((ks_int)R)->val));
-    }
-
-    KS_ERR_BOP_UNDEF("<=>", L, R);
-};
-
-
-// float.__lt__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, lt) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    bool vRes;
-
-    T_BOP_CMPCASE(vRes = vL < vR);
-
-    KS_ERR_BOP_UNDEF("<", L, R);
-};
-
-// float.__le__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, le) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    bool vRes;
-
-    T_BOP_CMPCASE(vRes = vL <= vR);
-
-    KS_ERR_BOP_UNDEF("<=", L, R);
-};
-
-
-// float.__gt__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, gt) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    bool vRes;
-
-    T_BOP_CMPCASE(vRes = vL > vR);
-
-    KS_ERR_BOP_UNDEF(">", L, R);
-};
-
-
-// float.__ge__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, ge) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    bool vRes;
-
-    T_BOP_CMPCASE(vRes = vL >= vR);
-
-    KS_ERR_BOP_UNDEF(">=", L, R);
-};
-
-
-// float.__eq__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, eq) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    bool vRes;
-
-    T_BOP_CMPCASE(vRes = vL == vR);
-
-    KS_ERR_BOP_UNDEF("==", L, R);
-};
-
-
-// float.__ne__(L, R) -> cmp 2 floats
-static KS_TFUNC(float, ne) {
-    KS_REQ_N_ARGS(n_args, 2);
-    ks_obj L = args[0], R = args[1];
-    double vL, vR;
-    bool vRes;
-
-    T_BOP_CMPCASE(vRes = vL != vR);
-
-    KS_ERR_BOP_UNDEF("!=", L, R);
-};
-
-
-// float.__neg__(V) -> negative float
-static KS_TFUNC(float, neg) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_obj V = args[0];
-
-    if (V->type == ks_type_float) {
-        return (ks_obj)ks_float_new(-((ks_float)V)->val);
-    }
-
-    KS_ERR_UOP_UNDEF("-", V);
-};
 
 // float.__sqig__(V) -> round to nearest
 static KS_TFUNC(float, sqig) {
@@ -381,6 +156,75 @@ static KS_TFUNC(float, isint) {
 
 
 
+/** MATH FUNCS **/
+
+static KS_TFUNC(float, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_add(args[0], args[1]);
+};
+static KS_TFUNC(float, sub) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_sub(args[0], args[1]);
+};
+static KS_TFUNC(float, mul) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_mul(args[0], args[1]);
+};
+static KS_TFUNC(float, div) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_div(args[0], args[1]);
+};
+static KS_TFUNC(float, mod) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_mod(args[0], args[1]);
+};
+static KS_TFUNC(float, pow) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_pow(args[0], args[1]);
+};
+
+static KS_TFUNC(float, neg) {
+    KS_REQ_N_ARGS(n_args, 1);
+    return ks_num_neg(args[0]);
+};
+
+static KS_TFUNC(float, cmp) {
+    KS_REQ_N_ARGS(n_args, 2);
+    float res;
+    if (!ks_num_cmp(args[0], args[1], &res)) return NULL;
+    return (ks_obj)ks_float_new(res);
+};
+
+static KS_TFUNC(float, lt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_lt(args[0], args[1]);
+};
+static KS_TFUNC(float, le) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_le(args[0], args[1]);
+};
+static KS_TFUNC(float, gt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_gt(args[0], args[1]);
+};
+static KS_TFUNC(float, ge) {
+    KS_REQ_N_ARGS(n_args, 2);
+    return ks_num_ge(args[0], args[1]);
+};
+static KS_TFUNC(float, eq) {
+    KS_REQ_N_ARGS(n_args, 2);
+    bool res;
+    if (!ks_num_eq(args[0], args[1], &res)) return NULL;
+    return KSO_BOOL(res);
+};
+static KS_TFUNC(float, ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    bool res;
+    if (!ks_num_eq(args[0], args[1], &res)) return NULL;
+    return KSO_BOOL(!res);
+};
+
+
 // initialize float type
 void ks_type_float_init() {
     KS_INIT_TYPE_OBJ(ks_type_float, "float");
@@ -401,22 +245,24 @@ void ks_type_float_init() {
         
         {"__free__", (ks_obj)ks_cfunc_new2(float_free_, "float.__free__(self)")},
  
-        {"__add__", (ks_obj)ks_cfunc_new2(float_add_, "float.__add__(L, R)")},
-        {"__sub__", (ks_obj)ks_cfunc_new2(float_sub_, "float.__sub__(L, R)")},
-        {"__mul__", (ks_obj)ks_cfunc_new2(float_mul_, "float.__mul__(L, R)")},
-        {"__div__", (ks_obj)ks_cfunc_new2(float_div_, "float.__div__(L, R)")},
-        {"__mod__", (ks_obj)ks_cfunc_new2(float_mod_, "float.__mod__(L, R)")},
-        {"__pow__", (ks_obj)ks_cfunc_new2(float_pow_, "float.__pow__(L, R)")},
- 
-        {"__cmp__", (ks_obj)ks_cfunc_new2(float_cmp_, "float.__cmp__(L, R)")},
-        {"__lt__", (ks_obj)ks_cfunc_new2(float_lt_, "float.__lt__(L, R)")},
-        {"__le__", (ks_obj)ks_cfunc_new2(float_le_, "float.__le__(L, R)")},
-        {"__gt__", (ks_obj)ks_cfunc_new2(float_gt_, "float.__gt__(L, R)")},
-        {"__ge__", (ks_obj)ks_cfunc_new2(float_ge_, "float.__ge__(L, R)")},
-        {"__eq__", (ks_obj)ks_cfunc_new2(float_eq_, "float.__eq__(L, R)")},
-        {"__ne__", (ks_obj)ks_cfunc_new2(float_ne_, "float.__ne__(L, R)")},
+        {"__add__",       (ks_obj)ks_cfunc_new2(float_add_, "float.__add__(L, R)")},
+        {"__sub__",       (ks_obj)ks_cfunc_new2(float_sub_, "float.__sub__(L, R)")},
+        {"__mul__",       (ks_obj)ks_cfunc_new2(float_mul_, "float.__mul__(L, R)")},
+        {"__div__",       (ks_obj)ks_cfunc_new2(float_div_, "float.__div__(L, R)")},
+        {"__mod__",       (ks_obj)ks_cfunc_new2(float_mod_, "float.__mod__(L, R)")},
+        {"__pow__",       (ks_obj)ks_cfunc_new2(float_pow_, "float.__pow__(L, R)")},
 
-        {"__neg__", (ks_obj)ks_cfunc_new2(float_neg_, "float.__neg__(self)")},
+        {"__neg__",       (ks_obj)ks_cfunc_new2(float_neg_, "float.__neg__(L)")},
+
+        {"__cmp__",       (ks_obj)ks_cfunc_new2(float_cmp_, "float.__cmp__(L, R)")},
+        {"__lt__",        (ks_obj)ks_cfunc_new2(float_lt_, "float.__lt__(L, R)")},
+        {"__le__",        (ks_obj)ks_cfunc_new2(float_le_, "float.__le__(L, R)")},
+        {"__gt__",        (ks_obj)ks_cfunc_new2(float_gt_, "float.__gt__(L, R)")},
+        {"__ge__",        (ks_obj)ks_cfunc_new2(float_ge_, "float.__ge__(L, R)")},
+        {"__eq__",        (ks_obj)ks_cfunc_new2(float_eq_, "float.__eq__(L, R)")},
+        {"__ne__",        (ks_obj)ks_cfunc_new2(float_ne_, "float.__ne__(L, R)")},
+
+
         {"__sqig__", (ks_obj)ks_cfunc_new2(float_sqig_, "float.__sqig__(self)")},
 
         {"isnan", (ks_obj)ks_cfunc_new2(float_isnan_, "float.isnan(self)")},

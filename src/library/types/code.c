@@ -190,7 +190,9 @@ bool ks_code_tofile(ks_code self, char* fname) {
                 fprintf(fp, "bool:false");
             }
         } else if (cur->type == ks_type_int) {
-            fprintf(fp, "int:%lli", (long long int)((ks_int)cur)->val);
+            ks_str rstr = ks_fmt_c("%S", cur);
+            fprintf(fp, "int:%s", rstr->chr);
+            KS_DECREF(rstr);
         } else if (cur->type == ks_type_str) {
             // print it length encoded
             //fprintf(fp, "%lli", (long long int)((ks_int)cur)->val);

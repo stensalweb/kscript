@@ -160,7 +160,7 @@ ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz) {
     size_t actual_bytes = fread(tmp, 1, sz, self->fp);
     if (actual_bytes != sz) {
         // discrepancy
-        ks_warn("Problem reading string!");
+        //ks_warn("Problem reading string!");
     }
 
     tmp[actual_bytes] = '\0';
@@ -365,10 +365,9 @@ static KS_TFUNC(iostream, read) {
     if (n_args > 1) {
         // read in the number of bytes
         if (args[1] != KSO_NONE) {
-            // allow integer
-            ks_int nb = (ks_int)args[1];
-            KS_REQ_TYPE(nb, ks_type_int, "nbytes");
-            nbytes = nb->val;
+            int64_t nb;
+            if (!ks_parse_params(1, args+1, "nbytes%i64", &nb)) return NULL;
+            nbytes = nb;
         }
     }
 
@@ -453,12 +452,11 @@ static KS_TFUNC(iostream, seek) {
     ks_iostream self = (ks_iostream)args[0];
     KS_REQ_TYPE(self, ks_type_iostream, "self");
 
-
     ks_ssize_t posn = 0;
     if (n_args > 1) {
-        ks_int pos = (ks_int)args[1];
-        KS_REQ_TYPE(pos, ks_type_int, "pos");
-        posn = pos->val;
+        int64_t nb;
+        if (!ks_parse_params(1, args+1, "pos%i64", &nb)) return NULL;
+        posn = nb;
     }
 
     ks_size_t ret = ks_iostream_seek(self, posn);

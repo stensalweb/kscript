@@ -234,8 +234,11 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
 // test whether or not the dictionary has a given key
 bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key) {
     // try and make sure that hash is correct
-    if (hash == 0) hash = ks_hash(key);
-    if (hash == 0) return false;
+    if (hash == 0) {
+        if (!ks_hash(key, &hash)) {
+            return NULL;
+        }
+    }
 
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
@@ -278,8 +281,12 @@ bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key) {
 // get a given element
 ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
     // try and make sure that hash is correct
-    if (hash == 0) hash = ks_hash(key);
-    if (hash == 0) return NULL;
+    if (hash == 0) {
+        if (!ks_hash(key, &hash)) {
+            return NULL;
+        }
+    }
+
 
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
@@ -338,9 +345,11 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
     }
 
     // try and make sure that hash is correct
-    if (hash == 0) hash = ks_hash(key);
-    if (hash == 0) return -1;
-
+    if (hash == 0) {
+        if (!ks_hash(key, &hash)) {
+            return -1;
+        }
+    }
     // we will always increase the reference count for the new value
     KS_INCREF(val);
 
@@ -405,8 +414,11 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
 // delete the given element
 bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
     // try and make sure that hash is correct
-    if (hash == 0) hash = ks_hash(key);
-    if (hash == 0) return false;
+    if (hash == 0) {
+        if (!ks_hash(key, &hash)) {
+            return false;
+        }
+    }
 
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
@@ -470,7 +482,11 @@ static KS_TFUNC(dict, getitem) {
     KS_REQ_TYPE(self, ks_type_dict, "self");
     ks_obj obj = args[1];
     // get the hash
-    ks_hash_t hash_obj = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+
+    if (!ks_hash(obj, &hash_obj)) {
+        return NULL;
+    }
 
     if (hash_obj == 0) {
         // special value meaning unhashable
@@ -493,7 +509,11 @@ static KS_TFUNC(dict, setitem) {
     KS_REQ_TYPE(self, ks_type_dict, "self");
     ks_obj obj = args[1];
     // get the hash
-    ks_hash_t hash_obj = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+
+    if (!ks_hash(obj, &hash_obj)) {
+        return NULL;
+    }
 
     if (hash_obj == 0) {
         // special value meaning unhashable
