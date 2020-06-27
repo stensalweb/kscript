@@ -19,7 +19,12 @@ This should install the package to `/usr/local` (default location for external p
 
 ## MacOS
 
+TODO: add MacOS instructions
 
+
+## Windows
+
+TODO: Add Windows instructions
 
 
 ## From Source
@@ -36,12 +41,15 @@ The requirements for building from source are:
 And, for all the modules, you will need:
 
   * libcurl (`req` library)
+  * GLFW3 (`cnk` library)
 
 You can build these individually, or install them from your system package manager, for example:
 
-Debian/Ubuntu: `sudo apt install python3 libgmp-dev libreadline-dev libcurl4-openssl-dev`
+Packages: `gmp`, `readline`, `curl`, `glfw3`
 
-MacOS (homebrew): `brew install python gmp readline curl`
+Linux (Ubuntu): `sudo apt install libgmp-dev libreadline-dev libcurl4-openssl-dev libglfw3-dev`
+
+MacOS: `brew install gmp readline curl glfw`
 
 Windows: Set up Cygwin packages for all of them (I can't remember the names, but they should all be included as Cygwin packages that you can select for installation)
 
