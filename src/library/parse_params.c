@@ -61,6 +61,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             if (args_i >= n_args) {
                 if (isQuest) {
                     // can skip
+                    continue;
                 } else {
                     continue;
                     ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
@@ -92,6 +93,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             if (args_i >= n_args) {
                 if (isQuest) {
                     // can skip
+                    continue;
                 } else {
                     continue;
                     ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
@@ -120,6 +122,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             if (args_i >= n_args) {
                 if (isQuest) {
                     // can skip
+                    continue;
                 } else {
                     continue;
                     ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
@@ -144,6 +147,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             if (args_i >= n_args) {
                 if (isQuest) {
                     // can skip
+                    continue;
                 } else {
                     continue;
                     ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
@@ -169,6 +173,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             if (args_i >= n_args) {
                 if (isQuest) {
                     // can skip
+                    continue;
                 } else {
                     continue;
                     ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
@@ -187,6 +192,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             if (args_i >= n_args) {
                 if (isQuest) {
                     // can skip
+                    continue;
                 } else {
                     continue;
                     ks_throw_fmt(ks_type_Error, "Ran out of arguments!");
@@ -214,6 +220,8 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
     }
 
     va_end(ap);
+
+    return true;
 
 }
 

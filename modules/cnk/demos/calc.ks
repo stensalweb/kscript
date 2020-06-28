@@ -9,9 +9,25 @@
 # So, you shouldn't have to install anything extra
 import cnk
 
+# import the getarg library, to parse options
+import getarg
+
+
+# -*- PARSE ARGUMENTS
+
+p = getarg.Parser("calc", "0.0.1", "Calculator application using Nuklear bindings", ["Cade Brown <brown.cade@gmail.com>"])
+
+p.add_arg_multi ("size", "Window size of the application", ["-s", "--size"], 2, int, [1200, 900])
+
+args = p.parse()
+
+
+# -*- DO GUI APPLICATION
+
+
 # create a context, with a given (w, h, title)
 # this will be the state of the application, and will handle everything
-ctx = cnk.Context(1200, 900, "Basic Application Window")
+ctx = cnk.Context(args.size[0], args.size[1], "Basic Application Window")
 
 # calculator buttons
 calc_buttons = [

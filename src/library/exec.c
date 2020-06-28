@@ -446,6 +446,12 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_START(KSB_STORE)
             VMED_CONSUME(ksb_i32, op_i32);
+            /* TODO: somehow global variables need to be declared (similar to the global keyword in python)
+             * Such that 'store' instructions will access those instead
+             * so, `global x, y` will look upwards (similar to load) and then set the first one it finds
+             * 
+             * 
+             */
 
             ks_str name = (ks_str)code->v_const->elems[op_i32.arg];
             VME_ASSERT(name->type == ks_type_str && "store [name] : 'name' must be a string");

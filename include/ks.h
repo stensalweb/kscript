@@ -846,6 +846,20 @@ struct ks_dict {
 
 };
 
+
+/* ks_namespace - similar to a dictionary, but elements are accessed via getitem or getattr
+ * 
+ * So, namespace.x == namespace["x"]
+ * 
+ */
+typedef struct {
+    KS_OBJ_BASE
+
+    // attributes
+    ks_dict attr;
+
+}* ks_namespace;
+
 // special data structure for easier to read initialization from C, essentially
 // each entry has a C-style string and a ks_obj that does not have an active reference in most cases
 // i.e.:
@@ -1795,6 +1809,7 @@ KS_API extern ks_type
     ks_type_tuple,
     ks_type_list,
     ks_type_dict,
+    ks_type_namespace,
 
     // error types
     ks_type_Error,
@@ -2425,6 +2440,13 @@ KS_API bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
 KS_API int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
 
+
+/* NAMESPACE */
+
+
+// Create a new kscript namespace from a dictionary
+// NOTE: Returns a new reference
+KS_API ks_namespace ks_namespace_new(ks_dict attr);
 
 /* ENUM */
 

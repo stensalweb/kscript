@@ -222,9 +222,9 @@ static KS_TFUNC(complex, neg) {
 
 static KS_TFUNC(complex, cmp) {
     KS_REQ_N_ARGS(n_args, 2);
-    complex res;
+    int res;
     if (!ks_num_cmp(args[0], args[1], &res)) return NULL;
-    return (ks_obj)ks_complex_new(res);
+    return (ks_obj)ks_int_new(res);
 };
 
 static KS_TFUNC(complex, lt) {

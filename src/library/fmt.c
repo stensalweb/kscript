@@ -460,6 +460,42 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
 
             // advance past the specifier
             p += 1;
+
+        } else if (strncmp(p, "I", 1) == 0) {
+            // %I : take in an iterable, and output a value
+            // %*I : take in another seperator other than the default comma (a C-string)
+        
+            char* sep = ", ";
+            
+            if (strchr(field, '*')) {
+                // read in a width
+                sep = va_arg(ap, char*);
+            }
+
+            ks_obj v_obj = va_arg(ap, ks_obj);
+            
+            if (!ks_is_iterable(v_obj)) {
+                ks_error("ks_fmt_c given %%I with no iterable!");
+                exit(1);
+            }
+
+            ks_list iterl = ks_list_from_iterable(v_obj);
+            if (!iterl) {
+                ks_error("ks_fmt_c given %%I with invalid iterable!");
+                exit(1);
+            }
+
+            int i;
+            for (i = 0; i < iterl->len; ++i) {
+                if (i != 0) ks_str_b_add_c(&SB, sep);
+                ks_str_b_add_str(&SB, iterl->elems[i]);
+            }
+
+            KS_DECREF(iterl);
+
+            // advance past the specifier
+            p += 1;
+
         } else {
             fprintf(stderr, "Unknown format specifier: '%%%c' (whole format string was: %s)\n", *p, fmt);
             assert(false && "Unknown format specifier in 'ks_fmt_vc'");

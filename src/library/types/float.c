@@ -190,9 +190,9 @@ static KS_TFUNC(float, neg) {
 
 static KS_TFUNC(float, cmp) {
     KS_REQ_N_ARGS(n_args, 2);
-    float res;
+    int res;
     if (!ks_num_cmp(args[0], args[1], &res)) return NULL;
-    return (ks_obj)ks_float_new(res);
+    return (ks_obj)ks_int_new(res);
 };
 
 static KS_TFUNC(float, lt) {

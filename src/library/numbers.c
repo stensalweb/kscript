@@ -165,7 +165,7 @@ bool ks_num_get_int64(ks_obj self, int64_t* out) {
         *out = ((ks_Enum)self)->enum_idx;
         return true;
     } else {
-        ks_throw_fmt(ks_type_MathError, "Could not interpret '%T' object as a double", self);
+        ks_throw_fmt(ks_type_MathError, "Could not interpret '%T' object as an int64", self);
         return false;
     }
 }

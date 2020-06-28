@@ -73,6 +73,7 @@ bool ks_init() {
     ks_type_tuple_init();
     ks_type_list_init();
     ks_type_dict_init();
+    ks_type_namespace_init();
     ks_type_Error_init();
     ks_type_Enum_init();
 
@@ -180,6 +181,7 @@ bool ks_init() {
         
         {"tuple",          KS_NEWREF(ks_type_tuple)},
         {"dict",           KS_NEWREF(ks_type_dict)},
+        {"namespace",      KS_NEWREF(ks_type_namespace)},
 
         {"Error",          KS_NEWREF(ks_type_Error)},
         {"SyntaxError",    KS_NEWREF(ks_type_SyntaxError)},
