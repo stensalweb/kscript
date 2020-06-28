@@ -61,10 +61,10 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.kscript",
-				"match": "\\b(if|else|elif|while|for|assert)\\b"
+				"match": "\\b(import|if|else|elif|while|for|assert|func|exit|throw)\\b"
 			},{
 				"name": "keyword.builtin.kscript",
-				"match": "\\b(import|self|this|class|typeof)\\b"
+				"match": "\\b(self|this|class|typeof|int|float|complex|str|list|tuple|dict|namespace|bool|none|iostream|Error|SyntaxError|MathError|ArgError|IOError|KeyError|SizeError|AttrError|TypeError|AssertError|OpError|ToDoError|OutOfIterError|repr|hash|print|sleep|len|typeof|iter|next|open|sort|filter|any|all|map|sum|range|__import__|PI|E|PHI|NaN|true|false|__stdin__|__stdout__|__stderr__|__globals__)\\b"
 			},{
 				"name": "keyword.operator.kscript",
 				"match": "(\\!|\\@|\\$|\\%|\\^|\\*|\\-|\\+|\\||\\:|\\=\\=|\\=|\\|\\||\\&\\&)"

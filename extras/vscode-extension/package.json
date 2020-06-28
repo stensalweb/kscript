@@ -2,7 +2,7 @@
     "name": "kscript",
     "displayName": "kscript",
     "description": "kscript Language Support",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "repository": "https://github.com/ChemicalDevelopment/kscript",
     "publisher": "chemdev",
     "engines": {

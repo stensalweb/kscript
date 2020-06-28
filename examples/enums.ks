@@ -1,4 +1,4 @@
-
+#!/usr/bin/env ks
 
 Side = Enum.create("Side", [
     "None",

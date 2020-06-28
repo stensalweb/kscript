@@ -2,16 +2,28 @@
  *
  * Example usage:
  * 
+ * ```
  * import getarg
- * 
- * p = getarg.Parser("my_program_name", "v1.0.0", "This does XYZ and other stuff", ["Firstname Lastname <email@address>"])
- * 
- * p.add_arg_single("name", "Your name", ["-n", "--name"])
- * p.add_arg_multi("aliases", "A list of aliases you go by", ["-a", "--aliases"], getarg.AllowMany)
- * p.add_arg_multi("money", "How much money do you have?", ["-m, "--money", "--balance"], int, getarg.AllowOnce)
+ *
+ * p = getarg.Parser("basic", "0.0.1", "Basic example showing usage of the 'getarg' module", ["Cade Brown <brown.cade@gmail.com>"])
+ *
+ * p.add_arg_single("name", "Your name", ["-n", "--name"], str)
+ * p.add_arg_multi ("aliases", "Other names you go by", ["-a", "--aliases"], (1, -1), str, [])
+ * p.add_arg_single("money", "How much money do you have?", ["-m", "--money"], int, 0)
  *
  * args = p.parse()
+ * ```
+ * 
+ * Default/overriden/reserved options:
+ *   * --help, prints help/usage information & exits
+ *   * --authors, prints out the list of authors (1 per line) & exits
+ *   * --version, prints out just the version of the software & exits
  *
+ * '--' indicates the end of arguments, so for example:
+ * 
+ * ./program -f -a value -- -b other
+ * 
+ * Will not consider '-b' an option, but rather a positional argument (even if there was an option called '-b') 
  * 
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -22,9 +34,6 @@
 
 // include this since this is a module.
 #include "ks-module.h"
-
-
-
 
 // getarg.Parser - an argument parser object
 typedef struct {
@@ -376,6 +385,17 @@ static KS_TFUNC(Parser, parse) {
             // argument break, only parse positional arguments
             ++i;
             break;
+        } else if (cu_argl == 9 && strncmp(cu_argc, "--version", 9) == 0) {
+            // special case: print just the version and then exit
+            ks_printf("%S\n", self->version);
+            exit(0);
+
+        } else if (cu_argl == 9 && strncmp(cu_argc, "--authors", 9) == 0) {
+            // special case: print just the authors and then exit
+            ks_printf("%*I\n", "\n", self->authors);
+            exit(0);
+
+
         } else if (cu_argl == 6 && strncmp(cu_argc, "--help", 6) == 0) {
             // special case: print help/usage and then exit
 
