@@ -50,6 +50,38 @@ enum nx_dtype nx_dtype_get(char* name) {
 
 }
 
+// Return an enumeration object
+// NOTE: Returns a new reference
+KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype) {
+    /*  */ if (dtype == NX_DTYPE_SINT8) {
+        return (ks_Enum)KS_NEWREF(nx_SINT8);
+    } else if (dtype == NX_DTYPE_UINT8) {
+        return (ks_Enum)KS_NEWREF(nx_UINT8);
+    } else if (dtype == NX_DTYPE_SINT16) {
+        return (ks_Enum)KS_NEWREF(nx_SINT16);
+    } else if (dtype == NX_DTYPE_UINT16) {
+        return (ks_Enum)KS_NEWREF(nx_UINT16);
+    } else if (dtype == NX_DTYPE_SINT32) {
+        return (ks_Enum)KS_NEWREF(nx_SINT32);
+    } else if (dtype == NX_DTYPE_UINT32) {
+        return (ks_Enum)KS_NEWREF(nx_UINT32);
+    } else if (dtype == NX_DTYPE_SINT64) {
+        return (ks_Enum)KS_NEWREF(nx_SINT64);
+    } else if (dtype == NX_DTYPE_UINT64) {
+        return (ks_Enum)KS_NEWREF(nx_UINT64);
+    } else if (dtype == NX_DTYPE_FP32) {
+        return (ks_Enum)KS_NEWREF(nx_FP32);
+    } else if (dtype == NX_DTYPE_FP64) {
+        return (ks_Enum)KS_NEWREF(nx_FP64);
+    } else if (dtype == NX_DTYPE_CPLX_FP32) {
+        return (ks_Enum)KS_NEWREF(nx_CPLX_FP32);
+    } else if (dtype == NX_DTYPE_CPLX_FP64) {
+        return (ks_Enum)KS_NEWREF(nx_CPLX_FP64);
+    } else {
+        return ks_throw_fmt(ks_type_Error, "Given unknown dtype enum (int: %i)", (int)dtype);
+    }
+}
+
 
 static char* _dtype_names[] = {
     [NX_DTYPE_NONE]         = "error-type",

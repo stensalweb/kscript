@@ -45,7 +45,6 @@ static int nx_dtype_size(enum nx_dtype dtype) {
 
 
 
-
 /** INTERNAL ROUTINES FOR INITIALIZATION **/
 
 #endif

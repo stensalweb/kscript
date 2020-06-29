@@ -55,6 +55,27 @@ static KS_TFUNC(nx, size) {
 }
 
 
+// nx.add(A, B, C=none)
+// Compute C=A+B, and return C (C is created if C==none)
+static KS_TFUNC(nx, add) {
+    KS_REQ_N_ARGS(n_args, 3);
+    nx_array A, B, C;
+    if (!ks_parse_params(n_args, args, "A%* B%* C%*", &A, nx_type_array, &B, nx_type_array, &C, nx_type_array)) return NULL;
+
+    // try to add them, if not throw an error
+    if (!nx_T_add(
+        _NXAR_(A),
+        _NXAR_(B),
+        _NXAR_(C)
+    )) {
+        return NULL;
+    }
+
+    return KS_NEWREF(C);
+}
+
+
+
 // now, export them all
 static ks_module get_module() {
 
@@ -82,11 +103,26 @@ static ks_module get_module() {
     });
 
 
+    nx_SINT8     = ks_Enum_get_c(nx_enum_dtype, "SINT8");
+    nx_UINT8     = ks_Enum_get_c(nx_enum_dtype, "UINT8");
+    nx_SINT16    = ks_Enum_get_c(nx_enum_dtype, "SINT16");
+    nx_UINT16    = ks_Enum_get_c(nx_enum_dtype, "UINT16");
+    nx_SINT32    = ks_Enum_get_c(nx_enum_dtype, "SINT32");
+    nx_UINT32    = ks_Enum_get_c(nx_enum_dtype, "UINT32");
+    nx_SINT64    = ks_Enum_get_c(nx_enum_dtype, "SINT64");
+    nx_UINT64    = ks_Enum_get_c(nx_enum_dtype, "UINT64");
+
+    nx_FP32      = ks_Enum_get_c(nx_enum_dtype, "FP32");
+    nx_FP64      = ks_Enum_get_c(nx_enum_dtype, "FP64");
+
+    nx_CPLX_FP32 = ks_Enum_get_c(nx_enum_dtype, "CPLX_FP32");
+    nx_CPLX_FP64 = ks_Enum_get_c(nx_enum_dtype, "CPLX_FP64");
+
+
     ks_module mod = ks_module_new(MODULE_NAME);
 
     // set up types
     nx_type_array_init();
-
 
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
         /* constants */
@@ -95,6 +131,8 @@ static ks_module get_module() {
         {"dtype",                 (ks_obj)nx_enum_dtype},
 
         {"size",                  (ks_obj)ks_cfunc_new2(nx_size_, "nx.size(obj)")},
+        
+        {"add",                   (ks_obj)ks_cfunc_new2(nx_add_, "nx.add(A, B, C=none)")},
 
         /*{"Result",     (ks_obj)req_type_Result},
 

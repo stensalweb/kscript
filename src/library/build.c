@@ -14,10 +14,13 @@ KS_API ks_tuple ks_build_tuple(const char* fmt, ...) {
 
     ks_list b_list = ks_list_new(0, NULL);
 
-    // field specifier
+    // specifiers
     char spec[256];
 
-    int i;
+    // and field name
+    char field[256];
+
+    int i = 0;
     while (fmt[i]) {
         while (fmt[i] == ' ') i++;
 
@@ -25,29 +28,70 @@ KS_API ks_tuple ks_build_tuple(const char* fmt, ...) {
             i++;
             int spec_i = i;
             // have format specifier
-            while (fmt[i] && fmt[i] != ' ') {
+            while (fmt[i] && !isalpha(fmt[i])) {
                 spec[i - spec_i] = fmt[i];
                 i++;
             }
 
             spec[spec_i] = '\0';
 
-            if (strcmp(spec, "i") == 0) {
+            int field_i = i;
+
+            // have format field
+            while (fmt[i] && fmt[i] != ' ') {
+                field[i - field_i] = fmt[i];
+                i++;
+            }
+
+            field[field_i] = '\0';
+
+
+            if (strcmp(field, "i") == 0) {
                 // parse integer
                 int val = va_arg(ap, int);
 
                 ks_int new_obj = ks_int_new(val);
                 ks_list_push(b_list, (ks_obj)new_obj);
                 KS_DECREF(new_obj);
-            } else if (strcmp(spec, "f") == 0) {
+            } else if (strcmp(field, "f") == 0) {
                 // parse integer
                 double val = va_arg(ap, double);
 
                 ks_float new_obj = ks_float_new(val);
                 ks_list_push(b_list, (ks_obj)new_obj);
                 KS_DECREF(new_obj);
+
+            } else if (strcmp(field, "z") == 0) {
+                // %z - ks_ssize_t
+                // %+z - int len, ks_ssize_t*
+
+                // whether or not to do an array
+                bool doMult = strchr(spec, '+') != NULL;
+
+                if (doMult) {
+
+                    int num = va_arg(ap, int);
+                    ks_ssize_t* vals = va_arg(ap, ks_ssize_t*);
+
+                    int i;
+                    for (i = 0; i < num; ++i) {
+
+                        ks_int new_obj = ks_int_new(vals[i]);
+                        ks_list_push(b_list, (ks_obj)new_obj);
+                        KS_DECREF(new_obj);
+                    }
+
+                } else {
+                    ks_ssize_t val = va_arg(ap, ks_ssize_t);
+
+                    ks_int new_obj = ks_int_new(val);
+                    ks_list_push(b_list, (ks_obj)new_obj);
+                    KS_DECREF(new_obj);
+
+                }
+
             } else {
-                ks_error("Unknown format specifier in `ks_build_tuple`, got '%%%s'", spec);
+                ks_error("Unknown format specifier in `ks_build_tuple`, got '%%%s'", field);
                 exit(1);
             }
         

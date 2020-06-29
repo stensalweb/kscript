@@ -75,6 +75,12 @@ ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
     return enumtype;
 }
 
+
+KS_API ks_Enum ks_Enum_get_c(ks_type enumtype, char* arg) {
+    return (ks_Enum)ks_type_get_c(enumtype, arg);
+}
+
+
 /* member functions */
 
 // Enum.__getitem__(self, key) -> get a key

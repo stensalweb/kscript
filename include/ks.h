@@ -2450,13 +2450,9 @@ KS_API ks_namespace ks_namespace_new(ks_dict attr);
 
 /* ENUM */
 
-// Construct an enum member from a given argument
-// NOTE: Returns a new reference
-KS_API ks_Enum ks_Enum_new(ks_type enumtype, ks_obj arg);
-
 // Construct an enum member from a C-style string
 // NOTE: Returns a new reference
-KS_API ks_Enum ks_Enum_new_c(ks_type enumtype, char* arg);
+KS_API ks_Enum ks_Enum_get_c(ks_type enumtype, char* arg);
 
 // entry for constructing an enum entry in C
 struct ks_enum_entry_c {

@@ -339,7 +339,6 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             // whether or not to do an array
             bool doMult = strchr(field, '+') != NULL;
 
-
             if (doMult) {
 
                 int num = va_arg(ap, int);

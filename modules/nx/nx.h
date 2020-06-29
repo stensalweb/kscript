@@ -56,7 +56,7 @@ enum nx_dtype {
 /* TYPES */
 
 // size type, for indices & sizes
-typedef int64_t nx_size_t;
+typedef ks_ssize_t nx_size_t;
 
 // nx_any_t : representing any specific data type
 // NOTE: this is a union, so not good for arrays, but good for declaring
@@ -159,7 +159,7 @@ extern ks_type nx_enum_dtype;
  * 'dtypes' is an array of the data types of the various inputs
  * 'dtype_sizes' is an array of the size of each dtype, kept for efficiency reasons
  * 'datas' is an array of pointers to the data representing the respective inputs
- * 'dims' is the lengths of each 'data' (in elements). keep in mind that this is for 1D-only loops, so it's just the 1-D length for each inpt
+ * 'dim' is the length of each 'data' (in elements). keep in mind that this is for 1D-only loops
  * 'strides' is the stride (in elements) of each array
  * 
  * 'user_data' is a user-defined pointer that was invoked when the function was applied
@@ -167,7 +167,7 @@ extern ks_type nx_enum_dtype;
  * Should return '0' on success, or a non-zero error code if there was a problem
  * 
  */
-typedef int (*nx_ufunc_f)(int Nin, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, void** datas, nx_size_t* dims, nx_size_t* strides, void* _user_data);
+typedef int (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data);
 
 
 
@@ -188,22 +188,30 @@ KS_API char* nx_dtype_get_name(enum nx_dtype dtype);
 // NOTE: Returns a new reference
 KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype);
 
-
 // Create a new array with a given data type, and dimensions
 // NOTE: Returns a new reference
 KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim);
 
 
+// Create a new nx array from a kscript object (use NX_DTYPE_NONE to auto-detect)
+// The rules are:
+// If 'obj' is iterable:
+//   * recursively iterate through and convert each object over
+// Else:
+//   * Create a 1-D array of size (1,) containing the singular element
+// NOTE: Returns a new reference
+KS_API nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype);
+
 // Return the string representation of the data
 // NOTE: Returns a new reference, or NULL if there was an error
-KS_API ks_str nx_get_str(enum nx_dtype dtype, void* data, int N, nx_size_t* dim, nx_size_t* stride);
+KS_API ks_str nx_get_str(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride);
 
 
 /* GENERIC OPS */
 
 
 // Apply 'ufunc' to 'data', returns either 0 if there was no error, or the first error code generated
-KS_API int nx_T_apply_ufunc(int Nin, enum nx_dtype* dtypes, void** datas, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
+KS_API int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
 
 
 
@@ -215,7 +223,20 @@ KS_API int nx_T_apply_ufunc(int Nin, enum nx_dtype* dtypes, void** datas, int* N
 
 // Set every element of the given array to the given object ('obj') (casted to the correct type)
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_set_all(enum nx_dtype dtype, void* data, int N, nx_size_t* dim, nx_size_t* stride, ks_obj obj);
+KS_API bool nx_T_set_all(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride, ks_obj obj);
+
+
+/* SIMPLE MATH OPS */
+
+
+// Compute: A + B -> C
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_add(
+    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
+    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
+    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+
+
 
 
 
