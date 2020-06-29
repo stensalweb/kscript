@@ -27,6 +27,7 @@ ks_tuple ks_tuple_new(int len, ks_obj* elems) {
         self->elems[i] = KS_NEWREF(elems[i]);
     }
 
+
     return self;
 }
 
@@ -41,9 +42,17 @@ ks_tuple ks_tuple_new_n(int len, ks_obj* elems) {
     self->len = len;
 
     int i;
-    // and populate the array, without creating new references
-    for (i = 0; i < len; ++i) {
-        self->elems[i] = elems[i];
+    if (elems != NULL) {
+        // and populate the array, without creating new references
+        for (i = 0; i < len; ++i) {
+            self->elems[i] = elems[i];
+        }
+
+    } else {
+        // and populate the array, without creating new references
+        for (i = 0; i < len; ++i) {
+            self->elems[i] = NULL;
+        }
     }
 
     return self;

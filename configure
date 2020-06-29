@@ -43,7 +43,6 @@ parser.add_argument('--with-readline', '--without-readline', dest='with_readline
 parser.add_argument('--with-curl', '--without-curl', dest='with_curl', action=NegateAction, nargs=0, help='Enables/disables using the CURL library for network operations', default=None)
 parser.add_argument('--with-glfw3', '--without-glfw3', dest='with_glfw3', action=NegateAction, nargs=0, help='Enables/disables using the GLFW3 library for GUI', default=None)
 
-
 args = parser.parse_args()
 
 # -*- Config Vars

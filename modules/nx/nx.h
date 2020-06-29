@@ -1,0 +1,222 @@
+/* modules/nx/nx.h - the kscript numerics ('nx') library header, for exposing the C-API
+ *
+ * 
+ * Essentially, 'nx' is a tensor library similar to numpy. It supports the following datatypes:
+ *   - signed & unsigned 8, 16, 32, and 64 bit integers
+ *   - 32 and 64 bit floating point
+ *   - 32 and 64 bit floating point complex
+ * 
+ *
+ * @author: Cade Brown <brown.cade@gmail.com>
+ */
+
+#pragma once
+#ifndef NX_H__
+
+// include the main kscript API
+#include <ks.h>
+
+// for all sizes of integers
+#include <stdint.h>
+
+
+/* CONSTANTS */
+
+// Enum describing which data-type
+enum nx_dtype {
+
+    // None/error dtype
+    NX_DTYPE_NONE       =   0,
+
+    // signed/unsigned integers
+    NX_DTYPE_SINT8      =   1,
+    NX_DTYPE_UINT8      =   2,
+    NX_DTYPE_SINT16     =   3,
+    NX_DTYPE_UINT16     =   4,
+    NX_DTYPE_SINT32     =   5,
+    NX_DTYPE_UINT32     =   6,
+    NX_DTYPE_SINT64     =   7,
+    NX_DTYPE_UINT64     =   8,
+
+    // floating point numbers
+    NX_DTYPE_FP32       =   9,
+    NX_DTYPE_FP64       =  10,
+
+    // floating point complex
+    NX_DTYPE_CPLX_FP32  =  11,
+    NX_DTYPE_CPLX_FP64  =  12,
+
+};
+
+
+// the maximum size of an individual element
+#define NX_MAX_SIZEOF 64
+
+
+/* TYPES */
+
+// size type, for indices & sizes
+typedef int64_t nx_size_t;
+
+// nx_any_t : representing any specific data type
+// NOTE: this is a union, so not good for arrays, but good for declaring
+//   a local variable
+typedef union {
+
+    int8_t v_sint8;
+    uint8_t v_uint8;
+    int16_t v_sint16;
+    uint16_t v_uint16;
+    int32_t v_sint32;
+    uint32_t v_uint32;
+    int64_t v_sint64;
+    uint64_t v_uint64;
+
+    float v_fp32;
+    double v_fp64;
+
+    float complex v_cplx_fp32;
+    double complex v_cplx_fp64;
+
+    // raw data
+    uint8_t v_raw[NX_MAX_SIZEOF];
+
+} nx_any_t;
+
+// nx.array - N-dimensional tensor array
+typedef struct {
+    KS_OBJ_BASE
+
+    // what type of data does the tensor store
+    enum nx_dtype dtype;
+
+    // pointer to the array data
+    void* data;
+
+    // number of dimensions
+    // i.e. N==1 -> 'vector', N==2 -> 'matrix', N > 2 == 'tensor'
+    int N;
+
+    // array of [N] dimensions, detailing the size in each dimension
+    // so, total number of elements == product(dim[:])
+    nx_size_t* dim;
+
+    // array of [N] strides, detailing the number of elements per each index in the given direction
+    // For a dense array, stride[0] == 1, stride[1] == dim[0], ... stride[i] = stride[i - 1] * dim[i]
+    // Or, stride[i] = product(dim[0], ..., dim[i - 1])
+    nx_size_t* stride;
+
+}* nx_array;
+
+
+// nx.view - a view over ray data
+typedef struct {
+    KS_OBJ_BASE
+
+    // what type of data does the tensor store
+    enum nx_dtype dtype;
+
+    // pointer to the array data (which the view does not own)
+    nx_array data_src;
+
+    // number of dimensions
+    // i.e. N==1 -> 'vector', N==2 -> 'matrix', N > 2 == 'tensor'
+    int N;
+
+    // array of [N] dimensions, detailing the size in each dimension
+    // so, total number of elements == product(dim[:])
+    nx_size_t* dim;
+
+    // array of [N] strides, detailing the number of elements per each index in the given direction
+    // For a dense array, stride[N-1] == 1, stride[N-2] == dim[N-1], ... stride[i] = stride[i + 1] * dim[i + 1]
+    // Or, stride[i] = product(dim[i + 1], ..., dim[N - 1])
+    nx_size_t* stride;
+
+}* nx_view;
+
+// declaring the types
+extern ks_type nx_type_array, nx_type_view;
+
+// enumeration of the dtypes
+extern ks_type nx_enum_dtype;
+
+
+/* UFUNCS */
+
+
+/* 'ufuncs' or 'universal functions' are simple, (typically) 1D loops that process data. They can be
+ *   invoked with different arguments & using recursion to apply a simple operation to, so implementations
+ *   of trivial operations do not contain multi-dimensional loops (keeps things bug free, and allows optimization in one spot)
+ *
+ *
+ * 
+ * 
+ */
+
+/* nx_ufunc_f - describes the function signature required for a 1D ufunc, operating on a variable number of arrays
+ *
+ * 'Nin' means the number of inputs to the function
+ * 'dtypes' is an array of the data types of the various inputs
+ * 'dtype_sizes' is an array of the size of each dtype, kept for efficiency reasons
+ * 'datas' is an array of pointers to the data representing the respective inputs
+ * 'dims' is the lengths of each 'data' (in elements). keep in mind that this is for 1D-only loops, so it's just the 1-D length for each inpt
+ * 'strides' is the stride (in elements) of each array
+ * 
+ * 'user_data' is a user-defined pointer that was invoked when the function was applied
+ * 
+ * Should return '0' on success, or a non-zero error code if there was a problem
+ * 
+ */
+typedef int (*nx_ufunc_f)(int Nin, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, void** datas, nx_size_t* dims, nx_size_t* strides, void* _user_data);
+
+
+
+
+
+/* FUNCTIONS/OPS */
+
+
+// Return a data type enumeration from a given name
+// NOTE: Returns 0 and throws an error if there was an invalid name
+KS_API enum nx_dtype nx_dtype_get(char* name);
+
+// Return the enum value for the name
+// NOTE: Returns a string that should not be modifyed
+KS_API char* nx_dtype_get_name(enum nx_dtype dtype);
+
+// Return an enumeration object
+// NOTE: Returns a new reference
+KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype);
+
+
+// Create a new array with a given data type, and dimensions
+// NOTE: Returns a new reference
+KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim);
+
+
+// Return the string representation of the data
+// NOTE: Returns a new reference, or NULL if there was an error
+KS_API ks_str nx_get_str(enum nx_dtype dtype, void* data, int N, nx_size_t* dim, nx_size_t* stride);
+
+
+/* GENERIC OPS */
+
+
+// Apply 'ufunc' to 'data', returns either 0 if there was no error, or the first error code generated
+KS_API int nx_T_apply_ufunc(int Nin, enum nx_dtype* dtypes, void** datas, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
+
+
+
+
+
+
+/* BASIC OPS */
+
+
+// Set every element of the given array to the given object ('obj') (casted to the correct type)
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_set_all(enum nx_dtype dtype, void* data, int N, nx_size_t* dim, nx_size_t* stride, ks_obj obj);
+
+
+
+#endif /* NX_H__ */

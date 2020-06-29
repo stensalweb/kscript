@@ -1,6 +1,9 @@
 #!/usr/bin/env ks
 """ calc.ks - direct port of the calculator demo for Nuklear (https://github.com/Immediate-Mode-UI/Nuklear/blob/master/demo/calculator.c)
 
+
+
+
 @author: Cade Brown <brown.cade@gmail.com>
 """
 
@@ -23,7 +26,6 @@ args = p.parse()
 
 
 # -*- DO GUI APPLICATION
-
 
 # create a context, with a given (w, h, title)
 # this will be the state of the application, and will handle everything
@@ -129,7 +131,6 @@ for frame in ctx {
                 }
             }
         }
-
     }
 
     # end the current panel
