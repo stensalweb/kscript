@@ -11,10 +11,30 @@
 // include main library
 #include "./nx.h"
 
+// templating library
+#include "./gen/nxt.h"
+
+
 /* EXPANSION MACROS */
 
 // Expands to the standard arguments passed to a function (data, dtype, N, dim, stride)
 #define _NXAR_(_arr) (_arr)->data, (_arr)->dtype, (_arr)->N, (_arr)->dim, (_arr)->stride
+
+// Expands to the standard arguments passed to a function (data, dtype, N, dim, stride)
+#define _NXARS_(_arr) (_arr).data, (_arr).dtype, (_arr).N, (_arr).dim, (_arr).stride
+
+// minimal NX array designation
+struct nxar_t {
+    void* data;
+    enum nx_dtype dtype;
+    int N;
+    nx_size_t* dim;
+    nx_size_t* stride;
+};
+
+// Get a 'nxar_t' from a single nx_array variable
+#define GET_NXAR_ARRAY(_arr) ((struct nxar_t){ _NXAR_(_arr) })
+
 
 //#define NX_ASSERT_CHECK(_expr) { if (!(_expr)) { fprintf(stderr, "INTERNAL NX ASSERT ERROR: " #_expr "\n"); exit(1); } }
 #define NX_ASSERT_CHECK assert
@@ -149,7 +169,7 @@ static void nx_memset_block(void* dest, void* data, nx_size_t size, nx_size_t st
 
 
 // check whether the list of arguments (of which there are Nin) are broadcastable together
-static bool nx_can_bcast(int Nin, int* N, ks_ssize_t** dims) {
+static bool nx_can_bcast(int Nin, int* N, nx_size_t** dims) {
     NX_ASSERT_CHECK(Nin > 0 && "no arguments in broadcast!");
 
     // when considering broadcastability, we borrow from the rules from NumPy:
@@ -210,6 +230,18 @@ static bool nx_can_bcast(int Nin, int* N, ks_ssize_t** dims) {
                     continue;
                 } else {
                     // something else happened, and the shapes are not broadcastable
+                    ks_str_b SB;
+                    ks_str_b_init(&SB);
+
+                    for (i = 0; i < Nin; ++i) {
+                        if (i > 0) ks_str_b_add_c(&SB, ", ");
+                        ks_str_b_add_fmt(&SB, "(%+z)", N[i], dims[i]);
+                    }
+
+                    ks_str rstr = ks_str_b_get(&SB);
+                    ks_str_b_free(&SB);
+                    ks_throw_fmt(ks_type_SizeError, "Shapes %S were not broadcastable!", rstr);
+                    KS_DECREF(rstr);
                     return false;
                 }
             }
@@ -230,7 +262,7 @@ static bool nx_can_bcast(int Nin, int* N, ks_ssize_t** dims) {
 
 
 // compute the broadcast dimensions (i.e. the result dimensions) from a list of inputs
-static bool nx_compute_bcast(int Nin, int* N, ks_ssize_t** dims, int R_N, ks_ssize_t* R_dims) {
+static bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size_t* R_dims) {
     // loop vars
     int i;
 
@@ -281,6 +313,18 @@ static bool nx_compute_bcast(int Nin, int* N, ks_ssize_t** dims, int R_N, ks_ssi
                     continue;
                 } else {
                     // something else happened, and the shapes are not broadcastable
+                    ks_str_b SB;
+                    ks_str_b_init(&SB);
+
+                    for (i = 0; i < Nin; ++i) {
+                        if (i > 0) ks_str_b_add_c(&SB, ", ");
+                        ks_str_b_add_fmt(&SB, "(%+z)", N[i], dims[i]);
+                    }
+
+                    ks_str rstr = ks_str_b_get(&SB);
+                    ks_str_b_free(&SB);
+                    ks_throw_fmt(ks_type_SizeError, "Shapes %S were not broadcastable!", rstr);
+                    KS_DECREF(rstr);
                     return false;
                 }
             }

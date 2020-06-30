@@ -13,7 +13,7 @@ ks_cfunc
     ks_F_print = NULL,
     ks_F_len = NULL,
     ks_F_sleep = NULL,
-    ks_F_ctime = NULL,
+    ks_F_time = NULL,
     ks_F_exit = NULL,
     ks_F_typeof = NULL,
     ks_F_import = NULL,
@@ -268,12 +268,12 @@ static KS_FUNC(typeof) {
 }
 
 
-/* ctime() -> float
+/* time() -> float
  *
  * Return the time (in seconds) since the UNIX epoch
  *
  */
-static KS_FUNC(ctime) {
+static KS_FUNC(time) {
     KS_REQ_N_ARGS(n_args, 0);
 
     struct timeval curtime;
@@ -856,7 +856,7 @@ static const char* global_matches[] = {
     "typeof(", "hash(", "print(",
     "len(", "exit(", "repr(",
 
-    "__import__(", "sleep(", "ctime("
+    "__import__(", "sleep(", "time("
     "iter(", "next(", "open(",
 
     "any(", "all(", 
@@ -1975,9 +1975,12 @@ static KS_TFUNC(range_iter, next) {
     ks_range_iter self = (ks_range_iter)args[0];
     KS_REQ_TYPE(self, ks_type_range_iter, "self");
 
+
+
     // check out ranges & their relations to make sure we are in bounds
     int sgn = ks_int_sgn(self->step);
     int cmp = ks_int_cmp(self->cur, self->stop);
+
 
     if (sgn > 0 && cmp >= 0) return ks_throw_fmt(ks_type_OutOfIterError, "");
     if (sgn < 0 && cmp <= 0) return ks_throw_fmt(ks_type_OutOfIterError, "");
@@ -2058,7 +2061,7 @@ void ks_init_funcs() {
     ks_F_len = ks_cfunc_new2(len_, "len(obj)");
     ks_F_exit = ks_cfunc_new2(exit_, "exit(code=0)");
     ks_F_sleep = ks_cfunc_new2(sleep_, "sleep(dur=0)");
-    ks_F_ctime = ks_cfunc_new2(ctime_, "ctime()");
+    ks_F_time = ks_cfunc_new2(time_, "time()");
     ks_F_typeof = ks_cfunc_new2(typeof_, "typeof(obj)");
     ks_F_import = ks_cfunc_new2(import_, "import(name)");
     ks_F_iter = ks_cfunc_new2(iter_, "iter(obj)");

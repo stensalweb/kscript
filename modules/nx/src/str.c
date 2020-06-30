@@ -20,19 +20,35 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
 
         ks_str_b_add_c(SB, "[");
 
-        // TODO: add more generic string generation
-        intptr_t data_i = (intptr_t)data;
 
-        // add in data
+        // loop vars
         int i;
-        for (i = 0; i < dim[0]; ++i, data_i += stride[0] * dtype_size) {
-            if (i > 0) ks_str_b_add_c(SB, ", ");
-            ks_str_b_add_fmt(SB, "%f", *(float*)data_i);
+
+        // pointer & stride (in bytes)
+        intptr_t dptr_A = (intptr_t)data;
+        nx_size_t sb_A = stride[0] * dtype_size;
+
+        // inner loop
+        #define INNER_LOOP(NXT_TYPE_ENUM_A, NXT_TYPE_A) { \
+            if (i > 0) ks_str_b_add_c(SB, ", "); \
+            if (NXT_TYPE_ENUM_A >= NX_DTYPE_SINT8 && NXT_TYPE_ENUM_A <= NX_DTYPE_UINT64) ks_str_b_add_fmt(SB, "%z", (ks_ssize_t)*(NXT_TYPE_A*)dptr_A); \
+            else if (NXT_TYPE_ENUM_A >= NX_DTYPE_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_FP64) ks_str_b_add_fmt(SB, "%f", (double)*(NXT_TYPE_A*)dptr_A); \
+            else if (NXT_TYPE_ENUM_A >= NX_DTYPE_CPLX_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_CPLX_FP64) ks_str_b_add_fmt(SB, "%f%+fi", creal(*(NXT_TYPE_A*)dptr_A), creal(*(NXT_TYPE_A*)dptr_A)); \
+            else { \
+                ks_throw_fmt(ks_type_ToDoError, "Internal enum idx '%i' not handled in get_str", (int)NXT_TYPE_ENUM_A); \
+                return false; \
+            } \
         }
 
+        // actually generate the loop body with all optimizations possible
+        NXT_GENERATE_1A(dim[0], (&dtype), dptr_A, sb_A, INNER_LOOP)
+
+
+        // end array
         ks_str_b_add_c(SB, "]");
 
         return true;
+
     } else {
         // otherwise, recrusively call the my_get_str with sub-arrays
 
@@ -49,10 +65,7 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
 
             bool stat = my_get_str(SB, (void*)data_i, dtype, dtype_size, N-1, dim+1, stride+1, depth + 1);
             if (!stat) return false;
-
-
         }
-
 
         ks_str_b_add_c(SB, "]");
 

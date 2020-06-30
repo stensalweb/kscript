@@ -12,6 +12,8 @@
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_Enum);
 
+static KS_TFUNC(Enum, getitem);
+
 // make an enum name
 static ks_Enum make_Enum_val(ks_type enumtype, int idx, ks_str name) {
     ks_Enum self = KS_ALLOC_OBJ(ks_Enum);
@@ -72,6 +74,17 @@ ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
         i++;
     }
 
+    ks_obj p_get__base_ = (ks_obj)ks_cfunc_new2(Enum_getitem_, "Enum.__getitem__(self, item)");
+    ks_pfunc p_get_ = ks_pfunc_new(p_get__base_);
+    KS_DECREF(p_get__base_);
+    ks_pfunc_fill(p_get_, 0, (ks_obj)enumtype);
+
+
+    ks_type_set_cn(enumtype, (ks_dict_ent_c[]){
+        {"__new__",  (ks_obj)p_get_},
+        {NULL, NULL}
+    });
+
     return enumtype;
 }
 
@@ -102,7 +115,7 @@ static KS_TFUNC(Enum, getitem) {
 
     ks_obj res = ks_dict_get(enumtype->attr, key->v_hash, (ks_obj)key);
     if (!res) {
-        KS_ERR_ATTR(enumtype, key);
+        KS_ERR_KEY(enumtype, key);
     } else return res;
 };
 

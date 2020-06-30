@@ -466,6 +466,7 @@ static KS_TFUNC(Parser, parse) {
                     if (this_arg_key->len == cu_argl || (hasValue = cu_argc[this_arg_key->len] == '=') || (isShort = (this_arg_key->len >= 2 && this_arg_key->chr[0] == '-' && this_arg_key->chr[1] != '-'))) {
                         // it is either a 1-1 match, or it also contains an '=VALUE' after it
 
+
                         // check if it already has contained it
                         if (ks_dict_has(res, arg_st->name->v_hash, (ks_obj)arg_st->name)) {
                             KS_DECREF(user_args);
@@ -485,13 +486,15 @@ static KS_TFUNC(Parser, parse) {
                                 // parse out sub string as the value part of it
                                 arg_value = ks_str_new_l(&cu_argc[this_arg_key->len+1], cu_argl - this_arg_key->len - 1);
                             } else if (isShort) {
+
                                 // start immediately after the arg key
                                 arg_value = ks_str_new_l(&cu_argc[this_arg_key->len], cu_argl - this_arg_key->len);
 
                             } else {
+
                                 // capture the next string
                                 i++;
-                                if (j >= self->n_args) {
+                                if (i >= user_args->len) {
                                     // out-of-bounds; expected another argument
                                     KS_DECREF(user_args);
                                     KS_DECREF(res);
@@ -503,6 +506,7 @@ static KS_TFUNC(Parser, parse) {
                                 arg_value = (ks_str)KS_NEWREF(user_args->elems[i]);
                             }
 
+
                             // call the validator on it
                             ks_obj created_obj = ks_call(arg_st->validator, 1, (ks_obj*)&arg_value);
                             if (!created_obj) {
@@ -513,7 +517,7 @@ static KS_TFUNC(Parser, parse) {
                                 return NULL;
                             }
 
-                            int stat = ks_dict_set(res, arg_st->name->v_hash, (ks_obj)arg_st->name, (ks_obj)arg_value);
+                            int stat = ks_dict_set(res, arg_st->name->v_hash, (ks_obj)arg_st->name, (ks_obj)created_obj);
                             KS_DECREF(arg_value);
                         } else if (arg_st->argtype == ARG_TYPE_MULTI) {
                             // requires as many values as it can between min and max

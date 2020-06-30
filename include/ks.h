@@ -1863,7 +1863,7 @@ KS_API extern ks_cfunc
     ks_F_hash,
     ks_F_print,
     ks_F_exit,
-    ks_F_ctime,
+    ks_F_time,
     ks_F_sleep,
     ks_F_len,
     ks_F_typeof,
@@ -2160,7 +2160,6 @@ KS_API bool ks_num_fits_int64(ks_obj self);
 //   + int (long)
 //   + float
 //   + complex
-// NOTE: If there was a problem, return false and throw an error
 KS_API bool ks_num_is_numeric(ks_obj self);
 
 // Return whether a given object is an integral type

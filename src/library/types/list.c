@@ -34,6 +34,7 @@ ks_list ks_list_new(int len, ks_obj* elems) {
 // create a list by exhausting an iterable
 ks_list ks_list_from_iterable(ks_obj obj) {
 
+
     // some shortcuts
     /**/ if (obj->type == ks_type_list)  return (ks_list)KS_NEWREF(obj);
     else if (obj->type == ks_type_tuple) return ks_list_new(((ks_tuple)obj)->len, ((ks_tuple)obj)->elems);
@@ -45,7 +46,9 @@ ks_list ks_list_from_iterable(ks_obj obj) {
 
     while (true) {
         ks_obj cur = ks_F_next->func(1, &iter_obj);
+
         if (!cur) {
+
             // error occured
             if (ks_thread_get()->exc->type == ks_type_OutOfIterError) {
                 // signals the stop of the iterator, so just return at this point
@@ -62,6 +65,8 @@ ks_list ks_list_from_iterable(ks_obj obj) {
         ks_list_push(res, cur);
         KS_DECREF(cur);
     }
+
+
 
     KS_DECREF(iter_obj);
     return res;

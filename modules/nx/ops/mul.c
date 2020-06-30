@@ -1,4 +1,4 @@
-/* src/add.c - add elementwise
+/* src/mul.c - multiply elementwise
  *
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -7,9 +7,9 @@
 #include "../nx-impl.h"
 
 
-// internal 1D loop for adding elementwise
-// datas[0] + datas[1] -> datas[2]
-static int my_add_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
+// internal 1D loop for multipling elementwise
+// datas[0] * datas[1] -> datas[2]
+static int my_mul_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
     NX_ASSERT_CHECK(Nin == 3);
 
     // loop vars
@@ -23,7 +23,7 @@ static int my_add_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
 
     // inner loop
     #define INNER_LOOP(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) { \
-        *(NXT_TYPE_C*)dptr_C = *(NXT_TYPE_A*)dptr_A + *(NXT_TYPE_B*)dptr_B; \
+        *(NXT_TYPE_C*)dptr_C = *(NXT_TYPE_A*)dptr_A * *(NXT_TYPE_B*)dptr_B; \
     }
 
     // generate a huge body containing all the data combinations
@@ -37,8 +37,8 @@ static int my_add_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
     return 0;
 }
 
-// add A + B -> C
-bool nx_T_add(
+// add A * B -> C
+bool nx_T_mul(
     void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
     void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
     void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride) {
@@ -49,7 +49,7 @@ bool nx_T_add(
         (int[]){ A_N, B_N, C_N }, 
         (nx_size_t*[]){ A_dim, B_dim, C_dim }, 
         (nx_size_t*[]) { A_stride, B_stride, C_stride },
-        my_add_1d,
+        my_mul_1d,
         NULL
     ) == 0;
 }

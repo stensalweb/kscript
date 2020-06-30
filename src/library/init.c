@@ -205,7 +205,7 @@ bool ks_init() {
         {"exit",           KS_NEWREF(ks_F_exit)},
         {"print",          KS_NEWREF(ks_F_print)},
         {"len",            KS_NEWREF(ks_F_len)},
-        {"ctime",          KS_NEWREF(ks_F_ctime)},
+        {"time",          KS_NEWREF(ks_F_time)},
         {"sleep",          KS_NEWREF(ks_F_sleep)},
         {"typeof",         KS_NEWREF(ks_F_typeof)},
         {"__import__",     KS_NEWREF(ks_F_import)},

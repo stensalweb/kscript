@@ -171,8 +171,6 @@ typedef int (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_
 
 
 
-
-
 /* FUNCTIONS/OPS */
 
 
@@ -236,6 +234,42 @@ KS_API bool nx_T_add(
     void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
     void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
 
+// Compute: A - B -> C
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_sub(
+    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
+    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
+    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+
+// Compute: A * B -> C
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_mul(
+    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
+    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
+    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+
+// Compute: A / B -> C
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_div(
+    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
+    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
+    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+
+
+
+
+
+
+/* Cfunc objects */
+
+
+// declare functions here
+extern ks_cfunc
+    nx_F_add,
+    nx_F_sub,
+    nx_F_mul,
+    nx_F_div
+;
 
 
 
