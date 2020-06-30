@@ -10,29 +10,86 @@
 #define NXT_H__
 
 
+// options to control whether special checks are made to see if the strides are 1 element
+//#define _NXT_CHECK_STRIDE_1A
+//#define _NXT_CHECK_STRIDE_2A
+//#define _NXT_CHECK_STRIDE_3A
+
+
+
 // internal 1argument case
+#ifdef _NXT_CHECK_STRIDE_1A
+#define _NXT_CASE_1A(_len, _dtypes, _dptr_A, _sb_A, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A) \
+    else if (_dtypes[0] == NXT_TYPE_ENUM_A) { \
+        if (_sb_A == sizeof(NXT_TYPE_A)) { \
+            for (i = 0; i < _len; ++i, _dptr_A += sizeof(NXT_TYPE_A)) { \
+                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A) \
+            } \
+        } else { \
+            for (i = 0; i < _len; ++i, _dptr_A +=_sb_A) { \
+                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A) \
+            } \
+        } \
+    }
+#else
 #define _NXT_CASE_1A(_len, _dtypes, _dptr_A, _sb_A, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A) \
     else if (_dtypes[0] == NXT_TYPE_ENUM_A) { \
         for (i = 0; i < _len; ++i, _dptr_A +=_sb_A) { \
             _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A) \
         } \
     }
+#endif
+
 
 // internal 2argument case
+#ifdef _NXT_CHECK_STRIDE_2A
+#define _NXT_CASE_2A(_len, _dtypes, _dptr_A, _dptr_B, _sb_A, _sb_B, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \
+    else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B) { \
+        if (_sb_A == sizeof(NXT_TYPE_A) && _sb_B == sizeof(NXT_TYPE_B)) { \
+            for (i = 0; i < _len; ++i, _dptr_A += sizeof(NXT_TYPE_A), _dptr_B += sizeof(NXT_TYPE_B)) { \
+                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \
+            } \
+        } else { \
+            for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B) { \
+                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \
+            } \
+        } \
+    }
+#else
 #define _NXT_CASE_2A(_len, _dtypes, _dptr_A, _dptr_B, _sb_A, _sb_B, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \
     else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B) { \
         for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B) { \
             _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \
         } \
     }
+#endif
+
+
 
 // internal 3argument case
+#ifdef _NXT_CHECK_STRIDE_3A
+#define _NXT_CASE_3A(_len, _dtypes, _dptr_A, _dptr_B, _dptr_C, _sb_A, _sb_B, _sb_C, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \
+    else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B && _dtypes[2] == NXT_TYPE_ENUM_C) { \
+        if (_sb_A == sizeof(NXT_TYPE_A) && _sb_B == sizeof(NXT_TYPE_B) && _sb_C == sizeof(NXT_TYPE_C)) { \
+            for (i = 0; i < _len; ++i, _dptr_A += sizeof(NXT_TYPE_A), _dptr_B += sizeof(NXT_TYPE_B), _dptr_C += sizeof(NXT_TYPE_C)) { \
+                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \
+            } \
+        } else { \
+            for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B, _dptr_C += _sb_C) { \
+                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \
+            } \
+        } \
+    }
+#else
 #define _NXT_CASE_3A(_len, _dtypes, _dptr_A, _dptr_B, _dptr_C, _sb_A, _sb_B, _sb_C, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \
     else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B && _dtypes[2] == NXT_TYPE_ENUM_C) { \
         for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B, _dptr_C += _sb_C) { \
             _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \
         } \
     }
+#endif
+
+
 
 
 
