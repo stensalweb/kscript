@@ -176,6 +176,7 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // it will take all the children off, but push on a single value
         st->stk_len += 1 - self->children->len;
 
+
     } else if (self->kind == KS_AST_TUPLE) {
 
         // first, calculcate children
@@ -187,6 +188,24 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         assert(start_len + self->children->len == st->stk_len && "'tuple' children did not produce values!");
 
         ksca_tuple(to, self->children->len);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // it will take all the children off, but push on a single value
+        st->stk_len += 1 - self->children->len;
+
+    } else if (self->kind == KS_AST_DICT) {
+
+        // first, calculcate children
+        int i;
+        for (i = 0; i < self->children->len; ++i) {
+            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+        }
+
+        assert(start_len + self->children->len == st->stk_len && "'list' children did not produce values!");
+
+        ksca_dict(to, self->children->len);
 
         // add meta data
         ks_code_add_meta(to, self->tok_expr);

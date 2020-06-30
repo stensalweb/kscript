@@ -268,6 +268,28 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
+        VMED_CASE_START(KSB_DICT)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            VME_ASSERT(self->stk->len >= op_i32.arg && "'dict' instruction required more arguments than existed!");
+            VME_ASSERT(op_i32.arg % 2 == 0 && "'dict' instruction requires an even number of arguments!");
+
+            // construct the dictionary
+            ks_dict new_dict = ks_dict_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
+
+            // remove from the stack
+            for (i = 0; i < op_i32.arg; ++i) {
+                ks_list_popu(self->stk);
+            }
+
+            // push it back on
+            ks_list_push(self->stk, (ks_obj)new_dict);
+            KS_DECREF(new_dict);
+
+        VMED_CASE_END
+
+
+
         /* CONTROL FLOW */
 
         VMED_CASE_START(KSB_CALL)

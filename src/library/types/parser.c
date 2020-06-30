@@ -1146,11 +1146,15 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
         // check if we should stop parsing due to being at the end
         if (ctok.type == KS_TOK_EOF || 
             ctok.type == KS_TOK_SEMI || 
-            ctok.type == KS_TOK_LBRC || ctok.type == KS_TOK_RBRC) goto kppe_end;
+            ctok.type == KS_TOK_RBRC ||
+            ctok.type == KS_TOK_COL) goto kppe_end;
 
-            
+        else if (ctok.type == KS_TOK_LBRC && (ltok.type && (tok_isval(ltok.type) || ltok.type == KS_TOK_RPAR || ltok.type == KS_TOK_RBRK))) {
+
+            KPPE_ERR(ctok, "Unexpected start of dictionary literal");
+
         // only stop on newline if there are not outstanding parens or brks
-        else if (ctok.type == KS_TOK_NEWLINE) {
+        } else if (ctok.type == KS_TOK_NEWLINE) {
             if (n_pars == 0 && n_brks == 0) {
                 // no outstanding calls, so do this
                 goto kppe_end;
@@ -1160,6 +1164,8 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
                 continue;
             }
         }
+
+
 
         if (ctok.type == KS_TOK_INT) {
             // push an integer onto the value stack
@@ -1514,6 +1520,71 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
                 }
             }
 
+        } else if (ctok.type == KS_TOK_LBRC) {
+
+
+            // parsing '{' which means a dictionary literal
+
+
+            // recursively parse `key: value,` pairs
+            ADV_1();
+
+            // create new dictionary AST
+            ks_ast new_val = ks_ast_new_dict(0, NULL);
+
+
+            while (VALID() && CTOK().type != KS_TOK_RBRC) {
+
+                while (VALID() && CTOK().type == KS_TOK_NEWLINE) ADV_1();
+
+                ks_ast ast_key = ks_parser_parse_expr(self);
+                if (!ast_key) {
+                    KS_DECREF(new_val);
+                    goto kppe_err;
+                }
+
+                // skip the ':'
+                if (!VALID() || CTOK().type != KS_TOK_COL) {
+                    KS_DECREF(ast_key);
+                    KS_DECREF(new_val);
+                    KPPE_ERR(CTOK(), "Expected ':' after dictionary entry's key");
+                }
+
+                ADV_1();
+
+                ks_ast ast_val = ks_parser_parse_expr(self);
+                if (!ast_val) {
+                    KS_DECREF(ast_key);
+                    KS_DECREF(new_val);
+                    goto kppe_err;
+                }
+
+                // now, add both to 'new_val'
+                ks_list_push(new_val->children, (ks_obj)ast_key);
+                ks_list_push(new_val->children, (ks_obj)ast_val);
+                KS_DECREF(ast_key);
+                KS_DECREF(ast_val);
+
+                // and, finally, check if there is a comma, if not, just exit out of the loop
+                if (!VALID() || CTOK().type != KS_TOK_COMMA) {
+                    break;
+                }
+
+                ADV_1();
+
+            }
+
+            while (VALID() && CTOK().type == KS_TOK_NEWLINE) ADV_1();
+
+            // skip final '}'
+            if (!VALID() || CTOK().type != KS_TOK_RBRC) {
+                KS_DECREF(new_val);
+                KPPE_ERR(CTOK(), "Expected '}' for the end of the dictionary");
+            }
+
+            // add to result
+            Spush(Out, new_val);
+
         } else {
             // unknown token
             KPPE_ERR(ctok, "Unexpected token");
@@ -1552,7 +1623,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
         // empty expression
         //PEXPR_ERR(ctok, "Invalid expression");
 
-        syntax_error(start_tok, "Invalid Expression");
+        syntax_error(ctok, "Invalid Expression");
         goto kppe_err;
     }
 
@@ -1570,7 +1641,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
 // Parse a single statement out of 'p'
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_stmt(ks_parser self) {
+ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
 
     // skip irrelevant characters
     SKIP_IRR_S();
@@ -1591,7 +1662,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
     // skip irrelevant characters
     SKIP_IRR_S();
 
-    if (ctok.type == KS_TOK_LBRC) {
+    if ((flags & KS_PARSE_ACCEPT_BLOCK) && ctok.type == KS_TOK_LBRC) {
 
         // { STMT... }
         // parse a block of other statements out
@@ -1607,7 +1678,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         // until we reach matching '}'
         while (VALID() && CTOK().type != KS_TOK_RBRC) {
             // try and parse a statement
-            ks_ast stmt = ks_parser_parse_stmt(self);
+            ks_ast stmt = ks_parser_parse_stmt(self, KS_PARSE_NONE);
             if (!stmt) {
                 KS_DECREF(blk);
                 goto kpps_err;
@@ -1771,7 +1842,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         
 
         // attempt to parse the body
-        body = ks_parser_parse_stmt(self);
+        body = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
         if (!body) {
             KS_DECREF(cond);
             goto kpps_err;
@@ -1803,7 +1874,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
             SKIP_IRR_S();
 
-            ks_ast elif_blk = ks_parser_parse_stmt(self);
+            ks_ast elif_blk = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
 
             if (!elif_blk) {
                 KS_DECREF(cond);
@@ -1839,7 +1910,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             }
             SKIP_IRR_S();
 
-            ks_ast else_this_blk = ks_parser_parse_stmt(self);
+            ks_ast else_this_blk = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
             if (!else_this_blk) {
                 KS_DECREF(cond);
                 KS_DECREF(body);
@@ -1901,7 +1972,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
 
         // attempt to parse the body
-        body = ks_parser_parse_stmt(self);
+        body = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
         if (!body) {
             KS_DECREF(cond);
             goto kpps_err;
@@ -1918,7 +1989,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             }
             SKIP_IRR_S();
 
-            else_blk = ks_parser_parse_stmt(self);
+            else_blk = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
             if (!else_blk) {
                 KS_DECREF(cond);
                 KS_DECREF(body);
@@ -1988,7 +2059,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
             goto kpps_err;
         }
 
-        ks_ast body = ks_parser_parse_stmt(self);
+        ks_ast body = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
         if (!body) {
             KS_DECREF(ident);
             KS_DECREF(expr);
@@ -2033,7 +2104,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         }
         
         // attempt to parse the body
-        body = ks_parser_parse_stmt(self);
+        body = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
         if (!body) {
             goto kpps_err;
         }
@@ -2090,7 +2161,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
 
             SKIP_IRR_S();
 
-            catch_blk = ks_parser_parse_stmt(self);
+            catch_blk = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
             if (!catch_blk) {
                 KS_DECREF(body);
                 goto kpps_err;
@@ -2177,7 +2248,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         }
 
         // parse out the '{ BODY }'
-        ks_ast body = ks_parser_parse_stmt(self);
+        ks_ast body = ks_parser_parse_stmt(self, KS_PARSE_ACCEPT_BLOCK);
         if (!body) {
             KS_DECREF(name);
             goto kpps_err;
@@ -2232,10 +2303,10 @@ ks_ast ks_parser_parse_stmt(ks_parser self) {
         // now, create an assignment: name = func
         ks_ast res = ks_ast_new_bop(KS_AST_BOP_ASSIGN, name, new_const);
         res->tok = res->tok_expr = funtok;
-
         return res;
 
-    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_FLOAT || ctok.type == KS_TOK_OP || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK) {
+
+    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_FLOAT || ctok.type == KS_TOK_OP || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK || ctok.type == KS_TOK_LBRC) {
 
         // parse expression
         return ks_parser_parse_expr(self);
@@ -2271,7 +2342,7 @@ ks_ast ks_parser_parse_file(ks_parser self) {
     while (VALID()) {
 
         // try and parse a single statement
-        ks_ast sub = ks_parser_parse_stmt(self);
+        ks_ast sub = ks_parser_parse_stmt(self, KS_PARSE_NONE);
         if (sub == NULL) goto kppf_err;
 
         // add to the block

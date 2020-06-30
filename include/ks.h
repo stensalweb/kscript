@@ -1151,6 +1151,11 @@ enum {
     // elements are in children
     KS_AST_TUPLE,
 
+    // Represents a dictionary constructor, like {"key":"value", ...}
+    // elements are in children, there should be an even number (for keys & values)
+    KS_AST_DICT,
+
+
     // Represents an attribute reference, 'children[0].(children[1])'
     // the value is 'children[0]' (AST), but the attribute is a string, in 'children[1]'
     KS_AST_ATTR,
@@ -2522,6 +2527,7 @@ KS_API void ksca_popu      (ks_code self);
 
 KS_API void ksca_list      (ks_code self, int n_items);
 KS_API void ksca_tuple     (ks_code self, int n_items);
+KS_API void ksca_dict      (ks_code self, int n_items);
 
 KS_API void ksca_getitem   (ks_code self, int n_items);
 KS_API void ksca_setitem   (ks_code self, int n_items);
@@ -2579,6 +2585,13 @@ KS_API ks_ast ks_ast_new_list(int n_items, ks_ast* items);
 // Create an AST representing a list constructor
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
+
+
+// Create an AST representing a dictionary constructor (n_items should be even, and have (key, val) interleaved)
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_dict(int n_items, ks_ast* items);
+
+
 
 
 
@@ -2656,6 +2669,15 @@ KS_API ks_code ks_codegen(ks_ast self);
 
 /* PARSER */
 
+// controlling how the parser parses
+enum ks_parse_flags {
+    // default, no special flags
+    KS_PARSE_NONE            = 0x00,
+
+    // if true, accept '{}' blocks, and not dictionary literals
+    KS_PARSE_ACCEPT_BLOCK    = 0x01,
+};
+
 // Create a new parser from some source code
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
@@ -2665,9 +2687,10 @@ KS_API ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
 // NOTE: Returns a new reference
 KS_API ks_ast ks_parser_parse_expr(ks_parser self);
 
+
 // Parse a single statement out of 'p'
 // NOTE: Returns a new reference
-KS_API ks_ast ks_parser_parse_stmt(ks_parser self);
+KS_API ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags);
 
 // Parse the entire file out of 'p', returning the AST of the program
 // Or, return NULL if there was an error (and 'throw' the exception)

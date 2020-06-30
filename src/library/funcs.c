@@ -1070,7 +1070,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     if (isTTY) if ((prog->kind >= KS_AST_BOP__FIRST && prog->kind <= KS_AST_BOP__LAST) ||
         (prog->kind >= KS_AST_UOP__FIRST && prog->kind <= KS_AST_UOP__LAST) ||
         prog->kind == KS_AST_ATTR || prog->kind == KS_AST_VAR || prog->kind == KS_AST_CONST ||
-        prog->kind == KS_AST_SUBSCRIPT || prog->kind == KS_AST_CALL || prog->kind == KS_AST_LIST || prog->kind == KS_AST_TUPLE) {
+        prog->kind == KS_AST_SUBSCRIPT || prog->kind == KS_AST_CALL || prog->kind == KS_AST_LIST || prog->kind == KS_AST_TUPLE || prog->kind == KS_AST_DICT) {
             doPrint = true;
             doPrintIffy = prog->kind == KS_AST_CALL;
             ks_ast new_prog = ks_ast_new_ret(prog);

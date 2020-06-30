@@ -65,6 +65,20 @@ ks_ast ks_ast_new_tuple(int n_items, ks_ast* items) {
 }
 
 
+// Create an AST representing a list constructor
+ks_ast ks_ast_new_dict(int n_items, ks_ast* items) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
+
+    // set specific variables
+    self->kind = KS_AST_DICT;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(n_items, (ks_obj*)items);
+
+    return self;
+}
+
+
 // Create an AST representing an attribute reference
 // Type should always be string
 ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr) {
