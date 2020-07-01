@@ -114,20 +114,30 @@ KS_API bool nx_fft_plan_do(nx_fft_plan_t* self, enum nx_fft_flags flags, double 
 KS_API void nx_fft_plan_free(nx_fft_plan_t* self);
 
 
-
-
+/* HIGHER LEVEL API FUNCTIONS */
 
 
 // Compute: B = FFT(A[:]) (with given flags)
+// If flags contains `NX_FFT_INVERSE`, the computation is an inverse FFT
 // Conditions: A_N == B_N, B_dtype is complex
 // NOTE: Returns whether it was successful or not, and if not, throw an error
 KS_API bool nx_T_fft_1d(
-    nx_fft_plan_t* plan, enum nx_fft_flags flags,
+    enum nx_fft_flags flags,
+    nx_fft_plan_t* plan0, 
     void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
     void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride
 );
 
-
+// Compute: B = FFT(A[:]) (with given flags)
+// If flags contains `NX_FFT_INVERSE`, the computation is an inverse FFT
+// Conditions: A_N == B_N, B_dtype is complex
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+bool nx_T_fft_2d(
+    enum nx_fft_flags flags,
+    nx_fft_plan_t* plan0, nx_fft_plan_t* plan1, 
+    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
+    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride
+);
 
 
 #endif /* NX_FFT_H__ */

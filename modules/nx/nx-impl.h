@@ -182,6 +182,30 @@ static void nx_memset_block(void* dest, void* data, nx_size_t size, nx_size_t st
 
 
 
+
+// Get the pointer t o a specific element, or NULL and throw an error
+// i.e. data[*idx]
+static void* nx_get_ptr(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride, int idx_N, nx_size_t* idx) {
+    if (N != idx_N) {
+        return ks_throw_fmt(ks_type_KeyError, "Index %+z has different dimension than target array (shape: %+z)", idx_N, idx, N, dim);
+    }
+
+
+    intptr_t res = (intptr_t)data;
+    nx_size_t dtype_size = nx_dtype_size(dtype);
+
+    int i;
+    for (i = 0; i < idx_N; ++i) {
+        if (idx[i] < 0 || idx[i] >= dim[i]) {
+            return ks_throw_fmt(ks_type_KeyError, "Index %+z is out of range for array with shape: %+z", idx_N, idx, N, dim);
+        }
+        res += dtype_size * stride[i] * idx[i];
+    }
+
+    return (void*)res;
+}
+
+
 // check whether the list of arguments (of which there are Nin) are broadcastable together
 static bool nx_can_bcast(int Nin, int* N, nx_size_t** dims) {
     NX_ASSERT_CHECK(Nin > 0 && "no arguments in broadcast!");

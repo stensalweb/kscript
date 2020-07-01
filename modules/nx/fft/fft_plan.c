@@ -1,5 +1,16 @@
 /* fft/fft_plan.c - implementing various plan types for FFT
  *
+ * For power-of-two length sequences, standard Cooley-Tukey DIT algorithm is used
+ * Otherwise, Bluestiein's algorithm (https://ccrma.stanford.edu/~jos/mdft/Bluestein_s_FFT_Algorithm.html) is used
+ *
+ * 
+ * This code may not be maximal performance; in the future I want to optionally support using the FFTW backend, if
+ *   kscript is compiled with it
+ * 
+ * 
+ * Currently, twiddle tables are recomputed per invocation, but I would like to detect commonly used sizes & cache them
+ * 
+ * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
@@ -39,7 +50,6 @@ static bool do_shfl_btrv(nx_size_t N, double complex* A) {
     // success
     return true;
 }
-
 
 // initialize an FFT plan
 bool nx_fft_plan_init(nx_fft_plan_t* plan, nx_size_t N) {
@@ -128,6 +138,8 @@ bool nx_fft_plan_init(nx_fft_plan_t* plan, nx_size_t N) {
 
 // free resources used by that plan
 void nx_fft_plan_free(nx_fft_plan_t* plan) {
+    if (!plan) return;
+    
     if (plan->ptype == NX_FFT_PLAN_TYPE_CT) {
         ks_free(plan->CT.W_fwd);
         ks_free(plan->CT.W_inv);
@@ -207,6 +219,9 @@ static bool _fft_1d_CT(nx_fft_plan_t* plan, enum nx_fft_flags flags, double comp
         }
     }
 
+    // inverse transofrms are normalized by 1/N
+    if (isInv) for (i = 0; i < N; ++i) A[i] = A[i] / N;
+
     // success
     return true;
 }
@@ -267,17 +282,25 @@ static bool _fft_1d_blue(nx_fft_plan_t* plan, enum nx_fft_flags flags, double co
         return false;
     }
 
-    // scale back
-    for (i = 0; i < M; ++i) {
-        tmpA[i] = tmpA[i] / M;
-    }
-
     /* POST PROCESS */
 
     // copy to output
     for (i = 0; i < N; ++i) {
         A[i] = tmpA[i] * plan->blue.Ws_fwd[i];
     }
+
+    // inverse transforms are normalized by 1/N
+    if (isInv) {
+        A[0] = A[0] / N;
+        // also, bluestein's algorithm requires elements [1+] are reversed in the inverse FFT
+        for (i = 1; 2 * i < N; ++i) {
+            double complex tmp = A[i];
+            A[i] = A[N - i] / N;
+            A[N - i] = tmp / N;
+        }
+    }
+
+
 
     // success
     return true;
