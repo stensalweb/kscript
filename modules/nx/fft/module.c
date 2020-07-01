@@ -20,7 +20,6 @@ static KS_TFUNC(fft, fft1d) {
     struct nxar_t A_nxar, B_nxar;
     NX_CALC_NXAR(A_nxar, A, delA);
 
-
     if (!B) {
         // calculate B
         B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 1, &A_nxar.dim[0]);
@@ -36,7 +35,7 @@ static KS_TFUNC(fft, fft1d) {
     }
 
     bool stat = nx_T_fft_1d(
-        NX_FFT_NONE,
+        NULL, NX_FFT_NONE,
         _NXARS_(A_nxar), 
         _NXARS_(B_nxar)
     );
