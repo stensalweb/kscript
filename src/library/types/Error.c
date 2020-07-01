@@ -13,6 +13,7 @@ KS_TYPE_DECLFWD(ks_type_Error);
 KS_TYPE_DECLFWD(ks_type_ArgError);
 KS_TYPE_DECLFWD(ks_type_MathError);
 KS_TYPE_DECLFWD(ks_type_SyntaxError);
+KS_TYPE_DECLFWD(ks_type_InternalError);
 KS_TYPE_DECLFWD(ks_type_SizeError);
 KS_TYPE_DECLFWD(ks_type_KeyError);
 KS_TYPE_DECLFWD(ks_type_AttrError);
@@ -167,6 +168,9 @@ void ks_type_Error_init() {
 
     KS_INIT_TYPE_OBJ(ks_type_MathError, "MathError");
     ks_type_add_parent(ks_type_MathError, ks_type_Error);
+
+    KS_INIT_TYPE_OBJ(ks_type_InternalError, "InternalError");
+    ks_type_add_parent(ks_type_InternalError, ks_type_Error);
 
     KS_INIT_TYPE_OBJ(ks_type_SizeError, "SizeError");
     ks_type_add_parent(ks_type_SizeError, ks_type_Error);

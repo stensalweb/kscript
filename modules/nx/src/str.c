@@ -28,13 +28,18 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
         intptr_t dptr_A = (intptr_t)data;
         nx_size_t sb_A = stride[0] * dtype_size;
 
+        char tmp[256];
+
+
         // inner loop
         #define INNER_LOOP(NXT_TYPE_ENUM_A, NXT_TYPE_A) { \
             if (i > 0) ks_str_b_add_c(SB, ", "); \
             if (NXT_TYPE_ENUM_A >= NX_DTYPE_SINT8 && NXT_TYPE_ENUM_A <= NX_DTYPE_UINT64) ks_str_b_add_fmt(SB, "%z", (ks_ssize_t)*(NXT_TYPE_A*)dptr_A); \
             else if (NXT_TYPE_ENUM_A >= NX_DTYPE_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_FP64) ks_str_b_add_fmt(SB, "%f", (double)*(NXT_TYPE_A*)dptr_A); \
-            else if (NXT_TYPE_ENUM_A >= NX_DTYPE_CPLX_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_CPLX_FP64) ks_str_b_add_fmt(SB, "%f%+fi", creal(*(NXT_TYPE_A*)dptr_A), creal(*(NXT_TYPE_A*)dptr_A)); \
-            else { \
+            else if (NXT_TYPE_ENUM_A >= NX_DTYPE_CPLX_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_CPLX_FP64) { \
+                int len = snprintf(tmp, sizeof(tmp) - 1, "%.4f%+.4fi", creal(*(NXT_TYPE_A*)dptr_A), cimag(*(NXT_TYPE_A*)dptr_A)); \
+                ks_str_b_add(SB, len, tmp); \
+            } else { \
                 ks_throw_fmt(ks_type_ToDoError, "Internal enum idx '%i' not handled in get_str", (int)NXT_TYPE_ENUM_A); \
                 return false; \
             } \

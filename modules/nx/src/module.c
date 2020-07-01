@@ -521,27 +521,8 @@ static ks_module get_module() {
     /* SUBMODULES */
 
 
-    /* nx.LA -> Linear Algebra */
-
-    ks_module mod_LA = ks_module_new(MODULE_NAME ".LA");
-
-    ks_dict_set_cn(mod_LA->attr, (ks_dict_ent_c[]){
-
-
-        {NULL, NULL}
-    });
-
-
-    // add submodules to main modules
-    ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
-        /* constants */
-
-        {"LA",                 (ks_obj)mod_LA},
-
-        {NULL, NULL}
-    });
-
-
+    nx_mod_add_fft(mod);
+    nx_mod_add_la(mod);
 
     return mod;
 }

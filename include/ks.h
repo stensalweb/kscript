@@ -158,6 +158,17 @@ extern "C" {
 
 /* CONSTANTS */
 
+// PI, (circle constant)
+#define KS_M_PI    3.14159265358979323846264338327950288419716939937510582097494459230781640628620899
+
+// E, (euler's number)
+#define KS_M_E     2.7182818284590452353602874713526625
+
+// PHI, (golden ratio)
+#define KS_M_PHI   1.6180339887498948482045868343656381177
+
+
+
 // enumeration for levels of logging, from least important to most important
 enum {
     // tracing, i.e. minute details will cover things such as allocations/deallocations,
@@ -1824,6 +1835,7 @@ KS_API extern ks_type
     ks_type_IOError,
     ks_type_KeyError,
     ks_type_SizeError,
+    ks_type_InternalError,
     ks_type_AttrError,
     ks_type_TypeError,
     ks_type_AssertError,

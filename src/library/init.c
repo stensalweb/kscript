@@ -224,9 +224,9 @@ bool ks_init() {
 
         /* math constants */
 
-        {"PI",             (ks_obj)ks_float_new(3.141592653589793238462643383279502884)},
-        {"E",              (ks_obj)ks_float_new(2.7182818284590452353602874713526625)},
-        {"PHI",            (ks_obj)ks_float_new(1.6180339887498948482045868343656381177)},
+        {"PI",             (ks_obj)ks_float_new(KS_M_PI)},
+        {"E",              (ks_obj)ks_float_new(KS_M_E)},
+        {"PHI",            (ks_obj)ks_float_new(KS_M_PHI)},
 
         /* misc constants */
         {"none",           KS_NEWREF(KSO_NONE)},

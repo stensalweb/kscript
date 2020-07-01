@@ -1,6 +1,13 @@
-# `modules/nx` - numerics, tensors module
+# `modules/nx` - the `NumeriX` library
 
 This is a numerics library for tensors, arrays, matrices, etc
+
+It also contains submodules:
+
+  * `fft` - Fast-Fourier-Transform related functions, (FFT, convolution, etc)
+  * `la` - Linear Algebra related functions (matmul, dot product, solving equations, etc)
+
+
 
 ## Building
 

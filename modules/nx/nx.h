@@ -6,12 +6,21 @@
  *   - 32 and 64 bit floating point
  *   - 32 and 64 bit floating point complex
  * 
+ * And, it supports arbitrary dimensional data-types for most operations
+ * 
+ * There are also the submodules:
+ *   - fft (Fast-Fourier-Transform related routines)
+ *   - la (Linear Algebra routines)
+ * 
+ * You can see them in their own headers (i.e. 'nx-fft.h')
+ * 
  *
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
 #pragma once
 #ifndef NX_H__
+#define NX_H__
 
 // include the main kscript API
 #include <ks.h>
@@ -224,8 +233,16 @@ KS_API int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N
 KS_API bool nx_T_set_all(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride, ks_obj obj);
 
 
-/* SIMPLE MATH OPS */
+// Compute B = (B_dtype)A, i.e. casting types
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_cast(
+    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
+    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride);
 
+
+
+
+/* SIMPLE MATH OPS */
 
 // Compute: A + B -> C
 // NOTE: Returns whether it was successful or not, and if not, throw an error
@@ -256,10 +273,6 @@ KS_API bool nx_T_div(
     void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
 
 
-
-
-
-
 /* Cfunc objects */
 
 
@@ -270,6 +283,16 @@ extern ks_cfunc
     nx_F_mul,
     nx_F_div
 ;
+
+
+
+/** SUBMODULES **/
+
+
+// FFT library
+#include <nx-fft.h>
+// LA (Linear Algebra) library
+#include <nx-la.h>
 
 
 

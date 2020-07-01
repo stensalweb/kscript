@@ -35,6 +35,20 @@ struct nxar_t {
 // Get a 'nxar_t' from a single nx_array variable
 #define GET_NXAR_ARRAY(_arr) ((struct nxar_t){ _NXAR_(_arr) })
 
+// Calculate a 'nxar' from a given object, setting (_nxar).data == NULL if there was an error
+// You should always include `if (_delobj) KS_DECREF(_delobj)` to clean up any temporary arrays created
+#define NX_CALC_NXAR(_nxar, _obj, _delobj) { \
+    /**/ if ((_obj)->type == nx_type_array) _nxar = GET_NXAR_ARRAY(((nx_array)(_obj))); \
+    else if (ks_num_is_numeric((_obj)) || ks_is_iterable((_obj))) { \
+        _delobj = (ks_obj)nx_array_from_obj((_obj), NX_DTYPE_NONE); \
+        if (!_delobj) _nxar.data = NULL; \
+        else _nxar = GET_NXAR_ARRAY(((nx_array)_delobj)); \
+    } else { \
+        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", (_obj)); \
+        _nxar.data = NULL; \
+    } \
+}
+
 
 //#define NX_ASSERT_CHECK(_expr) { if (!(_expr)) { fprintf(stderr, "INTERNAL NX ASSERT ERROR: " #_expr "\n"); exit(1); } }
 #define NX_ASSERT_CHECK assert
@@ -348,9 +362,6 @@ static bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size
 
 
 
-
-
-
 // enumeration values
 extern ks_Enum
     nx_SINT8,
@@ -374,6 +385,12 @@ extern ks_Enum
 /** INTERNAL ROUTINES FOR INITIALIZATION **/
 
 void nx_type_array_init();
+
+// adding submodules
+void nx_mod_add_fft(ks_module nxmod);
+void nx_mod_add_la(ks_module nxmod);
+
+
 
 
 #endif

@@ -8,9 +8,9 @@ MOD_NAME       := nx
 
 # -*- FILES -*-
 
-mod_C          := $(wildcard src/*.c ops/*.c)
+mod_C          := $(wildcard src/*.c ops/*.c fft/*.c la/*.c)
 
-mod_H          := nx.h nx-impl.h
+mod_H          := nx.h nx-impl.h nx-fft.h nx-la.h
 
 
 # -*- TARGETS -*-
@@ -46,7 +46,7 @@ uninstall:
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)
-	$(CC) $(CFLAGS) $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) -I./ $< -fPIC -c -o $@
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
