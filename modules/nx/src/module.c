@@ -129,7 +129,7 @@ static KS_TFUNC(nx, add) {
 
         // create new array
         // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim);
+        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
         
         // free temporary resources
         ks_free(Cdim);
@@ -225,7 +225,7 @@ static KS_TFUNC(nx, sub) {
 
         // create new array
         // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim);
+        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
         
         // free temporary resources
         ks_free(Cdim);
@@ -321,7 +321,7 @@ static KS_TFUNC(nx, mul) {
 
         // create new array
         // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim);
+        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
         
         // free temporary resources
         ks_free(Cdim);
@@ -416,7 +416,7 @@ static KS_TFUNC(nx, div) {
 
         // create new array
         // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim);
+        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
         
         // free temporary resources
         ks_free(Cdim);

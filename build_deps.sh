@@ -8,6 +8,7 @@
 # -*- CONFIG
 
 # where to store the results
+KSDIR=$PWD
 DEPDIR=$PWD/deps/src
 PREFIXDIR=$PWD/deps/prefix
 
@@ -39,6 +40,9 @@ tar xf $TAR_GLFW -C $DEPDIR || { echo "Untarring 'GLFW' failed"; exit 1; }
 DIR_GLFW=`echo $DEPDIR/glfw-*`
 
 
+DIR_FFMPEG=$DEPDIR/ffmpeg_build
+mkdir -p $DIR_FFMPEG
+
 # -*- 1. Build GMP
 
 cd $DIR_GMP
@@ -60,6 +64,13 @@ cmake . -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PA
     make -j$JOBS && \
     make install || { echo "Compiling 'GLFW' failed"; exit 1; }
 
+# -*- 1. Build FFMPEG
+
+cd $DIR_FFMPEG
+
+# extra flags to consider in some builds:
+# --enable-fat --disable-assembly --enable-assert
+yes no | $KSDIR/tools/build-ffmpeg --build || { echo "Compiling 'FFMPEG' failed"; exit 1; }
 
 
 

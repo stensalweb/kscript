@@ -15,6 +15,18 @@
 
 
 
+/* I/O */
+
+// Read a file as a binary object, and return the whole thing
+// NOTE: Returns a new reference
+KS_API ks_blob mm_read_file(char* fname);
+
+
+
+
+
+
+
 
 
 #endif /* MM_H__ */

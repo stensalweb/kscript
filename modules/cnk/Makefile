@@ -21,7 +21,7 @@ mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
 # generated
 mod_O          := $(patsubst %.c,%.o,$(mod_C))
 
-
+# libraries
 mod_LIBS       := 
 
 ifeq ($(wildcard $(KS_DIR)/deps/prefix/lib/libglfw3.$(STATIC_END)),)
@@ -45,7 +45,6 @@ clean:
 # install all files
 install: $(mod_SHARED) $(mod_H)
 	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-
 	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # rule to uninstall the whole package from PREFIX

@@ -196,8 +196,9 @@ KS_API char* nx_dtype_get_name(enum nx_dtype dtype);
 KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype);
 
 // Create a new array with a given data type, and dimensions
+// If 'data' is NULL, it is initialized to 0, otherwise 'data' must be a dense block
 // NOTE: Returns a new reference
-KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim);
+KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data);
 
 
 // Create a new nx array from a kscript object (use NX_DTYPE_NONE to auto-detect)

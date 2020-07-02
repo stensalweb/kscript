@@ -22,7 +22,7 @@ static KS_TFUNC(fft, fft1d) {
 
     if (!B) {
         // calculate B
-        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 1, &A_nxar.dim[0]);
+        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 1, &A_nxar.dim[0], NULL);
     } else {
         KS_INCREF(B);
     }
@@ -61,7 +61,7 @@ static KS_TFUNC(fft, ifft1d) {
 
     if (!B) {
         // calculate B
-        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 1, &A_nxar.dim[0]);
+        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 1, &A_nxar.dim[0], NULL);
     } else {
         KS_INCREF(B);
     }
@@ -101,7 +101,7 @@ static KS_TFUNC(fft, fft2d) {
 
     if (!B) {
         // calculate B
-        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 2, A_nxar.dim);
+        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 2, A_nxar.dim, NULL);
     } else {
         KS_INCREF(B);
     }
@@ -139,7 +139,7 @@ static KS_TFUNC(fft, ifft2d) {
 
     if (!B) {
         // calculate B
-        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 2, A_nxar.dim);
+        B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 2, A_nxar.dim, NULL);
     } else {
         KS_INCREF(B);
     }

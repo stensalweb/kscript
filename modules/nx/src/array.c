@@ -27,7 +27,7 @@ KS_TYPE_DECLFWD(nx_type_view);
 
 
 // Create a new array with a given data type, and dimensions
-nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim) {
+nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data) {
     // create a new result
     nx_array self = KS_ALLOC_OBJ(nx_array);
     KS_INIT_OBJ(self, nx_type_array);
@@ -71,10 +71,16 @@ nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim) {
     }
 
 
-    // initialize to 0
-    ks_int ks0 = ks_int_new(0);
-    nx_T_set_all(_NXAR_(self), (ks_obj)ks0);
-    KS_DECREF(ks0);
+    if (data) {
+        // copy given data
+        memcpy(self->data, data, total_sz);
+    } else {
+        // initialize to 0
+        ks_int ks0 = ks_int_new(0);
+        nx_T_set_all(_NXAR_(self), (ks_obj)ks0);
+        KS_DECREF(ks0);
+    }
+
 
     return self;
 }
@@ -118,7 +124,7 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
 
         if (my_idx == 0) {
             // we are the first! create 'resp'
-            *resp = nx_array_new(dtype, dep, *dims);
+            *resp = nx_array_new(dtype, dep, *dims, NULL);
         } else {
             // already created, ensure we are at maximum depth
             if (dep != (*resp)->N) {
@@ -190,7 +196,7 @@ nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype) {
         }
 
         // create (1,) array
-        nx_array res = nx_array_new(dtype, 1, (nx_size_t[]){ 1 });
+        nx_array res = nx_array_new(dtype, 1, (nx_size_t[]){ 1 }, NULL);
 
         // attempt to set it
         if (!nx_T_set_all(_NXAR_(res), obj)) {

@@ -4,11 +4,14 @@ This file contains more detailed building/installation information for kscript.
 
 You can build with no requirements, but for standard releases, the following packages are required for a full build including standard modules:
 
-Packages: `gmp`, `readline`, `curl`, `glfw3`, `X11`
+Packages: `gmp`, `readline`, `curl`, `glfw3`, `X11`, (`libavcodec`, `libavutil`, ...)
 
-Linux (Ubuntu): `sudo apt install libgmp-dev libreadline-dev libcurl4-openssl-dev libglfw3-dev libx11-dev`
+Linux (Ubuntu): `sudo apt install libgmp-dev libreadline-dev libcurl4-openssl-dev libglfw3-dev libx11-dev ffmpeg`
 
-MacOS: `brew install gmp readline curl glfw`
+MacOS: `brew install gmp readline curl glfw ffmpeg`
+
+
+It's recommended to run `./build_deps.sh` (may take a while!), and individual packages may copy and/or link in static libraries built to be more portable
 
 
 Most of this information is detailed in `./Makefile` as well
