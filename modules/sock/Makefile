@@ -48,6 +48,6 @@ uninstall:
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -lcurl -shared -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -shared -o $@
 	strip $@ $(STRIP_OPTS)
 	@echo "\n|| Built: $@\n"
