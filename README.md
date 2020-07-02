@@ -1,17 +1,18 @@
 # kscript (ks)
 
-kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more! Learn more here: [https://chemicaldevelopment.us/kscript](https://chemicaldevelopment.us/kscript)
+kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more! Learn more here: [https://chemicaldevelopment.us/kscript](https://chemicaldevelopment.us/kscript), and here: [http://chemicaldevelopment.us/kscript/#/](http://chemicaldevelopment.us/kscript/#/).
 
-It works currently, but is missing a large part of normal functionality, such as file I/O, OS integration, and the extra packages I promise.
+
+kscript is a work-in-progress, but most of the important functionality is at least partially complete
 
 Current Efforts:
 
   * Implementing the standard library & packages
     * Numeric library (`nx`), with NumPy-like tensor support
-    * Sockets library (`sock`), for UNIX socket-based networking
-    * Requests library (`req`), for `GET`, `POST` requests
-    * GUI Application Toolkit packages
-    * OpenGL/GLFW/etc solution packages
+    * Sockets library (`sock`), for UNIX socket-based networking (mostly functional - lacking edge cases)
+    * Requests library (`req`), for `GET`, `POST` requests (working)
+    * GUI Application library (`cnk`), based on [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) is about 15% done, just a matter of all the functions
+    * OpenGL/GLFW/etc solution packages. I want to get this right, and so I'm still deciding exactly what it will look like
   * Maybe implementing some niceties like python has with tuple unpacking (i.e. `for key, val in dict:`)
   * Better documentation & tutorials. Maybe even videos at some point
   * Example applications
@@ -25,7 +26,7 @@ In the broadest sense, I think that kscript could be a general purpose language 
 
 At the same time, I also wanted something which could rival Python as a usable scripting and/or systems scripting language. However, I did away with relevant whitespace, Python's overuse of `:` (which even Python core devs are regretting with the addition of the walrus operator), odd choices for vocabulary (like, why do I `except` something always? I prefer `catch`, because sometimes you expect a so-called 'exception' to be thrown, so it's not really anything special. This is just one example, though), and again, (useless) feature bloat.
 
-Python has a ~20-40ms startup time for me, varying on which machine I use, etc. But this is just to print out a single string! For system utilities (which may be called in a loop from a shell), this time can start adding up. My goal is a <10ms startup time on an average system, even with a module system. Currently, I am well within that.
+Python has a ~20-40ms startup time for me, varying on which machine I use, etc. But this is just to print out a single string! For system utilities (which may be called in a loop from a shell), this time can start adding up. My goal is a <10ms startup time on an average system, even with a module system. Currently, I am well within that (<3ms)
 
 
 ## Building
@@ -80,17 +81,14 @@ A couple of big changes that might be made:
 
   * keyword arguments, for example `func(x=4, y=5)`. In kscript, `=` expressions are not just statements, so that would assign to a local variable x and y. I also don't want to add a special case, so I think the best solution for keyword arguments is `func(@x=4, @y=5)`. In my opinion, this is far more readable and explicit, so I think this is what will happen
   * unpacking iterables, for example `for x, y in coll`. This would be very useful, and just cause a few changes. Also, perhaps allow starred unpacking?
-  * parsing. Currently, I've written the parser from scratch (see `src/types/parser.c`). It's a huge monster, and has basically been battle tested. However, I am wondering if it would be better to use a parser generator, such as yacc. I will have to see. The biggest flaw with those methods is the fact that error messages are often not as good as what I can generate by hand. But, it would greatly simplify adding new features (probably)
 
 And things left to do:
 
   * Standard FILE I/O, some sort of os/sys module for file systems, file creation, etc
-  * Standard REQUESTS module, i.e. networking
   * Somehow figure out slicing with indicies, similar to python (i.e. `arr[1:]`)
   * Custom user type definitions
   * Importing other kscript files
   * kscript-based modules
-  * external C extensions, examples
   * package manager
 
 ## Examples

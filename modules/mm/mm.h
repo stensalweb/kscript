@@ -14,11 +14,8 @@
 #include <nx.h>
 
 
-// TODO: autodetect and have it
-#define HAVE_LIBAV
 
-
-#ifdef HAVE_LIBAV
+#ifdef KS_HAVE_LIBAV
 
 // ffmpeg/libav headers 
 #include <libavutil/opt.h>

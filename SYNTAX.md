@@ -14,21 +14,6 @@ y = 5
 
 You can use a ';' to end a statement that has nothing following it, but this is redundant and generally avoided.
 
-
-Similar to C, compound statements can be created with `{ ... }`, which can themselves contain other statements.
-
-For example, 
-
-```
-
-{
-    x = 3
-    y = 4
-    if y > x {
-        ...
-    }
-}
-```
 ## Conditionals/Loops
 
 ### `if`

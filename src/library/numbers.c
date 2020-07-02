@@ -360,19 +360,22 @@ bool ks_num_cmp(ks_obj L, ks_obj R, int* out) {
         }
 
         mpz_t Lz, Rz;
-        mpz_inits(Lz, Rz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
             KS_ERR_BOP_UNDEF("<=>", L, R);
         }
 
         int res = mpz_cmp(Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         *out = res == 0 ? 0 : (res > 0 ? 1 : -1);
         return true;
 
@@ -422,19 +425,22 @@ bool ks_num_eq(ks_obj L, ks_obj R, bool* out) {
         }
 
         mpz_t Lz, Rz;
-        mpz_inits(Lz, Rz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
             KS_ERR_BOP_UNDEF("==", L, R);
         }
 
         int res = mpz_cmp(Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         *out = res == 0;
         return true;
 
@@ -491,19 +497,24 @@ ks_obj ks_num_add(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("+", L, R);
         }
 
         mpz_add(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
     } else {
@@ -557,20 +568,25 @@ ks_obj ks_num_sub(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("-", L, R);
         }
 
 
         mpz_sub(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
 
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
@@ -626,19 +642,24 @@ ks_obj ks_num_mul(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("*", L, R);
         }
 
         mpz_mul(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
     } else {
@@ -687,19 +708,24 @@ ks_obj ks_num_div(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("/", L, R);
         }
 
         mpz_tdiv_q(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
     } else {
@@ -743,19 +769,24 @@ ks_obj ks_num_mod(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("%", L, R);
         }
 
         mpz_mod(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
     } else {
@@ -821,19 +852,21 @@ ks_obj ks_num_pow(ks_obj L, ks_obj R) {
 
         // otherwise, compute this way:
         mpz_t Lz, Vz;
-        mpz_inits(Lz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz)
         ) {
             // problem converting
-            mpz_clears(Lz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("**", L, R);
         }
 
 
         mpz_pow_ui(Vz, Lz, Rv);
-        mpz_clears(Lz, NULL);
+        mpz_clear(Lz);
 
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
@@ -864,13 +897,13 @@ ks_obj ks_num_neg(ks_obj L) {
 
         // otherwise, declare mpz and set it, then negate it
         mpz_t Lz;
-        mpz_inits(Lz, NULL);
+        mpz_init(Lz);
 
         if (
             !ks_num_get_mpz(L, Lz)
         ) {
             // problem converting
-            mpz_clears(Lz, NULL);
+            mpz_clear(Lz);
             KS_ERR_UOP_UNDEF("-", L);
         }
 
@@ -929,19 +962,24 @@ ks_obj ks_num_binor(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("|", L, R);
         }
 
         mpz_ior(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
     } else {
@@ -969,19 +1007,24 @@ ks_obj ks_num_binand(ks_obj L, ks_obj R) {
         }
 
         mpz_t Lz, Rz, Vz;
-        mpz_inits(Lz, Rz, Vz, NULL);
+        mpz_init(Lz);
+        mpz_init(Rz);
+        mpz_init(Vz);
 
         if (
             !ks_num_get_mpz(L, Lz) || 
             !ks_num_get_mpz(R, Rz)
         ) {
             // problem converting
-            mpz_clears(Lz, Rz, Vz, NULL);
+            mpz_clear(Lz);
+            mpz_clear(Rz);
+            mpz_clear(Vz);
             KS_ERR_BOP_UNDEF("&", L, R);
         }
 
         mpz_and(Vz, Lz, Rz);
-        mpz_clears(Lz, Rz, NULL);
+        mpz_clear(Lz);
+        mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
 
     } else {
