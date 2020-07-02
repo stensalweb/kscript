@@ -113,6 +113,7 @@ extern "C" {
 // include specific headers
 #include <windows.h>
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -134,6 +135,7 @@ extern "C" {
 #else
 // UNIX-style headers only
     
+#include <limits.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
