@@ -337,6 +337,7 @@ void nx_type_array_init() {
 
         {"__new__", (ks_obj)ks_cfunc_new2(array_new_, "nx.array.__new__(obj, dtype=none)")},
         {"__str__", (ks_obj)ks_cfunc_new2(array_str_, "nx.array.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(array_str_, "nx.array.__repr__(self)")},
 
         {"__free__", (ks_obj)ks_cfunc_new2(array_free_, "nx.array.__free__(self)")},
 
