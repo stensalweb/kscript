@@ -25,6 +25,20 @@
  * }
  * ```
  * 
+ * Another rule is that any type that is a sub-type must export the same binary interface, so you can also check:
+ * ```
+ * ks_obj my_obj = ...;
+ * if (ks_type_issub(my_obj->type, ks_type_list)) {
+ *     // we know it is a list, so we can cast it
+ *     ks_list my_list = (ks_list)my_obj;
+ * } else {
+ *     // not a list, perhaps throw an error?
+ * }
+ * ```
+ * 
+ * Using the `ks_type_issub` function
+ * 
+ * 
  * 
  * |-   Ref Counting   -|
  * 
@@ -41,6 +55,18 @@
  * 
  * Once an object is freed, `type(obj).__free__(self)` is called on the object, which should have a reference count of '0'
  * 
+ * Results from functions come with a reference count, so for example, if you have:
+ * 
+ * ```
+ * ks_obj my_res = ks_function_call(A, B, C);
+ * if (!my_res) return NULL; // <- catch and propogate error
+ * 
+ * ... do something with my_re
+ * 
+ * // destroy the reference yopu were given by `ks_function_call`
+ * KS_DECREF(my_res);
+ * ```
+ * 
  * 
  * |-   Execution State   -|
  * 
@@ -53,8 +79,6 @@
  * 
  * What this means is that `ks_thread_get()` should always return non-NULL for any code that is being ran, and it does not
  *   return a new reference, so you should NOT call `KS_DECREF(ks_thread_get())` ever!
- * 
- * 
  * 
  * 
  * 
