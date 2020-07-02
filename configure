@@ -193,12 +193,12 @@ if args.with_gmp is not False:
 		raise Exception("'--with-gmp' given, but GMP was not found!")
 
 if args.with_readline is not False:
-	hasREADLINE       = has_c_lib("readline", shell_output("pkg-config --cflags readline")[-1], shell_output("pkg-config --static --libs readline")[-1], "#include <stdio.h>\n#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
+	hasREADLINE       = has_c_lib("readline", shell_output("pkg-config --cflags readline")[-1], "-lreadline", "#include <stdio.h>\n#include <readline/readline.h>", "rl_bind_key('\\t', rl_insert);")
 	if args.with_readline and not hasREADLINE:
 		raise Exception("'--with-readline' given, but readline was not found!")
 
 if args.with_curl is not False:
-	hasCURL           = has_c_lib("curl", shell_output("curl-config --cflags")[-1], shell_output("curl-config --libs")[-1], "#include <curl/curl.h>", "curl_global_init(CURL_GLOBAL_ALL);")
+	hasCURL           = has_c_lib("curl", "", "-lcurl", "#include <curl/curl.h>", "curl_global_init(CURL_GLOBAL_ALL);")
 	if args.with_curl and not hasCURL:
 		raise Exception("'--with-curl' given, but curl was not found!")
 
