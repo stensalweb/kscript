@@ -147,7 +147,7 @@ static KS_TFUNC(str, free) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str self = (ks_str)args[0];
     KS_REQ_TYPE(self, ks_type_str, "self");
-    if (self >= &KS_STR_CHARS[0] || self <= &KS_STR_CHARS[255]) {
+    if (self >= &KS_STR_CHARS[0] && self <= &KS_STR_CHARS[255]) {
         // global singleton
         self->refcnt = 0xFFFF;
         return KSO_NONE;

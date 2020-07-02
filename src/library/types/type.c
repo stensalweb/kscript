@@ -62,7 +62,6 @@ ks_obj ks_type_get(ks_type self, ks_str key) {
     // get from the internal dictionary
     ks_obj res = ks_dict_get(self->attr, hash, (ks_obj)key);
     if (!res) {
-
         int i;
         for (i = 0; i < self->__parents__->len; ++i) {
             ks_type cpar = (ks_type)self->__parents__->elems[i];
@@ -74,6 +73,7 @@ ks_obj ks_type_get(ks_type self, ks_str key) {
         return NULL;
     } else {
         // just return the result
+
         return res;
     }
 
@@ -293,6 +293,16 @@ static KS_TFUNC(type, str) {
     return KS_NEWREF(self->__name__);
 };
 
+// type.__hash__(self) -> convert to string
+static KS_TFUNC(type, hash) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_type self = (ks_type)args[0];
+    KS_REQ_TYPE(self, ks_type_type, "self");
+    
+    return (ks_obj)ks_int_new((intptr_t)self);
+};
+
+
 // type.__getattr__(self, attr) -> get an attribute
 static KS_TFUNC(type, getattr) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -421,6 +431,8 @@ void ks_type_type_init() {
     ks_type_set_cn(ks_type_type, (ks_dict_ent_c[]){
         {"__str__", (ks_obj)ks_cfunc_new(type_str_)},
         {"__repr__", (ks_obj)ks_cfunc_new(type_str_)},
+
+        {"__hash__", (ks_obj)ks_cfunc_new(type_hash_)},
 
         {"__getattr__", (ks_obj)ks_cfunc_new(type_getattr_)},
         {"__setattr__", (ks_obj)ks_cfunc_new(type_setattr_)},

@@ -81,14 +81,14 @@ ks_type libc_make_pointer_type(ks_type of) {
         ks_pfunc_fill(p_get_, 0, (ks_obj)p_T);
 
         ks_type_set_c(p_T, "__new__", (ks_obj)p_get_);
-        
 
         KS_DECREF(p_get_);
 
+        int r = ks_dict_set(pointer_types, 0, (ks_obj)of, (ks_obj)p_T);
 
     } else {
         // just assign pointer type
-        p_T = (ks_type)KS_NEWREF(ret);
+        p_T = (ks_type)ret;
     }
 
     return p_T;
@@ -173,22 +173,45 @@ static KS_TFUNC(int, int) {
 static KS_TFUNC(pointer, new) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_type type_of = (ks_type)args[0];
-    if (!(type_of->type == ks_type_type) || !ks_type_issub(type_of, libc_type_pointer)) {
+    /*if (!(type_of->type == ks_type_type) || !ks_type_issub(type_of, libc_type_pointer)) {
         return ks_throw_fmt(ks_type_TypeError, "Incorrect type for 'type_of', expected 'libc.pointer', but got '%T'", type_of);
-    }
+    }*/
     ks_obj obj = args[1];
+    int64_t v64;
 
     if (ks_type_issub(obj->type, libc_type_pointer)) {
 
         ks_type type_of_call = my_gettypeof(type_of);
+        if (!type_of_call) return NULL;
+        //libc_pointer ret = libc_make_pointer(type_of_call, ((libc_pointer)obj)->val);
+        KS_DECREF(type_of_call);
+        //return (ks_obj)ret;
+        return KS_NEWREF(obj);
+    } else if (ks_num_get_int64(obj, &v64)) {
 
-        libc_pointer ret = libc_make_pointer(type_of_call, ((libc_pointer)obj)->val);
+        ks_type type_of_call = my_gettypeof(type_of);
+        libc_pointer ret = libc_make_pointer(type_of_call, (void*)(intptr_t)v64);
         KS_DECREF(type_of_call);
         return (ks_obj)ret;
     } else {
+        ks_catch_ignore();
         KS_ERR_CONV(obj, libc_type_int);
     }
 }
+
+
+// pointer.__free__(self)
+static KS_TFUNC(pointer, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    libc_pointer self = (libc_pointer)args[0];
+    KS_REQ_TYPE(self, libc_type_pointer, "self");
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+}
+
 
 // pointer.create(type_of)
 static KS_TFUNC(pointer, create) {
@@ -289,6 +312,9 @@ void libc_init_types() {
     });
 
     ks_type_set_cn(libc_type_pointer, (ks_dict_ent_c[]){
+
+        {"__free__",        (ks_obj)ks_cfunc_new2(pointer_free_, "libc.pointer.__free__(obj)")},
+
         {"__str__",        (ks_obj)ks_cfunc_new2(pointer_str_, "libc.pointer.__str__(self)")},
         {"__repr__",       (ks_obj)ks_cfunc_new2(pointer_str_, "libc.pointer.__repr__(self)")},
         {"__int__",        (ks_obj)ks_cfunc_new2(pointer_int_, "libc.pointer.__int__(self)")},

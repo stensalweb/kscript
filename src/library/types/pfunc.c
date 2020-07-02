@@ -83,7 +83,6 @@ static KS_TFUNC(pfunc, call) {
     // skip first argument, which is the pfunc
     args++;
     n_args--;
-    
 
     // combine the filled in args with what is passed
     int new_n_args = self->n_fill + n_args;

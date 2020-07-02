@@ -53,16 +53,33 @@ int64_t ks_len(ks_obj obj) {
 }
 
 // calculate hash(obj)
-bool ks_hash(ks_obj obj, ks_hash_t* out) {
+static bool my_hash(ks_obj obj, ks_hash_t* out, int dep) {
+    if (dep > 4) return false;
     if (obj->type == ks_type_str) {
         *out = ((ks_str)obj)->v_hash;
         return true;
     } else if (obj->type == ks_type_bool || obj->type == ks_type_int || obj->type == ks_type_float || obj->type == ks_type_complex) {
         return ks_num_hash(obj, out);
+    } else if (obj->type->__hash__ != NULL) {
+
+        ks_obj hv = ks_call(obj->type->__hash__, 1, &obj);
+        if (!hv) {
+            ks_catch_ignore();
+            return false;
+        }
+
+        bool rstat = my_hash(hv, out, dep+1);
+        KS_DECREF(hv);
+        return rstat;
+
     } else {
         // TODO; try ks_F_hash
         return false;
     }
+}
+
+bool ks_hash(ks_obj obj, ks_hash_t* out) {
+    return my_hash(obj, out, 0);
 }
 
 // return A==B
