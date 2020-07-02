@@ -51,7 +51,7 @@ CC        = os.environ.get("CC",        "cc")
 CFLAGS    = os.environ.get("CFLAGS",    "-O3 -std=c99")
 LDFLAGS   = os.environ.get("LDFLAGS",   "")
 
-PREFIX    = args.prefix if args.prefix else os.environ.get("PREFIX",    "/usr/local")
+PREFIX    = os.path.abspath(args.prefix if args.prefix else os.environ.get("PREFIX",    "/usr/local"))
 DESTDIR   = args.dest_dir if args.dest_dir else os.environ.get("DESTDIR", "")
 
 PWD       = os.getcwd()
@@ -490,7 +490,7 @@ FORCE:
 # rule to install the whole package to PREFIX
 install: default $(libks_STATIC) $(ks_H) FORCE
 	install -d $(DESTDIR)$(PREFIX)/bin/
-	install -d $(DESTDIR)$(PREFIX)/lib/
+	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules
 	install -d $(DESTDIR)$(PREFIX)/share/doc/kscript
 	install -d $(DESTDIR)$(PREFIX)/include/
 	install -d $(DESTDIR)$(PREFIX)/share/man/man1
@@ -500,6 +500,10 @@ install: default $(libks_STATIC) $(ks_H) FORCE
 	install -m 644 $(all_H) $(DESTDIR)$(PREFIX)/include/
 	install -m 644 $(wildcard {PWD}/share/doc/*) $(DESTDIR)$(PREFIX)/share/doc/kscript
 	install -m 644 $(wildcard {PWD}/share/man/man1/*) $(DESTDIR)$(PREFIX)/share/man/man1
+
+	# add dependencies
+	#install -m 644 $(wildcard deps/prefix/lib/*) $(DESTDIR)$(PREFIX)/lib/
+	#install -m 644 $(wildcard deps/prefix/include/*) $(DESTDIR)$(PREFIX)/include/
 
 	#mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
 
@@ -539,7 +543,7 @@ $(libks_SHARED): $(libks_O)
 	$(CC) $(CFLAGS) \\
 		$^ $(LDFLAGS) \\
 		-Wl,-soname,libks.so.$(KS_VERSION) \\
-		{LIB_FLAGS} -shared -o $@.$(KS_VERSION)
+		-shared {LIB_FLAGS} -o $@.$(KS_VERSION)
 	strip $@.$(KS_VERSION) $(STRIP_OPTS)
 	rm -f $@
 	ln -s libks.$(SHARED_END).$(KS_VERSION) $@

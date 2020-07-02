@@ -1151,7 +1151,8 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
         else if (ctok.type == KS_TOK_LBRC && (ltok.type && (tok_isval(ltok.type) || ltok.type == KS_TOK_RPAR || ltok.type == KS_TOK_RBRK))) {
 
-            KPPE_ERR(ctok, "Unexpected start of dictionary literal");
+            //KPPE_ERR(ctok, "Unexpected start of dictionary literal");
+            goto kppe_end;
 
         // only stop on newline if there are not outstanding parens or brks
         } else if (ctok.type == KS_TOK_NEWLINE) {

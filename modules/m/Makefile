@@ -36,9 +36,7 @@ clean:
 # install all files
 install: $(mod_SHARED) $(mod_H)
 	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-
 	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-	#install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # rule to uninstall the whole package from PREFIX
 uninstall:

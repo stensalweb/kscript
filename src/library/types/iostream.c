@@ -150,6 +150,7 @@ ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz) {
 
     if (!(self->ios_flags & KS_IOS_OPEN)) return ks_throw_fmt(ks_type_IOError, "Attempted to read string from iostream that was not open!");
     if (!(self->ios_flags & KS_IOS_READ)) return ks_throw_fmt(ks_type_IOError, "Attempted to read string from iostream that was not open for reading!");
+    if (self->ios_flags & KS_IOS_BINARY) return ks_throw_fmt(ks_type_IOError, "Attempted to read string from iostream that was binary!");
 
     // allocate temporary buffer
     char* tmp = ks_malloc(sz + 1);
@@ -172,7 +173,34 @@ ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz) {
     ks_free(tmp);
 
     return res;
+}
 
+
+// read a blob of a given size
+ks_blob ks_iostream_readblob_n(ks_iostream self, ks_ssize_t sz) {
+
+    if (!(self->ios_flags & KS_IOS_OPEN)) return ks_throw_fmt(ks_type_IOError, "Attempted to read blob from iostream that was not open!");
+    if (!(self->ios_flags & KS_IOS_READ)) return ks_throw_fmt(ks_type_IOError, "Attempted to read blob from iostream that was not open for reading!");
+
+    // allocate temporary buffer
+    char* tmp = ks_malloc(sz);
+
+    // allow other things access
+    ks_GIL_unlock();
+
+    size_t actual_bytes = fread(tmp, 1, sz, self->fp);
+    if (actual_bytes != sz) {
+        // discrepancy
+        //ks_warn("Problem reading string!");
+    }
+
+    // acquire back
+    ks_GIL_lock();
+
+    ks_blob res = ks_blob_new(sz, tmp);
+    ks_free(tmp);
+
+    return res;
 }
 
 // write a C-style string into an iostream, return success
@@ -185,7 +213,7 @@ bool ks_iostream_writestr_c(ks_iostream self, char* data, int len) {
         ks_throw_fmt(ks_type_IOError, "Attempted to write string to iostream that was not open for writing!");
         return false;
     }
-
+    
     // release GIL
     ks_GIL_unlock();
 
@@ -385,7 +413,7 @@ static KS_TFUNC(iostream, read) {
 
     }
 
-    return (ks_obj)ks_iostream_readstr_n(self, nbytes);
+    return ((self->ios_flags & KS_IOS_BINARY) ? (ks_obj)ks_iostream_readstr_n(self, nbytes) : (ks_obj)ks_iostream_readblob_n(self, nbytes));
 };
 
 
@@ -522,6 +550,18 @@ static KS_TFUNC(iostream, close) {
 void ks_type_iostream_init() {
     KS_INIT_TYPE_OBJ(ks_type_iostream, "iostream");
 
+    ks_type E_flags = ks_Enum_create_c("iostream.Flags", (struct ks_enum_entry_c[]){
+        {"NONE",         KS_IOS_NONE},
+        {"READ",         KS_IOS_READ},
+        {"WRITE",        KS_IOS_WRITE},
+        {"OPEN",         KS_IOS_OPEN},
+        {"BINARY",       KS_IOS_BINARY},
+        {"EXTERN",       KS_IOS_EXTERN},
+        {NULL, -1}
+    });
+
+
+
     ks_type_set_cn(ks_type_iostream, (ks_dict_ent_c[]){
         {"__new__", (ks_obj)ks_cfunc_new2(iostream_new_, "iostream.__new__(fname=none, mode='r')")},
         {"__free__", (ks_obj)ks_cfunc_new2(iostream_free_, "iostream.__free__(self)")},
@@ -541,7 +581,12 @@ void ks_type_iostream_init() {
         {"flush", (ks_obj)ks_cfunc_new2(iostream_flush_, "iostream.flush(self)")},
         {"close", (ks_obj)ks_cfunc_new2(iostream_close_, "iostream.close(self)")},
 
+        {"Flags", (ks_obj)E_flags},
+
         {NULL, NULL}   
     });
+
+    ks_dict_add_enum_members(ks_type_iostream->attr, E_flags);
+
 }
 

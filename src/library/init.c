@@ -87,6 +87,7 @@ bool ks_init() {
     ks_type_ast_init();
     ks_type_parser_init();
     ks_type_module_init();
+    ks_type_blob_init();
 
     ks_init_funcs();
 
@@ -176,6 +177,7 @@ bool ks_init() {
         {"float",          KS_NEWREF(ks_type_float)},
         {"complex",        KS_NEWREF(ks_type_complex)},
         
+        {"blob",           KS_NEWREF(ks_type_blob)},
         {"str",            KS_NEWREF(ks_type_str)},
         {"list",           KS_NEWREF(ks_type_list)},
         

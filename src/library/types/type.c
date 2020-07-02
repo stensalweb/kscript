@@ -138,6 +138,7 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
         ATTR_CASE("__init__", __init__)
 
         ATTR_CASE("__bool__", __bool__)
+        ATTR_CASE("__blob__", __blob__)
         ATTR_CASE("__str__", __str__)
         ATTR_CASE("__repr__", __repr__)
 
@@ -269,6 +270,7 @@ void ks_type_add_parent(ks_type self, ks_type parent) {
     REPL(__free__)
     REPL(__repr__)
     REPL(__bool__)
+    REPL(__blob__)
     REPL(__str__)
     REPL(__hash__)
     REPL(__len__)

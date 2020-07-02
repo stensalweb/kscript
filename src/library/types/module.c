@@ -159,6 +159,40 @@ void ks_module_add_enum_members(ks_module self, ks_type enumtype) {
 
 }
 
+
+// add member types
+void ks_dict_add_enum_members(ks_dict self, ks_type enumtype) {
+    // get the enum keys array
+    ks_list e_keys = (ks_list)ks_dict_get_c(enumtype->attr, "_enum_keys");
+    if (!e_keys) return;
+    if (e_keys->type != ks_type_list) {
+        ks_throw_fmt(ks_type_TypeError, "While adding enum to dict: '_enum_keys' (type: %T) was not a list!", e_keys);
+        KS_DECREF(e_keys);
+        return;
+
+    }
+
+
+
+    int i;
+    for (i = 0; i < e_keys->len; ++i) {
+        ks_str e_key = (ks_str)e_keys->elems[i];
+        if (e_key->type != ks_type_str) {
+            KS_DECREF(e_keys);
+            ks_throw_fmt(ks_type_TypeError, "Internal problem with dict; '_enum_keys' (which was %R) contained a non-string", e_keys);
+            return;
+        }
+
+        // add a reference in the module
+        ks_obj e_elem = ks_dict_get(enumtype->attr, e_key->v_hash, (ks_obj)e_key);
+        ks_dict_set(self, e_key->v_hash, (ks_obj)e_key, e_elem);
+        KS_DECREF(e_elem);
+    }
+    KS_DECREF(e_keys);
+
+}
+
+
 /* member functions */
 
 // module.__free__(self) -> free a module

@@ -24,8 +24,15 @@ void ks_obj_free(ks_obj obj) {
         ks_free(obj);
 
     } else {
-        // otherwise, call the function
-        if (!ks_call(obj->type->__free__, 1, &obj)) {
+        if (obj->type->__free__->type == ks_type_cfunc) {
+
+            ks_obj res = ((ks_cfunc)obj->type->__free__)->func(1, &obj);
+            if (!res) {
+                ks_warn("Error freeing object %p", obj);
+            }
+
+        } else if (!ks_call(obj->type->__free__, 1, &obj)) {
+            // otherwise, call the function
             // there was an error in the freeing function
             ks_warn("Error freeing object %p", obj);
         }

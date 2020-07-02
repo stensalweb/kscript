@@ -22,6 +22,15 @@ mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
 mod_O          := $(patsubst %.c,%.o,$(mod_C))
 
 
+mod_LIBS       := 
+
+ifeq ($(wildcard $(KS_DIR)/deps/prefix/lib/libglfw3.$(STATIC_END)),)
+	mod_LIBS += -lglfw
+else
+	mod_LIBS += -Wl,--whole-archive $(KS_DIR)/deps/prefix/lib/libglfw3.$(STATIC_END) -Wl,--no-whole-archive
+endif
+
+
 # -*- RULES -*-
 
 # non-file targets
@@ -38,7 +47,6 @@ install: $(mod_SHARED) $(mod_H)
 	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-	#install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # rule to uninstall the whole package from PREFIX
 uninstall:
@@ -50,6 +58,6 @@ uninstall:
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -lglfw -lX11 -shared -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -Wl,-rpath,'$$ORIGIN' $(mod_LIBS) -lX11 -shared -o $@
 	strip $@ $(STRIP_OPTS)
 	@echo "\n|| Built: $@\n"

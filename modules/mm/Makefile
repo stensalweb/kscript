@@ -1,16 +1,16 @@
-# getarg/Makefile - argument parsing library
+# mm/Makefile - multi-media library makefile
 # NOTE: Do not call this by itself, run from the main directory `make modules`
 
 # -*- VARS -*-
 
-MOD_NAME       := getarg
+MOD_NAME       := mm
 
 
 # -*- FILES -*-
 
 mod_C          := $(wildcard src/*.c)
 
-mod_H          := 
+mod_H          := mm.h mm-impl.h
 
 
 # -*- TARGETS -*-
@@ -36,8 +36,8 @@ clean:
 # install all files
 install: $(mod_SHARED) $(mod_H)
 	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-
 	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
+	install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # rule to uninstall the whole package from PREFIX
 uninstall:
@@ -45,7 +45,7 @@ uninstall:
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)
-	$(CC) $(CFLAGS) $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) -I$(KS_DIR)/modules/nx $< -fPIC -c -o $@
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
