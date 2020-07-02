@@ -14,5 +14,7 @@
 
 
 
+// internal
+void mm_init_type_Stream();
 
 #endif

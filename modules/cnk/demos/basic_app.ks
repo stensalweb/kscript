@@ -34,7 +34,7 @@ for frame in ctx {
         ctx.layout_row_static(30, 80, 1)
 
         # on the current row, create a single button given (label)
-        if ctx.button("My Button") {
+        if ctx.button_label("My Button") {
             # if the button was pressed, the body of the if block is ran
             print ("BUTTON WAS PRESSED")
         }

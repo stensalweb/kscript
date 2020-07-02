@@ -232,6 +232,15 @@ static KS_TFUNC(pointer, str) {
     return (ks_obj)ks_fmt_c("(%S)%p", self->type->__name__, self->val);
 }
 
+// pointer.__bool__(self)
+static KS_TFUNC(pointer, bool) {
+    KS_REQ_N_ARGS(n_args, 1);
+    libc_pointer self = (libc_pointer)args[0];
+    KS_REQ_TYPE(self, libc_type_pointer, "self");
+
+    return (ks_obj)KSO_BOOL(self->val != NULL);
+}
+
 // pointer.__int__(self)
 static KS_TFUNC(pointer, int) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -317,6 +326,7 @@ void libc_init_types() {
 
         {"__str__",        (ks_obj)ks_cfunc_new2(pointer_str_, "libc.pointer.__str__(self)")},
         {"__repr__",       (ks_obj)ks_cfunc_new2(pointer_str_, "libc.pointer.__repr__(self)")},
+        {"__bool__",        (ks_obj)ks_cfunc_new2(pointer_bool_, "libc.pointer.__bool__(self)")},
         {"__int__",        (ks_obj)ks_cfunc_new2(pointer_int_, "libc.pointer.__int__(self)")},
 
         {"__getitem__",        (ks_obj)ks_cfunc_new2(pointer_getitem_, "libc.pointer.__getitem__(self, idx)")},

@@ -15,7 +15,7 @@ ks_namespace ks_namespace_new(ks_dict attr) {
     ks_namespace self = KS_ALLOC_OBJ(ks_namespace);
     KS_INIT_OBJ(self, ks_type_namespace);
 
-    self->attr = (ks_dict)KS_NEWREF(attr);
+    self->attr = attr ? (ks_dict)KS_NEWREF(attr) : ks_dict_new(0, NULL);
 
     return self;
 }

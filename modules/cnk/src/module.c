@@ -581,11 +581,6 @@ static KS_TFUNC(Context, edit_string) {
 
 
 
-
-
-
-
-
 /* Context.button_label(self, label) -> bool
  *
  * Create a button, returning true if pressed

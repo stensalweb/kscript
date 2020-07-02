@@ -13,12 +13,9 @@
 // this library's header
 #include "../mm-impl.h"
 
- 
-#include <libavutil/opt.h>
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
 
-//#include <libswresample/swresample.h>
+
+ks_type mm_Enum_MediaType = NULL;
 
 
 // mm.read_file(fname) -> read an entire file (by default, as a blob)
@@ -29,9 +26,6 @@ static KS_TFUNC(mm, read_file) {
 
     return (ks_obj)mm_read_file(fname->chr);
 }
-
-
-
 
 static bool my_setfrom_pi(enum AVSampleFormat smp_fmt, void** samples, int len, int chn, double* output) {
 
@@ -171,7 +165,7 @@ bool decode_audio_file(const char* fname, double** data, int* size, int* channel
  
 }
 
-// mm.read_audio(fname) -> read an entire file (by default, as audio
+// mm.read_audio(fname) -> read an entire file, decoding any audio contained in it
 static KS_TFUNC(mm, read_audio) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_str fname;
@@ -222,15 +216,27 @@ static ks_module get_module() {
 
     /* import libav */
 
-
     ks_module mod = ks_module_new(MODULE_NAME);
 
+    mm_init_type_Stream();
+
+    mm_Enum_MediaType = ks_Enum_create_c("mm.MediaType", (struct ks_enum_entry_c[]){
+
+        {"NONE",      MM_MEDIA_TYPE_NONE},
+        {"Audio",     MM_MEDIA_TYPE_AUDIO},
+        {"Video",     MM_MEDIA_TYPE_VIDEO},
+
+        {NULL, -1}
+    });
+
+
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
+        {"MediaType",        (ks_obj)mm_Enum_MediaType},
 
         {"read_file",        (ks_obj)ks_cfunc_new2(mm_read_file_,  "mm.read_file(fname)")},
         {"read_audio",       (ks_obj)ks_cfunc_new2(mm_read_audio_, "mm.read_audio(fname)")},
 
-
+        {"Stream",           (ks_obj)mm_type_Stream},
 
         {NULL, NULL}
     });

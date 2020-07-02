@@ -2511,6 +2511,10 @@ KS_API ks_namespace ks_namespace_new(ks_dict attr);
 // NOTE: Returns a new reference
 KS_API ks_Enum ks_Enum_get_c(ks_type enumtype, char* arg);
 
+// Get enum member from integer
+// NOTE: Returns a new reference
+KS_API ks_Enum ks_Enum_get_i(ks_type enumtype, int arg);
+
 // entry for constructing an enum entry in C
 struct ks_enum_entry_c {
 

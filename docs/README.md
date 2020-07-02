@@ -19,13 +19,13 @@ kscript is guided by a simple philosophy:
   * Anything that most programmers need should be in the standard library. This is probably the broadest category, and includes things such as:
     * A single standard for large, dense data storage - implemented in the `nx` module
     * Tensor (i.e. Vector, Matrix) math - implemented in the `nx` module
-    * Multi-media functionality (reading/writing/encoding/decoding audio & video) - implemented in the `mm` module (TODO)
+    * Multi-media functionality (reading/writing/encoding/decoding audio & video) - implemented in the `mm` module
 
 When kscript (or modules) don't live up to these expectations, it has failed. Please send a message to [brown.cade@gmail.com](mailto:brown.cade@gmail.com) if you encounter any hardships
 
 With that being said, kscript is the dialectical synthesis of programming languages like Python (thesis) and Golang (antithesis). We have seen what is good with Python (duck typing, packaging systems), and what problems Golang has addressed (application infrastructure, even more simplicity). And now, kscript is a logical evolution of current programming language trends.
 
-It also seeks to be light-weight where possible, so that it can be easily embeddable in other applications requiring user input (`libkscript`)
+It also seeks to be light-weight where possible, so that it can be easily embeddable in other applications requiring user input (TODO: document usage of `libkscript`)
 
 ## How can I get started?
 

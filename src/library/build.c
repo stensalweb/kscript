@@ -89,6 +89,13 @@ KS_API ks_tuple ks_build_tuple(const char* fmt, ...) {
                     KS_DECREF(new_obj);
 
                 }
+            } else if (strcmp(field, "s") == 0) {
+                // parse string
+                char* val = va_arg(ap, char*);
+
+                ks_str new_obj = ks_str_new(val);
+                ks_list_push(b_list, (ks_obj)new_obj);
+                KS_DECREF(new_obj);
 
             } else {
                 ks_error("Unknown format specifier in `ks_build_tuple`, got '%%%s'", field);

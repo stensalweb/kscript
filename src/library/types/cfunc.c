@@ -69,6 +69,7 @@ void ks_type_cfunc_init() {
         {"__free__", (ks_obj)ks_cfunc_new2(cfunc_free_, "cfunc.__free__(self)")},
 
         {"__str__", (ks_obj)ks_cfunc_new2(cfunc_str_, "cfunc.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new2(cfunc_str_, "cfunc.__repr__(self)")},
 
         {NULL, NULL}   
     });

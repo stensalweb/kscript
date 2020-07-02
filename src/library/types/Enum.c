@@ -36,10 +36,12 @@ ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
 
     // add in lists of enum keys & indexes
     ks_list e_keys = ks_list_new(0, NULL), e_idxs = ks_list_new(0, NULL);
+    ks_dict e_idx2mem = ks_dict_new(0, NULL);
 
     ks_type_set_cn(enumtype, (ks_dict_ent_c[]){
         {"_enum_keys",  (ks_obj)e_keys},
         {"_enum_idxs",  (ks_obj)e_idxs},
+        {"_enum_idx2mem",  (ks_obj)e_idx2mem},
         {NULL, NULL}
     });
 
@@ -67,6 +69,9 @@ ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
         ks_Enum this_enum_val = make_Enum_val(enumtype, idx, this_key);
         KS_DECREF(this_key);
 
+        // map it
+        ks_dict_set(e_idx2mem, 0, (ks_obj)this_idx, (ks_obj)this_enum_val);
+
         ks_type_set(enumtype, this_key, (ks_obj)this_enum_val);
         KS_DECREF(this_enum_val);
 
@@ -89,8 +94,28 @@ ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
 }
 
 
-KS_API ks_Enum ks_Enum_get_c(ks_type enumtype, char* arg) {
+ks_Enum ks_Enum_get_c(ks_type enumtype, char* arg) {
     return (ks_Enum)ks_type_get_c(enumtype, arg);
+}
+
+ks_Enum ks_Enum_get_i(ks_type enumtype, int arg) {
+    ks_dict e_idx2mem = (ks_dict)ks_type_get_c(enumtype, "_enum_idx2mem");
+
+    if (!e_idx2mem) return ks_throw_fmt(ks_type_KeyError, "Element '%i' was not in enumeration %S", arg, enumtype);
+    else if (e_idx2mem->type != ks_type_dict) {
+        KS_DECREF(e_idx2mem);
+        return ks_throw_fmt(ks_type_InternalError, "Enum type (%S) ._enum_idx2mem was not a dict!", enumtype);
+    }
+
+    ks_int argi = ks_int_new(arg);
+    ks_obj ret = ks_dict_get(e_idx2mem, 0, (ks_obj)argi);
+    KS_DECREF(argi);
+    KS_DECREF(e_idx2mem);
+    if (!ret) {
+        return ks_throw_fmt(ks_type_KeyError, "Element '%i' was not in enumeration %S", arg, enumtype);
+    }
+
+    return (ks_Enum)ret;
 }
 
 

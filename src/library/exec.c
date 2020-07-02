@@ -485,7 +485,7 @@ ks_obj ks__exec(ks_code code) {
             assert(this_stack_frame->locals != NULL && "'store' bytecode encountered in a stack frame that has no locals()!");
             ks_dict_set(this_stack_frame->locals, name->v_hash, (ks_obj)name, val);
 
-            KS_DECREF(val);
+            //KS_DECREF(val);
 
             // increment program counter
             //c_pc += op_i32.arg;
