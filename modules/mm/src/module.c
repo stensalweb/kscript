@@ -156,7 +156,6 @@ bool decode_audio_file(const char* fname, double** data, int* size, int* channel
             *size += frame->nb_samples;
         }
     }
- 
 
     // success
     rstat = true;
@@ -228,8 +227,10 @@ static ks_module get_module() {
 
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
 
-        {"read_file",      (ks_obj)ks_cfunc_new2(mm_read_file_, "mm.read_file(fname)")},
-        {"read_audio",      (ks_obj)ks_cfunc_new2(mm_read_audio_, "mm.read_audio(fname)")},
+        {"read_file",        (ks_obj)ks_cfunc_new2(mm_read_file_,  "mm.read_file(fname)")},
+        {"read_audio",       (ks_obj)ks_cfunc_new2(mm_read_audio_, "mm.read_audio(fname)")},
+
+
 
         {NULL, NULL}
     });

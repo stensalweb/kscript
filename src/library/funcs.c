@@ -667,7 +667,7 @@ static KS_FUNC(_name) {                                    \
         if (ret != NULL) return ret;                       \
         ks_thread cth = ks_thread_get();                   \
         if (cth->exc && cth->exc->type == ks_type_OpError) \
-            { KS_DECREF(ks_catch()); }                     \
+            { ks_catch_ignore(); }                         \
         else return NULL;                                  \
     }                                                      \
     if (args[1]->type->_fname != NULL) {                   \
@@ -1976,17 +1976,16 @@ static KS_TFUNC(range_iter, next) {
     KS_REQ_TYPE(self, ks_type_range_iter, "self");
 
 
-
     // check out ranges & their relations to make sure we are in bounds
     int sgn = ks_int_sgn(self->step);
     int cmp = ks_int_cmp(self->cur, self->stop);
-
 
     if (sgn > 0 && cmp >= 0) return ks_throw_fmt(ks_type_OutOfIterError, "");
     if (sgn < 0 && cmp <= 0) return ks_throw_fmt(ks_type_OutOfIterError, "");
 
     // create a new cur
     ks_int new_cur = (ks_int)ks_F_add->func(2, (ks_obj[]){ (ks_obj)self->cur, (ks_obj)self->step });
+
     if (!new_cur) {
         KS_DECREF(new_cur);
         return NULL;
@@ -1996,6 +1995,7 @@ static KS_TFUNC(range_iter, next) {
     // (and, transfer the reference to the return reference, since self->cur is about to be overriden)
     ks_int res = self->cur;
     self->cur = new_cur;
+    //ks_printf("(%S) cur.refs: %i\n", res, (int)res->refcnt);
 
     // return our result
     return (ks_obj)res;

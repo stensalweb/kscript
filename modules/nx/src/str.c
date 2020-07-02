@@ -38,19 +38,17 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
             if (i > 0) ks_str_b_add_c(SB, ", "); \
             if (NXT_TYPE_ENUM_A >= NX_DTYPE_SINT8 && NXT_TYPE_ENUM_A <= NX_DTYPE_UINT64) ks_str_b_add_fmt(SB, "%z", (ks_ssize_t)*(NXT_TYPE_A*)dptr_A); \
             else if (NXT_TYPE_ENUM_A >= NX_DTYPE_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_FP64) { \
-                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f", *(NXT_TYPE_A*)dptr_A); \
+                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f", (double)*(NXT_TYPE_A*)dptr_A); \
                 ks_str_b_add(SB, len, tmp); \
             } \
             else if (NXT_TYPE_ENUM_A >= NX_DTYPE_CPLX_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_CPLX_FP64) { \
-                int len = snprintf(tmp, sizeof(tmp) - 1, "%.4f%+.4fi", creal(*(NXT_TYPE_A*)dptr_A), cimag(*(NXT_TYPE_A*)dptr_A)); \
+                int len = snprintf(tmp, sizeof(tmp) - 1, "%.4f%+.4fi", (double)creal(*(NXT_TYPE_A*)dptr_A), (double)cimag(*(NXT_TYPE_A*)dptr_A)); \
                 ks_str_b_add(SB, len, tmp); \
             } else { \
                 ks_throw_fmt(ks_type_ToDoError, "Internal enum idx '%i' not handled in get_str", (int)NXT_TYPE_ENUM_A); \
                 return false; \
             } \
         }
-
-
 
         nx_size_t dim0 = dim[0];
         if (dim0 >= trunc_size) dim0 = trunc_size - 1;

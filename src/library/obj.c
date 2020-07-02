@@ -21,7 +21,7 @@ void ks_obj_free(ks_obj obj) {
         // just free memory & dereference the type,
         // assume nothing else as it wasn't provided
         KS_UNINIT_OBJ(obj);
-        ks_free(obj);
+        KS_FREE_OBJ(obj);
 
     } else {
         if (obj->type->__free__->type == ks_type_cfunc) {

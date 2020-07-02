@@ -388,6 +388,7 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
             // possible match; the hashes match
             if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
                 // they are equal, so it contains the key already. Now, just update the value
+                //ks_printf("(%S) val.refs: %i\n", self->entries[ei].val, (int)self->entries[ei].val->refcnt);
                 KS_DECREF(self->entries[ei].val);
                 // decref the last value
                 self->entries[ei].val = val;

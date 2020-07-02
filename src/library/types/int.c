@@ -354,6 +354,8 @@ static KS_TFUNC(int, new) {
         return (ks_obj)ks_int_new_s(((ks_str)obj)->chr, base);
     } else if (ks_type_issub(obj->type, ks_type_Enum)) {
         return (ks_obj)ks_int_new(((ks_Enum)obj)->enum_idx);
+    } else if (obj->type->__int__ != NULL) {
+        return ks_call(obj->type->__int__, n_args, args);
     } else {
         KS_ERR_CONV(obj, ks_type_int);
     }
@@ -515,7 +517,8 @@ static KS_TFUNC(int, hash) {
 
 static KS_TFUNC(int, add) {
     KS_REQ_N_ARGS(n_args, 2);
-    return ks_num_add(args[0], args[1]);
+    ks_obj ret = ks_num_add(args[0], args[1]);
+    return ret;
 };
 static KS_TFUNC(int, sub) {
     KS_REQ_N_ARGS(n_args, 2);

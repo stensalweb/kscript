@@ -117,7 +117,6 @@ typedef struct {
 
 }* nx_array;
 
-
 // nx.view - a view over ray data
 typedef struct {
     KS_OBJ_BASE
@@ -125,8 +124,7 @@ typedef struct {
     // what type of data does the tensor store
     enum nx_dtype dtype;
 
-    // pointer to the array data (which the view does not own)
-    nx_array data_src;
+    void* data;
 
     // number of dimensions
     // i.e. N==1 -> 'vector', N==2 -> 'matrix', N > 2 == 'tensor'
@@ -140,6 +138,9 @@ typedef struct {
     // For a dense array, stride[N-1] == 1, stride[N-2] == dim[N-1], ... stride[i] = stride[i + 1] * dim[i + 1]
     // Or, stride[i] = product(dim[i + 1], ..., dim[N - 1])
     nx_size_t* stride;
+
+    // pointer to the array data (which the view does not own)
+    nx_array data_src;
 
 }* nx_view;
 
@@ -195,11 +196,13 @@ KS_API char* nx_dtype_get_name(enum nx_dtype dtype);
 // NOTE: Returns a new reference
 KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype);
 
+
+/* ARRAY */
+
 // Create a new array with a given data type, and dimensions
 // If 'data' is NULL, it is initialized to 0, otherwise 'data' must be a dense block
 // NOTE: Returns a new reference
 KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data);
-
 
 // Create a new nx array from a kscript object (use NX_DTYPE_NONE to auto-detect)
 // The rules are:
@@ -210,19 +213,28 @@ KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* d
 // NOTE: Returns a new reference
 KS_API nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype);
 
-// Return the string representation of the data
-// NOTE: Returns a new reference, or NULL if there was an error
-KS_API ks_str nx_get_str(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride);
+
+
+/* VIEW */
+
+// Create a new view, from a given array
+// NOTE: Returns a new reference
+KS_API nx_view nx_view_new(nx_array ref, void* data, int N, nx_size_t* dim, nx_size_t* stride);
+
 
 
 /* GENERIC OPS */
-
 
 // Apply 'ufunc' to 'data', returns either 0 if there was no error, or the first error code generated
 KS_API int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
 
 
+/* STRING */
 
+
+// Return the string representation of the data
+// NOTE: Returns a new reference, or NULL if there was an error
+KS_API ks_str nx_get_str(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride);
 
 
 

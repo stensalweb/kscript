@@ -410,6 +410,7 @@ extern ks_Enum
 /** INTERNAL ROUTINES FOR INITIALIZATION **/
 
 void nx_type_array_init();
+void nx_type_view_init();
 
 // adding submodules
 void nx_mod_add_fft(ks_module nxmod);

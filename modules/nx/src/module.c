@@ -498,12 +498,14 @@ static ks_module get_module() {
 
     // set up types
     nx_type_array_init();
+    nx_type_view_init();
 
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
-        /* constants */
+
+        {"dtype",                 (ks_obj)nx_enum_dtype},
 
         {"array",                 (ks_obj)nx_type_array},
-        {"dtype",                 (ks_obj)nx_enum_dtype},
+        {"view",                  (ks_obj)nx_type_view},
 
         {"size",                  (ks_obj)ks_cfunc_new2(nx_size_, "nx.size(obj)")},
 

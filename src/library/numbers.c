@@ -43,17 +43,33 @@ bool ks_num_hash(ks_obj self, ks_hash_t* out) {
 }
 
 // get whether it fits 64 bit
-bool ks_num_fits_int64(ks_obj self) {
+static bool my_num_fits_int64(ks_obj self, int dep) {
+    if (dep > 4) return false;
     if (self->type == ks_type_bool) {
         return true;
     } else if (self->type == ks_type_int) {
         return !((ks_int)self)->isLong;
     } else if (ks_type_issub(self->type, ks_type_Enum)) {
         return true;
+    } else if (self->type->__int__ != NULL) {
+        ks_obj tmp = ks_call(self->type->__int__, 1, &self);
+        if (!tmp) {
+            ks_catch_ignore();
+            return false;
+        }
+        bool rstat = my_num_fits_int64(tmp, dep+1);
+        KS_DECREF(tmp);
+        return rstat;
     } else {
         return false;
     }
 }
+
+// get whether it fits 64 bit
+bool ks_num_fits_int64(ks_obj self) {
+    return my_num_fits_int64(self, 0);
+}
+
 
 // get whether a type is integral
 bool ks_num_is_integral(ks_obj self) {
@@ -63,11 +79,12 @@ bool ks_num_is_integral(ks_obj self) {
         return true;
     } else if (ks_type_issub(self->type, ks_type_Enum)) {
         return true;
+    } else if (self->type->__int__ != NULL) {
+        return true;
     } else {
         return false;
     }
 }
-
 
 
 // get whether a type is numeric
@@ -81,6 +98,10 @@ bool ks_num_is_numeric(ks_obj self) {
     } else if (self->type == ks_type_complex) {
         return true;
     } else if (ks_type_issub(self->type, ks_type_Enum)) {
+        return true;
+    } else if (self->type->__int__ != NULL) {
+        return true;
+    } else if (self->type->__float__ != NULL) {
         return true;
     } else {
         return false;
@@ -108,7 +129,7 @@ bool ks_num_get_bool(ks_obj self, bool* out) {
 
 
 // convert object to int64_t
-bool ks_num_get_int64(ks_obj self, int64_t* out) {
+static bool my_num_get_int64(ks_obj self, int64_t* out, int dep) {
     if (self->type == ks_type_bool) {
         *out = (self == KSO_TRUE) ? 1 : 0;
         return true;
@@ -164,14 +185,27 @@ bool ks_num_get_int64(ks_obj self, int64_t* out) {
     } else if (ks_type_issub(self->type, ks_type_Enum)) {
         *out = ((ks_Enum)self)->enum_idx;
         return true;
+    } else if (self->type->__int__ != NULL) {
+        ks_obj tmp = ks_call(self->type->__int__, 1, &self);
+        if (!tmp) {
+            ks_catch_ignore();
+            return false;
+        }
+        bool rstat = my_num_get_int64(tmp, out, dep+1);
+        KS_DECREF(tmp);
+        return rstat;
     } else {
         ks_throw_fmt(ks_type_MathError, "Could not interpret '%T' object as an int64", self);
         return false;
     }
 }
 
+bool ks_num_get_int64(ks_obj self, int64_t* out) {
+    return my_num_get_int64(self, out, 0);
+}
+
 // get an MPZ from a given object
-bool ks_num_get_mpz(ks_obj self, mpz_t out) {
+static bool my_num_get_mpz(ks_obj self, mpz_t out, int dep) {
     if (self->type == ks_type_bool) {
         mpz_set_si(out, (self == KSO_TRUE) ? 1 : 0);
         return true;
@@ -197,11 +231,25 @@ bool ks_num_get_mpz(ks_obj self, mpz_t out) {
     } else if (ks_type_issub(self->type, ks_type_Enum)) {
         mpz_set_si(out, ((ks_Enum)self)->enum_idx);
         return true;
+    } else if (self->type->__int__ != NULL) {
+        ks_obj tmp = ks_call(self->type->__int__, 1, &self);
+        if (!tmp) {
+            ks_catch_ignore();
+            return false;
+        }
+        bool rstat = my_num_get_mpz(tmp, out, dep+1);
+        KS_DECREF(tmp);
+        return rstat;
     } else {
-        ks_throw_fmt(ks_type_MathError, "Could not interpret '%T' object as a double", self);
+        ks_throw_fmt(ks_type_MathError, "Could not interpret '%T' object as a mpz", self);
         return false;
     }
 }
+
+bool ks_num_get_mpz(ks_obj self, mpz_t out) {
+    return my_num_get_mpz(self, out, 0);
+}
+
 // convert object to double
 bool ks_num_get_double(ks_obj self, double* out) {
 

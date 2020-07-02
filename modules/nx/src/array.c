@@ -23,7 +23,6 @@
 
 // forward declaring
 KS_TYPE_DECLFWD(nx_type_array);
-KS_TYPE_DECLFWD(nx_type_view);
 
 
 // Create a new array with a given data type, and dimensions
@@ -229,6 +228,8 @@ static KS_TFUNC(array, free) {
     if (!ks_parse_params(n_args, args, "self%*", &self, nx_type_array)) return NULL;
 
     ks_free(self->data);
+    ks_free(self->dim);
+    ks_free(self->stride);
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);

@@ -718,6 +718,11 @@ struct ks_type {
     // type.__bool__(self) -> convert an item to a boolean
     ks_obj __bool__;
 
+    // type.__int__(self) -> convert an item to an int
+    ks_obj __int__;
+
+    // type.__float__(self) -> convert an item to a float
+    ks_obj __float__;
 
     // type.__str__(self) -> convert an item to a string
     ks_obj __str__;
