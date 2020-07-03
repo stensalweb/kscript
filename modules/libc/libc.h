@@ -87,9 +87,19 @@ typedef struct {
 }* libc_ulong;
 
 
+/* special types */
+
+
+
+// void is special; like none
+typedef struct {
+    KS_OBJ_BASE
+
+}* libc_void;
+
+
 
 /* other types */
-
 
 typedef struct {
     KS_OBJ_BASE
@@ -123,7 +133,7 @@ struct libc_fp_meta {
 };
 
 
-// function pointer
+// function type
 typedef struct {
     KS_OBJ_BASE
 
@@ -131,22 +141,43 @@ typedef struct {
     void (*val)();
 
     // metadata (this is not managed by the instance, it is just a reference to the type)
+    // so, this should not be freed
     struct libc_fp_meta* fp_meta;
 
-    // raw argument data, allocated to hold (result, args....)
-    void* argdata;
 
-    // pointers to 'argdata' with varying offsets for the various types
-    void** args;
-
-}* libc_func_pointer;
+}* libc_function;
 
 
 // declaring the types
 extern ks_type libc_type_void;
 extern ks_type libc_type_char, libc_type_short, libc_type_int, libc_type_long;
 extern ks_type libc_type_uchar, libc_type_ushort, libc_type_uint, libc_type_ulong;
-extern ks_type libc_type_func_pointer, libc_type_pointer;
+extern ks_type libc_type_function, libc_type_pointer;
+
+
+// common pointer types
+extern ks_type libc_type_void_p;
+extern ks_type libc_type_char_p, libc_type_short_p, libc_type_int_p, libc_type_long_p;
+extern ks_type libc_type_uchar_p, libc_type_ushort_p, libc_type_uint_p, libc_type_ulong_p;
+
+/* template types: */
+
+
+
+
+// Create a pointer type
+// NOTE: Returns a new reference
+KS_API ks_type libc_make_pointer_type(ks_type of);
+
+// Create a new function type
+// n_args is the number of paramaters + returns (so +1)
+// For example, int myfunc(float, char*) would have `n_args==3`, and argtypes:
+//   (int, float, char_p)
+// NOTE: Returns a new reference
+KS_API ks_type libc_make_function_type(int n_args, ks_type* argtypes);
+
+
+
 
 
 /* construct values */
@@ -185,26 +216,16 @@ KS_API libc_ulong libc_make_ulong(uint64_t val);
 
 
 
+/* construct templated types */
 
-
-
-
-
-// Create a pointer type
+// Creates a new libc_pointer, from a given pointer type, and C-style address
 // NOTE: Returns a new reference
-KS_API ks_type libc_make_pointer_type(ks_type of);
-
-// Create a pointer
-// NOTE: Returns a new reference
-KS_API libc_pointer libc_make_pointer(ks_type of, void* addr);
-
-// Create a function pointer type
-// NOTE: Returns a new reference
-KS_API ks_type libc_make_func_pointer_type(int n_args, ks_type* argtypes);
+KS_API libc_pointer libc_make_pointer(ks_type ptr_type, void* val);
 
 // Create a function pointer
 // NOTE: Returns a new reference
-KS_API libc_func_pointer libc_make_func_pointer(int n_args, ks_type* argtypes, void (*val)());
+KS_API libc_function libc_make_function(ks_type func_type, void (*val)());
+
 
 
 // Return sizeof(of)

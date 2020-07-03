@@ -18,8 +18,7 @@ if !sym, throw Error(libc.dlerror())
 
 
 # create function pointer
-puts = libc.func_pointer.make(libc.int, (libc.char_p,))(sym)
-
+puts = libc.function.make(libc.int, (libc.char_p,))(sym)
 print (puts)
 
 res = puts("My Example")

@@ -100,7 +100,7 @@ static KS_TFUNC(tuple, str) {
     ks_str_b_free(&SB);
 
     return (ks_obj)ret;
-};
+}
 
 // tuple.__free__(self) -> frees resources
 static KS_TFUNC(tuple, free) {
@@ -119,7 +119,27 @@ static KS_TFUNC(tuple, free) {
     KS_FREE_OBJ(self);
 
     return KSO_NONE;
-};
+}
+
+// tuple.__hash__(self) -> return hash
+static KS_TFUNC(tuple, hash) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_tuple self = (ks_tuple)args[0];
+    KS_REQ_TYPE(self, ks_type_tuple, "self");
+
+    ks_hash_t hash = 1;
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        ks_hash_t chash;
+        if (!ks_hash(self->elems[i], &chash)) {
+            return NULL;
+        }
+        hash ^= chash;
+    }
+
+    return (ks_int)ks_int_new(hash);
+}
 
 
 // tuple.__iter__(self) -> return an iterator
@@ -129,7 +149,7 @@ static KS_TFUNC(tuple, iter) {
     KS_REQ_TYPE(self, ks_type_tuple, "self");
 
     return (ks_obj)ks_tuple_iter_new(self);
-};
+}
 
 // tuple.__getitem__(self, idx) -> get the item in a tuple
 static KS_TFUNC(tuple, getitem) {
@@ -204,6 +224,8 @@ void ks_type_tuple_init() {
         {"__str__",       (ks_obj)ks_cfunc_new2(tuple_str_, "tuple.__str__(self)")},
         {"__repr__",      (ks_obj)ks_cfunc_new2(tuple_str_, "tuple.__repr__(self)")},
         {"__free__",      (ks_obj)ks_cfunc_new2(tuple_free_, "tuple.__free__(self)")},
+        
+        {"__hash__",      (ks_obj)ks_cfunc_new2(tuple_hash_, "tuple.__hash__(self)")},
 
         {"__iter__",      (ks_obj)ks_cfunc_new2(tuple_iter_, "tuple.__iter__(self)")},
         

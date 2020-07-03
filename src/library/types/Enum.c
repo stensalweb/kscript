@@ -26,7 +26,7 @@ static ks_Enum make_Enum_val(ks_type enumtype, int idx, ks_str name) {
 }
 
 // construct an enum
-ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
+ks_type ks_Enum_create_c(char* name, ks_enum_entry_c* ents) {
 
     ks_type enumtype = KS_ALLOC_OBJ(ks_type);
     KS_INIT_TYPE_OBJ(enumtype, name);
@@ -70,7 +70,7 @@ ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents) {
         KS_DECREF(this_key);
 
         // map it
-        ks_dict_set(e_idx2mem, 0, (ks_obj)this_idx, (ks_obj)this_enum_val);
+        ks_dict_set_h(e_idx2mem, (ks_obj)this_idx, (ks_hash_t)(idx), (ks_obj)this_enum_val);
 
         ks_type_set(enumtype, this_key, (ks_obj)this_enum_val);
         KS_DECREF(this_enum_val);
@@ -108,7 +108,7 @@ ks_Enum ks_Enum_get_i(ks_type enumtype, int arg) {
     }
 
     ks_int argi = ks_int_new(arg);
-    ks_obj ret = ks_dict_get(e_idx2mem, 0, (ks_obj)argi);
+    ks_obj ret = ks_dict_get(e_idx2mem, (ks_obj)argi);
     KS_DECREF(argi);
     KS_DECREF(e_idx2mem);
     if (!ret) {
@@ -138,7 +138,7 @@ static KS_TFUNC(Enum, getitem) {
     ks_str key = (ks_str)args[1];
     KS_REQ_TYPE(key, ks_type_str, "key");
 
-    ks_obj res = ks_dict_get(enumtype->attr, key->v_hash, (ks_obj)key);
+    ks_obj res = ks_dict_get_h(enumtype->attr, (ks_obj)key, key->v_hash);
     if (!res) {
         KS_ERR_KEY(enumtype, key);
     } else return res;

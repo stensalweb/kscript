@@ -456,7 +456,7 @@ static ks_module get_module() {
 
     // create enum
 
-    nx_enum_dtype = ks_Enum_create_c("dtype", (struct ks_enum_entry_c[]){
+    nx_enum_dtype = ks_Enum_create_c("dtype", (ks_enum_entry_c[]){
         {"NONE",           NX_DTYPE_NONE},
 
         {"SINT8",          NX_DTYPE_SINT8},

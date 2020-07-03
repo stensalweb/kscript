@@ -27,34 +27,17 @@ static KS_TFUNC(namespace, new) {
     KS_REQ_N_ARGS_MIN(n_args, 1);
     KS_REQ_TYPE(args[0], ks_type_dict, "attr");
     return (ks_obj)ks_namespace_new((ks_dict)args[0]);
-};
+}
 
 // namespace.__getitem__(self, key) -> get an entry
 static KS_TFUNC(namespace, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_namespace self = (ks_namespace)args[0];
     KS_REQ_TYPE(self, ks_type_namespace, "self");
-    ks_obj obj = args[1];
-    // get the hash
-    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+    ks_obj key = args[1];
 
-    if (!ks_hash(obj, &hash_obj)) {
-        return NULL;
-    }
-
-    if (hash_obj == 0) {
-        // special value meaning unhashable
-        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
-    }
-
-
-    ks_obj res = ks_dict_get(self->attr, hash_obj, obj);
-
-    // throw error if it didnt exist
-    if (!res) KS_ERR_KEY(self, obj);
-
-    return res;
-};
+    return ks_dict_get(self->attr, key);
+}
 
 // namespace.__getattr__(self, attr) -> get an entry
 static KS_TFUNC(namespace, getattr) {
@@ -62,22 +45,11 @@ static KS_TFUNC(namespace, getattr) {
     ks_namespace self = (ks_namespace)args[0];
     KS_REQ_TYPE(self, ks_type_namespace, "self");
     ks_obj obj = args[1];
-    // get the hash
-    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
 
-    if (!ks_hash(obj, &hash_obj)) {
-        return NULL;
-    }
-
-    if (hash_obj == 0) {
-        // special value meaning unhashable
-        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
-    }
-
-    ks_obj res = ks_dict_get(self->attr, hash_obj, obj);
+    ks_obj res = ks_dict_get(self->attr, obj);
 
     // throw error if it didnt exist
-    if (!res && obj->type == ks_type_str) {
+    /*if (!res && obj->type == ks_type_str) {
         // try and get it some other way
 
         // try type(obj).attr as a function with 'obj' filled in as the first argument
@@ -99,10 +71,10 @@ static KS_TFUNC(namespace, getattr) {
 
         // return the member function
         return (ks_obj)ret;
-    }
+    }*/
 
     return res;
-};
+}
 
 
 
@@ -111,28 +83,15 @@ static KS_TFUNC(namespace, setitem) {
     KS_REQ_N_ARGS(n_args, 3);
     ks_namespace self = (ks_namespace)args[0];
     KS_REQ_TYPE(self, ks_type_namespace, "self");
-    ks_obj obj = args[1];
+    ks_obj key = args[1], val = args[2];
     // get the hash
-    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
-
-    if (!ks_hash(obj, &hash_obj)) {
-        return NULL;
-    }
-
-    if (hash_obj == 0) {
-        // special value meaning unhashable
-        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
-    }
-
-    ks_obj val = args[2];
-
 
     // set value
-    ks_dict_set(self->attr, hash_obj, obj, val);
+    if (!ks_dict_set(self->attr, key, val)) return NULL;
 
     // just return the value
     return KS_NEWREF(val);
-};
+}
 
 // namespace.__iter__(self) -> return an iterator for a dictionary
 static KS_TFUNC(namespace, iter) {

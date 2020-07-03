@@ -741,7 +741,7 @@ static ks_module get_module() {
 
 
     // create Context type
-    ks_type_set_cn(cNk_type_Context, (ks_dict_ent_c[]){
+    if (!ks_type_set_cn(cNk_type_Context, (ks_dict_ent_c[]){
         {"__new__",       (ks_obj)ks_cfunc_new2(Context_new_, "Context.__new__()")},
         {"__free__",      (ks_obj)ks_cfunc_new2(Context_free_, "Context.__free__(self)")},
 
@@ -777,28 +777,43 @@ static ks_module get_module() {
 
 
         {NULL, NULL},
-    });
+    })) {
+        KS_DECREF(mod);
+        KS_DECREF(cNk_type_Context);
+        KS_DECREF(cNk_type_iter_Context);
+        return NULL;
+    }
 
     // create Context type
-    ks_type_set_cn(cNk_type_iter_Context, (ks_dict_ent_c[]){
+    if (!ks_type_set_cn(cNk_type_iter_Context, (ks_dict_ent_c[]){
         {"__free__",      (ks_obj)ks_cfunc_new2(iter_Context_free_, "iter_Context.__free__(self)")},
 
         {"__next__",         (ks_obj)ks_cfunc_new2(iter_Context_next_, "iter_Context.__next__(self)")},
 
         {NULL, NULL},
-    });
+    })) {
+        KS_DECREF(mod);
+        KS_DECREF(cNk_type_Context);
+        KS_DECREF(cNk_type_iter_Context);
+        return NULL;
+    }
 
 
     // populate the module
-    ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
+    if (!ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
         {"Context",       (ks_obj)cNk_type_Context},
 
         {NULL, NULL}
-    });
+    })) {
+        KS_DECREF(mod);
+        KS_DECREF(cNk_type_Context);
+        KS_DECREF(cNk_type_iter_Context);
+        return NULL;
+    }
 
 
     /* enums */
-    ks_type E_Heading = ks_Enum_create_c("Heading", (struct ks_enum_entry_c[]){
+    ks_type E_Heading = ks_Enum_create_c("Heading", (ks_enum_entry_c[]){
         KS_EEF(NK_UP),
         KS_EEF(NK_RIGHT),
         KS_EEF(NK_DOWN),
@@ -807,7 +822,7 @@ static ks_module get_module() {
     });
     ks_module_add_enum_members(mod, E_Heading);
 
-    ks_type E_Symbol = ks_Enum_create_c("Symbol", (struct ks_enum_entry_c[]){
+    ks_type E_Symbol = ks_Enum_create_c("Symbol", (ks_enum_entry_c[]){
         KS_EEF(NK_SYMBOL_NONE),
         KS_EEF(NK_SYMBOL_X),
         KS_EEF(NK_SYMBOL_UNDERSCORE),
@@ -826,7 +841,7 @@ static ks_module get_module() {
     });
     ks_module_add_enum_members(mod, E_Symbol);
 
-    ks_type E_Window = ks_Enum_create_c("Window", (struct ks_enum_entry_c[]){
+    ks_type E_Window = ks_Enum_create_c("Window", (ks_enum_entry_c[]){
         {"NK_WINDOW_NONE", 0},
         KS_EEF(NK_WINDOW_BORDER),
         KS_EEF(NK_WINDOW_MOVABLE),
@@ -843,7 +858,7 @@ static ks_module get_module() {
     });
     ks_module_add_enum_members(mod, E_Window);
 
-    ks_type E_Key = ks_Enum_create_c("Key", (struct ks_enum_entry_c[]){
+    ks_type E_Key = ks_Enum_create_c("Key", (ks_enum_entry_c[]){
         KS_EEF(NK_KEY_NONE),
         KS_EEF(NK_KEY_SHIFT),
         KS_EEF(NK_KEY_CTRL),
@@ -880,7 +895,7 @@ static ks_module get_module() {
     });
     ks_module_add_enum_members(mod, E_Key);
 
-    ks_type E_Button = ks_Enum_create_c("Button", (struct ks_enum_entry_c[]){
+    ks_type E_Button = ks_Enum_create_c("Button", (ks_enum_entry_c[]){
         KS_EEF(NK_BUTTON_LEFT),
         KS_EEF(NK_BUTTON_MIDDLE),
         KS_EEF(NK_BUTTON_RIGHT),
@@ -892,7 +907,7 @@ static ks_module get_module() {
     });
     ks_module_add_enum_members(mod, E_Button);
 
-    ks_type E_Edit  = ks_Enum_create_c("Edit", (struct ks_enum_entry_c[]){
+    ks_type E_Edit  = ks_Enum_create_c("Edit", (ks_enum_entry_c[]){
         KS_EEF(NK_EDIT_DEFAULT),
         KS_EEF(NK_EDIT_READ_ONLY),
         KS_EEF(NK_EDIT_AUTO_SELECT),

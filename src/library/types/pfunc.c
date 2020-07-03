@@ -11,7 +11,7 @@
 // forward declare it
 KS_TYPE_DECLFWD(ks_type_pfunc);
 
-// create a kscript int from a C-style int
+// create a pfunc that acts exactly as 'func'
 ks_pfunc ks_pfunc_new(ks_obj func) {
     // assume it is callable
     assert(ks_is_callable(func));
@@ -28,6 +28,29 @@ ks_pfunc ks_pfunc_new(ks_obj func) {
 
     return self;
 }
+
+
+
+// prefill first argument
+ks_pfunc ks_pfunc_new2(ks_obj func, ks_obj arg0) {
+    // assume it is callable
+    assert(ks_is_callable(func));
+
+    ks_pfunc self = KS_ALLOC_OBJ(ks_pfunc);
+    KS_INIT_OBJ(self, ks_type_pfunc);
+
+    // initialize type-specific things
+    self->func = KS_NEWREF(func);
+
+    // start with nothing
+    self->n_fill = 0;
+    self->fill = NULL;
+
+    ks_pfunc_fill(self, 0, arg0);
+
+    return self;
+}
+
 
 void ks_pfunc_fill(ks_pfunc self, int idx, ks_obj arg) {
 
@@ -118,7 +141,7 @@ static KS_TFUNC(pfunc, call) {
     ks_free(new_args);
 
     return ret;
-};
+}
 
 
 // pfunc.__free__(self) -> free a pfunc object
@@ -140,7 +163,7 @@ static KS_TFUNC(pfunc, free) {
     KS_FREE_OBJ(self);
 
     return KSO_NONE;
-};
+}
 
 
 // initialize pfunc type

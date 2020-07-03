@@ -55,7 +55,7 @@ static KS_TFUNC(libc, malloc) {
     void* res = malloc(sz);
     my_errno = errno;
 
-    return (ks_obj)libc_make_pointer(ks_type_none, res);
+    return (ks_obj)libc_make_pointer(libc_type_void_p, res);
 }
 
 // libc.realloc(ptr, sz) -> re-allocates memory
@@ -80,7 +80,7 @@ static KS_TFUNC(libc, realloc) {
     if (res == ptr_c && ks_type_issub(ptr->type, libc_type_pointer)) {
         return KS_NEWREF(ptr);
     } else {
-        return (ks_obj)libc_make_pointer(ks_type_none, res);
+        return (ks_obj)libc_make_pointer(libc_type_void_p, res);
     }
 }
 
@@ -120,7 +120,7 @@ static KS_TFUNC(libc, dlopen) {
     void* res = dlopen(fname->chr, flags);
     my_errno = errno;
 
-    return (ks_obj)libc_make_pointer(ks_type_none, res);
+    return (ks_obj)libc_make_pointer(libc_type_void_p, res);
 }
 
 
@@ -158,7 +158,7 @@ static KS_TFUNC(libc, dlsym) {
     void* res = dlsym(handle->val, symbol->chr);
     my_errno = errno;
 
-    return (ks_obj)libc_make_pointer(ks_type_none, res);
+    return (ks_obj)libc_make_pointer(libc_type_void_p, res);
 }
 
 
@@ -177,8 +177,6 @@ static KS_TFUNC(libc, size) {
 
 
 
-
-
 // now, export them all
 static ks_module get_module() {
     ks_module mod = ks_module_new(MODULE_NAME);
@@ -186,7 +184,7 @@ static ks_module get_module() {
     libc_init_types();
 
 
-    ks_type E_rtld = ks_Enum_create_c("RtldFlags", (struct ks_enum_entry_c[]){
+    ks_type E_rtld = ks_Enum_create_c("RtldFlags", (ks_enum_entry_c[]){
 
         KS_EEF(RTLD_LAZY),
         KS_EEF(RTLD_NOW),
@@ -199,37 +197,42 @@ static ks_module get_module() {
 
         {NULL, -1}
     });
-
+    
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
         
-        /* int types */
-        {"char",                  (ks_obj)libc_type_char},
-        {"short",                 (ks_obj)libc_type_short},
-        {"int",                   (ks_obj)libc_type_int},
-        {"long",                  (ks_obj)libc_type_long},
+        /* simple C types */
 
-        {"uchar",                 (ks_obj)libc_type_uchar},
-        {"ushort",                (ks_obj)libc_type_ushort},
-        {"uint",                  (ks_obj)libc_type_uint},
-        {"ulong",                 (ks_obj)libc_type_ulong},
+        {"void",                     (ks_obj)libc_type_void},
+
+        {"char",                     (ks_obj)libc_type_char},
+        {"short",                    (ks_obj)libc_type_short},
+        {"int",                      (ks_obj)libc_type_int},
+        {"long",                     (ks_obj)libc_type_long},
+   
+        {"uchar",                    (ks_obj)libc_type_uchar},
+        {"ushort",                   (ks_obj)libc_type_ushort},
+        {"uint",                     (ks_obj)libc_type_uint},
+        {"ulong",                  (ks_obj)libc_type_ulong},
 
 
-        /* int* types */
+        /* common pointer types */
 
-        {"char_p",                (ks_obj)libc_make_pointer_type(libc_type_char)},
-        {"short_p",               (ks_obj)libc_make_pointer_type(libc_type_short)},
-        {"int_p",                 (ks_obj)libc_make_pointer_type(libc_type_int)},
-        {"long_p",                (ks_obj)libc_make_pointer_type(libc_type_long)},
+        {"void_p",                   (ks_obj)libc_type_void_p},
 
-        {"uchar_p",                (ks_obj)libc_make_pointer_type(libc_type_uchar)},
-        {"ushort_p",               (ks_obj)libc_make_pointer_type(libc_type_ushort)},
-        {"uint_p",                 (ks_obj)libc_make_pointer_type(libc_type_uint)},
-        {"ulong_p",                (ks_obj)libc_make_pointer_type(libc_type_ulong)},
+        {"char_p",                   (ks_obj)libc_type_char_p},
+        {"short_p",                  (ks_obj)libc_type_short_p},
+        {"int_p",                    (ks_obj)libc_type_int_p},
+        {"long_p",                   (ks_obj)libc_type_long_p},
+
+        {"uchar_p",                  (ks_obj)libc_type_uchar_p},
+        {"ushort_p",                 (ks_obj)libc_type_ushort_p},
+        {"uint_p",                   (ks_obj)libc_type_uint_p},
+        {"ulong_p",                  (ks_obj)libc_type_ulong_p},
 
         /* templates */
 
-        {"pointer",             (ks_obj)libc_type_pointer},
-        {"func_pointer",        (ks_obj)libc_type_func_pointer},
+        {"pointer",              (ks_obj)libc_type_pointer},
+        {"function",             (ks_obj)libc_type_function},
 
         
         /* misc/extra functions */
@@ -263,11 +266,10 @@ static ks_module get_module() {
         {"dlerror",        (ks_obj)ks_cfunc_new2(libc_dlerror_, "libc.dlerror()")},
 
 
-        {"NULL",           (ks_obj)libc_make_pointer(ks_type_none, NULL)},
+        {"NULL",           (ks_obj)libc_make_pointer(libc_type_void_p, NULL)},
 
         {NULL, NULL}
     });
-
 
     ks_module_add_enum_members(mod, E_rtld);
 

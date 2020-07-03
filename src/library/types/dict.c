@@ -1,5 +1,10 @@
 /* types/dict.c - kscript's basic dictionary implementation
  *
+ * TODO:
+ *   * Perhaps support multiple probing functions (or at least configurable at build time)
+ *   * Change load factor / readjustment criteria
+ * 
+ * 
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
@@ -19,8 +24,6 @@
 
 // the maximum load a dictionary should have; anything above this is resized
 #define DICT_MAX_LOAD 0.4f
-
-
 
 
 // forward declare it
@@ -77,7 +80,7 @@ ks_dict ks_dict_new(int len, ks_obj* entries) {
 
     // now, set the (key, val) pairs of 'entries' into the dictionary
     for (i = 0; i < len / 2; ++i) {
-        ks_dict_set(self, 0, entries[2 * i], entries[2 * i + 1]);
+        ks_dict_set(self, entries[2 * i], entries[2 * i + 1]);
     }
 
     return self;
@@ -90,7 +93,7 @@ void ks_dict_merge(ks_dict self, ks_dict src) {
         struct ks_dict_entry* ent = &src->entries[i];
         if (ent->hash != 0 && ent->val != NULL) {
             // set it in 'self'
-            ks_dict_set(self, ent->hash, ent->key, ent->val);
+            ks_dict_set_h(self, ent->key, ent->hash, ent->val);
         }
     }
 }
@@ -118,10 +121,10 @@ ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns) {
 
     while (ent_cns->key != NULL) {
         // keep iterating t hrough entries
-        ks_str my_key = ks_str_new(ent_cns->key);
-        ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cns->val);
-
-        KS_DECREF(my_key);
+        if (!ks_dict_set_c(self, ent_cns->key, ent_cns->val)) {
+            KS_DECREF(self);
+            return NULL;
+        }
 
         // since there will be a reference added, we remove it here
         KS_DECREF(ent_cns->val);
@@ -135,14 +138,14 @@ ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns) {
 }
 
 // Sets a list of C-entries (without creating new references)
-int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns) {
-    while (ent_cns->key != NULL) {
+bool ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns) {
+    bool rstat = true;
+    while (rstat && ent_cns->key != NULL) {
+
         // keep iterating t hrough entries
-        ks_str my_key = ks_str_new(ent_cns->key);
-
-        ks_dict_set(self, my_key->v_hash, (ks_obj)my_key, ent_cns->val);
-
-        KS_DECREF(my_key);
+        if (!ks_dict_set_c(self, ent_cns->key, ent_cns->val)) {
+            rstat = false;
+        }
 
         // since there will be a reference added, we remove it here
         KS_DECREF(ent_cns->val);
@@ -150,6 +153,16 @@ int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns) {
         // next entry
         ent_cns++;
     }
+
+
+    while (ent_cns->key != NULL) {
+
+        KS_DECREF(ent_cns->val);
+        ent_cns++;
+
+    }
+
+    return rstat;
 }
 
 /* ACCESS UTILS */
@@ -232,14 +245,7 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
 
 
 // test whether or not the dictionary has a given key
-bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key) {
-    // try and make sure that hash is correct
-    if (hash == 0) {
-        if (!ks_hash(key, &hash)) {
-            return NULL;
-        }
-    }
-
+bool ks_dict_has_h(ks_dict self, ks_obj key, ks_hash_t hash) {
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
 
@@ -259,6 +265,7 @@ bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key) {
             // do nothing; skip it
         } else if (self->entries[ei].hash == hash) {
             // possible match; the hashes match
+
             if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
                 // they are equal, so it contains the key
                 return true;
@@ -279,14 +286,7 @@ bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key) {
 }
 
 // get a given element
-ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
-    // try and make sure that hash is correct
-    if (hash == 0) {
-        if (!ks_hash(key, &hash)) {
-            return NULL;
-        }
-    }
-
+ks_obj ks_dict_get_h(ks_dict self, ks_obj key, ks_hash_t hash) {
 
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
@@ -323,35 +323,20 @@ ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key) {
         bi %= self->n_buckets;
     } while (bi != bi_orig);
 
-
-    return NULL;
-}
-
-// get from C style string
-ks_obj ks_dict_get_c(ks_dict self, char* key) {
-    ks_str key_str = ks_str_new(key);
-    ks_obj ret = ks_dict_get(self, key_str->v_hash, (ks_obj)key_str);
-    KS_DECREF(key_str);
-    return ret;
+    // error: not in dictionary
+    return ks_throw_fmt(ks_type_KeyError, "Key '%S' did not exist this dict", key);
 }
 
 // set the given element
-int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
+bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
 
-    // don't allow above a certain load factor
+    // don't allow above a certsain load factor
+    // TODO: tune this
     if (self->n_entries >= self->n_buckets / 4) {
         // we need to scale up the dictionary
         dict_resize(self, self->n_buckets * 4);
     }
 
-    // try and make sure that hash is correct
-    if (hash == 0) {
-        if (!ks_hash(key, &hash)) {
-            return -1;
-        }
-    }
-    // we will always increase the reference count for the new value
-    KS_INCREF(val);
 
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
@@ -359,7 +344,6 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
     // keep track of original
     ks_size_t bi_orig = bi;
     ks_size_t tries = 0;
-
 
     do {
         // get the entry index (ei), which is an index into self->entries
@@ -373,13 +357,14 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
             // set the bucket to the new location
             self->buckets[bi] = ei;
 
-            // since key is just now being added, we need to add a new reference to it
+            // we are making a new entry, so we need to make new references to the key and the value
             KS_INCREF(key);
+            KS_INCREF(val);
             
             // set that entry
             self->entries[ei] = (struct ks_dict_entry){ .hash = hash, .key = key, .val = val };
 
-            return 0;
+            return true;
 
         } else if (ei == BUCKET_DELETED) {
             // do nothing; skip it
@@ -387,18 +372,21 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
         } else if (self->entries[ei].hash == hash) {
             // possible match; the hashes match
             if (self->entries[ei].key == key || ks_eq(self->entries[ei].key, key)) {
-                // they are equal, so it contains the key already. Now, just update the value
-                //ks_printf("(%S) val.refs: %i\n", self->entries[ei].val, (int)self->entries[ei].val->refcnt);
+                // the keys are equal, so the dictionary already contains the key
+                // (therefore, the dictionary already holds a reference to an equivalent key)
+
+                // since we are replacing the value, the previous value must be dereferenced
                 KS_DECREF(self->entries[ei].val);
-                // decref the last value
+
+                // add new reference
+                KS_INCREF(val);
                 self->entries[ei].val = val;
                 
-                return 1;
+                return true;
             }
         }
 
         tries++;
-
 
         // probing function
         bi = bi_orig + tries;
@@ -408,19 +396,13 @@ int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val) {
     } while (bi != bi_orig);
 
     // some problem adding it, should not happen
-    return -1;
+    ks_throw_fmt(ks_type_InternalError, "Could not add '%S' to dict", key);
+    return false;
 }
 
 
 // delete the given element
-bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
-    // try and make sure that hash is correct
-    if (hash == 0) {
-        if (!ks_hash(key, &hash)) {
-            return false;
-        }
-    }
-
+bool ks_dict_del_h(ks_dict self, ks_obj key, ks_hash_t hash) {
     // bucket index (bi)
     ks_size_t bi = hash % self->n_buckets;
 
@@ -429,13 +411,13 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
     ks_size_t tries = 0;
 
     do {
-
         // get the entry index (ei), which is an index into self->entries
         int ei = self->buckets[bi];
 
         if (ei == BUCKET_EMPTY) {
-            // we have found an empty bucket before a corresponding entry, so it does not exist
-            return false;            
+            // we have found an empty bucket before a corresponding entry, so it does not exist in the dictionary
+            ks_throw_fmt(ks_type_Error, "Attempted to delete '%S' from dict, but the dict did not contain it!", key);
+            return false;
 
         } else if (ei == BUCKET_DELETED) {
             // do nothing; skip it
@@ -453,7 +435,6 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
             }
         }
 
-
         // probing function
         bi = bi_orig + tries;
 
@@ -462,8 +443,89 @@ bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key) {
     } while (bi != bi_orig);
 
     // didn't exist
+    ks_throw_fmt(ks_type_Error, "Attempted to delete '%S' from dict, but the dict did not contain it!", key);
     return false;
 }
+
+
+
+/* variants of dictionary functions */
+
+
+
+bool ks_dict_has(ks_dict self, ks_obj key) {
+    // calc hash
+    ks_hash_t hash;
+    if (!ks_hash(key, &hash)) {
+        return false;
+    }
+    return ks_dict_has_h(self, key, hash);
+}
+
+bool ks_dict_has_c(ks_dict self, char* key) {
+    ks_str key_str = ks_str_new(key);
+    bool res = ks_dict_has_h(self, (ks_obj)key_str, key_str->v_hash);
+    KS_DECREF(key_str);
+    return res;
+}
+
+
+
+ks_obj ks_dict_get(ks_dict self, ks_obj key) {
+    // calc hash
+    ks_hash_t hash;
+    if (!ks_hash(key, &hash)) {
+        return false;
+    }
+    return ks_dict_get_h(self, key, hash);
+}
+
+ks_obj ks_dict_get_c(ks_dict self, char* key) {
+    ks_str key_str = ks_str_new(key);
+    ks_obj res = ks_dict_get_h(self, (ks_obj)key_str, key_str->v_hash);
+    KS_DECREF(key_str);
+    return res;
+}
+
+
+
+bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val) {
+    // calc hash
+    ks_hash_t hash;
+    if (!ks_hash(key, &hash)) {
+        return false;
+    }
+    return ks_dict_set_h(self, key, hash, val);
+}
+
+bool ks_dict_set_c(ks_dict self, char* key, ks_obj val) {
+    ks_str key_str = ks_str_new(key);
+    bool res = ks_dict_set_h(self, (ks_obj)key_str, key_str->v_hash, val);
+    KS_DECREF(key_str);
+    return res;
+}
+
+
+
+bool ks_dict_del(ks_dict self, ks_obj key) {
+    // calc hash
+    ks_hash_t hash;
+    if (!ks_hash(key, &hash)) {
+        return false;
+    }
+    return ks_dict_del_h(self, key, hash);
+}
+
+bool ks_dict_del_c(ks_dict self, char* key) {
+    ks_str key_str = ks_str_new(key);
+    bool res = ks_dict_del_h(self, (ks_obj)key_str, key_str->v_hash);
+    KS_DECREF(key_str);
+    return res;
+}
+
+
+
+
 
 /* member functions */
 
@@ -474,62 +536,31 @@ static KS_TFUNC(dict, new) {
         return ks_throw_fmt(ks_type_Error, "Expected an even number of arguments (k, v, ...), but got %i", n_args);
     }
     return (ks_obj)ks_dict_new(n_args, args);
-};
+}
 
 // dict.__getitem__(self, key) -> get an entry
 static KS_TFUNC(dict, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_type_dict, "self");
-    ks_obj obj = args[1];
-    // get the hash
-    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+    ks_obj key = args[1];
 
-    if (!ks_hash(obj, &hash_obj)) {
-        return NULL;
-    }
-
-    if (hash_obj == 0) {
-        // special value meaning unhashable
-        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
-    }
-
-
-    ks_obj res = ks_dict_get(self, hash_obj, obj);
-
-    // throw error if it didnt exist
-    if (!res) KS_ERR_KEY(self, obj);
-
-    return res;
-};
+    return ks_dict_get(self, key);
+}
 
 // dict.__setitem__(self, key, val) -> set an entry
 static KS_TFUNC(dict, setitem) {
     KS_REQ_N_ARGS(n_args, 3);
     ks_dict self = (ks_dict)args[0];
     KS_REQ_TYPE(self, ks_type_dict, "self");
-    ks_obj obj = args[1];
-    // get the hash
-    ks_hash_t hash_obj;// = obj->type == ks_type_str ? ((ks_str)obj)->v_hash : ks_hash(obj);
+    ks_obj key = args[1], val = args[2];
 
-    if (!ks_hash(obj, &hash_obj)) {
+    if (!ks_dict_set(self, key, val)) {
         return NULL;
+    } else {
+        return KS_NEWREF(val);
     }
-
-    if (hash_obj == 0) {
-        // special value meaning unhashable
-        return ks_throw_fmt(ks_type_Error, "'%T' was not hashable!", obj);
-    }
-
-    ks_obj val = args[2];
-
-
-    // set value
-    ks_dict_set(self, hash_obj, obj, val);
-
-    // just return the value
-    return KS_NEWREF(val);
-};
+}
 
 // dict.__iter__(self) -> return an iterator for a dictionary
 static KS_TFUNC(dict, iter) {
@@ -538,7 +569,7 @@ static KS_TFUNC(dict, iter) {
     KS_REQ_TYPE(self, ks_type_dict, "self");
 
     return (ks_obj)ks_dict_iter_new(self);
-};
+}
 
 
 // dict.keys(self) -> return a list of keys
@@ -557,7 +588,7 @@ static KS_TFUNC(dict, keys) {
     }
 
     return (ks_obj)ret;
-};
+}
 
 
 
@@ -591,7 +622,7 @@ static KS_TFUNC(dict, str) {
     ks_str_b_free(&SB);
 
     return (ks_obj)ret;
-};
+}
 
 // dict.__free__(self) -> free resources
 static KS_TFUNC(dict, free) {
@@ -615,7 +646,7 @@ static KS_TFUNC(dict, free) {
     KS_FREE_OBJ(self);
 
     return KSO_NONE;
-};
+}
 
 
 

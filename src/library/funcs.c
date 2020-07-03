@@ -126,7 +126,7 @@ ks_obj ks_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         // push on arguments
         int i;
         for (i = 0; i < kff->n_param; ++i) {
-            ks_dict_set(this_stack_frame->locals, kff->params[i].name->v_hash, (ks_obj)kff->params[i].name, args[i]);
+            ks_dict_set_h(this_stack_frame->locals, (ks_obj)kff->params[i].name, kff->params[i].name->v_hash, args[i]);
         }
 
         // actually call it
@@ -438,11 +438,8 @@ static KS_FUNC(getattr) {
         }
 
         // now, create a partial function
-        ks_pfunc ret = ks_pfunc_new(type_attr);
+        ks_pfunc ret = ks_pfunc_new2(type_attr, obj);
         KS_DECREF(type_attr);
-
-        // fill #0 as 'self' (aka obj)
-        ks_pfunc_fill(ret, 0, obj);
 
         // return the member function
         return (ks_obj)ret;

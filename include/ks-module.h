@@ -1,5 +1,33 @@
 /* ks_module.h - a specialized header for C-extension headers
  *
+ * To use it, somewhere in your module, write:
+ * 
+ * ```
+ * #define MODULE_NAME "my_mod_name"
+ * #include <ks-module.h>
+ * 
+ * ... MODULE CODE ...
+ *
+ * static ks_module get_module() {
+ * 
+ *     ks_module mod = ks_module_new(MODULE_NAME);
+ * 
+ *     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
+ *         ...
+ *         {NULL, NULL}
+ *     });
+ * 
+ *     return mod;
+ * }
+ * 
+ * MODULE_INIT(get_module)
+ * ```
+ * 
+ * And, now that file should be good to be compiled & imported by kscript
+ * 
+ * 
+ * TODO: add full tutorial
+ * 
  * 
  * 
  * @author: Cade Brown <brown.cade@gmail.com>

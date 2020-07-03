@@ -81,7 +81,7 @@ ks_module ks_module_import(char* mname) {
     ks_str mod_key = ks_str_new(mname);
     
     // check the cache for quick return
-    mod = (ks_module)ks_dict_get(mod_cache, mod_key->v_hash, (ks_obj)mod_key);
+    mod = (ks_module)ks_dict_get_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash);
     if (mod != NULL) {
         KS_DECREF(mod_key);
         return mod;
@@ -117,7 +117,7 @@ ks_module ks_module_import(char* mname) {
         else return ks_throw_fmt(ks_type_Error, "Failed to import module '%s': No such module!", mname);
     } else {
         // add it to the dictionary, and return
-        ks_dict_set(mod_cache, mod_key->v_hash, (ks_obj)mod_key, (ks_obj)mod);
+        ks_dict_set_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash, (ks_obj)mod);
         KS_DECREF(mod_key);
         return mod;
     }
@@ -151,8 +151,8 @@ void ks_module_add_enum_members(ks_module self, ks_type enumtype) {
         }
 
         // add a reference in the module
-        ks_obj e_elem = ks_dict_get(enumtype->attr, e_key->v_hash, (ks_obj)e_key);
-        ks_dict_set(self->attr, e_key->v_hash, (ks_obj)e_key, e_elem);
+        ks_obj e_elem = ks_dict_get_h(enumtype->attr, (ks_obj)e_key, e_key->v_hash);
+        ks_dict_set_h(self->attr, (ks_obj)e_key, e_key->v_hash, e_elem);
         KS_DECREF(e_elem);
     }
     KS_DECREF(e_keys);
@@ -184,8 +184,8 @@ void ks_dict_add_enum_members(ks_dict self, ks_type enumtype) {
         }
 
         // add a reference in the module
-        ks_obj e_elem = ks_dict_get(enumtype->attr, e_key->v_hash, (ks_obj)e_key);
-        ks_dict_set(self, e_key->v_hash, (ks_obj)e_key, e_elem);
+        ks_obj e_elem = ks_dict_get_h(enumtype->attr, (ks_obj)e_key, e_key->v_hash);
+        ks_dict_set_h(self, (ks_obj)e_key, e_key->v_hash, e_elem);
         KS_DECREF(e_elem);
     }
     KS_DECREF(e_keys);
@@ -237,7 +237,7 @@ static KS_TFUNC(module, getattr) {
         return KS_NEWREF(self->attr);
     }
 
-    ks_obj ret = ks_dict_get(self->attr, attr->v_hash, (ks_obj)attr);
+    ks_obj ret = ks_dict_get_h(self->attr, (ks_obj)attr, attr->v_hash);
 
     if (!ret) {
         KS_ERR_ATTR(self, attr);
@@ -255,7 +255,7 @@ static KS_TFUNC(module, setattr) {
     KS_REQ_TYPE(attr, ks_type_str, "attr");
     ks_obj val = args[2];
 
-    ks_dict_set(self->attr, attr->v_hash, (ks_obj)attr, val);
+    ks_dict_set_h(self->attr, (ks_obj)attr, attr->v_hash, val);
 
     return KS_NEWREF(val);
 };

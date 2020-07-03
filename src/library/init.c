@@ -80,6 +80,7 @@ bool ks_init() {
     ks_type_thread_init();
     ks_type_iostream_init();
 
+
     ks_type_cfunc_init();
     ks_type_kfunc_init();
     ks_type_pfunc_init();
@@ -88,6 +89,7 @@ bool ks_init() {
     ks_type_parser_init();
     ks_type_module_init();
     ks_type_blob_init();
+
 
     ks_init_funcs();
 

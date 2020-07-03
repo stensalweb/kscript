@@ -220,7 +220,7 @@ static ks_module get_module() {
 
     mm_init_type_Stream();
 
-    mm_Enum_MediaType = ks_Enum_create_c("mm.MediaType", (struct ks_enum_entry_c[]){
+    mm_Enum_MediaType = ks_Enum_create_c("mm.MediaType", (ks_enum_entry_c[]){
 
         {"NONE",      MM_MEDIA_TYPE_NONE},
         {"Audio",     MM_MEDIA_TYPE_AUDIO},

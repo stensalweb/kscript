@@ -379,6 +379,18 @@ extern "C" {{
 
 #define KS_PREFIX "{PREFIX}"
 
+/* attributes */
+
+
+
+#if defined(__GNUC__)
+#define __KS_WARN_UNUSED__ __attribute__ ((warn_unused_result))
+#else 
+#define __KS_WARN_UNUSED__
+#endif
+
+
+
 
 /* misc. defines */
 

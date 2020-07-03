@@ -1,5 +1,12 @@
+
+#include <ks.h>
+
+
 // only include if we don't have the full version
 #ifndef KS_HAVE_GMP
+
+#warn Building kscript without GMP, integer math may be a little bit slow
+
 
 // NOTE: used in the kscript project when the full gmp is not in use
 /* mini-gmp, a minimalistic implementation of a GNU GMP subset.
@@ -52,7 +59,7 @@ see https://www.gnu.org/licenses/.  */
 #include <stdlib.h>
 #include <string.h>
 
-#include "ks_mini-gmp.h"
+#include "ks-mini-gmp.h"
 
 #if !defined(MINI_GMP_DONT_USE_FLOAT_H)
 #include <float.h>

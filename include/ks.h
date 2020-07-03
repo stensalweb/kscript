@@ -125,7 +125,7 @@ extern "C" {
 #include <gmp.h>
 #else
 // include our fallback
-#include <ks_mini-gmp.h>
+#include <ks-mini-gmp.h>
 #endif
 
 
@@ -269,7 +269,6 @@ enum {
     KSB_POPU,
 
 
-
     /** CONTROL FLOW, these opcodes change the control flow of the function **/
 
     // Pop off 'n_items', and perform a function call with them
@@ -390,7 +389,6 @@ enum {
     // 1:[op] 4:[int idx into 'v_const' of 'attr'1]
     KSB_STORE_ATTR,
 
-
     // Get an item via a subscript, i.e. obj[args]
     // 1:[op] 4:[int n_items : number of items (including object itself)]
     KSB_GETITEM,
@@ -398,6 +396,7 @@ enum {
     // Set an item via a subscript, i.e. obj[args] = val
     // 1:[op] 4:[int n_items : number of items (including object itself and value)]
     KSB_SETITEM,
+
 
 
     /** OPERATORS **/
@@ -460,7 +459,7 @@ enum {
 
 /* TYPES/STRUCTURE DEFS */
 
-// make sure these are aligned to a single byte, because they are bytecodes
+// try to pack these to single bytes
 #pragma pack(push, 1)
 
 // ksb - a single bytecode, i.e. sizeof(ksb) == 1
@@ -470,8 +469,10 @@ typedef uint8_t ksb;
 // ksb_i32 - a sigle bytecode with a 32 bit signed integer component, sizeof(ksb_i32) == 5
 typedef struct {
 
+    // the operation itself (KSB_* enum)
     ksb op;
 
+    // the argument encoded
     int32_t arg;
 
 } ksb_i32;
@@ -480,19 +481,19 @@ typedef struct {
 #pragma pack(pop)
 
 
+
 // ks_size_t - type representing the size of something, i.e. unsigned and long enough to hold
 //   64 bit indices
 typedef uint64_t ks_size_t;
 
-
 // ks_ssize_t - type representing a signed size, which can be negative
 typedef int64_t ks_ssize_t;
-
 
 // ks_hash_t - type representing a hash of an object. 
 // NOTE: hashes should never be '0', that means the hash is uninitialized or invalid,
 //   so manually 'nudge' the value to '1' or '-1' if that happens to come from a legimitate hash function
 typedef uint64_t ks_hash_t;
+
 
 
 // ks_obj - the most generic kscript object, which any other objects are castable to
@@ -727,6 +728,9 @@ struct ks_type {
      * 
      */
 
+
+    /* type meta-data */
+
     // type.__name__ -> the name of the type, typically human readable
     ks_str __name__;
 
@@ -734,12 +738,21 @@ struct ks_type {
     ks_list __parents__;
 
 
-    // type.__len__(self) -> get the length of an item
-    ks_obj __len__;
+    /* construction routines */
 
-    // type.__hash__(self) -> return the has of an object
-    ks_obj __hash__;
+    // type.__new__(self) -> construct a new object of a given type. This should normally take 0 arguments
+    //   and if '__init__' is not NULL, this should be called always with 0, then called __init__ with the resultant
+    //   object and the rest of the arguments
+    ks_obj __new__;
 
+    // type.__init__(self) -> initialize an object (i.e. the second part of the constructor)
+    ks_obj __init__;
+
+    // type.__free__(self) -> free the memory/references used by the object
+    ks_obj __free__;
+
+
+    /* casting/converting routines */
 
     // type.__bool__(self) -> convert an item to a boolean
     ks_obj __bool__;
@@ -760,27 +773,8 @@ struct ks_type {
     ks_obj __blob__;
 
 
-    // type.__new__(self) -> construct a new object of a given type. This should normally take 0 arguments
-    //   and if '__init__' is not NULL, this should be called always with 0, then called __init__ with the resultant
-    //   object and the rest of the arguments
-    ks_obj __new__;
 
-    // type.__init__(self) -> initialize an object (i.e. the second part of the constructor)
-    ks_obj __init__;
-
-    // type.__free__(self) -> free the memory/references used by the object
-    ks_obj __free__;
-
-    // type.__call__(self, *args) -> call 'self' like a function, given arguments
-    ks_obj __call__;
-
-
-    // type.__iter__(self) -> return an iterator for an object
-    ks_obj __iter__;
-
-    // type.__next__(self) -> return the next object for an iterator
-    ks_obj __next__;
-
+    /* standard property getters */
 
     // type.__getattr__(self, attr) -> get an attribute from an object
     ks_obj __getattr__;
@@ -795,7 +789,33 @@ struct ks_type {
     ks_obj __setitem__;
 
 
-    /* operators */
+    /* info about the objects */
+
+
+    // type.__len__(self) -> get the length of an item
+    ks_obj __len__;
+
+    // type.__hash__(self) -> return the has of an object
+    ks_obj __hash__;
+
+
+
+    /* functor protocol */
+
+    // type.__call__(self, *args) -> call 'self' like a function, given arguments
+    ks_obj __call__;
+
+
+    /* iterable protocol */
+
+    // type.__iter__(self) -> return an iterator for an object
+    ks_obj __iter__;
+
+    // type.__next__(self) -> return the next object for an iterator
+    ks_obj __next__;
+
+
+    /* operator overloads */
 
     // type.__add__(A, B) -> return A + B
     ks_obj __add__;
@@ -1005,6 +1025,7 @@ typedef struct {
 
 // ks_str - type representing a string of characters. Internally, the buffer is length encoded & NUL-terminated
 //   and the hash is computed at creation time
+// TODO: add unicode/etc support for strings natively
 struct ks_str {
     KS_OBJ_BASE
 
@@ -1045,8 +1066,7 @@ typedef struct {
 
 
 
-// ks_parser - an integrated parser which can parse kscript & bytecode to
-//   ASTs & code objects
+// token type for the kscript parser
 typedef struct ks_tok ks_tok;
 
 // enumeration of different token types
@@ -1175,6 +1195,7 @@ typedef struct {
     int bc_n;
 
     // a pointer to the actual bytecode, starting at index 0, through (bc_n-1)
+    // NOTE: it has variable length members, so you must traverse through the bytecode
     ksb* bc;
 
 
@@ -1182,12 +1203,13 @@ typedef struct {
     int meta_n;
 
     // array of meta-data tokens, which tell where the bytecode is located in the source code
+    // these are used for creating error messages
     struct ks_code_meta {
 
         // the point at which this token is the relevant one
         int bc_n;
 
-        // the token (a reference is held to tok.parser)
+        // the token, which holds a reference to the parser
         ks_tok tok;
 
     }* meta;
@@ -2139,15 +2161,15 @@ KS_API ks_obj ks_type_get_c(ks_type self, char* key);
 KS_API ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj);
 
 // Set an attribute for the given type
-// 0 can be passed to 'hash', and it will be calculated
-KS_API void ks_type_set(ks_type self, ks_str key, ks_obj val);
+// Returns whether it was successful, otherwise throws an error
+KS_API bool ks_type_set(ks_type self, ks_str key, ks_obj val);
 
 // Set a C-style string key as the attribute for a type
-KS_API void ks_type_set_c(ks_type self, char* key, ks_obj val);
+// Returns whether it was successful, otherwise throws an error
+KS_API bool ks_type_set_c(ks_type self, char* key, ks_obj val);
 
 // Sets a list of C-entries (without creating new references)
-// result == 0 means no problems
-// result < 0 means there was some internal problem (most likely the key was not hashable)
+// Returns whether it was successful
 // NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
 //   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
 // EXAMPLE:
@@ -2156,7 +2178,7 @@ KS_API void ks_type_set_c(ks_type self, char* key, ks_obj val);
 //   {"mine", KS_NEWREF(myotherval)},
 //   {NULL, NULL} // end should look like this   
 // })
-KS_API int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
+KS_API bool ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns);
 
 
 
@@ -2477,50 +2499,66 @@ KS_API ks_dict ks_dict_new(int len, ks_obj* entries);
 // Merge in entries of 'src' into self, replacing any entries in 'self' that existed
 KS_API void ks_dict_merge(ks_dict self, ks_dict src);
 
-// Create a new kscript dictionary from an array of C-style strings to values, which will not create new references to values
-// The last key is 'NULL'
+// Create a kscript dictionary from an array of C-style strings to values, which will hold references to all objects
+// The last {key, val} entry should be {NULL, NULL}
 // For example:
-// ks_dict_new_cn((ks_dict_ent_cn[]){ {"Cade", ks_int_new(42)}, {"Brown", ks_str_new("asdfasdf"), {NULL, NULL}} });
+// ks_dict_new_cn((ks_dict_ent_cn[]){ 
+//   {"answer_to_all",     (ks_obj)my_A}, 
+//   {"unimportant",       (ks_obj)my_B},
+//   {NULL, NULL}
+// });
+KS_API ks_dict ks_dict_new_c(ks_dict_ent_c* ent_cns);
+
+// Create a new kscript dictionary from an array of C-style strings to values, which will not create new references to values
+// The last {key, val} entry should be {NULL, NULL}
+// For example:
+// ks_dict_new_cn((ks_dict_ent_cn[]){ 
+//   {"answer_to_all",     (ks_obj)ks_int_new(42)}, 
+//   {"unimportant",       (ks_obj)ks_str_new("asdfasdf")},
+//   {NULL, NULL}
+// });
 // Will create a dictionary, and not introduce any memory leaks
 // NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
 //   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
 KS_API ks_dict ks_dict_new_cn(ks_dict_ent_c* ent_cns);
 
-// Test whether the dictionary has a given key. `hash` is always `hash(key)`. If it is 0, then 
-//   attempt to calculate `hash(key)`. If it is 0, there is no error, but the dictionary is said to
-//   not have the key
-// For efficiency reasons, this allows the caller to precompute the hash from some other source,
-//   so the dictionary doesn't have to
-KS_API bool ks_dict_has(ks_dict self, ks_hash_t hash, ks_obj key);
+// Return whether or not the dictionary has a given value
+// Variants that include `_h`, require that hash(key) is precomputed
+// This can be efficient for data-storages which compute hash once and then keep it
+// NOTE: Never throws an error
+KS_API bool ks_dict_has(ks_dict self, ks_obj key);
+KS_API bool ks_dict_has_h(ks_dict self, ks_obj key, ks_hash_t hash);
+KS_API bool ks_dict_has_c(ks_dict self, char* key);
 
-// Get a value of the dictionary
-// NULL if it does not exist
-// NOTE: Returns a new reference
-// NOTE: Does not throw an error if it does not exist
-KS_API ks_obj ks_dict_get(ks_dict self, ks_hash_t hash, ks_obj key);
-
-// Get a value of the dictionary
-// NULL if it does not exist
-// NOTE: Returns a new reference
-// NOTE: Does not throw an error if it does not exist
+// Return the object stored in the dictionary, keyed 'key'
+// Variants that include `_h`, which require that hash(key) is precomputed
+// Variants that include `_c`, take a NUL-terminated C-string as the key
+// NOTE: Returns a new reference, or NULL if there was a problem (if NULL, an error was thrown)
+KS_API ks_obj ks_dict_get(ks_dict self, ks_obj key);
+KS_API ks_obj ks_dict_get_h(ks_dict self, ks_obj key, ks_hash_t hash);
 KS_API ks_obj ks_dict_get_c(ks_dict self, char* key);
 
-// Set a dictionary entry for a key, to a value
-// If the entry already exists, dereference the old value, and replace it with the new value
-// result > 0 means that an item was replaced
-// result == 0 means no item was replaced, and there were no problems
-// result < 0 means there was some internal problem (most likely the key was not hashable)
-KS_API int ks_dict_set(ks_dict self, ks_hash_t hash, ks_obj key, ks_obj val);
+// Set `self[key] = val`
+// Variants that include `_h`, which require that hash(key) is precomputed
+// Variants that include `_c`, take a NUL-terminated C-string as the key
+// Returns whether it was successful, if `false`, an error is thrown
+KS_API bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val);
+KS_API bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val);
+KS_API bool ks_dict_set_c(ks_dict self, char* key, ks_obj val);
 
-// Delete an entry to the dictionary, returning 'true' if it was successful, false if it wasn't
-KS_API bool ks_dict_del(ks_dict self, ks_hash_t hash, ks_obj key);
+
+// Delete 'key' from the dictionary's entries
+// Variants that include `_h`, which require that hash(key) is precomputed
+// Variants that include `_c`, take a NUL-terminated C-string as the key
+// Returns whether it was successful, if `false`, an error is thrown
+KS_API bool ks_dict_del(ks_dict self, ks_obj key);
+KS_API bool ks_dict_del_h(ks_dict self, ks_obj key, ks_hash_t hash);
+KS_API bool ks_dict_del_c(ks_dict self, char* key);
+
 
 // Sets a list of C-entries (without creating new references)
-// result == 0 means no problems
-// result < 0 means there was some internal problem (most likely the key was not hashable)
-// NOTE: References in `ent_cns` are consumed by this function! So if you continue using the values,
-//   use `KS_NEWREF()` to create another reference to pass in `ent_cns`
-KS_API int ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
+// Return whether it was successful, if 'false', an error is thrown
+KS_API bool ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
 
 
@@ -2542,29 +2580,29 @@ KS_API ks_Enum ks_Enum_get_c(ks_type enumtype, char* arg);
 KS_API ks_Enum ks_Enum_get_i(ks_type enumtype, int arg);
 
 // entry for constructing an enum entry in C
-struct ks_enum_entry_c {
+typedef struct {
 
     // the name of the enum member
     char* name;
 
     // the index of the enum member, or -1 for auto
     int idx;
-};
+} ks_enum_entry_c;
 
 
 // Create an enum entry for an actual C-declared enum
-#define KS_ENUM_ENTRY_FILL(_enum) ((struct ks_enum_entry_c){ #_enum, (int)(_enum) })
+#define KS_ENUM_ENTRY_FILL(_enum) ((ks_enum_entry_c){ #_enum, (int)(_enum) })
 #define KS_EEF KS_ENUM_ENTRY_FILL
 
 // Create a new enum type from C-style arguments
-// for example, ks_Enum_create_c("Side", (struct ks_enum_entry_c[]){
+// for example, ks_Enum_create_c("Side", (ks_enum_entry_c[]){
 //   {"NONE",   -1},   
 //   {"LEFT",   -1},   
 //   {"RIGHT",  -1},   
 //   {NULL,     -1},   
 // }
 // NOTE: Returns a new reference
-KS_API ks_type ks_Enum_create_c(char* name, struct ks_enum_entry_c* ents);
+KS_API ks_type ks_Enum_create_c(char* name, ks_enum_entry_c* ents);
 
 
 
@@ -2807,6 +2845,12 @@ KS_API ks_cfunc ks_cfunc_new2(ks_obj (*func)(int n_args, ks_obj* args), char* hr
 // NOTE: 'func' must be callable
 // NOTE: Returns a new reference
 KS_API ks_pfunc ks_pfunc_new(ks_obj func);
+
+// Create a new partial function wrapper, with the first argument filled
+// NOTE: 'func' must be callable
+// NOTE: Returns a new reference
+KS_API ks_pfunc ks_pfunc_new2(ks_obj func, ks_obj arg0);
+
 
 // Fill a given index with an argument
 // NOTE: if 'idx' is already filled, it will be replaced

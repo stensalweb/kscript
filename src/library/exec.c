@@ -431,20 +431,20 @@ ks_obj ks__exec(ks_code code) {
             
             // try local variables
             if (this_stack_frame->locals != NULL) {
-                val = ks_dict_get(this_stack_frame->locals, name->v_hash, (ks_obj)name);
+                val = ks_dict_get_h(this_stack_frame->locals, (ks_obj)name, name->v_hash);
                 if (val != NULL) goto found;
             }
 
             // use closures to resolve the reference
             if (this_kfunc != NULL) {
                 for (i = this_kfunc->closures->len - 1; i >= 0; --i) {
-                    val = ks_dict_get((ks_dict)this_kfunc->closures->elems[i], name->v_hash, (ks_obj)name);
+                    val = ks_dict_get_h((ks_dict)this_kfunc->closures->elems[i], (ks_obj)name, name->v_hash);
                     if (val != NULL) goto found;
                 }
             }
             
             // try global variables
-            val = ks_dict_get(ks_globals, name->v_hash, (ks_obj)name);
+            val = ks_dict_get_h(ks_globals, (ks_obj)name, name->v_hash);
             if (val != NULL) goto found;
 
 
@@ -483,7 +483,7 @@ ks_obj ks__exec(ks_code code) {
             // set it in the globals
             // TODO: add local variables too
             assert(this_stack_frame->locals != NULL && "'store' bytecode encountered in a stack frame that has no locals()!");
-            ks_dict_set(this_stack_frame->locals, name->v_hash, (ks_obj)name, val);
+            ks_dict_set_h(this_stack_frame->locals, (ks_obj)name, name->v_hash, val);
 
             //KS_DECREF(val);
 

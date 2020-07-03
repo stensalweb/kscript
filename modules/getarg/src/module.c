@@ -468,7 +468,7 @@ static KS_TFUNC(Parser, parse) {
 
 
                         // check if it already has contained it
-                        if (ks_dict_has(res, arg_st->name->v_hash, (ks_obj)arg_st->name)) {
+                        if (ks_dict_has_h(res, (ks_obj)arg_st->name, arg_st->name->v_hash)) {
                             KS_DECREF(user_args);
                             KS_DECREF(res);
                             KS_DECREF(posi_args);
@@ -517,7 +517,7 @@ static KS_TFUNC(Parser, parse) {
                                 return NULL;
                             }
 
-                            int stat = ks_dict_set(res, arg_st->name->v_hash, (ks_obj)arg_st->name, (ks_obj)created_obj);
+                            int stat = ks_dict_set_h(res, (ks_obj)arg_st->name, arg_st->name->v_hash, (ks_obj)created_obj);
                             KS_DECREF(arg_value);
                         } else if (arg_st->argtype == ARG_TYPE_MULTI) {
                             // requires as many values as it can between min and max
@@ -605,7 +605,7 @@ static KS_TFUNC(Parser, parse) {
 
                             // otherwise, done and we set it
 
-                            int stat = ks_dict_set(res, arg_st->name->v_hash, (ks_obj)arg_st->name, (ks_obj)collec);
+                            int stat = ks_dict_set_h(res, (ks_obj)arg_st->name, arg_st->name->v_hash, (ks_obj)collec);
                             KS_DECREF(collec);
                         }
 
@@ -655,7 +655,7 @@ static KS_TFUNC(Parser, parse) {
     // iterate through list of valid argument structures
     for (i = 0; i < self->n_args; ++i) {
         struct getarg_arg* arg_st = &self->args[i];
-        if (!ks_dict_has(res, arg_st->name->v_hash, (ks_obj)arg_st->name)) {
+        if (!ks_dict_has_h(res, (ks_obj)arg_st->name, arg_st->name->v_hash)) {
             if (!arg_st->defa) {
                 KS_DECREF(res);
                 KS_DECREF(posi_args);
@@ -664,7 +664,7 @@ static KS_TFUNC(Parser, parse) {
 
             // doesn't contain it, so set default
             // NOTE: this ignores the validator, which is useful in many cases
-            ks_dict_set(res, arg_st->name->v_hash, (ks_obj)arg_st->name, arg_st->defa);
+            ks_dict_set_h(res, (ks_obj)arg_st->name, arg_st->name->v_hash, arg_st->defa);
         }
     }
 

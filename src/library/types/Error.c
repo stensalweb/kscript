@@ -127,7 +127,7 @@ static KS_TFUNC(Error, getattr) {
     KS_REQ_TYPE(attr, ks_type_str, "attr");
 
     // first try and get the attribute
-    ks_obj ret = ks_dict_get(self->attr, attr->v_hash, (ks_obj)attr);
+    ks_obj ret = ks_dict_get_h(self->attr, (ks_obj)attr, attr->v_hash);
     if (ret) return ret;
 
     // now, try getting a member function

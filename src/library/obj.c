@@ -64,7 +64,6 @@ static bool my_hash(ks_obj obj, ks_hash_t* out, int dep) {
 
         ks_obj hv = ks_call(obj->type->__hash__, 1, &obj);
         if (!hv) {
-            ks_catch_ignore();
             return false;
         }
 
@@ -73,7 +72,7 @@ static bool my_hash(ks_obj obj, ks_hash_t* out, int dep) {
         return rstat;
 
     } else {
-        // TODO; try ks_F_hash
+        ks_throw_fmt(ks_type_TypeError, "Object of type '%T' was not hashable!", obj);
         return false;
     }
 }
@@ -84,14 +83,29 @@ bool ks_hash(ks_obj obj, ks_hash_t* out) {
 
 // return A==B
 bool ks_eq(ks_obj A, ks_obj B) {
-    if (A == B) return true;
-
     if (A->type == ks_type_str && B->type == ks_type_str) {
         return ((ks_str)A)->v_hash == ((ks_str)B)->v_hash && (ks_str_cmp((ks_str)A, (ks_str)B) == 0);
     }
 
+
+    ks_obj eqres = ks_F_eq->func(2, (ks_obj[]){ A, B });
+    if (!eqres) {
+        ks_catch_ignore();
+        return false;
+    }
+    
+    
+    // convert to truthiness value
+    int tres = ks_truthy(eqres);
+    KS_DECREF(eqres);
+
+    if (tres < 0) {
+        ks_catch_ignore();
+        return false;
+    }
+
     // undefined, so return false
-    return false;
+    return tres > 0;
 }
 
 // Return if it is callable
@@ -155,7 +169,7 @@ void* ks_throw(ks_obj obj) {
 
     // ensure 
     if (cth->exc != NULL) {
-        ks_warn("Already object on cth->exc: %T, then obj: %T", cth->exc, obj);
+        ks_warn("Already object on cth->exc: %S, then obj: %S", cth->exc, obj);
     }
     assert(cth->exc == NULL && "There was already an object thrown and not caught, but someone threw something else!");
 

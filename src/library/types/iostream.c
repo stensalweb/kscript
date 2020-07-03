@@ -550,7 +550,8 @@ static KS_TFUNC(iostream, close) {
 void ks_type_iostream_init() {
     KS_INIT_TYPE_OBJ(ks_type_iostream, "iostream");
 
-    ks_type E_flags = ks_Enum_create_c("iostream.Flags", (struct ks_enum_entry_c[]){
+
+    ks_type E_flags = ks_Enum_create_c("iostream.Flags", (ks_enum_entry_c[]){
         {"NONE",         KS_IOS_NONE},
         {"READ",         KS_IOS_READ},
         {"WRITE",        KS_IOS_WRITE},
@@ -559,7 +560,6 @@ void ks_type_iostream_init() {
         {"EXTERN",       KS_IOS_EXTERN},
         {NULL, -1}
     });
-
 
 
     ks_type_set_cn(ks_type_iostream, (ks_dict_ent_c[]){
@@ -585,6 +585,7 @@ void ks_type_iostream_init() {
 
         {NULL, NULL}   
     });
+
 
     ks_dict_add_enum_members(ks_type_iostream->attr, E_flags);
 

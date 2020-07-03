@@ -60,7 +60,7 @@ ks_obj ks_type_get(ks_type self, ks_str key) {
     if (key->len == 8 && strncmp(key->chr, "__dict__", 8) == 0) return KS_NEWREF(self->attr);
 
     // get from the internal dictionary
-    ks_obj res = ks_dict_get(self->attr, hash, (ks_obj)key);
+    ks_obj res = ks_dict_get_h(self->attr, (ks_obj)key, hash);
     if (!res) {
         int i;
         for (i = 0; i < self->__parents__->len; ++i) {
@@ -109,7 +109,7 @@ ks_obj ks_type_get_mf(ks_type self, ks_str attr, ks_obj obj) {
 }
 
 // set a given attribute
-void ks_type_set(ks_type self, ks_str key, ks_obj val) {
+bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
     assert(key->type == ks_type_str);
 
     ks_hash_t hash = key->v_hash;
@@ -190,22 +190,24 @@ void ks_type_set(ks_type self, ks_str key, ks_obj val) {
     }
 
     // actually set the internal dictionary
-    ks_dict_set(self->attr, hash, (ks_obj)key, val);
+    ks_dict_set_h(self->attr, (ks_obj)key, hash, val);
 
+    return true;
 }
 
 // set an attribute by a C-style string
-void ks_type_set_c(ks_type self, char* key, ks_obj val) {
+bool ks_type_set_c(ks_type self, char* key, ks_obj val) {
 
     // create a temporary kscript object to attempt to set it
     ks_str str_key = ks_str_new(key);
-    ks_type_set(self, str_key, val);
+    bool res = ks_type_set(self, str_key, val);
     KS_DECREF(str_key);
+
+    return res;
 
 }
 // set C entries
-int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns) {
-    int res = 0;
+bool ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns) {
     while (ent_cns && ent_cns->key != NULL) {
         
         ks_type_set_c(self, ent_cns->key, ent_cns->val);
@@ -217,7 +219,7 @@ int ks_type_set_cn(ks_type self, ks_dict_ent_c* ent_cns) {
         ent_cns++;
     }
 
-    return res;
+    return true;
 }
 
 // add a parent to the type
