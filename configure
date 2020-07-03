@@ -43,6 +43,7 @@ parser.add_argument('--with-readline', '--without-readline', dest='with_readline
 parser.add_argument('--with-curl', '--without-curl', dest='with_curl', action=NegateAction, nargs=0, help='Enables/disables using the CURL library for network operations', default=None)
 parser.add_argument('--with-glfw3', '--without-glfw3', dest='with_glfw3', action=NegateAction, nargs=0, help='Enables/disables using the GLFW3 library for GUI', default=None)
 parser.add_argument('--with-libav', '--without-libav', dest='with_libav', action=NegateAction, nargs=0, help='Enables/disables using the libav (Audio/Video) library for multi-media operations', default=None)
+parser.add_argument('--with-ffi', '--without-ffi', dest='with_ffi', action=NegateAction, nargs=0, help='Enables/disables using the FFI (Foreign Function Interface) library for Cfuncs', default=None)
 
 args = parser.parse_args()
 
@@ -184,6 +185,7 @@ hasREADLINE    = False
 hasCURL        = False
 hasGLFW3       = False
 hasLIBAV       = False
+hasFFI         = False
 
 
 # search for libraries
@@ -212,6 +214,12 @@ if args.with_libav is not False:
 	if args.with_libav and not hasLIBAV:
 		raise Exception("'--with-libav' given, but LIBAV was not found!")
 
+if args.with_ffi is not False:
+	hasFFI            = has_c_lib("libffi", "", "-lffi", "#include <ffi.h>", "ffi_cif cif; ffi_type *args[1];")
+	if args.with_ffi and not hasFFI:
+		raise Exception("'--with-ffi' given, but FFI was not found!")
+
+
 
 
 # add them to the defines
@@ -227,6 +235,9 @@ else: args.M = list(filter(lambda mod: mod not in ("modules/cnk", ), args.M))
 
 if hasLIBAV:      defs.append("KS_HAVE_LIBAV")
 else: args.M = list(filter(lambda mod: mod not in ("modules/mm", ), args.M))
+
+if hasFFI:        defs.append("KS_HAVE_FFI")
+#else: args.M = list(filter(lambda mod: mod not in ("modules/mm", ), args.M))
 
 
 # check for integer sizes
@@ -435,6 +446,8 @@ export PREFIX
 DESTDIR          ?= {DESTDIR}
 export DESTDIR
 
+# static libraries that were built
+_include_static := $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),gmp readline history))
 
 _tmp             := {".tmp"}
 
@@ -554,6 +567,8 @@ $(libks_SHARED): $(libks_O)
 	$(CC) $(CFLAGS) \\
 		$^ $(LDFLAGS) \\
 		-Wl,-soname,libks.so.$(KS_VERSION) \\
+		-Wl,-Bsymbolic \\
+		-Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive \\
 		-shared {LIB_FLAGS} -o $@.$(KS_VERSION)
 	strip $@.$(KS_VERSION) $(STRIP_OPTS)
 	rm -f $@

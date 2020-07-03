@@ -21,14 +21,11 @@ mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
 # generated
 mod_O          := $(patsubst %.c,%.o,$(mod_C))
 
-# libraries
-mod_LIBS       := 
+# static libraries that were built
+_include_static := $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),glfw3))
 
-ifeq ($(wildcard $(KS_DIR)/deps/prefix/lib/libglfw3.$(STATIC_END)),)
-	mod_LIBS += -lglfw
-else
-	mod_LIBS += -Wl,--whole-archive $(KS_DIR)/deps/prefix/lib/libglfw3.$(STATIC_END) -Wl,--no-whole-archive
-endif
+# libraries
+mod_LIBS       := -Wl,-Bsymbolic -Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive -lglfw -lX11
 
 
 # -*- RULES -*-
@@ -57,6 +54,6 @@ uninstall:
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -Wl,-rpath,'$$ORIGIN' $(mod_LIBS) -lX11 -shared -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -Wl,-rpath,'$$ORIGIN' $(mod_LIBS) -shared -o $@
 	strip $@ $(STRIP_OPTS)
 	@echo "\n|| Built: $@\n"

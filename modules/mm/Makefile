@@ -21,13 +21,11 @@ mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
 # generated
 mod_O          := $(patsubst %.c,%.o,$(mod_C))
 
+# static libraries that were built
+_include_static := $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),avcodec avformat avutil))
 
 # libraries
-mod_LIBS       := -lavcodec -lavformat -lavutil
-
-ifneq ($(wildcard $(KS_DIR)/deps/src/ffmpeg_build/workspace/lib/lib*.$(SHARED_END)),)
-    $(shell cp $(wildcard $(KS_DIR)/deps/src/ffmpeg_build/workspace/lib/lib*.$(SHARED_END)) ./)
-endif
+mod_LIBS       := -Wl,-Bsymbolic -Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive -lavcodec -lavformat -lavutil
 
 
 # -*- RULES -*-

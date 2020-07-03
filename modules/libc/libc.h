@@ -14,37 +14,82 @@
 #include <ks.h>
 
 
+// foreign function interface (FFI)
+#ifdef KS_HAVE_FFI
+#include <ffi.h>
+#else
+#warn Building 'libc' without FFI support
+#endif
+
+
 
 /* STANDARD TYPES */
+
+
 
 
 typedef struct {
     KS_OBJ_BASE
 
-    int val;
+    int8_t val;
+
+}* libc_char;
+
+typedef struct {
+    KS_OBJ_BASE
+
+    int16_t val;
+
+}* libc_short;
+
+typedef struct {
+    KS_OBJ_BASE
+
+    int32_t val;
 
 }* libc_int;
 
 typedef struct {
     KS_OBJ_BASE
 
-    long val;
+    int64_t val;
 
 }* libc_long;
 
+
+// unsigned versions
 typedef struct {
     KS_OBJ_BASE
 
-    long long val;
+    uint8_t val;
 
-}* libc_long_long;
+}* libc_uchar;
 
 typedef struct {
     KS_OBJ_BASE
 
-    size_t val;
+    uint16_t val;
 
-}* libc_size_t;
+}* libc_ushort;
+
+typedef struct {
+    KS_OBJ_BASE
+
+    uint32_t val;
+
+}* libc_uint;
+
+typedef struct {
+    KS_OBJ_BASE
+
+    uint64_t val;
+
+}* libc_ulong;
+
+
+
+/* other types */
+
 
 typedef struct {
     KS_OBJ_BASE
@@ -57,13 +102,93 @@ typedef struct {
 }* libc_pointer;
 
 
-// declaring the types
-extern ks_type libc_type_int, libc_type_long, libc_type_long_long, libc_type_size_t, libc_type_pointer;
+// function pointer meta structure
+struct libc_fp_meta {
+// foreign function interface
+#ifdef KS_HAVE_FFI
 
+
+    // main handle for the function
+    ffi_cif _ffi_cif;
+
+    // number of arguments it takes + return value,
+    // so 1+n_args
+    int _ffi_n;
+
+    // _ffi_types[0] gives the result type,
+    // _ffi_types[1:] gives the types for the arguments
+    ffi_type** _ffi_types;
+
+#endif
+};
+
+
+// function pointer
+typedef struct {
+    KS_OBJ_BASE
+
+    // function
+    void (*val)();
+
+    // metadata (this is not managed by the instance, it is just a reference to the type)
+    struct libc_fp_meta* fp_meta;
+
+    // raw argument data, allocated to hold (result, args....)
+    void* argdata;
+
+    // pointers to 'argdata' with varying offsets for the various types
+    void** args;
+
+}* libc_func_pointer;
+
+
+// declaring the types
+extern ks_type libc_type_void;
+extern ks_type libc_type_char, libc_type_short, libc_type_int, libc_type_long;
+extern ks_type libc_type_uchar, libc_type_ushort, libc_type_uint, libc_type_ulong;
+extern ks_type libc_type_func_pointer, libc_type_pointer;
+
+
+/* construct values */
+
+// Create a libc_char
+// NOTE: Returns a new reference
+KS_API libc_char libc_make_char(int8_t val);
+
+// Create a libc_short
+// NOTE: Returns a new reference
+KS_API libc_short libc_make_short(int16_t val);
 
 // Create a libc_int
 // NOTE: Returns a new reference
-KS_API libc_int libc_make_int(int val);
+KS_API libc_int libc_make_int(int32_t val);
+
+// Create a libc_long
+// NOTE: Returns a new reference
+KS_API libc_long libc_make_long(int64_t val);
+
+// Create a libc_uchar
+// NOTE: Returns a new reference
+KS_API libc_uchar libc_make_uchar(uint8_t val);
+
+// Create a libc_ushort
+// NOTE: Returns a new reference
+KS_API libc_ushort libc_make_ushort(uint16_t val);
+
+// Create a libc_uint
+// NOTE: Returns a new reference
+KS_API libc_uint libc_make_uint(uint32_t val);
+
+// Create a libc_ulong
+// NOTE: Returns a new reference
+KS_API libc_ulong libc_make_ulong(uint64_t val);
+
+
+
+
+
+
+
 
 // Create a pointer type
 // NOTE: Returns a new reference
@@ -72,6 +197,14 @@ KS_API ks_type libc_make_pointer_type(ks_type of);
 // Create a pointer
 // NOTE: Returns a new reference
 KS_API libc_pointer libc_make_pointer(ks_type of, void* addr);
+
+// Create a function pointer type
+// NOTE: Returns a new reference
+KS_API ks_type libc_make_func_pointer_type(int n_args, ks_type* argtypes);
+
+// Create a function pointer
+// NOTE: Returns a new reference
+KS_API libc_func_pointer libc_make_func_pointer(int n_args, ks_type* argtypes, void (*val)());
 
 
 // Return sizeof(of)

@@ -162,7 +162,6 @@ static KS_TFUNC(libc, dlsym) {
 }
 
 
-
 /* misc */
 
 // libc.sizeof(obj) -> return size
@@ -203,12 +202,39 @@ static ks_module get_module() {
 
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
         
-        {"int",            (ks_obj)libc_type_int},
-        {"pointer",        (ks_obj)libc_type_pointer},
+        /* int types */
+        {"char",                  (ks_obj)libc_type_char},
+        {"short",                 (ks_obj)libc_type_short},
+        {"int",                   (ks_obj)libc_type_int},
+        {"long",                  (ks_obj)libc_type_long},
 
-        {"int_p",          (ks_obj)libc_make_pointer_type(libc_type_int)},
+        {"uchar",                 (ks_obj)libc_type_uchar},
+        {"ushort",                (ks_obj)libc_type_ushort},
+        {"uint",                  (ks_obj)libc_type_uint},
+        {"ulong",                 (ks_obj)libc_type_ulong},
+
+
+        /* int* types */
+
+        {"char_p",                (ks_obj)libc_make_pointer_type(libc_type_char)},
+        {"short_p",               (ks_obj)libc_make_pointer_type(libc_type_short)},
+        {"int_p",                 (ks_obj)libc_make_pointer_type(libc_type_int)},
+        {"long_p",                (ks_obj)libc_make_pointer_type(libc_type_long)},
+
+        {"uchar_p",                (ks_obj)libc_make_pointer_type(libc_type_uchar)},
+        {"ushort_p",               (ks_obj)libc_make_pointer_type(libc_type_ushort)},
+        {"uint_p",                 (ks_obj)libc_make_pointer_type(libc_type_uint)},
+        {"ulong_p",                (ks_obj)libc_make_pointer_type(libc_type_ulong)},
+
+        /* templates */
+
+        {"pointer",             (ks_obj)libc_type_pointer},
+        {"func_pointer",        (ks_obj)libc_type_func_pointer},
+
         
-        {"sizeof",          (ks_obj)ks_cfunc_new2(libc_size_, "libc.sizeof(obj)")},
+        /* misc/extra functions */
+
+        {"sizeof",              (ks_obj)ks_cfunc_new2(libc_size_, "libc.sizeof(obj)")},
 
 
         /* enums */
