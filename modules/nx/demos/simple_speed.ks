@@ -26,64 +26,56 @@ print (" ** Starting trial with %r %r".format(args.num, args.dtype))
 
 
 # kscript data
-kA = list(range(args.num))
+kA = list(range(1, args.num+1))
 kB = list(range(3, 3 + 100 * args.num, 100))
-kC = list(range(args.num - 1, -1, -1))
+kC = list(range(args.num, 0, -1))
 
 
+# now, convert into numeriX arrays
 
 print ("    Convert to nx.array")
-
 st = time()
-
-for i in range(args.trials) {
-    nA = nx.array(kA, args.dtype)
-}
-
+for i in range(args.trials), nA = nx.array(kA, args.dtype)
 et = time() - st
-
 print ("      - took %r ms/iter".format(et / args.trials))
 
-
+# convert others, but don't time it
 nB = nx.array(kB, args.dtype)
 nC = nx.array(kC, args.dtype)
 
 
+
+# -*- SIMPLE MATH OPS
+
 print ("    C = A + B")
-
 st = time()
-
-for i in range(args.trials) {
-    nx.add(nA, nB, nC)
-}
-
+for i in range(args.trials), for j in range(len(kA)), kC[j] = kA[j] + kB[j]
 et = time() - st
-
-print ("      - took %r ms/iter".format(et / args.trials))
-
-
-
-print ("    C = A + B (new)")
-
+print ("      - took %r ms/iter (kscript)".format(et / args.trials))
 st = time()
-
-for i in range(args.trials) {
-    nC = nx.add(nA, nB)
-}
-
+for i in range(args.trials), nx.add(nA, nB, nC)
 et = time() - st
+print ("      - took %r ms/iter (nx)".format(et / args.trials))
 
-print ("      - took %r ms/iter".format(et / args.trials))
+print ("    C = A * B")
+st = time()
+for i in range(args.trials), for j in range(len(kA)), kC[j] = kA[j] * kB[j]
+et = time() - st
+print ("      - took %r ms/iter (kscript)".format(et / args.trials))
+st = time()
+for i in range(args.trials), nx.mul(nA, nB, nC)
+et = time() - st
+print ("      - took %r ms/iter (nx)".format(et / args.trials))
 
-
-
-
-
-
-
-
-
-
+print ("    C = A / B")
+st = time()
+for i in range(args.trials), for j in range(len(kA)), kC[j] = kA[j] / kB[j]
+et = time() - st
+print ("      - took %r ms/iter (kscript)".format(et / args.trials))
+st = time()
+for i in range(args.trials), nx.div(nA, nB, nC)
+et = time() - st
+print ("      - took %r ms/iter (nx)".format(et / args.trials))
 
 
 

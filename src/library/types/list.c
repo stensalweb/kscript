@@ -224,6 +224,18 @@ static KS_TFUNC(list, mul) {
         }
 
         return (ks_obj)res;
+    } else if (R->type == ks_type_list && ks_num_is_integral(L)) {
+        ks_list lR = (ks_list)R;
+        int64_t iL;
+        if (!ks_num_get_int64(L, &iL)) return NULL;
+
+        ks_list res = ks_list_new(0, NULL);
+        int i;
+        for (i = 0; i < (iL); ++i) {
+            ks_list_pushn(res, lR->len, lR->elems);
+        }
+
+        return (ks_obj)res;
     }
 
     KS_ERR_BOP_UNDEF("*", L, R);

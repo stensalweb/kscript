@@ -2031,6 +2031,8 @@ static KS_FUNC(range) {
                 KS_DECREF(res);
                 return NULL;
             }
+        } else {
+            res->step = ks_int_new(1);
         }
     }
 
