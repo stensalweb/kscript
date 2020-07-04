@@ -1026,7 +1026,7 @@ static syop
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
-ks_ast ks_parser_parse_expr(ks_parser self) {
+ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
 
     // the output stack, for values
     struct {
@@ -1390,17 +1390,65 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             if (Ops.len > 0) Stop(Ops).had_comma = true;
 
         } else if (ctok.type == KS_TOK_LBRK) {
-            n_brks++;
 
             // we add a NULL to the output as a spacer
-            Spush(Out, NULL);
-                
+    //        Spush(Out, NULL);
 
             if (tok_isval(ltok.type))  {
                 // add a subscript operation, since it is like `val[`
+                /*
+                n_brks++;
+                Spush(Out, NULL);
                 Spush(Ops, SYOP(SYT_SUBSCRIPT, ctok));
+                */
+
+                ks_list subs_args = ks_list_new(0, NULL);
+                ks_ast obj = Spop(Out);
+
+                // skip '['
+                ADV_1();
+
+                while (VALID() && CTOK().type != KS_TOK_RBRK) {
+
+                    // parse expression
+                    ks_ast cur_expr = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
+                    if (!cur_expr) {
+                        KS_DECREF(subs_args);
+                        KS_DECREF(obj);
+                        goto kppe_err;
+                    }
+
+                    ks_list_push(subs_args, (ks_obj)cur_expr);
+
+
+
+
+                    // must have a comma to continue
+                    if (CTOK().type != KS_TOK_COMMA) {
+                        break;
+                    } else {
+                        // skip comma
+                        ADV_1();
+                    }
+
+                }
+                
+                if (CTOK().type != KS_TOK_RBRK) {
+                    KS_DECREF(obj);
+                    KS_DECREF(subs_args);
+                    KPPE_ERR(ctok, "Expected ']' to end list literal started here");
+                }
+
+                ks_ast new_ast = ks_ast_new_subscript(obj, subs_args->len, (ks_ast*)subs_args->elems);
+                KS_DECREF(obj);
+                KS_DECREF(subs_args);
+                Spush(Out, new_ast);
+
             } else {
+                n_brks++;
+
                 // just add a `[` which will ultimately become a list start
+                Spush(Out, NULL);
                 Spush(Ops, SYOP(SYT_LBRACK, ctok));
             }
 
@@ -1409,7 +1457,13 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
             n_brks--;
 
             // make sure there's been an `[` for this `]`
-            if (n_brks < 0) KPPE_ERR(ctok, "Invalid Syntax; extra ']', remove it")
+            if (n_brks < 0) {
+                if (flags & KS_PARSE_RETEARLYEXTRARBRK) {
+                    goto kppe_end;
+                } else {
+                    KPPE_ERR(ctok, "Invalid Syntax; extra ']', remove it")
+                }
+            }
 
             // which one was actually it actually was for
             syop used = {.type = SYT_NONE};
@@ -1538,7 +1592,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
                 while (VALID() && CTOK().type == KS_TOK_NEWLINE) ADV_1();
 
-                ks_ast ast_key = ks_parser_parse_expr(self);
+                ks_ast ast_key = ks_parser_parse_expr(self, KS_PARSE_NONE);
                 if (!ast_key) {
                     KS_DECREF(new_val);
                     goto kppe_err;
@@ -1553,7 +1607,7 @@ ks_ast ks_parser_parse_expr(ks_parser self) {
 
                 ADV_1();
 
-                ks_ast ast_val = ks_parser_parse_expr(self);
+                ks_ast ast_val = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
                 if (!ast_val) {
                     KS_DECREF(ast_key);
                     KS_DECREF(new_val);
@@ -1713,7 +1767,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
         SKIP_IRR_E();
 
         // parse out the expression being thrown
-        ks_ast expr = ks_parser_parse_expr(self);
+        ks_ast expr = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
         if (!expr) goto kpps_err;
 
         ks_ast ret = ks_ast_new_ret(expr);
@@ -1733,7 +1787,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
         SKIP_IRR_E();
 
         // parse out the expression being thrown
-        ks_ast expr = ks_parser_parse_expr(self);
+        ks_ast expr = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
         if (!expr) goto kpps_err;
 
         ks_ast ret = ks_ast_new_throw(expr);
@@ -1754,7 +1808,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
         SKIP_IRR_E();
 
         // parse out the expression being assert
-        ks_ast expr = ks_parser_parse_expr(self);
+        ks_ast expr = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
         if (!expr) goto kpps_err;
 
         ks_ast ret = ks_ast_new_assert(expr);
@@ -1819,7 +1873,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
         SKIP_IRR_E();
 
         // parse out the conditional
-        ks_ast cond = ks_parser_parse_expr(self);
+        ks_ast cond = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
         if (!cond) goto kpps_err;
 
         // the body of the if block
@@ -1857,7 +1911,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
         while (TOK_EQ(CTOK(), "elif")) {
             ADV_1();
 
-            ks_ast elif_cond = ks_parser_parse_expr(self);
+            ks_ast elif_cond = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
             if (!elif_cond) {
                 KS_DECREF(cond);
                 KS_DECREF(body);
@@ -1949,7 +2003,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
 
 
         // parse out the conditional
-        ks_ast cond = ks_parser_parse_expr(self);
+        ks_ast cond = ks_parser_parse_expr(self, KS_PARSE_NONE);
         if (!cond) goto kpps_err;
 
         // the body of the if block
@@ -2041,7 +2095,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
         }
 
         // now, parse an expression
-        ks_ast expr = ks_parser_parse_expr(self);
+        ks_ast expr = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
         if (!expr) {
             KS_DECREF(ident);
             goto kpps_err;
@@ -2310,7 +2364,7 @@ ks_ast ks_parser_parse_stmt(ks_parser self, enum ks_parse_flags flags) {
     } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_FLOAT || ctok.type == KS_TOK_OP || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK || ctok.type == KS_TOK_LBRC) {
 
         // parse expression
-        return ks_parser_parse_expr(self);
+        return ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
     }
 
     // no pattern was found, error out

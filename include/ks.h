@@ -912,6 +912,21 @@ struct ks_dict {
 };
 
 
+
+
+
+// ks_slice - aslice object, having a start, stop, step
+typedef struct {
+    KS_OBJ_BASE
+
+    // start, stop, and step (default should be NONE for all of these)
+    ks_obj start, stop, step;
+
+}* ks_slice;
+
+
+
+
 /* ks_namespace - similar to a dictionary, but elements are accessed via getitem or getattr
  * 
  * So, namespace.x == namespace["x"]
@@ -1906,6 +1921,7 @@ KS_API extern ks_type
     ks_type_list,
     ks_type_dict,
     ks_type_namespace,
+    ks_type_slice,
 
     // error types
     ks_type_Error,
@@ -2561,13 +2577,25 @@ KS_API bool ks_dict_del_c(ks_dict self, char* key);
 KS_API bool ks_dict_set_cn(ks_dict self, ks_dict_ent_c* ent_cns);
 
 
-
 /* NAMESPACE */
 
 
 // Create a new kscript namespace from a dictionary
 // NOTE: Returns a new reference
 KS_API ks_namespace ks_namespace_new(ks_dict attr);
+
+
+/* SLICE */
+
+
+
+// Construct a slice with paramaters.
+// NOTE: KSO_NONE should be used for defaults
+// NOTE: Returns a new reference
+KS_API ks_slice ks_slice_new(ks_obj start, ks_obj stop, ks_obj step);
+
+
+
 
 /* ENUM */
 
@@ -2793,10 +2821,14 @@ KS_API ks_code ks_codegen(ks_ast self);
 // controlling how the parser parses
 enum ks_parse_flags {
     // default, no special flags
-    KS_PARSE_NONE            = 0x00,
+    KS_PARSE_NONE                 = 0x00,
 
     // if true, accept '{}' blocks, and not dictionary literals
-    KS_PARSE_ACCEPT_BLOCK    = 0x01,
+    KS_PARSE_ACCEPT_BLOCK         = 0x01,
+
+
+    // if true, ignore extra ']' at the end of line and return early
+    KS_PARSE_RETEARLYEXTRARBRK    = 0x02
 };
 
 // Create a new parser from some source code
@@ -2806,7 +2838,7 @@ KS_API ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
 
 // Parse a single expression out of 'p'
 // NOTE: Returns a new reference
-KS_API ks_ast ks_parser_parse_expr(ks_parser self);
+KS_API ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags);
 
 
 // Parse a single statement out of 'p'

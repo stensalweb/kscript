@@ -80,6 +80,7 @@ bool ks_init() {
     ks_type_thread_init();
     ks_type_iostream_init();
 
+    ks_type_slice_init();
 
     ks_type_cfunc_init();
     ks_type_kfunc_init();
@@ -181,11 +182,13 @@ bool ks_init() {
         
         {"blob",           KS_NEWREF(ks_type_blob)},
         {"str",            KS_NEWREF(ks_type_str)},
-        {"list",           KS_NEWREF(ks_type_list)},
         
+        {"list",           KS_NEWREF(ks_type_list)},
         {"tuple",          KS_NEWREF(ks_type_tuple)},
         {"dict",           KS_NEWREF(ks_type_dict)},
         {"namespace",      KS_NEWREF(ks_type_namespace)},
+
+        {"slice",          KS_NEWREF(ks_type_slice)},
 
         {"Error",          KS_NEWREF(ks_type_Error)},
         {"SyntaxError",    KS_NEWREF(ks_type_SyntaxError)},

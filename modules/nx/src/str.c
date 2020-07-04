@@ -102,8 +102,6 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
             if (!stat) return false;
         }
 
-
-
         ks_str_b_add_c(SB, "]");
 
         return true;

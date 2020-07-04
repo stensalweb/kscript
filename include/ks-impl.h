@@ -53,6 +53,7 @@ void ks_type_str_init();
 void ks_type_tuple_init();
 void ks_type_list_init();
 void ks_type_dict_init();
+void ks_type_slice_init();
 void ks_type_namespace_init();
 void ks_type_Error_init();
 void ks_type_Enum_init();

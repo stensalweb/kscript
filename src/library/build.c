@@ -33,7 +33,7 @@ KS_API ks_tuple ks_build_tuple(const char* fmt, ...) {
                 i++;
             }
 
-            spec[spec_i] = '\0';
+            spec[i - spec_i] = '\0';
 
             int field_i = i;
 
@@ -43,7 +43,7 @@ KS_API ks_tuple ks_build_tuple(const char* fmt, ...) {
                 i++;
             }
 
-            field[field_i] = '\0';
+            field[i - field_i] = '\0';
 
 
             if (strcmp(field, "i") == 0) {

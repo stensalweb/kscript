@@ -34,7 +34,6 @@ ks_list ks_list_new(int len, ks_obj* elems) {
 // create a list by exhausting an iterable
 ks_list ks_list_from_iterable(ks_obj obj) {
 
-
     // some shortcuts
     /**/ if (obj->type == ks_type_list)  return (ks_list)KS_NEWREF(obj);
     else if (obj->type == ks_type_tuple) return ks_list_new(((ks_tuple)obj)->len, ((ks_tuple)obj)->elems);
@@ -293,23 +292,83 @@ static KS_TFUNC(list, ne) {
 
 
 
+// adjust index to within bounds
+static int64_t my_adj(int64_t idx, int64_t len) {
+    if (idx < 0) {
+        return ((idx % len) + len) % len;
+    } else {
+        return idx;
+    }
+}
+
 // list.__getitem__(self, idx) -> get the item in a list
 static KS_TFUNC(list, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_list self = NULL;
-    int64_t idx = 0;
-    if (!ks_parse_params(n_args, args, "self%* idx%i64", &self, ks_type_list, &idx)) return NULL;
+    ks_obj idx;
+    if (!ks_parse_params(n_args, args, "self%* idx%any", &self, ks_type_list, &idx)) return NULL;
 
-    // ensure negative indices are wrapped once
-    if (idx < 0) idx += self->len;
+    int64_t v64;
+    if (ks_num_get_int64(idx, &v64)) {
 
-    // do bounds check
-    if (idx < 0 || idx >= self->len) KS_ERR_KEY(self, args[1]);
+        // ensure negative indices are wrapped once
+        if (v64 < 0) v64 += self->len;
 
-    // return the item specified
-    return KS_NEWREF(self->elems[idx]);
-};
+        // do bounds check
+        if (v64 < 0 || v64 >= self->len) KS_ERR_KEY(self, args[1]);
 
+        // return the item specified
+        return KS_NEWREF(self->elems[v64]);
+    } else {
+        ks_catch_ignore();
+    }
+
+    if (idx->type == ks_type_slice) {
+        ks_slice slice_idx = (ks_slice)idx;
+
+        int64_t start, stop, step;
+        if (slice_idx->start == KSO_NONE) {
+            start = 0;
+        } else {
+            if (!ks_num_get_int64(slice_idx->start, &start)) return NULL;
+        }
+
+        if (slice_idx->stop == KSO_NONE) {
+            stop = self->len;
+        } else {
+            if (!ks_num_get_int64(slice_idx->stop, &stop)) return NULL;
+        }
+
+        if (slice_idx->step == KSO_NONE) {
+            step = 1;
+        } else {
+            if (!ks_num_get_int64(slice_idx->step, &step)) return NULL;
+        }
+
+        start = my_adj(start, self->len);
+
+        ks_list res = ks_list_new(0, NULL);
+
+        int64_t i;
+        if (stop > start) {
+            printf("HERE\n");
+            for (i = start; i < stop && i < self->len; i += step) {
+                ks_list_push(res, self->elems[i]);
+            }
+        } else {
+            for (i = stop; i > start && i >= 0; i += step) {
+                ks_list_push(res, self->elems[i]);
+            }
+        }
+
+
+        return (ks_obj)res;
+
+    } else {
+        return ks_throw_fmt(ks_type_TypeError, "Expected 'idx' to be an integer, or a slice, but got '%T'", args[1]);
+    }
+
+}
 
 
 // list.__setitem__(self, idx, val) -> set an item in the list

@@ -201,6 +201,16 @@ static KS_TFUNC(mm, read_audio) {
 }
 
 
+// mm.read_image(fname) -> read an entire file, decoding any audio contained in it
+static KS_TFUNC(mm, read_image) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_str fname;
+    if (!ks_parse_params(n_args, args, "fname%s", &fname)) return NULL;
+
+    return (ks_obj)mm_read_image(fname->chr);
+}
+
+
 
 // now, export them all
 static ks_module get_module() {
@@ -235,6 +245,7 @@ static ks_module get_module() {
 
         {"read_file",        (ks_obj)ks_cfunc_new2(mm_read_file_,  "mm.read_file(fname)")},
         {"read_audio",       (ks_obj)ks_cfunc_new2(mm_read_audio_, "mm.read_audio(fname)")},
+        {"read_image",       (ks_obj)ks_cfunc_new2(mm_read_image_, "mm.read_image(fname)")},
 
         {"Stream",           (ks_obj)mm_type_Stream},
 

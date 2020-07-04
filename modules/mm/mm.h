@@ -19,8 +19,10 @@
 
 // ffmpeg/libav headers 
 #include <libavutil/opt.h>
+#include <libavutil/imgutils.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+
 
 #else
 
@@ -110,8 +112,9 @@ KS_API bool mm_Stream_open(mm_Stream self, char* url);
 // NOTE: Returns a new reference
 KS_API ks_blob mm_read_file(char* fname);
 
-
-
+// Read a file as an image array
+// NOTE: Returns a new reference
+KS_API nx_array mm_read_image(char* fname);
 
 
 
