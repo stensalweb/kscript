@@ -53,6 +53,8 @@ bool ks_slice_getci(ks_slice self, int64_t len, int64_t* first, int64_t* last, i
         stop = ((stop % len) + len) % len;
     }
 
+
+
     if (step == 0) {
         ks_throw_fmt(ks_type_ArgError, "Slices cannot have step==0");
         return false;

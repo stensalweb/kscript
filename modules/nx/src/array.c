@@ -283,23 +283,133 @@ static KS_TFUNC(array, getitem) {
     if ((n_args - 1) == 0) {
         // return view of the entire array
         return (ks_obj)nx_view_new(self, self->data, self->N, self->dim, self->stride);
-    } else if ((n_args - 1) == self->N) {
-        int64_t* idxs = ks_malloc(self->N * sizeof(*idxs));
+    } else if ((n_args - 1) <= self->N) {
+        // these number of arguments
+        int nN = n_args - 1;
+
+        // the index, or -1 if we need to calculate a slice
+        int64_t* idxs = ks_malloc(nN * sizeof(*idxs));
+
+        // whether or not slices are required
+        bool needSlice = false;
 
         int i;
-        for (i = 0; i < self->N; ++i) {
+        for (i = 0; i < nN; ++i) {
             if (!ks_num_get_int64(args[i + 1], &idxs[i])) {
+                // not found as int
                 ks_catch_ignore();
-                ks_free(idxs);
-                return ks_throw_fmt(ks_type_ToDoError, "Need to handle non-integer (i.e. slice) indexes");
+                idxs[i] = -1;
+                needSlice = true;
+            } else {
+
+                // wrap around
+                idxs[i] = ((idxs[i] % self->dim[i]) + self->dim[i]) % self->dim[i];
             }
         }
 
-        void* addr = (void*)((intptr_t)self->data + nx_szsdot(self->N, self->dim, self->stride, nx_dtype_size(self->dtype), idxs));
-        ks_free(idxs);
 
-        return nx_cast_from(self->dtype, addr);
-        
+        if (!needSlice && nN == self->N) {
+            // return single element
+            void* addr = (void*)((intptr_t)self->data + nx_szsdot(nN, self->dim, self->stride, nx_dtype_size(self->dtype), idxs));
+            ks_free(idxs);
+
+            return nx_cast_from(self->dtype, addr);
+        } else {
+
+            // result dimension is the number of indexes which were not integers + those not referenced
+            int rN = self->N - n_args + 1;
+            for (i = 0; i < nN; ++i) if (idxs[i] < 0) rN++;
+
+            // otherwise, calculate slices & return view
+            nx_size_t* dim = ks_malloc(sizeof(*dim) * rN);
+            nx_size_t* stride = ks_malloc(sizeof(*stride) * rN);
+
+            // offset from the base pointer
+            nx_size_t total_offset = 0;
+
+            // dtype size
+            nx_size_t dtsz = nx_dtype_size(self->dtype);
+
+
+            // return index
+            int ri = 0;
+
+            for (i = 0; i < nN; ++i) {
+
+
+                if (idxs[i] >= 0) {
+                    // single index here, just bump the array off
+                    total_offset += dtsz * idxs[i] * self->stride[i];
+
+                    //dim[ri] = self->dim[i];
+                    //stride[ri] = self->stride[i];
+
+                    //ri++;
+                } else if (args[i + 1]->type == ks_type_slice) {
+                    // add dimension from slice argument
+                    ks_slice arg_slice = (ks_slice)args[i + 1];
+
+                    int64_t first, last, delta;
+
+                    if (!ks_slice_getci(arg_slice, self->dim[i], &first, &last, &delta)) {
+
+                        // error
+                        ks_free(idxs);
+                        ks_free(dim);
+                        ks_free(stride);
+
+                        return NULL;
+                    }
+
+                    // otherwise, calculate number of elements
+                    int num = (last - first) / delta;
+                    if (num == 0) {
+                        // TODO: determine what to do
+                        ks_free(idxs);
+                        ks_free(dim);
+                        ks_free(stride);
+
+                        return ks_throw_fmt(ks_type_ToDoError, "Need to determine what to return if size is 0 in a dimension");
+                    }
+
+                    // there will be this many
+                    dim[ri] = num;
+
+                    // stride offset
+                    stride[ri] = self->stride[i] * delta;
+
+                    // and add total offset to the first
+                    total_offset += dtsz * first * self->stride[i];
+
+                    // claim this dimension
+                    ri++;
+                } else {
+                    ks_free(idxs);
+                    ks_free(dim);
+                    ks_free(stride);
+                    return ks_throw_fmt(ks_type_TypeError, "Expected all indices to be either 'int' or 'slice', but got '%T'", args[i + 1]);
+
+                }
+            }
+            
+            ks_free(idxs);
+
+            // fill out the rest, copying
+            while (ri < rN) {
+
+                dim[ri] = self->dim[i];
+                stride[ri] = self->stride[i];
+
+                i++;
+                ri++;
+            }
+
+            nx_view ret = nx_view_new(self, (void*)((intptr_t)self->data + total_offset), rN, dim, stride);
+            ks_free(dim);
+            ks_free(stride);
+            return (ks_obj)ret;
+        }
+
     } else {
         return ks_throw_fmt(ks_type_KeyError, "nx.array[...] expected %i indices (for %iD array), but only got %i", self->N, self->N, n_args - 1);
     }

@@ -45,6 +45,25 @@ static KS_TFUNC(view, new) {
     }
 }
 
+// nx.view.__free__(self)
+static KS_TFUNC(view, free) {
+    KS_REQ_N_ARGS(n_args, 1);
+    nx_view self;
+    if (!ks_parse_params(n_args, args, "self%*", &self, nx_type_view)) return NULL;
+
+    KS_DECREF(self->data_src);
+
+    ks_free(self->dim);
+    ks_free(self->stride);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+}
+
+
+
 // nx.view.__str__(obj)
 static KS_TFUNC(view, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -60,6 +79,7 @@ void nx_type_view_init() {
     ks_type_set_cn(nx_type_view, (ks_dict_ent_c[]) {
 
         {"__new__",           (ks_obj)ks_cfunc_new2(view_new_, "nx.view.__new__(obj)")},
+        {"__free__",           (ks_obj)ks_cfunc_new2(view_free_, "nx.view.__free__(self)")},
         {"__str__",           (ks_obj)ks_cfunc_new2(view_str_, "nx.view.__str__(self)")},
 
         {NULL, NULL}
