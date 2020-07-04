@@ -23,7 +23,7 @@ static int my_div_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
 
     // inner loop
     #define INNER_LOOP(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) { \
-        *(NXT_TYPE_C*)dptr_C = *(NXT_TYPE_A*)dptr_A - *(NXT_TYPE_B*)dptr_B; \
+        *(NXT_TYPE_C*)dptr_C = *(NXT_TYPE_A*)dptr_A / *(NXT_TYPE_B*)dptr_B; \
     }
 
     // generate a huge body containing all the data combinations

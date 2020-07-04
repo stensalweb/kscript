@@ -42,7 +42,6 @@ bool nx_T_fft_2d(
 
     // result
     bool rstat = false;
-
     if (createdPlan0 = plan0 == NULL) {
         plan0 = ks_malloc(sizeof(*plan0));
         if (!nx_fft_plan_init(plan0, R_dim0)) {

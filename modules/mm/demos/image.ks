@@ -8,13 +8,14 @@
 import nx
 import mm
 
-img = mm.read_image("/home/cade/projects/kscript/modules/mm/assets/img1.png")
+img = mm.read_image("/home/cade/projects/kscript/modules/mm/assets/img1.png") / 255
 
-print (img)
-print (img.shape)
+img_r = img[:, :, 0]
 
+print (img_r)
 
+print (nx.fft.fft2d(img_r))
 
-print (nx.fft.fft2d(img))
+print (img_r[0])
 
 

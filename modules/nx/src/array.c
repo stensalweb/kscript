@@ -257,6 +257,8 @@ static KS_TFUNC(array, getattr) {
     // attempt to get one of the attributes
     if (attr->len == 5 && strncmp(attr->chr, "shape", 5) == 0) {
         return (ks_obj)ks_build_tuple("%+z", self->N, self->dim);
+    } else if (attr->len == 6 && strncmp(attr->chr, "stride", 6) == 0) {
+        return (ks_obj)ks_build_tuple("%+z", self->N, self->stride);
     } else if (attr->len == 5 && strncmp(attr->chr, "dtype", 5) == 0) {
         return (ks_obj)nx_dtype_get_enum(self->dtype);
     } else {
@@ -271,14 +273,12 @@ static KS_TFUNC(array, getattr) {
     }
 }
 
-
-
 // array.__getitem__(self, *idxs)
+// TODO; move the actual functionality to a C-API function
 static KS_TFUNC(array, getitem) {
     KS_REQ_N_ARGS_MIN(n_args, 1);
-    nx_array self = args[0];
+    nx_array self = (nx_array)args[0];
     KS_REQ_TYPE(self, nx_type_array, "self");
-
 
     if ((n_args - 1) == 0) {
         // return view of the entire array
@@ -306,7 +306,6 @@ static KS_TFUNC(array, getitem) {
                 idxs[i] = ((idxs[i] % self->dim[i]) + self->dim[i]) % self->dim[i];
             }
         }
-
 
         if (!needSlice && nN == self->N) {
             // return single element

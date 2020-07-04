@@ -99,12 +99,17 @@ static KS_TFUNC(fft, fft2d) {
     struct nxar_t A_nxar, B_nxar;
     NX_CALC_NXAR(A_nxar, A, delA);
 
+    if (!A_nxar.data) {
+        return NULL;
+    }
+
     if (!B) {
         // calculate B
         B = (ks_obj)nx_array_new(NX_DTYPE_CPLX_FP64, 2, A_nxar.dim, NULL);
     } else {
         KS_INCREF(B);
     }
+
 
     NX_CALC_NXAR(B_nxar, B, delB);
 

@@ -35,11 +35,13 @@ struct nxar_t {
 
 // Get a 'nxar_t' from a single nx_array variable
 #define GET_NXAR_ARRAY(_arr) ((struct nxar_t){ _NXAR_(_arr) })
+#define GET_NXAR_VIEW(_arr) ((struct nxar_t){ _NXAR_(_arr) })
 
 // Calculate a 'nxar' from a given object, setting (_nxar).data == NULL if there was an error
 // You should always include `if (_delobj) KS_DECREF(_delobj)` to clean up any temporary arrays created
 #define NX_CALC_NXAR(_nxar, _obj, _delobj) { \
     /**/ if ((_obj)->type == nx_type_array) _nxar = GET_NXAR_ARRAY(((nx_array)(_obj))); \
+    else if ((_obj)->type == nx_type_view) _nxar = GET_NXAR_VIEW(((nx_view)(_obj))); \
     else if (ks_num_is_numeric((_obj)) || ks_is_iterable((_obj))) { \
         _delobj = (ks_obj)nx_array_from_obj((_obj), NX_DTYPE_NONE); \
         if (!_delobj) _nxar.data = NULL; \

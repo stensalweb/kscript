@@ -64,6 +64,32 @@ static KS_TFUNC(view, free) {
 
 
 
+// view.__getattr__(self, attr)
+static KS_TFUNC(view, getattr) {
+    KS_REQ_N_ARGS(n_args, 2);
+    nx_view self;
+    ks_str attr;
+    if (!ks_parse_params(n_args, args, "self%* attr%s", &self, nx_type_view, &attr)) return NULL;
+
+    // attempt to get one of the attributes
+    if (attr->len == 5 && strncmp(attr->chr, "shape", 5) == 0) {
+        return (ks_obj)ks_build_tuple("%+z", self->N, self->dim);
+    } else if (attr->len == 6 && strncmp(attr->chr, "stride", 6) == 0) {
+        return (ks_obj)ks_build_tuple("%+z", self->N, self->stride);
+    } else if (attr->len == 5 && strncmp(attr->chr, "dtype", 5) == 0) {
+        return (ks_obj)nx_dtype_get_enum(self->dtype);
+    } else {
+
+        // now, try getting a member function
+        ks_obj ret = ks_type_get_mf(self->type, attr, (ks_obj)self);
+        if (!ret) {
+            KS_ERR_ATTR(self, attr);
+        }
+
+        return ret;
+    }
+}
+
 // nx.view.__str__(obj)
 static KS_TFUNC(view, str) {
     KS_REQ_N_ARGS(n_args, 1);
@@ -73,6 +99,68 @@ static KS_TFUNC(view, str) {
     return (ks_obj)nx_get_str(_NXAR_(self));
 }
 
+
+
+
+/* OPERATORS */
+
+
+// view.__add__(L, R)
+static KS_TFUNC(view, add) {
+    KS_REQ_N_ARGS(n_args, 2);
+
+    ks_obj ret = nx_F_add->func(n_args, args);
+    if (!ret) {
+        ks_catch_ignore();
+        KS_ERR_BOP_UNDEF("+", args[0], args[1]);
+    } else {
+        return ret;
+    }
+}
+
+// view.__sub__(L, R)
+static KS_TFUNC(view, sub) {
+    KS_REQ_N_ARGS(n_args, 2);
+
+    ks_obj ret = nx_F_sub->func(n_args, args);
+    if (!ret) {
+        ks_catch_ignore();
+        KS_ERR_BOP_UNDEF("-", args[0], args[1]);
+    } else {
+        return ret;
+    }
+}
+
+// view.__mul__(L, R)
+static KS_TFUNC(view, mul) {
+    printf("TEST\n");
+
+    KS_REQ_N_ARGS(n_args, 2);
+
+    ks_obj ret = nx_F_mul->func(n_args, args);
+    if (!ret) {
+        ks_catch_ignore();
+        KS_ERR_BOP_UNDEF("*", args[0], args[1]);
+    } else {
+        return ret;
+    }
+}
+
+// view.__div__(L, R)
+static KS_TFUNC(view, div) {
+    KS_REQ_N_ARGS(n_args, 2);
+
+    ks_obj ret = nx_F_div->func(n_args, args);
+    if (!ret) {
+        ks_catch_ignore();
+        KS_ERR_BOP_UNDEF("/", args[0], args[1]);
+    } else {
+        return ret;
+    }
+}
+
+
+
 void nx_type_view_init() {
     KS_INIT_TYPE_OBJ(nx_type_view, "nx.view");
 
@@ -81,6 +169,14 @@ void nx_type_view_init() {
         {"__new__",           (ks_obj)ks_cfunc_new2(view_new_, "nx.view.__new__(obj)")},
         {"__free__",           (ks_obj)ks_cfunc_new2(view_free_, "nx.view.__free__(self)")},
         {"__str__",           (ks_obj)ks_cfunc_new2(view_str_, "nx.view.__str__(self)")},
+
+        {"__getattr__",           (ks_obj)ks_cfunc_new2(view_getattr_, "nx.view.__getattr__(self, attr)")},
+
+        {"__add__",           (ks_obj)ks_cfunc_new2(view_add_, "nx.view.__add__(L, R)")},
+        {"__sub__",           (ks_obj)ks_cfunc_new2(view_sub_, "nx.view.__sub__(L, R)")},
+        {"__mul__",           (ks_obj)ks_cfunc_new2(view_mul_, "nx.view.__mul__(L, R)")},
+        {"__div__",           (ks_obj)ks_cfunc_new2(view_div_, "nx.view.__div__(L, R)")},
+
 
         {NULL, NULL}
     });
