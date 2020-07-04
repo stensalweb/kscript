@@ -103,6 +103,7 @@ void ksca_setitem   (ks_code self, int n_items) KSCA_B_I32(KSB_SETITEM, n_items)
 void ksca_list      (ks_code self, int n_items) KSCA_B_I32(KSB_LIST, n_items)
 void ksca_tuple     (ks_code self, int n_items) KSCA_B_I32(KSB_TUPLE, n_items)
 void ksca_dict      (ks_code self, int n_items) KSCA_B_I32(KSB_DICT, n_items)
+void ksca_slice     (ks_code self) KSCA_B(KSB_SLICE)
 
 void ksca_call   (ks_code self, int n_items) KSCA_B_I32(KSB_CALL, n_items)
 void ksca_ret    (ks_code self) KSCA_B(KSB_RET)
@@ -388,6 +389,10 @@ static KS_TFUNC(code, str) {
             ks_str_b_add_fmt(&SB, "list %i", val);
             break;
 
+        case KSB_SLICE:
+            ks_str_b_add_fmt(&SB, "slice");
+            break;
+            
         case KSB_TUPLE:
             i += 4;
             ks_str_b_add_fmt(&SB, "tuple %i", val);

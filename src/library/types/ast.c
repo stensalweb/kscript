@@ -49,7 +49,18 @@ ks_ast ks_ast_new_list(int n_items, ks_ast* items) {
 
     return self;
 }
+// Create an AST representing a list constructor
+ks_ast ks_ast_new_slice(ks_ast start, ks_ast stop, ks_ast step) {
+    ks_ast self = KS_ALLOC_OBJ(ks_ast);
+    KS_INIT_OBJ(self, ks_type_ast);
 
+    // set specific variables
+    self->kind = KS_AST_SLICE;
+    self->tok = self->tok_expr = (ks_tok){NULL};
+    self->children = ks_list_new(3, (ks_obj[]){ (ks_obj)start, (ks_obj)stop, (ks_obj)step });
+
+    return self;
+}
 
 // Create an AST representing a list constructor
 ks_ast ks_ast_new_tuple(int n_items, ks_ast* items) {

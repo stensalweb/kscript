@@ -361,6 +361,10 @@ enum {
     // 1:[op] 4:[int num_elems, aka num entries]
     KSB_DICT,
 
+    // Pop off 3 elements from the stack and construct a slice from them
+    // 1:[op]
+    KSB_SLICE,
+
 
     
     /** VALUE LOOKUP **/
@@ -1253,6 +1257,10 @@ enum {
     // Represents a dictionary constructor, like {"key":"value", ...}
     // elements are in children, there should be an even number (for keys & values)
     KS_AST_DICT,
+
+    // Represents a slice constructor, like 1:2
+    // elements are in children
+    KS_AST_SLICE,
 
 
     // Represents an attribute reference, 'children[0].(children[1])'
@@ -2596,6 +2604,15 @@ KS_API ks_slice ks_slice_new(ks_obj start, ks_obj stop, ks_obj step);
 
 
 
+// Calculate C-iteration values
+// To be used like so:
+// if (!ks_slice_getci(slice, array_len, &first, &last, &delta)) return NULL;
+// for (i = first; i != last; i += delta) { ... do operation ... }
+// To calculate the number of indexes, you can use `(last - first) / delta`. `delta` is guaranteed to be non-zero
+// NOTE: Returns success, and if false, an error is thrown
+KS_API bool ks_slice_getci(ks_slice self, int64_t len, int64_t* first, int64_t* last, int64_t* delta);
+
+
 
 /* ENUM */
 
@@ -2677,6 +2694,8 @@ KS_API void ksca_popu      (ks_code self);
 KS_API void ksca_list      (ks_code self, int n_items);
 KS_API void ksca_tuple     (ks_code self, int n_items);
 KS_API void ksca_dict      (ks_code self, int n_items);
+KS_API void ksca_slice     (ks_code self);
+
 
 KS_API void ksca_getitem   (ks_code self, int n_items);
 KS_API void ksca_setitem   (ks_code self, int n_items);
@@ -2740,6 +2759,9 @@ KS_API ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_dict(int n_items, ks_ast* items);
 
+// Create an AST representing a slice constructor
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_slice(ks_ast start, ks_ast stop, ks_ast step);
 
 
 

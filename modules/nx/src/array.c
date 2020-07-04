@@ -272,6 +272,41 @@ static KS_TFUNC(array, getattr) {
 }
 
 
+
+// array.__getitem__(self, *idxs)
+static KS_TFUNC(array, getitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+    nx_array self = args[0];
+    KS_REQ_TYPE(self, nx_type_array, "self");
+
+
+    if ((n_args - 1) == 0) {
+        // return view of the entire array
+        return (ks_obj)nx_view_new(self, self->data, self->N, self->dim, self->stride);
+    } else if ((n_args - 1) == self->N) {
+        int64_t* idxs = ks_malloc(self->N * sizeof(*idxs));
+
+        int i;
+        for (i = 0; i < self->N; ++i) {
+            if (!ks_num_get_int64(args[i + 1], &idxs[i])) {
+                ks_catch_ignore();
+                ks_free(idxs);
+                return ks_throw_fmt(ks_type_ToDoError, "Need to handle non-integer (i.e. slice) indexes");
+            }
+        }
+
+        void* addr = (void*)((intptr_t)self->data + nx_szsdot(self->N, self->dim, self->stride, nx_dtype_size(self->dtype), idxs));
+        ks_free(idxs);
+
+        return nx_cast_from(self->dtype, addr);
+        
+    } else {
+        return ks_throw_fmt(ks_type_KeyError, "nx.array[...] expected %i indices (for %iD array), but only got %i", self->N, self->N, n_args - 1);
+    }
+
+}
+
+
 /* OPERATORS */
 
 
@@ -342,6 +377,9 @@ void nx_type_array_init() {
         {"__free__", (ks_obj)ks_cfunc_new2(array_free_, "nx.array.__free__(self)")},
 
         {"__getattr__", (ks_obj)ks_cfunc_new2(array_getattr_, "nx.array.__getattr__(self, attr)")},
+
+        {"__getitem__", (ks_obj)ks_cfunc_new2(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
+
 
         /* ops */
         {"__add__",        (ks_obj)ks_cfunc_new2(array_add_, "nx.array.__add__(L, R)")},

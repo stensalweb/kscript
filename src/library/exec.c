@@ -247,6 +247,25 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
+        VMED_CASE_START(KSB_SLICE)
+            VMED_CONSUME(ksb, op);
+
+            VME_ASSERT(self->stk->len >= 3 && "'slice' instruction requires 3 items on the stack!");
+
+            // construct the slice
+            ks_slice new_slice = ks_slice_new(self->stk->elems[self->stk->len - 3], self->stk->elems[self->stk->len - 2], self->stk->elems[self->stk->len - 1]);
+
+            // remove from the stack
+            for (i = 0; i < 3; ++i) {
+                ks_list_popu(self->stk);
+            }
+
+            // push it back on
+            ks_list_push(self->stk, (ks_obj)new_slice);
+            KS_DECREF(new_slice);
+
+        VMED_CASE_END
+
 
         VMED_CASE_START(KSB_TUPLE)
             VMED_CONSUME(ksb_i32, op_i32);

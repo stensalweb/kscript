@@ -326,48 +326,22 @@ static KS_TFUNC(list, getitem) {
     if (idx->type == ks_type_slice) {
         ks_slice slice_idx = (ks_slice)idx;
 
-        int64_t start, stop, step;
-        if (slice_idx->start == KSO_NONE) {
-            start = 0;
-        } else {
-            if (!ks_num_get_int64(slice_idx->start, &start)) return NULL;
-        }
-
-        if (slice_idx->stop == KSO_NONE) {
-            stop = self->len;
-        } else {
-            if (!ks_num_get_int64(slice_idx->stop, &stop)) return NULL;
-        }
-
-        if (slice_idx->step == KSO_NONE) {
-            step = 1;
-        } else {
-            if (!ks_num_get_int64(slice_idx->step, &step)) return NULL;
-        }
-
-        start = my_adj(start, self->len);
-
-        ks_list res = ks_list_new(0, NULL);
+        int64_t first, last, delta;
+        if (!ks_slice_getci((ks_slice)idx, self->len, &first, &last, &delta)) return NULL;
 
         int64_t i;
-        if (stop > start) {
-            printf("HERE\n");
-            for (i = start; i < stop && i < self->len; i += step) {
-                ks_list_push(res, self->elems[i]);
-            }
-        } else {
-            for (i = stop; i > start && i >= 0; i += step) {
-                ks_list_push(res, self->elems[i]);
-            }
-        }
+        ks_list res = ks_list_new(0, NULL);
 
+        // add appropriate elements
+        for (i = first; i != last; i += delta) {
+            ks_list_push(res, self->elems[i]);
+        }
 
         return (ks_obj)res;
 
     } else {
         return ks_throw_fmt(ks_type_TypeError, "Expected 'idx' to be an integer, or a slice, but got '%T'", args[1]);
     }
-
 }
 
 

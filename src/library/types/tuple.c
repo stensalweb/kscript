@@ -138,7 +138,7 @@ static KS_TFUNC(tuple, hash) {
         hash ^= chash;
     }
 
-    return (ks_int)ks_int_new(hash);
+    return (ks_obj)ks_int_new(hash);
 }
 
 
@@ -155,18 +155,47 @@ static KS_TFUNC(tuple, iter) {
 static KS_TFUNC(tuple, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_tuple self = NULL;
-    int64_t idx = 0;
-    if (!ks_parse_params(n_args, args, "self%* idx%i64", &self, ks_type_tuple, &idx)) return NULL;
+    ks_obj idx;
+    if (!ks_parse_params(n_args, args, "self%* idx%any", &self, ks_type_tuple, &idx)) return NULL;
 
-    // ensure negative indices are wrapped once
-    if (idx < 0) idx += self->len;
+    int64_t v64;
+    if (ks_num_get_int64(idx, &v64)) {
 
-    // do bounds check
-    if (idx < 0 || idx >= self->len) KS_ERR_KEY(self, args[1]);
+        // ensure negative indices are wrapped once
+        if (v64 < 0) v64 += self->len;
 
-    // return the item specified
-    return KS_NEWREF(self->elems[idx]);
-};
+        // do bounds check
+        if (v64 < 0 || v64 >= self->len) KS_ERR_KEY(self, args[1]);
+
+        // return the item specified
+        return KS_NEWREF(self->elems[v64]);
+    } else {
+        ks_catch_ignore();
+    }
+
+    if (idx->type == ks_type_slice) {
+        ks_slice slice_idx = (ks_slice)idx;
+
+        int64_t first, last, delta;
+        if (!ks_slice_getci((ks_slice)idx, self->len, &first, &last, &delta)) return NULL;
+
+        int64_t i;
+        ks_list res = ks_list_new(0, NULL);
+
+        // add appropriate elements
+        for (i = first; i != last; i += delta) {
+            ks_list_push(res, self->elems[i]);
+        }
+
+        ks_tuple res_tuple = ks_tuple_new(res->len, res->elems);
+        KS_DECREF(res);
+
+        return (ks_obj)res_tuple;
+
+    } else {
+        return ks_throw_fmt(ks_type_TypeError, "Expected 'idx' to be an integer, or a slice, but got '%T'", args[1]);
+    }
+}
 
 
 

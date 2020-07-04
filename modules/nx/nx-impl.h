@@ -167,6 +167,45 @@ static bool nx_cast_to(ks_obj obj, enum nx_dtype dtype, nx_any_t* to) {
 }
 
 
+// convert from a Ctype into a ks_obj
+static ks_obj nx_cast_from(enum nx_dtype dtype, void* from) {
+
+    /*  */ if (dtype == NX_DTYPE_SINT8) {
+        return (ks_obj)ks_int_new(*(int8_t*)from);
+    } else if (dtype == NX_DTYPE_UINT8) {
+        return (ks_obj)ks_int_new(*(uint8_t*)from);
+    } else if (dtype == NX_DTYPE_SINT16) {
+        return (ks_obj)ks_int_new(*(int16_t*)from);
+    } else if (dtype == NX_DTYPE_UINT16) {
+        return (ks_obj)ks_int_new(*(uint16_t*)from);
+    } else if (dtype == NX_DTYPE_SINT32) {
+        return (ks_obj)ks_int_new(*(int32_t*)from);
+    } else if (dtype == NX_DTYPE_UINT32) {
+        return (ks_obj)ks_int_new(*(uint32_t*)from);
+    } else if (dtype == NX_DTYPE_SINT64) {
+        return (ks_obj)ks_int_new(*(int64_t*)from);
+    } else if (dtype == NX_DTYPE_UINT64) {
+        return (ks_obj)ks_int_new(*(uint64_t*)from);
+
+    } else if (dtype == NX_DTYPE_FP32) {
+        return (ks_obj)ks_float_new(*(float*)from);
+    } else if (dtype == NX_DTYPE_FP64) {
+        return (ks_obj)ks_float_new(*(double*)from);
+
+    } else if (dtype == NX_DTYPE_CPLX_FP32) {
+        return (ks_obj)ks_complex_new(*(float complex*)from);
+
+    } else if (dtype == NX_DTYPE_CPLX_FP64) {
+        return (ks_obj)ks_complex_new(*(double complex*)from);
+
+    } else {
+        return ks_throw_fmt(ks_type_InternalError, "Did not handle dtype=%i in nx_cast_from", (int)dtype);
+    }
+}
+
+
+
+
 // set blocks of memory, i.e.
 // memset(&dest[stride * i], data, size)
 static void nx_memset_block(void* dest, void* data, nx_size_t size, nx_size_t stride, nx_size_t n_elems) {
@@ -384,6 +423,24 @@ static bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size
 }
 
 
+
+// stride,size dot product, to calculate offset (in bytes) of a given N
+// NOTE: allows out of bounds indexes by wrapping (i.e. -1 becomes dim[i] - 1)
+static nx_size_t nx_szsdot(int N, nx_size_t* dim, nx_size_t* stride, nx_size_t dtype_sz, nx_size_t* idxs) {
+
+    // result offset (in elements)
+    nx_size_t r = 0;
+
+    int i;
+    for (i = 0; i < N; ++i) {
+        int64_t ci = idxs[i];
+        ci = ((ci % dim[i]) + dim[i]) % dim[i];
+        r += stride[i] * ci;
+    }
+
+    // convert to bytes
+    return dtype_sz * r;
+}
 
 
 

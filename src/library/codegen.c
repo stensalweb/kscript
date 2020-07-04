@@ -177,6 +177,25 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         st->stk_len += 1 - self->children->len;
 
 
+    } else if (self->kind == KS_AST_SLICE) {
+
+        // first, calculcate children
+        int i;
+        for (i = 0; i < self->children->len; ++i) {
+            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+        }
+
+        assert(start_len + self->children->len == st->stk_len && "'slice' children did not produce values!");
+
+        ksca_slice(to);
+
+        // add meta data
+        ks_code_add_meta(to, self->tok_expr);
+
+        // it will take all the children off, but push on a single value
+        st->stk_len += 1 - self->children->len;
+
+
     } else if (self->kind == KS_AST_TUPLE) {
 
         // first, calculcate children

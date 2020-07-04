@@ -1410,29 +1410,162 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
 
                 while (VALID() && CTOK().type != KS_TOK_RBRK) {
 
-                    // parse expression
-                    ks_ast cur_expr = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
-                    if (!cur_expr) {
+                    // holding the 3 arguments for the slice
+                    ks_ast slice_args[3] = { NULL, NULL, NULL };
+
+                    // current slice arg
+                    ks_ast* cslarg = &slice_args[0];
+
+                    // number of colons encountered
+                    // it is a slice iff ncol > 0
+                    int ncol = 0;
+
+                    if (!VALID()) {
                         KS_DECREF(subs_args);
                         KS_DECREF(obj);
-                        goto kppe_err;
+                        KPPE_ERR(CTOK(), "Unexpected end of input");
                     }
 
-                    ks_list_push(subs_args, (ks_obj)cur_expr);
-
-
-
-
-                    // must have a comma to continue
-                    if (CTOK().type != KS_TOK_COMMA) {
-                        break;
-                    } else {
-                        // skip comma
+                    // find first argument
+                    if (CTOK().type == KS_TOK_COL) {
+                        ncol++;
+                        *cslarg = ks_ast_new_const(KSO_NONE);
+                        (*cslarg)->tok = (*cslarg)->tok_expr = CTOK();
                         ADV_1();
+                    } else {
+                        *cslarg = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
+                        if (!*cslarg) {
+                            KS_DECREF(subs_args);
+                            KS_DECREF(obj);
+                            goto kppe_end;
+                        }
+                        if (CTOK().type == KS_TOK_COL) {
+                            ncol++;
+                            ADV_1();
+                        }
                     }
+
+                    if (!VALID()) {
+                        KS_DECREF(slice_args[0]);
+                        KS_DECREF(subs_args);
+                        KS_DECREF(obj);
+                        KPPE_ERR(CTOK(), "Unexpected end of input");
+                    }
+
+                    // now, find second argument
+                    cslarg++;
+                    if (CTOK().type == KS_TOK_RBRK || CTOK().type == KS_TOK_COMMA) {
+                        if (CTOK().type == KS_TOK_COMMA) ADV_1();
+
+                        // add either slice or individual argument
+                        if (ncol > 0) {
+                            ks_ast new_none = ks_ast_new_const(KSO_NONE);
+                            ks_ast new_slice = ks_ast_new_slice(slice_args[0], new_none, new_none);
+                            KS_DECREF(new_none);
+                            ks_list_push(subs_args, (ks_obj)new_slice);
+                            KS_DECREF(new_slice);
+                        } else {
+                            ks_list_push(subs_args, (ks_obj)slice_args[0]);
+                        }
+                        KS_DECREF(slice_args[0]);
+                        continue;
+                        
+                    } else if (CTOK().type == KS_TOK_COL) {
+
+                        ncol++;
+                        *cslarg = ks_ast_new_const(KSO_NONE);
+                        (*cslarg)->tok = (*cslarg)->tok_expr = CTOK();
+                        ADV_1();
+                    } else {
+                        *cslarg = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
+                        if (!*cslarg) {
+                            KS_DECREF(slice_args[0]);
+                            KS_DECREF(subs_args);
+                            KS_DECREF(obj);
+                            goto kppe_end;
+                        }
+                        if (CTOK().type == KS_TOK_COL) {
+                            ncol++;
+                            ADV_1();
+                        }
+                    }
+
+                    if (!VALID()) {
+                        KS_DECREF(slice_args[0]);
+                        KS_DECREF(slice_args[1]);
+                        KS_DECREF(subs_args);
+                        KS_DECREF(obj);
+                        KPPE_ERR(CTOK(), "Unexpected end of input");
+                    }
+
+
+                    // now, find third argument
+                    cslarg++;
+                    if (CTOK().type == KS_TOK_RBRK || CTOK().type == KS_TOK_COMMA) {
+                        if (CTOK().type == KS_TOK_COMMA) ADV_1();
+
+                        // add either slice or individual argument
+                        if (ncol > 0) {
+                            ks_ast new_none = ks_ast_new_const(KSO_NONE);
+                            ks_ast new_slice = ks_ast_new_slice(slice_args[0], slice_args[1], new_none);
+                            new_slice->tok = new_slice->tok_expr = ks_tok_combo(slice_args[0]->tok_expr, slice_args[1]->tok_expr);
+
+                            KS_DECREF(new_none);
+                            ks_list_push(subs_args, (ks_obj)new_slice);
+                            KS_DECREF(new_slice);
+                        } else {
+                            KPPE_ERR(CTOK(), "Internal: ncol was 0 after a colon...");
+                        }
+                        KS_DECREF(slice_args[0]);
+                        KS_DECREF(slice_args[1]);
+                        continue;
+
+                    } else if (CTOK().type == KS_TOK_COL) {
+                        ncol++;
+                        *cslarg = ks_ast_new_const(KSO_NONE);
+                        (*cslarg)->tok_expr = (*cslarg)->tok = CTOK();
+                        ADV_1();
+                    } else {
+                        *cslarg = ks_parser_parse_expr(self, KS_PARSE_RETEARLYEXTRARBRK);
+                        if (!*cslarg) {
+                            KS_DECREF(slice_args[0]);
+                            KS_DECREF(slice_args[1]);
+                            KS_DECREF(subs_args);
+                            KS_DECREF(obj);
+                            goto kppe_end;
+                        }
+                        if (CTOK().type == KS_TOK_COL) {
+                            KS_DECREF(slice_args[0]);
+                            KS_DECREF(slice_args[1]);
+                            KS_DECREF(slice_args[2]);
+                            KS_DECREF(subs_args);
+                            KS_DECREF(obj);
+                            KPPE_ERR(CTOK(), "Too many ':' for slice; there should only be 2");
+                        }
+                    }
+
+                    if (!VALID()) {
+                        KS_DECREF(slice_args[0]);
+                        KS_DECREF(slice_args[1]);
+                        KS_DECREF(slice_args[2]);
+                        KS_DECREF(subs_args);
+                        KS_DECREF(obj);
+                        KPPE_ERR(CTOK(), "Unexpected end of input");
+                    }
+
+
+                    // now, do full slice
+                    ks_ast new_slice = ks_ast_new_slice(slice_args[0], slice_args[1], slice_args[2]);
+                    new_slice->tok = new_slice->tok_expr = ks_tok_combo(slice_args[0]->tok_expr, slice_args[2]->tok_expr);
+                    ks_list_push(subs_args, (ks_obj)new_slice);
+                    KS_DECREF(new_slice);
+                    KS_DECREF(slice_args[0]);
+                    KS_DECREF(slice_args[1]);
+                    KS_DECREF(slice_args[2]);
 
                 }
                 
+
                 if (CTOK().type != KS_TOK_RBRK) {
                     KS_DECREF(obj);
                     KS_DECREF(subs_args);
@@ -1440,6 +1573,8 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                 }
 
                 ks_ast new_ast = ks_ast_new_subscript(obj, subs_args->len, (ks_ast*)subs_args->elems);
+                new_ast->tok_expr = new_ast->tok = ks_tok_combo(obj->tok_expr, CTOK());
+
                 KS_DECREF(obj);
                 KS_DECREF(subs_args);
                 Spush(Out, new_ast);
