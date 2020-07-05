@@ -1,25 +1,39 @@
-# nx/Makefile - numerics library makefile
+# nx/Makefile - std module makefile
 # NOTE: Do not call this by itself, run from the main directory `make modules`
 
 # -*- VARS -*-
 
-MOD_NAME       := nx
+MOD_NAME        := libc
+
+
+# -*- DEPENDS -*-
+
+# any static libraries that were built
+_include_static :=
+
+# C libraries
+mod_LIBS        :=
+
+# other modules this one depends on
+mod_MODDEPS     := 
 
 
 # -*- FILES -*-
 
-mod_C          := $(wildcard src/*.c ops/*.c fft/*.c la/*.c)
+# C source files
+mod_C           := $(wildcard src/*.c) $(wildcard ops/*.c) $(wildcard fft/*.c) $(wildcard la/*.c)
 
-mod_H          := nx.h nx-impl.h nx-fft.h nx-la.h
+# C header files
+mod_H           := nx.h nx-impl.h nx-fft.h nx-la.h
 
 
 # -*- TARGETS -*-
 
 # main shared library
-mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
+mod_SHARED      := libksm_$(MOD_NAME).$(SHARED_END)
 
-# generated
-mod_O          := $(patsubst %.c,%.o,$(mod_C))
+# generated objects
+mod_O           := $(patsubst %.c,%.o,$(mod_C))
 
 
 # -*- RULES -*-
@@ -35,21 +49,16 @@ clean:
 
 # install all files
 install: $(mod_SHARED) $(mod_H)
-	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-
-	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-	install -m 644 $(mod_H) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-
-# rule to uninstall the whole package from PREFIX
-uninstall:
-	rm -rf $(wildcard $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)) 
+	install -d $(MOD_INSTALL_DIR)
+	install -m 755 $(mod_SHARED) $(MOD_INSTALL_DIR)
+	install -m 644 $(mod_H) $(MOD_INSTALL_DIR)
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)
-	$(CC) $(CFLAGS) -I./ $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) $(patsubst %,-I$(KS_DIR)/modules/%,$(mod_MODDEPS)) -I./ $< -fPIC -c -o $@
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -shared -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -Wl,-rpath,'$$ORIGIN' $(mod_LIBS) -shared -o $@
 	strip $@ $(STRIP_OPTS)
-	@echo "\n|| Built: $@\n"
+

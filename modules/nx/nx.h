@@ -92,6 +92,53 @@ typedef union {
 
 } nx_any_t;
 
+
+
+// nxar_t - minimal array designation, which means that any other valid type (nx.array, nx.view, C pointers)
+//   should be expressible as this. Therefore, functions that take this can support any of the above
+// Use the macros `NXAR_*` to create `nxar_t` from other objects
+typedef struct {
+    
+    // pointer to the start of the data
+    void* data;
+    
+    // what type is the data?
+    enum nx_dtype dtype;
+    
+    // number of dimensions of the array
+    int N;
+    
+    // array of dimensions (i.e. sizes)
+    nx_size_t* dim;
+    
+    // array of strides (in number of elements)
+    // TODO: should this be in bytes instead?
+    nx_size_t* stride;
+
+} nxar_t;
+
+
+// Create an `nxar_t` from an `nx_array` object
+#define NXAR_ARRAY(_array) ((nxar_t){ \
+    .data = (_array)->data, \
+    .dtype = (_array)->dtype, \
+    .N = (_array)->N, \
+    .dim = (_array)->dim, \
+    .stride = (_array)->stride, \
+})
+
+
+// Create an `nxar_t` from an `nx_view` object
+#define NXAR_VIEW(_view) ((nxar_t){ \
+    .data = (_view)->data, \
+    .dtype = (_view)->dtype, \
+    .N = (_view)->N, \
+    .dim = (_view)->dim, \
+    .stride = (_view)->stride, \
+})
+
+
+
 // nx.array - N-dimensional tensor array
 typedef struct {
     KS_OBJ_BASE
@@ -99,7 +146,8 @@ typedef struct {
     // what type of data does the tensor store
     enum nx_dtype dtype;
 
-    // pointer to the array data
+    // pointer to the array 
+    // NOTE: this must be ks_free'd by the array, as it owns this memory
     void* data;
 
     // number of dimensions
@@ -124,6 +172,9 @@ typedef struct {
     // what type of data does the tensor store
     enum nx_dtype dtype;
 
+    // pointer to the start of the array
+    // NOTE: this is just a reference to 'data_src->data + offset`, so it 
+    //   should not be freed
     void* data;
 
     // number of dimensions
@@ -174,14 +225,13 @@ extern ks_type nx_enum_dtype;
  * 
  * 'user_data' is a user-defined pointer that was invoked when the function was applied
  * 
- * Should return '0' on success, or a non-zero error code if there was a problem
+ * Should return success, or false on an error (and throw an error)
  * 
  */
-typedef int (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data);
+typedef bool (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data);
 
 
-
-/* FUNCTIONS/OPS */
+/* DTYPE META */
 
 
 // Return a data type enumeration from a given name
@@ -189,7 +239,7 @@ typedef int (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_
 KS_API enum nx_dtype nx_dtype_get(char* name);
 
 // Return the enum value for the name
-// NOTE: Returns a string that should not be modifyed
+// NOTE: Returns a string that should not be modified or freed
 KS_API char* nx_dtype_get_name(enum nx_dtype dtype);
 
 // Return an enumeration object
@@ -199,10 +249,16 @@ KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype);
 
 /* ARRAY */
 
+/*
 // Create a new array with a given data type, and dimensions
 // If 'data' is NULL, it is initialized to 0, otherwise 'data' must be a dense block
 // NOTE: Returns a new reference
 KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data);
+*/
+
+// Create a new array from a given nxar_t
+// NOTE: Returns a new reference
+KS_API nx_array nx_array_new(nxar_t nxar);
 
 // Create a new nx array from a kscript object (use NX_DTYPE_NONE to auto-detect)
 // The rules are:
@@ -214,19 +270,58 @@ KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* d
 KS_API nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype);
 
 
-
 /* VIEW */
 
-// Create a new view, from a given array
+// Create a new view, from a given array & data
 // NOTE: Returns a new reference
-KS_API nx_view nx_view_new(nx_array ref, void* data, int N, nx_size_t* dim, nx_size_t* stride);
+KS_API nx_view nx_view_new(nx_array ref, nxar_t nxar);
 
 
 
-/* GENERIC OPS */
+/* nxar_t */
 
-// Apply 'ufunc' to 'data', returns either 0 if there was no error, or the first error code generated
-KS_API int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
+
+// Convert 'obj' into a nxar_t, somehow, and add any created references to `refadd`
+// So, you just need to `KS_DECREF(refadd)` once you're done with everything
+// NOTE: Returns whether it was successful, or false and throws an error
+KS_API bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd);
+
+
+/* SIZE/SHAPE UTILS */
+
+
+// Check whether the list of arguments (of which there are Nin) are broadcastable together
+// NOTE: Returns true if they can, false and throws error if they cannot
+KS_API bool nx_can_bcast(int Nin, int* N, nx_size_t** dims);
+
+
+// Compute the broadcast dimensions (i.e. the result dimensions) from a list of inputs, and store in `R_dims`
+// There are `Nin` inputs, and their dimensions are in `N`
+// R_N must be max(N[:])
+// NOTE: Returns false and throws error if there is an error
+KS_API bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size_t* R_dims);
+
+
+
+/* OFFSET CALCULATIONS */
+
+
+// stride,size dot product, to calculate offset (in bytes) of a given N
+// returns dtype_size * sum((idxs[:] % dim[:]) * stride[:])
+// NOTE: allows out of bounds indexes by wrapping (i.e. -1 becomes dim[i] - 1)
+KS_API nx_size_t nx_szsdot(int N, nx_size_t dtype_sz, nx_size_t* dim, nx_size_t* stride, nx_size_t* idxs);
+
+
+// Get pointer to the element of data[*idx]
+// NOTE: allows out of bounds indexes by wrapping (i.e. -1 becomes dim[i] - 1)
+KS_API void* nx_get_ptr(void* data, nx_size_t dtype_sz, int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idx);
+
+
+
+/* GENERIC APPLICATION */
+
+// Apply 'ufunc' to 'datas', returns either 0 if there was no error, or the first error code generated
+KS_API bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
 
 
 /* STRING */
@@ -234,23 +329,19 @@ KS_API int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N
 
 // Return the string representation of the data
 // NOTE: Returns a new reference, or NULL if there was an error
-KS_API ks_str nx_get_str(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride);
-
+KS_API ks_str nx_get_str(nxar_t A);
 
 
 /* BASIC OPS */
 
-
 // Set every element of the given array to the given object ('obj') (casted to the correct type)
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_set_all(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride, ks_obj obj);
+KS_API bool nx_T_set_all(nxar_t A, ks_obj obj);
 
 
 // Compute B = (B_dtype)A, i.e. casting types
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_cast(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride);
+KS_API bool nx_T_cast(nxar_t A, nxar_t B);
 
 
 
@@ -259,31 +350,19 @@ KS_API bool nx_T_cast(
 
 // Compute: A + B -> C
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_add(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
-    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+KS_API bool nx_T_add(nxar_t A, nxar_t B, nxar_t C);
 
 // Compute: A - B -> C
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_sub(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
-    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+KS_API bool nx_T_sub(nxar_t A, nxar_t B, nxar_t C);
 
 // Compute: A * B -> C
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_mul(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
-    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+KS_API bool nx_T_mul(nxar_t A, nxar_t B, nxar_t C);
 
 // Compute: A / B -> C
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_div(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
-    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride);
+KS_API bool nx_T_div(nxar_t A, nxar_t B, nxar_t C);
 
 
 /* Cfunc objects */

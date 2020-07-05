@@ -2,6 +2,7 @@
 
 kscript is a dynamic, duck typed, easy-to-use language with a comprehensive standard library, including maths, numerical tools, GUI toolkits, networking packages, and more! Learn more here: [https://chemicaldevelopment.us/kscript](https://chemicaldevelopment.us/kscript), and here: [http://chemicaldevelopment.us/kscript/#/](http://chemicaldevelopment.us/kscript/#/).
 
+As important as the language itself are the modules... Check out `/modules/`, each folder in that folder is a standard module
 
 kscript is a work-in-progress, but most of the important functionality is at least partially complete
 
@@ -27,6 +28,8 @@ In the broadest sense, I think that kscript could be a general purpose language 
 At the same time, I also wanted something which could rival Python as a usable scripting and/or systems scripting language. However, I did away with relevant whitespace, Python's overuse of `:` (which even Python core devs are regretting with the addition of the walrus operator), odd choices for vocabulary (like, why do I `except` something always? I prefer `catch`, because sometimes you expect a so-called 'exception' to be thrown, so it's not really anything special. This is just one example, though), and again, (useless) feature bloat.
 
 Python has a ~20-40ms startup time for me, varying on which machine I use, etc. But this is just to print out a single string! For system utilities (which may be called in a loop from a shell), this time can start adding up. My goal is a <10ms startup time on an average system, even with a module system. Currently, I am well within that (<3ms)
+
+Further, by having a strong standard library, and well documented C APIs, extensions can easily hook into the main library in an effective and well-supported manner. For example, the NumeriX library (`nx` module in kscript) defines an array interface for C-types that could easily be extended by other writers. And, all standard functions and modules will work with the results.
 
 
 ## Building

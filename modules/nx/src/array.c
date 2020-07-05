@@ -26,7 +26,8 @@ KS_TYPE_DECLFWD(nx_type_array);
 
 
 // Create a new array with a given data type, and dimensions
-nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data) {
+nx_array nx_array_new(nxar_t nxar) {
+
     // create a new result
     nx_array self = KS_ALLOC_OBJ(nx_array);
     KS_INIT_OBJ(self, nx_type_array);
@@ -34,15 +35,15 @@ nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data) {
     // initialize to empty
     self->dim = self->stride = self->data = NULL;
 
-    self->dtype = dtype;
+    self->dtype = nxar.dtype;
 
     // create size information
-    self->N = N;
+    self->N = nxar.N;
     self->dim = ks_malloc(sizeof(*self->dim) * self->N);
     self->stride = ks_malloc(sizeof(*self->stride) * self->N);
 
     // copy the given data
-    memcpy(self->dim, dim, sizeof(*self->dim) * self->N);
+    memcpy(self->dim, nxar.dim, sizeof(*self->dim) * self->N);
 
     // last dimension is immediate stride
     self->stride[self->N - 1] = 1;
@@ -61,6 +62,7 @@ nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data) {
         total_sz *= self->dim[i];
     }
 
+
     // allocate the data
     self->data = ks_malloc(total_sz);
 
@@ -70,18 +72,41 @@ nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* data) {
     }
 
 
-    if (data) {
-        // copy given data
-        memcpy(self->data, data, total_sz);
+    if (nxar.data) {
+        // copy it
+
+        if (!nx_T_cast(
+            nxar,
+            NXAR_ARRAY(self)
+        )) {
+            KS_DECREF(self);
+            return NULL;
+        }
+
+        return self;
+
     } else {
-        // initialize to 0
-        ks_int ks0 = ks_int_new(0);
-        nx_T_set_all(_NXAR_(self), (ks_obj)ks0);
-        KS_DECREF(ks0);
+
+        // set all to 0
+        int8_t tmp_0 = 0;
+
+        if (!nx_T_cast(
+            (nxar_t){ 
+                .data = (void*)&tmp_0,
+                .dtype = NX_DTYPE_SINT8,
+                .N = 1,
+                .dim = (nx_size_t[]){ 1 },
+                .stride = (nx_size_t[]){ 0 },
+            },
+            NXAR_ARRAY(self)
+        )) {
+            KS_DECREF(self);
+            return NULL;
+        }
+
+        return self;
     }
 
-
-    return self;
 }
 
 
@@ -123,7 +148,8 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
 
         if (my_idx == 0) {
             // we are the first! create 'resp'
-            *resp = nx_array_new(dtype, dep, *dims, NULL);
+            //*resp = nx_array_new(dtype, dep, *dims, NULL);
+            *resp = nx_array_new((nxar_t){ .N = dep, .dtype = dtype, .dim = *dims, .stride = NULL, .data = NULL });
         } else {
             // already created, ensure we are at maximum depth
             if (dep != (*resp)->N) {
@@ -139,7 +165,13 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
         uintptr_t addr = sizeof_dtype * my_idx + (uintptr_t)(*resp)->data;
 
         // now, cast to C-type
-        if (!nx_T_set_all((void*)addr, dtype, 1, (nx_size_t[]){ 1 }, (nx_size_t[]){ 0 }, cur)) {
+        if (!nx_T_set_all((nxar_t){
+            .data = (void*)addr, 
+            .dtype = dtype, 
+            .N = 1, 
+            .dim = (nx_size_t[]){ 1 }, 
+            .stride = (nx_size_t[]){ 0 }
+        }, cur)) {
             return false;
         }
     }
@@ -195,10 +227,16 @@ nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype) {
         }
 
         // create (1,) array
-        nx_array res = nx_array_new(dtype, 1, (nx_size_t[]){ 1 }, NULL);
+        nx_array res = nx_array_new((nxar_t){
+            .data = NULL,
+            .dtype = dtype, 
+            .N = 1, 
+            .dim = (nx_size_t[]){ 1 },
+            .stride = NULL
+        });
 
         // attempt to set it
-        if (!nx_T_set_all(_NXAR_(res), obj)) {
+        if (!nx_T_set_all(NXAR_ARRAY(res), obj)) {
             KS_DECREF(res);
             return NULL;
         }
@@ -243,7 +281,7 @@ static KS_TFUNC(array, str) {
     nx_array self;
     if (!ks_parse_params(n_args, args, "self%*", &self, nx_type_array)) return NULL;
 
-    return (ks_obj)nx_get_str(_NXAR_(self));
+    return (ks_obj)nx_get_str(NXAR_ARRAY(self));
 }
 
 // array.__getattr__(self, attr)
@@ -282,7 +320,7 @@ static KS_TFUNC(array, getitem) {
 
     if ((n_args - 1) == 0) {
         // return view of the entire array
-        return (ks_obj)nx_view_new(self, self->data, self->N, self->dim, self->stride);
+        return (ks_obj)nx_view_new(self, NXAR_ARRAY(self));
     } else if ((n_args - 1) <= self->N) {
         // these number of arguments
         int nN = n_args - 1;
@@ -309,7 +347,7 @@ static KS_TFUNC(array, getitem) {
 
         if (!needSlice && nN == self->N) {
             // return single element
-            void* addr = (void*)((intptr_t)self->data + nx_szsdot(nN, self->dim, self->stride, nx_dtype_size(self->dtype), idxs));
+            void* addr = nx_get_ptr(self->data, nx_dtype_size(self->dtype), nN, self->dim, self->stride, idxs);
             ks_free(idxs);
 
             return nx_cast_from(self->dtype, addr);
@@ -403,7 +441,15 @@ static KS_TFUNC(array, getitem) {
                 ri++;
             }
 
-            nx_view ret = nx_view_new(self, (void*)((intptr_t)self->data + total_offset), rN, dim, stride);
+            nx_view ret = nx_view_new(self, 
+                (nxar_t){
+                    .data = (void*)((intptr_t)self->data + total_offset),
+                    .dtype = self->dtype,
+                    .N = rN,
+                    .dim = dim,
+                    .stride = stride
+                }
+            );
             ks_free(dim);
             ks_free(stride);
             return (ks_obj)ret;

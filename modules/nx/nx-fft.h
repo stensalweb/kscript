@@ -24,38 +24,55 @@
 #include <nx.h>
 
 
-// enumeration of FFT flags that are passed to internal routines
-enum nx_fft_flags {
-
-    NX_FFT_NONE           = 0x00,
-
-    // if this is set, do the inverse transform rather than the forward transform
-    NX_FFT_INVERSE        = 0x01,
-
-};
-
 
 // nx_fft_plan_t - C-style FFT plan for a given size
 typedef struct nx_fft_plan_s {
 
-    // enum describing what type of plan it is
-    enum {
+    // the number of dimensios of the transform (i.e. 1 for 1D transform)
+    int Nd;
+
+    // the actual sizes of the transform (there should be Nd of them)
+    nx_size_t* dim;
+
+    // enumeration of FFT flags describe a transform
+    enum nx_fft_flags {
+
+        NX_FFT_NONE           = 0x00,
+
+        // if this is set, do the inverse transform rather than the forward transform
+        NX_FFT_INVERSE        = 0x01,
+
+    } flags;
+
+    // enumeration of different plan types
+    enum nx_fft_plan_type {
 
         // none/error type
-        NX_FFT_PLAN_TYPE_NONE    = 0,
+        NX_FFT_PLAN_NONE       = 0,
+
+        // N-dimensional data plan
+        NX_FFT_PLAN_ND         = 1,
+
+        /* 1 DIMENSIONAL */
 
         // Cooley-Tukey, only valid for N==power-of-two
-        NX_FFT_PLAN_TYPE_CT      = 1,
+        NX_FFT_PLAN_1D_CT      = 2,
 
         // Bluestein algo, which works for any size, but isn't as optimized
-        NX_FFT_PLAN_TYPE_BLUE    = 2,
+        NX_FFT_PLAN_1D_BLUE    = 3,
 
     } ptype;
 
-    // size of transform (can be any size)
-    nx_size_t N;
 
     union {
+
+        // used when Nd>0
+        struct {
+
+            // array of FFT plans for each dimension, i.e. `sub_plans[0]` is for size `dim[0]`, and so on
+            struct nx_fft_plan_s** sub_plans;
+
+        } ND;
 
         // Cooley-Tukey algorithm data
         struct {
@@ -64,8 +81,7 @@ typedef struct nx_fft_plan_s {
             // W_fwd[j] = exp(-2 * PI * i * j / N)
             // W_inv[j] = 1.0 / W_fwd[j]
             // NOTE: if either is 'NULL', then it hasn't been calculated yet
-            double complex* W_fwd;
-            double complex* W_inv;
+            double complex* W;
 
         } CT;
 
@@ -75,14 +91,12 @@ typedef struct nx_fft_plan_s {
             // Convolution length such that M >= 2 * N + 1, and M is a power-of-two
             nx_size_t M;
 
-
             // roots of unity of squared indexes:
             // Ws_fwd[j] = exp(-PI * i * j^2 / N)
             // Ws_inv[j] = 1.0 / Ws_fwd[j]
             // is of size 'N'
             // NOTE: if either is 'NULL', then it hasn't been calculated yet
-            double complex* Ws_fwd;
-            double complex* Ws_inv;
+            double complex* Ws;
 
             // temporary buffer, of 2*M elements
             // These are used for the convolution step,
@@ -91,8 +105,8 @@ typedef struct nx_fft_plan_s {
             double complex* tmpbuf;
 
             // Cooley-Tukey FFT plan for size 'M'
-            // 'M' is defined as a power-of-two, so this should always have type `NX_FFT_PLAN_TYPE_CT`
-            struct nx_fft_plan_s* M_plan;
+            // 'M' is defined as a power-of-two, so this should always have type `NX_FFT_PLAN_1D_CT`
+            struct nx_fft_plan_s* M_plan_fwd, *M_plan_inv;
 
         } blue;
     };
@@ -100,18 +114,19 @@ typedef struct nx_fft_plan_s {
 } nx_fft_plan_t;
 
 
-// Compute the optimal plan for a size-N transform
-// NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_fft_plan_init(nx_fft_plan_t* self, nx_size_t N);
 
-// Perform an in-place FFT, i.e.:
+// Create a plan for Nd (dim...) sized FFT
+// NOTE: Returns a pointer to the plan, or NULL and throws an error
+KS_API nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* dim);
+
+// Free the FFT plan created
+KS_API void nx_fft_plan_free(nx_fft_plan_t* self);
+
+// Perform a 1D in-place FFT, i.e.:
 // A' = FFT(A)
 // Where 'A' is the length of the plan that it was created with (i.e. self->N)
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_fft_plan_do(nx_fft_plan_t* self, enum nx_fft_flags flags, double complex* A);
-
-// Frees resources used by the plan
-KS_API void nx_fft_plan_free(nx_fft_plan_t* self);
+KS_API bool nx_fft_plan_do_1Dip(nx_fft_plan_t* self, double complex* A);
 
 
 /* HIGHER LEVEL API FUNCTIONS */
@@ -121,23 +136,13 @@ KS_API void nx_fft_plan_free(nx_fft_plan_t* self);
 // If flags contains `NX_FFT_INVERSE`, the computation is an inverse FFT
 // Conditions: A_N == B_N, B_dtype is complex
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_fft_1d(
-    enum nx_fft_flags flags,
-    nx_fft_plan_t* plan0, 
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride
-);
+KS_API bool nx_T_fft_1d(nx_fft_plan_t* plan0, int axis0, nxar_t A, nxar_t B);
 
 // Compute: B = FFT(A[:]) (with given flags)
 // If flags contains `NX_FFT_INVERSE`, the computation is an inverse FFT
 // Conditions: A_N == B_N, B_dtype is complex
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-bool nx_T_fft_2d(
-    enum nx_fft_flags flags,
-    nx_fft_plan_t* plan0, nx_fft_plan_t* plan1, 
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride
-);
+//bool nx_T_fft_2d(nx_fft_pla
 
 
 #endif /* NX_FFT_H__ */

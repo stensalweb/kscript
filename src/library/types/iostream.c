@@ -181,6 +181,7 @@ ks_blob ks_iostream_readblob_n(ks_iostream self, ks_ssize_t sz) {
 
     if (!(self->ios_flags & KS_IOS_OPEN)) return ks_throw_fmt(ks_type_IOError, "Attempted to read blob from iostream that was not open!");
     if (!(self->ios_flags & KS_IOS_READ)) return ks_throw_fmt(ks_type_IOError, "Attempted to read blob from iostream that was not open for reading!");
+    if (!(self->ios_flags & KS_IOS_BINARY)) return ks_throw_fmt(ks_type_IOError, "Attempted to read blob from iostream that was not open for binary reading!");
 
     // allocate temporary buffer
     char* tmp = ks_malloc(sz);
@@ -193,6 +194,7 @@ ks_blob ks_iostream_readblob_n(ks_iostream self, ks_ssize_t sz) {
         // discrepancy
         //ks_warn("Problem reading string!");
     }
+
 
     // acquire back
     ks_GIL_lock();
@@ -413,7 +415,7 @@ static KS_TFUNC(iostream, read) {
 
     }
 
-    return ((self->ios_flags & KS_IOS_BINARY) ? (ks_obj)ks_iostream_readstr_n(self, nbytes) : (ks_obj)ks_iostream_readblob_n(self, nbytes));
+    return ((self->ios_flags & KS_IOS_BINARY) ? (ks_obj)ks_iostream_readblob_n(self, nbytes) : (ks_obj)ks_iostream_readstr_n(self, nbytes));
 };
 
 

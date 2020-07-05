@@ -107,3 +107,26 @@ char* nx_dtype_get_name(enum nx_dtype dtype) {
     return _dtype_names[dtype];
 }
 
+bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd) {
+
+    if (obj->type == nx_type_array) {
+        *nxar = NXAR_ARRAY((nx_array)obj);
+        return true;
+    } else if (obj->type == nx_type_view) {
+        *nxar = NXAR_VIEW((nx_view)obj);
+        return true;
+    } else if (ks_num_is_numeric(obj) || ks_is_iterable(obj)) {
+        // convert to object
+        nx_array new_arr = nx_array_from_obj(obj, NX_DTYPE_NONE);
+        if (!new_arr) return false;
+
+        *nxar = NXAR_ARRAY(new_arr);
+        ks_list_push(refadd, (ks_obj)new_arr);
+        return false;
+    } else {
+        ks_throw_fmt(ks_type_TypeError, "Cannot create nxar_t from type '%T'", obj);
+        return false;
+    }
+}
+
+

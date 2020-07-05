@@ -97,7 +97,7 @@ nx_array mm_read_image(char* fname) {
     int got_frame = 0;
 
     // allocated data
-    void* data = NULL;
+    double* data = NULL;
     
     // result array
     nx_array res = NULL;
@@ -144,11 +144,24 @@ nx_array mm_read_image(char* fname) {
     int pix_fmt = frame->format;
     int dep = 0;
 
+
     // actually collect data from the array
     if (!my_setfrom_pix_fmt(codec_ctx->pix_fmt, frame->data[0], w, h, frame->linesize[0], &data, &dep)) goto end_read_image;
 
+
+    nxar_t nxar = (nxar_t){
+        .data = data,
+        .dtype = NX_DTYPE_FP64,
+        .N = 3,
+        .dim = (nx_size_t[]){ h, w, dep },
+        .stride = (nx_size_t[]){ dep * w, dep, 1 }
+    };
+
+    printf("TEST\n");
     // construct NumeriX array
-    res = nx_array_new(NX_DTYPE_FP64, 3, (nx_size_t[]){ w, h, dep }, data);
+    res = nx_array_new(nxar);
+
+
 
 end_read_image:
     // cleanup

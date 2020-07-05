@@ -62,7 +62,13 @@ static KS_TFUNC(nx, size) {
     }
 }
 
+// TODO: improve this casting rule, even though its pretty dang good
+static enum nx_dtype get_cast(enum nx_dtype A, enum nx_dtype B) {
 
+    if (A > B) return A;
+    else return B;
+
+}
 
 // nx.add(A, B, C=none)
 // Compute C=A+B, and return C (C is created if C==none)
@@ -71,92 +77,64 @@ static KS_TFUNC(nx, add) {
     ks_obj aA, aB, aC = NULL;
     if (!ks_parse_params(n_args, args, "A%any B%any ?C%any", &aA, &aB, &aC)) return NULL;
 
-    struct nxar_t Aar, Bar, Car;
-    
-    // pointers to dereference at the end (NULL if none)
-    ks_obj delA = NULL, delB = NULL;
+    // array designators
+    nxar_t Ar, Br, Cr;
 
+    // references to delete
+    ks_list dels = ks_list_new(0, NULL);
 
-    // convert aA and aB to nxar variables
-    /**/ if (aA->type == nx_type_array) Aar = GET_NXAR_ARRAY(((nx_array)aA));
-    else if (ks_num_is_numeric(aA) || ks_is_iterable(aA)) {
-        delA = (ks_obj)nx_array_from_obj(aA, NX_DTYPE_NONE);
-        if (!delA) return NULL;
-        Aar = GET_NXAR_ARRAY(((nx_array)delA));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aA);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    // convert them to C arrays
+    if (!nx_get_nxar(aA, &Ar, dels) || !nx_get_nxar(aB, &Br, dels) || (aC && !nx_get_nxar(aC, &Cr, dels))) {
+        KS_DECREF(dels);
         return NULL;
     }
 
-    /**/ if (aB->type == nx_type_array) Bar = GET_NXAR_ARRAY(((nx_array)aB));
-    else if (ks_num_is_numeric(aB) || ks_is_iterable(aB)) {
-        delB = (ks_obj)nx_array_from_obj(aB, NX_DTYPE_NONE);
-        if (!delB) return NULL;
-        Bar = GET_NXAR_ARRAY(((nx_array)delB));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aB);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
+    ks_obj to_ret = NULL;
 
-    /**/ if (aC == NULL) {} // it will be created
-    else if (aC->type == nx_type_array) Car = GET_NXAR_ARRAY(((nx_array)aC));
-    else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T' as destination", aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
-
-    if (aC == NULL) {
-        // create 'C'
-
+    // create results array
+    if (!aC) {
         // dimension will be the maximum dimension
-        int maxN = Aar.N > Bar.N ? Aar.N : Bar.N;
+        int maxN = Ar.N > Br.N ? Ar.N : Br.N;
 
         nx_size_t* Cdim = ks_malloc(sizeof(*Cdim) * maxN);
 
         // try to compute the size of 'C'
-        if (!nx_compute_bcast(2, (int[]){ Aar.N, Bar.N }, (nx_size_t*[]){ Aar.dim, Bar.dim }, maxN, Cdim)) {
+        if (!nx_compute_bcast(2, (int[]){ Ar.N, Br.N }, (nx_size_t*[]){ Ar.dim, Br.dim }, maxN, Cdim)) {
             ks_free(Cdim);
-            if (delA) KS_DECREF(delA);
-            if (delB) KS_DECREF(delB);
+            KS_DECREF(dels);
             return NULL;
         }
 
         // create new array
-        // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
-        
+        // TODO: auto-detect type as well
+        nx_array newC = nx_array_new((nxar_t){
+            .data = NULL,
+            .dtype = get_cast(Ar.dtype, Br.dtype),
+            .N = maxN,
+            .dim = Cdim,
+            .stride = NULL
+        });
+
         // free temporary resources
         ks_free(Cdim);
 
         // set nxar
-        Car = GET_NXAR_ARRAY(((nx_array)aC));
-
+        Cr = NXAR_ARRAY(newC);
+        ks_list_push(dels, (ks_obj)newC);
+        to_ret = KS_NEWREF(newC);
     } else {
-        // add another reference to keep it even with the above
-        KS_INCREF(aC);
+        to_ret = KS_NEWREF(aC);
     }
 
     // try to add them, if not throw an error
-    if (!nx_T_add(
-        _NXARS_(Aar),
-        _NXARS_(Bar),
-        _NXARS_(Car)
-    )) {
-        KS_DECREF(aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    if (!nx_T_add(Ar, Br, Cr)) {
+        KS_DECREF(to_ret);
+        KS_DECREF(dels);
         return NULL;
     }
     
-    if (delA) KS_DECREF(delA);
-    if (delB) KS_DECREF(delB);
-    return (ks_obj)aC;
+    KS_DECREF(dels);
+    return (ks_obj)to_ret;
 }
 
 
@@ -167,92 +145,64 @@ static KS_TFUNC(nx, sub) {
     ks_obj aA, aB, aC = NULL;
     if (!ks_parse_params(n_args, args, "A%any B%any ?C%any", &aA, &aB, &aC)) return NULL;
 
-    struct nxar_t Aar, Bar, Car;
-    
-    // pointers to dereference at the end (NULL if none)
-    ks_obj delA = NULL, delB = NULL;
+    // array designators
+    nxar_t Ar, Br, Cr;
 
+    // references to delete
+    ks_list dels = ks_list_new(0, NULL);
 
-    // convert aA and aB to nxar variables
-    /**/ if (aA->type == nx_type_array) Aar = GET_NXAR_ARRAY(((nx_array)aA));
-    else if (ks_num_is_numeric(aA) || ks_is_iterable(aA)) {
-        delA = (ks_obj)nx_array_from_obj(aA, NX_DTYPE_NONE);
-        if (!delA) return NULL;
-        Aar = GET_NXAR_ARRAY(((nx_array)delA));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aA);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    // convert them to C arrays
+    if (!nx_get_nxar(aA, &Ar, dels) || !nx_get_nxar(aB, &Br, dels) || (aC && !nx_get_nxar(aC, &Cr, dels))) {
+        KS_DECREF(dels);
         return NULL;
     }
 
-    /**/ if (aB->type == nx_type_array) Bar = GET_NXAR_ARRAY(((nx_array)aB));
-    else if (ks_num_is_numeric(aB) || ks_is_iterable(aB)) {
-        delB = (ks_obj)nx_array_from_obj(aB, NX_DTYPE_NONE);
-        if (!delB) return NULL;
-        Bar = GET_NXAR_ARRAY(((nx_array)delB));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aB);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
+    ks_obj to_ret = NULL;
 
-    /**/ if (aC == NULL) {} // it will be created
-    else if (aC->type == nx_type_array) Car = GET_NXAR_ARRAY(((nx_array)aC));
-    else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T' as destination", aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
-
-    if (aC == NULL) {
-        // create 'C'
-
+    // create results array
+    if (!aC) {
         // dimension will be the maximum dimension
-        int maxN = Aar.N > Bar.N ? Aar.N : Bar.N;
+        int maxN = Ar.N > Br.N ? Ar.N : Br.N;
 
         nx_size_t* Cdim = ks_malloc(sizeof(*Cdim) * maxN);
 
         // try to compute the size of 'C'
-        if (!nx_compute_bcast(2, (int[]){ Aar.N, Bar.N }, (nx_size_t*[]){ Aar.dim, Bar.dim }, maxN, Cdim)) {
+        if (!nx_compute_bcast(2, (int[]){ Ar.N, Br.N }, (nx_size_t*[]){ Ar.dim, Br.dim }, maxN, Cdim)) {
             ks_free(Cdim);
-            if (delA) KS_DECREF(delA);
-            if (delB) KS_DECREF(delB);
+            KS_DECREF(dels);
             return NULL;
         }
 
         // create new array
-        // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
-        
+        // TODO: auto-detect type as well
+        nx_array newC = nx_array_new((nxar_t){
+            .data = NULL,
+            .dtype = get_cast(Ar.dtype, Br.dtype),
+            .N = maxN,
+            .dim = Cdim,
+            .stride = NULL
+        });
+
         // free temporary resources
         ks_free(Cdim);
 
         // set nxar
-        Car = GET_NXAR_ARRAY(((nx_array)aC));
-
+        Cr = NXAR_ARRAY(newC);
+        ks_list_push(dels, (ks_obj)newC);
+        to_ret = KS_NEWREF(newC);
     } else {
-        // add another reference to keep it even with the above
-        KS_INCREF(aC);
+        to_ret = KS_NEWREF(aC);
     }
 
     // try to add them, if not throw an error
-    if (!nx_T_sub(
-        _NXARS_(Aar),
-        _NXARS_(Bar),
-        _NXARS_(Car)
-    )) {
-        KS_DECREF(aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    if (!nx_T_sub(Ar, Br, Cr)) {
+        KS_DECREF(to_ret);
+        KS_DECREF(dels);
         return NULL;
     }
     
-    if (delA) KS_DECREF(delA);
-    if (delB) KS_DECREF(delB);
-    return (ks_obj)aC;
+    KS_DECREF(dels);
+    return (ks_obj)to_ret;
 }
 
 
@@ -263,92 +213,64 @@ static KS_TFUNC(nx, mul) {
     ks_obj aA, aB, aC = NULL;
     if (!ks_parse_params(n_args, args, "A%any B%any ?C%any", &aA, &aB, &aC)) return NULL;
 
-    struct nxar_t Aar, Bar, Car;
-    
-    // pointers to dereference at the end (NULL if none)
-    ks_obj delA = NULL, delB = NULL;
+    // array designators
+    nxar_t Ar, Br, Cr;
 
+    // references to delete
+    ks_list dels = ks_list_new(0, NULL);
 
-    // convert aA and aB to nxar variables
-    /**/ if (aA->type == nx_type_array) Aar = GET_NXAR_ARRAY(((nx_array)aA));
-    else if (ks_num_is_numeric(aA) || ks_is_iterable(aA)) {
-        delA = (ks_obj)nx_array_from_obj(aA, NX_DTYPE_NONE);
-        if (!delA) return NULL;
-        Aar = GET_NXAR_ARRAY(((nx_array)delA));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aA);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    // convert them to C arrays
+    if (!nx_get_nxar(aA, &Ar, dels) || !nx_get_nxar(aB, &Br, dels) || (aC && !nx_get_nxar(aC, &Cr, dels))) {
+        KS_DECREF(dels);
         return NULL;
     }
 
-    /**/ if (aB->type == nx_type_array) Bar = GET_NXAR_ARRAY(((nx_array)aB));
-    else if (ks_num_is_numeric(aB) || ks_is_iterable(aB)) {
-        delB = (ks_obj)nx_array_from_obj(aB, NX_DTYPE_NONE);
-        if (!delB) return NULL;
-        Bar = GET_NXAR_ARRAY(((nx_array)delB));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aB);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
+    ks_obj to_ret = NULL;
 
-    /**/ if (aC == NULL) {} // it will be created
-    else if (aC->type == nx_type_array) Car = GET_NXAR_ARRAY(((nx_array)aC));
-    else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T' as destination", aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
-
-    if (aC == NULL) {
-        // create 'C'
-
+    // create results array
+    if (!aC) {
         // dimension will be the maximum dimension
-        int maxN = Aar.N > Bar.N ? Aar.N : Bar.N;
+        int maxN = Ar.N > Br.N ? Ar.N : Br.N;
 
         nx_size_t* Cdim = ks_malloc(sizeof(*Cdim) * maxN);
 
         // try to compute the size of 'C'
-        if (!nx_compute_bcast(2, (int[]){ Aar.N, Bar.N }, (nx_size_t*[]){ Aar.dim, Bar.dim }, maxN, Cdim)) {
+        if (!nx_compute_bcast(2, (int[]){ Ar.N, Br.N }, (nx_size_t*[]){ Ar.dim, Br.dim }, maxN, Cdim)) {
             ks_free(Cdim);
-            if (delA) KS_DECREF(delA);
-            if (delB) KS_DECREF(delB);
+            KS_DECREF(dels);
             return NULL;
         }
 
         // create new array
-        // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
-        
+        // TODO: auto-detect type as well
+        nx_array newC = nx_array_new((nxar_t){
+            .data = NULL,
+            .dtype = get_cast(Ar.dtype, Br.dtype),
+            .N = maxN,
+            .dim = Cdim,
+            .stride = NULL
+        });
+
         // free temporary resources
         ks_free(Cdim);
 
         // set nxar
-        Car = GET_NXAR_ARRAY(((nx_array)aC));
-
+        Cr = NXAR_ARRAY(newC);
+        ks_list_push(dels, (ks_obj)newC);
+        to_ret = KS_NEWREF(newC);
     } else {
-        // add another reference to keep it even with the above
-        KS_INCREF(aC);
+        to_ret = KS_NEWREF(aC);
     }
 
     // try to add them, if not throw an error
-    if (!nx_T_mul(
-        _NXARS_(Aar),
-        _NXARS_(Bar),
-        _NXARS_(Car)
-    )) {
-        KS_DECREF(aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    if (!nx_T_mul(Ar, Br, Cr)) {
+        KS_DECREF(to_ret);
+        KS_DECREF(dels);
         return NULL;
     }
     
-    if (delA) KS_DECREF(delA);
-    if (delB) KS_DECREF(delB);
-    return (ks_obj)aC;
+    KS_DECREF(dels);
+    return (ks_obj)to_ret;
 }
 
 // nx.div(A, B, C=none)
@@ -358,92 +280,64 @@ static KS_TFUNC(nx, div) {
     ks_obj aA, aB, aC = NULL;
     if (!ks_parse_params(n_args, args, "A%any B%any ?C%any", &aA, &aB, &aC)) return NULL;
 
-    struct nxar_t Aar, Bar, Car;
-    
-    // pointers to dereference at the end (NULL if none)
-    ks_obj delA = NULL, delB = NULL;
+    // array designators
+    nxar_t Ar, Br, Cr;
 
+    // references to delete
+    ks_list dels = ks_list_new(0, NULL);
 
-    // convert aA and aB to nxar variables
-    /**/ if (aA->type == nx_type_array) Aar = GET_NXAR_ARRAY(((nx_array)aA));
-    else if (ks_num_is_numeric(aA) || ks_is_iterable(aA)) {
-        delA = (ks_obj)nx_array_from_obj(aA, NX_DTYPE_NONE);
-        if (!delA) return NULL;
-        Aar = GET_NXAR_ARRAY(((nx_array)delA));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aA);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    // convert them to C arrays
+    if (!nx_get_nxar(aA, &Ar, dels) || !nx_get_nxar(aB, &Br, dels) || (aC && !nx_get_nxar(aC, &Cr, dels))) {
+        KS_DECREF(dels);
         return NULL;
     }
 
-    /**/ if (aB->type == nx_type_array) Bar = GET_NXAR_ARRAY(((nx_array)aB));
-    else if (ks_num_is_numeric(aB) || ks_is_iterable(aB)) {
-        delB = (ks_obj)nx_array_from_obj(aB, NX_DTYPE_NONE);
-        if (!delB) return NULL;
-        Bar = GET_NXAR_ARRAY(((nx_array)delB));
-    } else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T'", aB);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
+    ks_obj to_ret = NULL;
 
-    /**/ if (aC == NULL) {} // it will be created
-    else if (aC->type == nx_type_array) Car = GET_NXAR_ARRAY(((nx_array)aC));
-    else {
-        ks_throw_fmt(ks_type_TypeError, "nx operation cannot take objects of type '%T' as destination", aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
-        return NULL;
-    }
-
-    if (aC == NULL) {
-        // create 'C'
-
+    // create results array
+    if (!aC) {
         // dimension will be the maximum dimension
-        int maxN = Aar.N > Bar.N ? Aar.N : Bar.N;
+        int maxN = Ar.N > Br.N ? Ar.N : Br.N;
 
         nx_size_t* Cdim = ks_malloc(sizeof(*Cdim) * maxN);
 
         // try to compute the size of 'C'
-        if (!nx_compute_bcast(2, (int[]){ Aar.N, Bar.N }, (nx_size_t*[]){ Aar.dim, Bar.dim }, maxN, Cdim)) {
+        if (!nx_compute_bcast(2, (int[]){ Ar.N, Br.N }, (nx_size_t*[]){ Ar.dim, Br.dim }, maxN, Cdim)) {
             ks_free(Cdim);
-            if (delA) KS_DECREF(delA);
-            if (delB) KS_DECREF(delB);
+            KS_DECREF(dels);
             return NULL;
         }
 
         // create new array
-        // TODO: figure out casting rules
-        aC = (ks_obj)nx_array_new(Aar.dtype, maxN, Cdim, NULL);
-        
+        // TODO: auto-detect type as well
+        nx_array newC = nx_array_new((nxar_t){
+            .data = NULL,
+            .dtype = get_cast(Ar.dtype, Br.dtype),
+            .N = maxN,
+            .dim = Cdim,
+            .stride = NULL
+        });
+
         // free temporary resources
         ks_free(Cdim);
 
         // set nxar
-        Car = GET_NXAR_ARRAY(((nx_array)aC));
-
+        Cr = NXAR_ARRAY(newC);
+        ks_list_push(dels, (ks_obj)newC);
+        to_ret = KS_NEWREF(newC);
     } else {
-        // add another reference to keep it even with the above
-        KS_INCREF(aC);
+        to_ret = KS_NEWREF(aC);
     }
 
     // try to add them, if not throw an error
-    if (!nx_T_div(
-        _NXARS_(Aar),
-        _NXARS_(Bar),
-        _NXARS_(Car)
-    )) {
-        KS_DECREF(aC);
-        if (delA) KS_DECREF(delA);
-        if (delB) KS_DECREF(delB);
+    if (!nx_T_div(Ar, Br, Cr)) {
+        KS_DECREF(to_ret);
+        KS_DECREF(dels);
         return NULL;
     }
     
-    if (delA) KS_DECREF(delA);
-    if (delB) KS_DECREF(delB);
-    return (ks_obj)aC;
+    KS_DECREF(dels);
+    return (ks_obj)to_ret;
 }
 
 

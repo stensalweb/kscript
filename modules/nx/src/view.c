@@ -10,22 +10,22 @@
 KS_TYPE_DECLFWD(nx_type_view);
 
 // Create a new view
-nx_view nx_view_new(nx_array ref, void* data, int N, nx_size_t* dim, nx_size_t* stride) {
+nx_view nx_view_new(nx_array ref, nxar_t nxar) {
     // create a new result
     nx_view self = KS_ALLOC_OBJ(nx_view);
     KS_INIT_OBJ(self, nx_type_view);
 
-    self->data = data;
-    self->N = N;
+    self->data = nxar.data;
+    self->N = nxar.N;
     self->dtype = ref->dtype;
-    self->dim = ks_malloc(sizeof(*self->dim) * N);
-    self->stride = ks_malloc(sizeof(*self->stride) * N);
+    self->dim = ks_malloc(sizeof(*self->dim) * nxar.N);
+    self->stride = ks_malloc(sizeof(*self->stride) * nxar.N);
 
     // TODO: perhaps allow '-1' arguments in dim for the enter size of 'ref'?
     int i;
-    for (i = 0; i < N; ++i) {
-        self->dim[i] = dim ? dim[i] : ref->dim[i];
-        self->stride[i] = stride ? stride[i] : stride[i];
+    for (i = 0; i < nxar.N; ++i) {
+        self->dim[i] = nxar.dim[i];
+        self->stride[i] = nxar.stride[i];
     }
 
     self->data_src = (nx_array)KS_NEWREF(ref);
@@ -38,8 +38,11 @@ nx_view nx_view_new(nx_array ref, void* data, int N, nx_size_t* dim, nx_size_t* 
 static KS_TFUNC(view, new) {
     KS_REQ_N_ARGS(n_args, 1);
     ks_obj obj = args[0];
-    if (obj->type == nx_type_array) {
-        return (ks_obj)nx_view_new(((nx_array)obj), ((nx_array)obj)->data, ((nx_array)obj)->N, NULL, NULL);
+    if (obj->type == nx_type_view) {
+        return KS_NEWREF(obj);
+    } else if (obj->type == nx_type_array) {
+        nx_array obj_arr = (nx_array)obj;
+        return (ks_obj)nx_view_new(obj_arr, NXAR_ARRAY(obj_arr));
     } else {
         KS_ERR_CONV(obj, nx_type_view);
     }
@@ -96,7 +99,7 @@ static KS_TFUNC(view, str) {
     nx_view self;
     if (!ks_parse_params(n_args, args, "self%*", &self, nx_type_view)) return NULL;
 
-    return (ks_obj)nx_get_str(_NXAR_(self));
+    return (ks_obj)nx_get_str(NXAR_VIEW(self));
 }
 
 

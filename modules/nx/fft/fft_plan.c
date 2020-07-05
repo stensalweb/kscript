@@ -17,6 +17,13 @@
 #include "../nx-impl.h"
 
 
+
+
+
+
+/* INTERNAL ROUTINES */
+
+
 // Shuffle 'A' according to bit-reversal of the index, i.e.:
 // A'[i] = A[reverse_bits(i)]
 // REQUIRES: N is a power of 2
@@ -51,125 +58,19 @@ static bool do_shfl_btrv(nx_size_t N, double complex* A) {
     return true;
 }
 
-// initialize an FFT plan
-bool nx_fft_plan_init(nx_fft_plan_t* plan, nx_size_t N) {
-    if ((N & (N - 1)) == 0) {
-        // N is a power of two, so set up a CT plan
-        plan->ptype = NX_FFT_PLAN_TYPE_CT;
-
-        // size of transform
-        plan->N = N;
-
-        // fwd & inverse twiddle tables
-        plan->CT.W_fwd = ks_malloc(sizeof(*plan->CT.W_fwd) * N);
-        plan->CT.W_inv = ks_malloc(sizeof(*plan->CT.W_inv) * N);
-
-        nx_size_t i;
-        // fill them up
-        for (i = 0; i < N; ++i) {
-            plan->CT.W_fwd[i] = cexp(-2.0 * KS_M_PI * I * i / N);
-            plan->CT.W_inv[i] = cexp(2.0 * KS_M_PI * I * i / N);
-        }
-
-        // success
-        return true;
-    } else {
-        // not a power-of-two, must use Bluestein algorithm
-        plan->ptype = NX_FFT_PLAN_TYPE_BLUE;
-
-        // size of transform
-        plan->N = N;
-
-        // twiddle table, but of quadratically indexed roots of unity
-        plan->blue.Ws_fwd = ks_malloc(sizeof(*plan->blue.Ws_fwd) * N);
-        plan->blue.Ws_inv = ks_malloc(sizeof(*plan->blue.Ws_inv) * N);
-
-        nx_size_t i;
-        for (i = 0; i < N; ++i) {
-            // to avoid round-off errors, perform modulo here
-            nx_size_t j = (i * i) % (N * 2);
-
-            // comute exp(-PI * i * j / N)
-            plan->blue.Ws_fwd[i] = cexp(-KS_M_PI * I * j / N);
-            plan->blue.Ws_inv[i] = cexp(KS_M_PI * I * j / N);
-        }
-
-        // now, find M, the smallest power of 2 >= 2*N+1
-        nx_size_t M = 1;
-        while (M < 2 * N + 1) {
-            // out of index
-            if (M > SIZE_MAX / 2) {
-                ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_init` got N=%z, which was too large", N);
-                ks_free(plan->blue.Ws_fwd);
-                ks_free(plan->blue.Ws_inv);
-                return false;
-            }
-
-            // next power of 2
-            M *= 2;
-        }
-
-        // store M
-        plan->blue.M = M;
-
-        // create power-of-two-plan for M-sized transforms
-        plan->blue.M_plan = ks_malloc(sizeof(*plan->blue.M_plan));
-        if (!nx_fft_plan_init(plan->blue.M_plan, plan->blue.M)) {
-            ks_free(plan->blue.M_plan);
-            ks_free(plan->blue.Ws_fwd);
-            ks_free(plan->blue.Ws_inv);
-            return false;
-        } else if (plan->blue.M_plan->ptype != NX_FFT_PLAN_TYPE_CT) {
-            ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_init` tried to create CT subplan for blue plan, but it was not of type NX_FFT_PLAN_TYPE_CT!");
-            nx_fft_plan_free(plan->blue.M_plan);
-            ks_free(plan->blue.M_plan);
-            ks_free(plan->blue.Ws_fwd);
-            ks_free(plan->blue.Ws_inv);
-            return false;
-        }
-
-        // allocate temporary buffer
-        plan->blue.tmpbuf = ks_malloc(2 * M * sizeof(*plan->blue.tmpbuf));
-
-        return true;
-    }
-
-}
-
-// free resources used by that plan
-void nx_fft_plan_free(nx_fft_plan_t* plan) {
-    if (!plan) return;
-    
-    if (plan->ptype == NX_FFT_PLAN_TYPE_CT) {
-        ks_free(plan->CT.W_fwd);
-        ks_free(plan->CT.W_inv);
-    } else if (plan->ptype == NX_FFT_PLAN_TYPE_BLUE) {
-        ks_free(plan->blue.Ws_fwd);
-        ks_free(plan->blue.Ws_inv);
-        ks_free(plan->blue.tmpbuf);
-        nx_fft_plan_free(plan->blue.M_plan);
-        ks_free(plan->blue.M_plan);
-    }
-
-}
-
-
-/* INTERNAL ROUTINES */
-
-
 // Cooley-Tukey algorithm, which only accepts power-of-two inputs
-static bool _fft_1d_CT(nx_fft_plan_t* plan, enum nx_fft_flags flags, double complex* A) {
+static bool _fft_1d_CT(nx_fft_plan_t* plan, double complex* A) {
 
-    if (plan->ptype != NX_FFT_PLAN_TYPE_CT) {
+    if (plan->ptype != NX_FFT_PLAN_1D_CT) {
         ks_throw_fmt(ks_type_InternalError, "`_fft_1d_CT` was called with `plan->ptype != NX_FFT_PLAN_TYPE_CT`");
         return false;
     }
 
     // whether or not it is inversed
-    bool isInv = flags & NX_FFT_INVERSE;
+    bool isInv = plan->flags & NX_FFT_INVERSE;
 
     // size of transform
-    nx_size_t N = plan->N;
+    nx_size_t N = plan->dim[0];
 
     // ensure it is a power of two
     if (N & (N - 1)) {
@@ -183,8 +84,7 @@ static bool _fft_1d_CT(nx_fft_plan_t* plan, enum nx_fft_flags flags, double comp
     // temporary vars
     double complex U, V;
 
-    // TODO: select W_fwd/W_inv based on whether inverse FFT or not
-    double complex* W = isInv ? plan->CT.W_inv : plan->CT.W_fwd;
+    double complex* W = plan->CT.W;
 
     // loop vars
     nx_size_t i, j, k;
@@ -228,19 +128,17 @@ static bool _fft_1d_CT(nx_fft_plan_t* plan, enum nx_fft_flags flags, double comp
 
 
 // Bluestein algorithm
-static bool _fft_1d_blue(nx_fft_plan_t* plan, enum nx_fft_flags flags, double complex* A) {
-    if (plan->ptype != NX_FFT_PLAN_TYPE_BLUE) {
+static bool _fft_1d_blue(nx_fft_plan_t* plan, double complex* A) {
+    if (plan->ptype != NX_FFT_PLAN_1D_BLUE) {
         ks_throw_fmt(ks_type_InternalError, "`_fft_1d_blue` was called with `plan->ptype != NX_FFT_PLAN_TYPE_BLUE`");
         return false;
     }
 
     // whether or not it is inversed
-    bool isInv = flags & NX_FFT_INVERSE;
+    bool isInv = plan->flags & NX_FFT_INVERSE;
 
     // size of transform
-    nx_size_t N = plan->N, M = plan->blue.M;
-
-    double complex* Ws = isInv ? plan->blue.Ws_fwd : plan->blue.Ws_inv;
+    nx_size_t N = plan->dim[0], M = plan->blue.M;
 
     // temporary buffer partitions
     double complex* tmpA = &plan->blue.tmpbuf[0];
@@ -254,20 +152,20 @@ static bool _fft_1d_blue(nx_fft_plan_t* plan, enum nx_fft_flags flags, double co
 
     // preprocess by calculating temporary vectors
     for (i = 0; i < N; ++i) {
-        tmpA[i] = A[i] * plan->blue.Ws_fwd[i];
+        tmpA[i] = A[i] * plan->blue.Ws[i];
     }
 
-    tmpB[0] = plan->blue.Ws_fwd[0];
+    tmpB[0] = plan->blue.Ws[0];
     for (i = 1; i < N; ++i) {
-        tmpB[i] = tmpB[M - i] = conj(plan->blue.Ws_fwd[i]);
+        tmpB[i] = tmpB[M - i] = conj(plan->blue.Ws[i]);
     }
 
     /* CONVOLVE(tmpA, tmpB) -> A */
 
     // compute in-place power-of-two FFT on tmpA and tmpB (of size M respectively)
     if (
-        !_fft_1d_CT(plan->blue.M_plan, NX_FFT_NONE, tmpA) ||
-        !_fft_1d_CT(plan->blue.M_plan, NX_FFT_NONE, tmpB)
+        !_fft_1d_CT(plan->blue.M_plan_fwd, tmpA) ||
+        !_fft_1d_CT(plan->blue.M_plan_fwd, tmpB)
     ) {
         return false;
     }
@@ -278,7 +176,7 @@ static bool _fft_1d_blue(nx_fft_plan_t* plan, enum nx_fft_flags flags, double co
     }
 
     // now, do inverse on tmpA, to get convolution result
-    if (!_fft_1d_CT(plan->blue.M_plan, NX_FFT_INVERSE, tmpA)) {
+    if (!_fft_1d_CT(plan->blue.M_plan_inv, tmpA)) {
         return false;
     }
 
@@ -286,7 +184,7 @@ static bool _fft_1d_blue(nx_fft_plan_t* plan, enum nx_fft_flags flags, double co
 
     // copy to output
     for (i = 0; i < N; ++i) {
-        A[i] = tmpA[i] * plan->blue.Ws_fwd[i];
+        A[i] = tmpA[i] * plan->blue.Ws[i];
     }
 
     // inverse transforms are normalized by 1/N
@@ -300,28 +198,152 @@ static bool _fft_1d_blue(nx_fft_plan_t* plan, enum nx_fft_flags flags, double co
         }
     }
 
-
-
     // success
     return true;
 }
 
 
-// Perform an in-place FFT, i.e.:
+
+
+
+/* exported funcs */
+
+nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* dim) {
+    nx_fft_plan_t* self = ks_malloc(sizeof(*self));
+
+    self->Nd = Nd;
+    self->dim = ks_malloc(sizeof(self->dim) * Nd);
+    self->flags = flags;
+
+    nx_size_t i;
+    for (i = 0; i < Nd; ++i) self->dim[i] = dim[i];
+
+    if (Nd == 1) {
+
+        // 1D transform
+        nx_size_t dim0 = dim[0];
+
+        if ((dim0 & (dim0 - 1)) == 0) {
+            // dim0 is a power of 2, so set up CT plan
+            self->ptype = NX_FFT_PLAN_1D_CT;
+
+            // fwd & inverse twiddle tables
+            self->CT.W = ks_malloc(sizeof(*self->CT.W) * dim0);
+            //plan->CT.W_inv = ks_malloc(sizeof(*plan->CT.W_inv) * N);
+
+            nx_size_t i;
+            // fill them up
+            for (i = 0; i < dim0; ++i) {
+                self->CT.W[i] = cexp(-2.0 * KS_M_PI * I * i / dim0);
+                if (flags & NX_FFT_INVERSE) self->CT.W[i] = 1.0 / self->CT.W[i];
+            }
+            
+            // success
+            return self;
+
+        } else {
+            // we need to use Bluestein's algorithm
+            // not a power-of-two, must use Bluestein algorithm
+            self->ptype = NX_FFT_PLAN_1D_BLUE;
+
+            // twiddle table, but of quadratically indexed roots of unity
+            self->blue.Ws = ks_malloc(sizeof(*self->blue.Ws) * dim0);
+
+            for (i = 0; i < dim0; ++i) {
+                // to avoid round-off errors, perform modulo here
+                nx_size_t j = (i * i) % (dim0 * 2);
+
+                // comute exp(-PI * i * j / N)
+                self->blue.Ws[i] = cexp(-KS_M_PI * I * j / dim0);
+                if (flags & NX_FFT_INVERSE) self->blue.Ws[i] = 1.0 / self->blue.Ws[i];
+            }
+
+            // now, find M, the smallest power of 2 >= 2*N+1
+            nx_size_t M = 1;
+            while (M < 2 * dim0 + 1) {
+                // out of index
+                if (M > SIZE_MAX / 2) {
+                    ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_create` got dim0=%z, which was too large", dim0);
+                    ks_free(self->blue.Ws);
+                    ks_free(self);
+                    return NULL;
+                }
+
+                // next power of 2
+                M *= 2;
+            }
+
+            // store M
+            self->blue.M = M;
+
+            // create power-of-two-plan for M-sized transforms
+            self->blue.M_plan_fwd = nx_fft_plan_create(flags, 1, (nx_size_t[]){ self->blue.M });
+
+            if (self->blue.M_plan_fwd->ptype != NX_FFT_PLAN_1D_CT) {
+                ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_create` tried to create CT subplan for blue plan, but it was not of type NX_FFT_PLAN_1D_CT!");
+                nx_fft_plan_free(self->blue.M_plan_inv);
+                ks_free(self->blue.Ws);
+                ks_free(self);
+                return NULL;
+            }
+
+            bool isInv = flags & NX_FFT_INVERSE;
+
+            self->blue.M_plan_inv = nx_fft_plan_create(isInv ? NX_FFT_NONE : NX_FFT_INVERSE, 1, (nx_size_t[]){ self->blue.M });
+
+            if (self->blue.M_plan_inv->ptype != NX_FFT_PLAN_1D_CT) {
+                ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_create` tried to create CT subplan for blue plan, but it was not of type NX_FFT_PLAN_1D_CT!");
+                nx_fft_plan_free(self->blue.M_plan_fwd);
+                nx_fft_plan_free(self->blue.M_plan_inv);
+                ks_free(self->blue.Ws);
+                ks_free(self);
+                return NULL;
+            }
+
+
+            // allocate temporary buffer
+            self->blue.tmpbuf = ks_malloc(2 * M * sizeof(*self->blue.tmpbuf));
+
+            return self;
+        }
+
+    } else {
+
+        return ks_throw_fmt(ks_type_ToDoError, "Need to implement multidim FFT plans");
+    }
+}
+
+
+// free resources used by that plan
+void nx_fft_plan_free(nx_fft_plan_t* plan) {
+    if (!plan) return;
+    
+    if (plan->ptype == NX_FFT_PLAN_1D_CT) {
+        ks_free(plan->CT.W);
+    } else if (plan->ptype == NX_FFT_PLAN_1D_BLUE) {
+        ks_free(plan->blue.Ws);
+        ks_free(plan->blue.tmpbuf);
+        nx_fft_plan_free(plan->blue.M_plan_fwd);
+        nx_fft_plan_free(plan->blue.M_plan_inv);
+    }
+    ks_free(plan);
+}
+
+
+// Perform an 1D in-place FFT, i.e.:
 // A' = FFT(A)
-bool nx_fft_plan_do(nx_fft_plan_t* self, enum nx_fft_flags flags, double complex* A) {
+bool nx_fft_plan_do_1Dip(nx_fft_plan_t* self, double complex* A) {
 
     // execute plan based on type
-    if (self->ptype == NX_FFT_PLAN_TYPE_CT) {
-        return _fft_1d_CT(self, flags, A);
-    } else if (self->ptype == NX_FFT_PLAN_TYPE_BLUE) {
-        return _fft_1d_blue(self, flags, A);
+    if (self->ptype == NX_FFT_PLAN_1D_CT) {
+        return _fft_1d_CT(self, A);
+    } else if (self->ptype == NX_FFT_PLAN_1D_BLUE) {
+        return _fft_1d_blue(self, A);
     } else {
-        ks_throw_fmt(ks_type_InternalError, "In `nx_fft_plan_do` Some other plan type was given, other than CT or BLUE");
+        ks_throw_fmt(ks_type_InternalError, "In `nx_fft_plan_do_1Dip` Some other plan type was given, other than CT or BLUE for 1D");
         return false;
     }
 
 }
-
 
 

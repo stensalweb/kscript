@@ -1,14 +1,14 @@
-/* modules/libc/libc.h - C library header
+/* modules/libc/kslibc.h - C library header
  *
+ * This is named `kslibc.h` so no naming conflicts happen with the actual libc
  * 
- * 'void' is considered 'none'
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
 #pragma once
-#ifndef LIBC_H__
-#define LIBC_H__
+#ifndef KSLIBC_H__
+#define KSLIBC_H__
 
 // include the main kscript API
 #include <ks.h>

@@ -112,13 +112,13 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
 
 
 // generate string for it
-ks_str nx_get_str(void* data, enum nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride) {
+ks_str nx_get_str(nxar_t A) {
 
 
     ks_str_b SB;
     ks_str_b_init(&SB);
 
-    bool stat = my_get_str(&SB, data, dtype, nx_dtype_size(dtype), N, dim, stride, 0);
+    bool stat = my_get_str(&SB, A.data, A.dtype, nx_dtype_size(A.dtype), A.N, A.dim, A.stride, 0);
 
     ks_str res = ks_str_b_get(&SB);
     ks_str_b_free(&SB);

@@ -134,7 +134,7 @@ static int my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dty
 
 
 // API function to apply a ufunc
-int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data) {
+bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data) {
 
     // ensure they can broadcast together
     if (!nx_can_bcast(Nin, N, dims)) return 1;
@@ -188,7 +188,7 @@ int nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_si
     #undef g_dims__
     #undef g_strides__
 
-    return stat;
+    return stat == 0;
 
 }
 

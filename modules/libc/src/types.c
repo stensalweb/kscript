@@ -5,7 +5,7 @@
  */
 
 
-#include "../libc.h"
+#include "../kslibc.h"
 
 
 KS_TYPE_DECLFWD(libc_type_void);

@@ -1,32 +1,39 @@
-# libc/Makefile - C library makefile
+# libc/Makefile - std module makefile
 # NOTE: Do not call this by itself, run from the main directory `make modules`
 
 # -*- VARS -*-
 
-MOD_NAME       := libc
+MOD_NAME        := libc
+
+
+# -*- DEPENDS -*-
+
+# any static libraries that were built
+_include_static := -Wl,-Bsymbolic -Wl,--whole-archive $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),ffi)) -Wl,--no-whole-archive
+
+# C libraries
+mod_LIBS        := $(_include_static) -lffi
+
+# other modules this one depends on
+mod_MODDEPS     := 
 
 
 # -*- FILES -*-
 
-mod_C          := $(wildcard src/*.c)
+# C source files
+mod_C           := $(wildcard src/*.c)
 
-mod_H          := 
+# C header files
+mod_H           := kslibc.h
 
 
 # -*- TARGETS -*-
 
 # main shared library
-mod_SHARED     := libksm_$(MOD_NAME).$(SHARED_END)
+mod_SHARED      := libksm_$(MOD_NAME).$(SHARED_END)
 
-# generated
-mod_O          := $(patsubst %.c,%.o,$(mod_C))
-
-# static libraries that were built
-_include_static := $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),ffi))
-
-# libraries
-mod_LIBS       := -Wl,-Bsymbolic -Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive -lffi
-
+# generated objects
+mod_O           := $(patsubst %.c,%.o,$(mod_C))
 
 
 # -*- RULES -*-
@@ -42,19 +49,16 @@ clean:
 
 # install all files
 install: $(mod_SHARED) $(mod_H)
-	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-	install -m 755 $(mod_SHARED) $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
-
-# rule to uninstall the whole package from PREFIX
-uninstall:
-	rm -rf $(wildcard $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)) 
+	install -d $(MOD_INSTALL_DIR)
+	install -m 755 $(mod_SHARED) $(MOD_INSTALL_DIR)
+	install -m 644 $(mod_H) $(MOD_INSTALL_DIR)
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)
-	$(CC) $(CFLAGS) $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) $(patsubst %,-I$(KS_DIR)/modules/%,$(mod_MODDEPS)) $< -fPIC -c -o $@
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) $(mod_LIBS) -shared -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -Wl,-rpath,'$$ORIGIN' $(mod_LIBS) -shared -o $@
 	strip $@ $(STRIP_OPTS)
-	@echo "\n|| Built: $@\n"
+

@@ -9,7 +9,7 @@
 
 // internal 1D loop for adding elementwise
 // datas[1] = (dtypes[1])datas[0]
-static int my_cast_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
+static bool my_cast_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
     NX_ASSERT_CHECK(Nin == 2);
 
     // loop vars
@@ -33,24 +33,22 @@ static int my_cast_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* d
     #undef INNER_LOOP
 
     // success
-    return 0;
+    return true;
 }
 
-// cast B = (typeof(B))A
-bool nx_T_cast(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride) {
-
+// calc B = (type(B))A
+bool nx_T_cast(nxar_t A, nxar_t B) {
 
     // apply the ufunc
-    return nx_T_apply_ufunc(2, (void*[]){ A, B }, 
-        (enum nx_dtype[]){ A_dtype, B_dtype }, 
-        (int[]){ A_N, B_N }, 
-        (nx_size_t*[]){ A_dim, B_dim }, 
-        (nx_size_t*[]) { A_stride, B_stride},
+    return nx_T_apply_ufunc(2, 
+        (void*[]){ A.data, B.data }, 
+        (enum nx_dtype[]){ A.dtype, B.dtype }, 
+        (int[]){ A.N, B.N }, 
+        (nx_size_t*[]){ A.dim, B.dim }, 
+        (nx_size_t*[]) { A.stride, B.stride },
         my_cast_1d,
         NULL
-    ) == 0;
+    );
 }
 
 

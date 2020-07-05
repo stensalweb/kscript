@@ -9,7 +9,7 @@
 
 // internal 1D loop for dividing elementwise
 // datas[0] / datas[1] -> datas[2]
-static int my_div_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
+static bool my_div_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
     NX_ASSERT_CHECK(Nin == 3);
 
     // loop vars
@@ -34,24 +34,25 @@ static int my_div_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
     #undef INNER_LOOP
 
     // success
-    return 0;
+    return true;
 }
 
-// compute A / B -> C
-bool nx_T_div(
-    void* A, enum nx_dtype A_dtype, int A_N, nx_size_t* A_dim, nx_size_t* A_stride, 
-    void* B, enum nx_dtype B_dtype, int B_N, nx_size_t* B_dim, nx_size_t* B_stride, 
-    void* C, enum nx_dtype C_dtype, int C_N, nx_size_t* C_dim, nx_size_t* C_stride) {
+// calc A / B -> C
+bool nx_T_div(nxar_t A, nxar_t B, nxar_t C) {
 
     // apply the ufunc
-    return nx_T_apply_ufunc(3, (void*[]){ A, B, C }, 
-        (enum nx_dtype[]){ A_dtype, B_dtype, C_dtype }, 
-        (int[]){ A_N, B_N, C_N }, 
-        (nx_size_t*[]){ A_dim, B_dim, C_dim }, 
-        (nx_size_t*[]) { A_stride, B_stride, C_stride },
+    return nx_T_apply_ufunc(3, 
+        (void*[]){ A.data, B.data, C.data }, 
+        (enum nx_dtype[]){ A.dtype, B.dtype, C.dtype }, 
+        (int[]){ A.N, B.N, C.N }, 
+        (nx_size_t*[]){ A.dim, B.dim, C.dim }, 
+        (nx_size_t*[]) { A.stride, B.stride, C.stride },
         my_div_1d,
         NULL
-    ) == 0;
+    );
 }
+
+
+
 
 

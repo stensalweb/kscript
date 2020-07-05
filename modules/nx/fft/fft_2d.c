@@ -5,6 +5,7 @@
 
 #include "../nx-impl.h"
 
+/*
 
 // Compute B = FFT(A)
 bool nx_T_fft_2d(
@@ -128,7 +129,7 @@ bool nx_T_fft_2d(
     return rstat;
 }
 
-
+*/
 
 
 

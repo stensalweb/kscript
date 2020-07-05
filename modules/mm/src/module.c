@@ -37,8 +37,6 @@ static bool my_setfrom_pi(enum AVSampleFormat smp_fmt, void** samples, int len, 
     case AV_SAMPLE_FMT_FLTP:
         for (c = 0; c < chn; ++c) for (i = 0; i < len; ++i) output[i * chn + c] = ((float**)samples)[c][i];
         break;
-    
-
 
     default:
         ks_throw_fmt(ks_type_ToDoError, "Haven't handled AvSampleFormat==%i", (int)smp_fmt);
@@ -178,7 +176,13 @@ static KS_TFUNC(mm, read_audio) {
         return NULL;
     }
  
-    nx_array res = nx_array_new(NX_DTYPE_FP64, 2, (nx_size_t[]){ channels, size }, NULL);
+    nx_array res = nx_array_new((nxar_t){
+        .data = NULL,
+        .dtype = NX_DTYPE_FP64, 
+        2, 
+        .dim = (nx_size_t[]){ channels, size }, 
+        .stride = NULL
+    });
     if (!res) {
         free(data);
         return NULL;
@@ -222,7 +226,6 @@ static ks_module get_module() {
     } else {
         KS_DECREF(mod_nx);
     }
-
 
     /* import libav */
 

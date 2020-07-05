@@ -14,9 +14,9 @@ It's recommended to run `./build_deps.sh` (may take a while!), and individual pa
 
 ## System Packages
 
-Linux (Ubuntu): `sudo apt install libgmp-dev libreadline-dev libcurl4-openssl-dev libglfw3-dev libx11-dev libavcodec-dev libcodec-extra libavutil-dev libavformat-dev`
+Linux (Ubuntu): `sudo apt install cmake m4 libgmp-dev libreadline-dev libcurl4-openssl-dev libglfw3-dev xorg-dev libavcodec-dev libavcodec-extra libavutil-dev libavformat-dev`
 
-MacOS: `brew install gmp readline curl glfw libav`
+MacOS: `brew install cmake gmp readline curl glfw libav`
 
 
 

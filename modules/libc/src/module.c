@@ -9,7 +9,7 @@
 // include this since this is a module.
 #include "ks-module.h"
 
-#include "../libc.h"
+#include "../kslibc.h"
 
 
 #include <dlfcn.h>
