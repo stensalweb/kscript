@@ -511,7 +511,6 @@ ks_O             := $(patsubst %.c,$(_tmp)/%.o,$(ks_C))
 # -*- FUNCS -*-
 
 
-MODULE_INSTALL_DIR = $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 
 # -*- RULES -*-

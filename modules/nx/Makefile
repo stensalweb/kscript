@@ -35,6 +35,8 @@ mod_SHARED      := libksm_$(MOD_NAME).$(SHARED_END)
 # generated objects
 mod_O           := $(patsubst %.c,%.o,$(mod_C))
 
+# installation directory
+MOD_INSTALL_DIR := $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # -*- RULES -*-
 

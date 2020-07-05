@@ -34,6 +34,8 @@ mod_SHARED      := libksm_$(MOD_NAME).$(SHARED_END)
 # generated objects
 mod_O           := $(patsubst %.c,%.o,$(mod_C))
 
+# installation directory
+MOD_INSTALL_DIR := $(DESTDIR)$(PREFIX)/lib/kscript/modules/$(MOD_NAME)
 
 # -*- RULES -*-
 
@@ -50,7 +52,7 @@ clean:
 install: $(mod_SHARED) $(mod_H)
 	install -d $(MOD_INSTALL_DIR)
 	install -m 755 $(mod_SHARED) $(MOD_INSTALL_DIR)
-	install -m 644 $(mod_H) $(MOD_INSTALL_DIR)
+	#install -m 644 $(mod_H) $(MOD_INSTALL_DIR)
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)
