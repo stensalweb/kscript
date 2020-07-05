@@ -329,6 +329,7 @@ static KS_TFUNC(nx, div) {
         to_ret = KS_NEWREF(aC);
     }
 
+
     // try to add them, if not throw an error
     if (!nx_T_div(Ar, Br, Cr)) {
         KS_DECREF(to_ret);

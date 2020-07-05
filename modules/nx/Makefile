@@ -3,7 +3,7 @@
 
 # -*- VARS -*-
 
-MOD_NAME        := libc
+MOD_NAME        := nx
 
 
 # -*- DEPENDS -*-

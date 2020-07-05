@@ -15,7 +15,7 @@
 // use the dims__ and strides__ macro to index them
 // NOTE: this assumes that they are all the same dimensions, which their dimensions should have been padded and normalized
 //   so that extra dimensions are created to be '1'
-static int my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, int N, nx_size_t* _dims, nx_size_t* _strides, nx_ufunc_f ufunc, void* _user_data) {
+static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, int N, nx_size_t* _dims, nx_size_t* _strides, nx_ufunc_f ufunc, void* _user_data) {
 
     // macros to turn 1D arrays into 2D
     #define dims__(_i, _j) _dims[N * (_i) + (_j)]
@@ -54,7 +54,7 @@ static int my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dty
             }
         }
         // actually call ufunc
-        int stat = ufunc(Nin, datas, dtypes, dtype_sizes, c_len, g_strides, _user_data);
+        bool stat = ufunc(Nin, datas, dtypes, dtype_sizes, c_len, g_strides, _user_data);
 
         // free tmp resources
         ks_free(g_strides);
@@ -112,8 +112,8 @@ static int my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dty
             }
 
             // recursively apply
-            int stat = my_apply(Nin, g_datas, dtypes, dtype_sizes, N-1, g_dims, g_strides, ufunc, _user_data);
-            if (stat != 0) return stat;
+            bool stat = my_apply(Nin, g_datas, dtypes, dtype_sizes, N-1, g_dims, g_strides, ufunc, _user_data);
+            if (!stat) return stat;
 
         }
 
@@ -127,7 +127,7 @@ static int my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dty
         #undef g_dims__
         #undef g_strides__
 
-        return 0;
+        return true;
     }
 
 }
@@ -177,7 +177,7 @@ bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_s
     }
 
 
-    int stat = my_apply(Nin, datas, dtypes, dtype_sizes, max_N, g_dims, g_strides, ufunc, _user_data);
+    bool stat = my_apply(Nin, datas, dtypes, dtype_sizes, max_N, g_dims, g_strides, ufunc, _user_data);
 
     // free temporary resources
     ks_free(dtype_sizes);
@@ -188,7 +188,7 @@ bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_s
     #undef g_dims__
     #undef g_strides__
 
-    return stat == 0;
+    return stat;
 
 }
 

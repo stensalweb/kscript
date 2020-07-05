@@ -42,7 +42,7 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
                 ks_str_b_add(SB, len, tmp); \
             } \
             else if (NXT_TYPE_ENUM_A >= NX_DTYPE_CPLX_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_CPLX_FP64) { \
-                int len = snprintf(tmp, sizeof(tmp) - 1, "%.4f%+.4fi", (double)creal(*(NXT_TYPE_A*)dptr_A), (double)cimag(*(NXT_TYPE_A*)dptr_A)); \
+                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f%+5.2fi", (double)creal(*(NXT_TYPE_A*)dptr_A), (double)cimag(*(NXT_TYPE_A*)dptr_A)); \
                 ks_str_b_add(SB, len, tmp); \
             } else { \
                 ks_throw_fmt(ks_type_ToDoError, "Internal enum idx '%i' not handled in get_str", (int)NXT_TYPE_ENUM_A); \

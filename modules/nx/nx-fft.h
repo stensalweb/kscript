@@ -126,6 +126,12 @@ KS_API void nx_fft_plan_free(nx_fft_plan_t* self);
 // A' = FFT(A)
 // Where 'A' is the length of the plan that it was created with (i.e. self->N)
 // NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_fft_plan_do(nx_fft_plan_t* self, double complex* A);
+
+// Perform a 1D in-place FFT, i.e.:
+// A' = FFT(A)
+// Where 'A' is the length of the plan that it was created with (i.e. self->N)
+// NOTE: Returns whether it was successful or not, and if not, throw an error
 KS_API bool nx_fft_plan_do_1Dip(nx_fft_plan_t* self, double complex* A);
 
 
@@ -133,16 +139,16 @@ KS_API bool nx_fft_plan_do_1Dip(nx_fft_plan_t* self, double complex* A);
 
 
 // Compute: B = FFT(A[:]) (with given flags)
-// If flags contains `NX_FFT_INVERSE`, the computation is an inverse FFT
-// Conditions: A_N == B_N, B_dtype is complex
 // NOTE: Returns whether it was successful or not, and if not, throw an error
 KS_API bool nx_T_fft_1d(nx_fft_plan_t* plan0, int axis0, nxar_t A, nxar_t B);
 
 // Compute: B = FFT(A[:]) (with given flags)
-// If flags contains `NX_FFT_INVERSE`, the computation is an inverse FFT
-// Conditions: A_N == B_N, B_dtype is complex
 // NOTE: Returns whether it was successful or not, and if not, throw an error
-//bool nx_T_fft_2d(nx_fft_pla
+KS_API bool nx_T_fft_2d(nx_fft_plan_t* plan0, int axis0, int axis1, nxar_t A, nxar_t B);
+
+// Compute B = FFT(A), on given axes
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B);
 
 
 #endif /* NX_FFT_H__ */

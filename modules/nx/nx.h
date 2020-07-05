@@ -115,6 +115,9 @@ typedef struct {
     // TODO: should this be in bytes instead?
     nx_size_t* stride;
 
+    // source object
+    ks_obj src_obj;
+
 } nxar_t;
 
 
@@ -125,6 +128,7 @@ typedef struct {
     .N = (_array)->N, \
     .dim = (_array)->dim, \
     .stride = (_array)->stride, \
+    .src_obj = (ks_obj)(_array), \
 })
 
 
@@ -135,8 +139,8 @@ typedef struct {
     .N = (_view)->N, \
     .dim = (_view)->dim, \
     .stride = (_view)->stride, \
+    .src_obj = (ks_obj)(_view), \
 })
-
 
 
 // nx.array - N-dimensional tensor array
@@ -191,7 +195,7 @@ typedef struct {
     nx_size_t* stride;
 
     // pointer to the array data (which the view does not own)
-    nx_array data_src;
+    ks_obj data_src;
 
 }* nx_view;
 
@@ -229,6 +233,20 @@ extern ks_type nx_enum_dtype;
  * 
  */
 typedef bool (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data);
+
+
+/* nx_loopfunc_f - describes a function which can be called in an N-dimensional loop
+ * 
+ * `loop_N` is the loop dimension
+ * `loop_dim` are the sizes of the loop in each axis
+ * `loop_idx` are the current indices
+ * `_user_data` is a user-provided pointer
+ * 
+ * Should return success, or false on an error (and throw an error)
+ * 
+ */
+typedef bool (*nx_loopfunc_f)(int loop_N, nx_size_t* loop_dim, nx_size_t* loop_idx, void* _user_data);
+
 
 
 /* DTYPE META */
@@ -274,7 +292,7 @@ KS_API nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype);
 
 // Create a new view, from a given array & data
 // NOTE: Returns a new reference
-KS_API nx_view nx_view_new(nx_array ref, nxar_t nxar);
+KS_API nx_view nx_view_new(ks_obj ref, nxar_t nxar);
 
 
 
@@ -286,6 +304,10 @@ KS_API nx_view nx_view_new(nx_array ref, nxar_t nxar);
 // NOTE: Returns whether it was successful, or false and throws an error
 KS_API bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd);
 
+
+// Implementation of nxar[*idxs]
+// NOTE: returns new reference, or NULL and throws an error
+KS_API ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs);
 
 /* SIZE/SHAPE UTILS */
 
@@ -321,7 +343,17 @@ KS_API void* nx_get_ptr(void* data, nx_size_t dtype_sz, int N, nx_size_t* dim, n
 /* GENERIC APPLICATION */
 
 // Apply 'ufunc' to 'datas', returns either 0 if there was no error, or the first error code generated
+// NOTE: returns success, or false and throws an error
 KS_API bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
+
+
+/* LOOP UTILS */
+
+
+// Apply a `loop_N` dimensional loop (of dimensions `loop_dim`)
+// NOTE: returns success, or false and throws an error
+KS_API bool nx_T_apply_loop(int loop_N, nx_size_t* loop_dim, nx_loopfunc_f loopfunc, void* _user_data);
+
 
 
 /* STRING */

@@ -205,7 +205,6 @@ static bool _fft_1d_blue(nx_fft_plan_t* plan, double complex* A) {
 
 
 
-
 /* exported funcs */
 
 nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* dim) {
@@ -255,7 +254,7 @@ nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* di
 
                 // comute exp(-PI * i * j / N)
                 self->blue.Ws[i] = cexp(-KS_M_PI * I * j / dim0);
-                if (flags & NX_FFT_INVERSE) self->blue.Ws[i] = 1.0 / self->blue.Ws[i];
+                //if (flags & NX_FFT_INVERSE) self->blue.Ws[i] = 1.0 / self->blue.Ws[i];
             }
 
             // now, find M, the smallest power of 2 >= 2*N+1
@@ -277,7 +276,7 @@ nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* di
             self->blue.M = M;
 
             // create power-of-two-plan for M-sized transforms
-            self->blue.M_plan_fwd = nx_fft_plan_create(flags, 1, (nx_size_t[]){ self->blue.M });
+            self->blue.M_plan_fwd = nx_fft_plan_create(NX_FFT_NONE, 1, (nx_size_t[]){ self->blue.M });
 
             if (self->blue.M_plan_fwd->ptype != NX_FFT_PLAN_1D_CT) {
                 ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_create` tried to create CT subplan for blue plan, but it was not of type NX_FFT_PLAN_1D_CT!");
@@ -287,9 +286,7 @@ nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* di
                 return NULL;
             }
 
-            bool isInv = flags & NX_FFT_INVERSE;
-
-            self->blue.M_plan_inv = nx_fft_plan_create(isInv ? NX_FFT_NONE : NX_FFT_INVERSE, 1, (nx_size_t[]){ self->blue.M });
+            self->blue.M_plan_inv = nx_fft_plan_create(NX_FFT_INVERSE, 1, (nx_size_t[]){ self->blue.M });
 
             if (self->blue.M_plan_inv->ptype != NX_FFT_PLAN_1D_CT) {
                 ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_create` tried to create CT subplan for blue plan, but it was not of type NX_FFT_PLAN_1D_CT!");
@@ -308,8 +305,22 @@ nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* di
         }
 
     } else {
+        self->ptype = NX_FFT_PLAN_ND;
 
-        return ks_throw_fmt(ks_type_ToDoError, "Need to implement multidim FFT plans");
+        self->ND.sub_plans = ks_malloc(sizeof(*self->ND.sub_plans));
+
+        for (i = 0; i < self->Nd; ++i) self->ND.sub_plans[i] = NULL;
+
+
+        for (i = 0; i < self->Nd; ++i) {
+
+            if (!(self->ND.sub_plans[i] = nx_fft_plan_create(flags, 1, &self->dim[i]))) {
+                nx_fft_plan_free(self);
+                return NULL;
+            }
+        }
+
+        return self;
     }
 }
 
@@ -344,6 +355,49 @@ bool nx_fft_plan_do_1Dip(nx_fft_plan_t* self, double complex* A) {
         return false;
     }
 
+}
+
+// Perform an ND in-place FFT, i.e.:
+// A' = FFT(A)
+bool nx_fft_plan_do(nx_fft_plan_t* self, double complex* A) {
+
+    if (self->Nd == 1) {
+        // do one dimensional
+        return nx_fft_plan_do_1Dip(self, A);
+    } else if (self->Nd == 2) {
+        // loop through recursively
+        nx_size_t d0 = self->dim[0], d1 = self->dim[1];
+        double complex* tmp = ks_malloc(sizeof(*tmp) * d0);
+        int i, j;
+        for (i = 0; i < d0; ++i) {
+            if (!nx_fft_plan_do(self->ND.sub_plans[0], A + i * d1)) {
+                ks_free(tmp);
+                return false;
+            }
+        }
+
+        for (i = 0; i < d1; ++i) {
+            // copy column in
+            for (j = 0; j < d0; ++j) {
+                tmp[j] = A[j * d1 + i];
+            }
+
+            if (!nx_fft_plan_do(self->ND.sub_plans[1], tmp)) {
+                ks_free(tmp);
+                return false;
+            }
+
+            for (j = 0; j < d0; ++j) {
+                A[j * d1 + i] = tmp[j];
+            }
+        }
+
+        return true;
+
+    } else {
+        ks_throw_fmt(ks_type_ToDoError, "Need to handle FFT where Nd>2");
+        return false;
+    }
 }
 
 

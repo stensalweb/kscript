@@ -10,14 +10,14 @@
 KS_TYPE_DECLFWD(nx_type_view);
 
 // Create a new view
-nx_view nx_view_new(nx_array ref, nxar_t nxar) {
+nx_view nx_view_new(ks_obj ref, nxar_t nxar) {
     // create a new result
     nx_view self = KS_ALLOC_OBJ(nx_view);
     KS_INIT_OBJ(self, nx_type_view);
 
     self->data = nxar.data;
     self->N = nxar.N;
-    self->dtype = ref->dtype;
+    self->dtype = nxar.dtype;
     self->dim = ks_malloc(sizeof(*self->dim) * nxar.N);
     self->stride = ks_malloc(sizeof(*self->stride) * nxar.N);
 
@@ -28,7 +28,7 @@ nx_view nx_view_new(nx_array ref, nxar_t nxar) {
         self->stride[i] = nxar.stride[i];
     }
 
-    self->data_src = (nx_array)KS_NEWREF(ref);
+    self->data_src = KS_NEWREF(ref);
 
     return self;
 }
@@ -42,7 +42,7 @@ static KS_TFUNC(view, new) {
         return KS_NEWREF(obj);
     } else if (obj->type == nx_type_array) {
         nx_array obj_arr = (nx_array)obj;
-        return (ks_obj)nx_view_new(obj_arr, NXAR_ARRAY(obj_arr));
+        return (ks_obj)nx_view_new((ks_obj)obj_arr, NXAR_ARRAY(obj_arr));
     } else {
         KS_ERR_CONV(obj, nx_type_view);
     }
@@ -102,6 +102,14 @@ static KS_TFUNC(view, str) {
     return (ks_obj)nx_get_str(NXAR_VIEW(self));
 }
 
+// view.__getitem__(self, *idxs)
+static KS_TFUNC(view, getitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+    nx_view self = (nx_view)args[0];
+    KS_REQ_TYPE(self, nx_type_view, "self");
+
+    return nx_nxar_getitem(NXAR_VIEW(self), n_args-1, args+1);
+}
 
 
 
@@ -174,6 +182,7 @@ void nx_type_view_init() {
         {"__str__",           (ks_obj)ks_cfunc_new2(view_str_, "nx.view.__str__(self)")},
 
         {"__getattr__",           (ks_obj)ks_cfunc_new2(view_getattr_, "nx.view.__getattr__(self, attr)")},
+        {"__getitem__",           (ks_obj)ks_cfunc_new2(view_getitem_, "nx.view.__getitem__(self, *idxs)")},
 
         {"__add__",           (ks_obj)ks_cfunc_new2(view_add_, "nx.view.__add__(L, R)")},
         {"__sub__",           (ks_obj)ks_cfunc_new2(view_sub_, "nx.view.__sub__(L, R)")},
