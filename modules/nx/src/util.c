@@ -159,7 +159,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
 
         if (!needSlice && N == nxar.N) {
             // return single element
-            void* addr = nx_get_ptr(nxar.data, nx_dtype_size(nxar.dtype), N, nxar.dim, nxar.stride, idxs);
+            void* addr = nx_get_ptr(nxar.data, nx_dtype_size(nxar.dtype), N, nxar.dim, nxar.stride, idxis);
             ks_free(idxs);
 
             return nx_cast_from(nxar.dtype, addr);
