@@ -8,25 +8,15 @@
 import nx
 import mm
 
-img = mm.read_image("/home/cade/projects/kscript/modules/mm/assets/img1.png") / 255
-print (img)
+x = mm.read_image("/home/cade/projects/kscript/modules/mm/assets/img1.png") / 255
+print (x)
 
-f_img = nx.fft.fftNd(2, img, none, (-2, -1))
-print (f_img)
+fx = nx.fft.fftNd(2, x, none, (0, 1))
+print (fx)
 
-
-
-t = img[0]
-print (t)
-
-print (nx.fft.fftNd(2, t, none, (-2, -1)))
+print (fx[:,0,0])
+print (nx.fft.fft1d(fx[:,0,0]))
 
 
 
-#if_img = nx.fft.ifftNd(3, f_img, none, (0, 1, 2))
-#print (if_img)
-
-
-#print (img - if_img)
-
-
+print (nx.fft.fftNd(3, x, (0, 1, 2)))
