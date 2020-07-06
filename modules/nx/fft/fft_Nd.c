@@ -50,6 +50,7 @@ static bool my_loop_fft(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, void* _
     void* dp_A = nx_get_ptr(data->Ad, nx_dtype_size(data->Adtype), loop_N, loop_dim, data->loop_A_stride, idx);
     void* dp_B = nx_get_ptr(data->Bd, nx_dtype_size(data->Bdtype), loop_N, loop_dim, data->loop_B_stride, idx);
 
+    
     // construct nxar's for each
     nxar_t Ar = (nxar_t){
         .data = dp_A,
@@ -66,7 +67,6 @@ static bool my_loop_fft(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, void* _
         .dim = data->fft_dim,
         .stride = data->fft_B_stride
     };
-
 
     // Set: R[:] = A[fft_idx[*idx]]
     // Essentially this is one FFT to be performed; each one is done seperately in this loop

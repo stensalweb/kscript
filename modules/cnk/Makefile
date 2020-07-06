@@ -21,7 +21,7 @@ mod_MODDEPS     := nx
 # -*- FILES -*-
 
 # C source files
-mod_C           := $(wildcard src/*.c)
+mod_C           := $(wildcard src/*.c) $(wildcard src/ext/*.c)
 
 # C header files
 mod_H           :=

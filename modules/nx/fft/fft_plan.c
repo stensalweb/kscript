@@ -377,14 +377,17 @@ struct my_fft_outer_data {
 };
 
 
-// internal functino to perform an FFT over the outer dimension of the FFT
+// internal function to perform an FFT over the outer dimension of the FFT
+// i.e. will perform 1D FFT over every slice and combination of lower dimensions
 static bool my_fft_outer(int loop_N, nx_size_t* dim, nx_size_t* idx, void* _user_data) {
 
     struct my_fft_outer_data* data = (struct my_fft_outer_data*)_user_data;
 
     // get pointer to start
-    double complex* A_start = data->A + nx_szsdot(loop_N, 1, dim, &data->stride[1], idx);
-    
+    //double complex* A_start = data->A + nx_szsdot(loop_N, 1, dim, &data->stride[1], idx);
+    double complex* A_start = nx_get_ptr(data->A, sizeof(*A_start), loop_N, dim, &data->stride[1], idx);
+
+
     int i;
 
     // get into contiguous memory
