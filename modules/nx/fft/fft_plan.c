@@ -211,7 +211,7 @@ nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* di
     nx_fft_plan_t* self = ks_malloc(sizeof(*self));
 
     self->Nd = Nd;
-    self->dim = ks_malloc(sizeof(self->dim) * Nd);
+    self->dim = ks_malloc(sizeof(*self->dim) * Nd);
     self->flags = flags;
 
     nx_size_t i;
@@ -307,10 +307,9 @@ nx_fft_plan_t* nx_fft_plan_create(enum nx_fft_flags flags, int Nd, nx_size_t* di
     } else {
         self->ptype = NX_FFT_PLAN_ND;
 
-        self->ND.sub_plans = ks_malloc(sizeof(*self->ND.sub_plans));
+        self->ND.sub_plans = ks_malloc(sizeof(*self->ND.sub_plans) * self->Nd);
 
         for (i = 0; i < self->Nd; ++i) self->ND.sub_plans[i] = NULL;
-
 
         for (i = 0; i < self->Nd; ++i) {
 
@@ -357,6 +356,56 @@ bool nx_fft_plan_do_1Dip(nx_fft_plan_t* self, double complex* A) {
 
 }
 
+// data for FFT
+struct my_fft_outer_data {
+
+    // plan for the FFT
+    nx_fft_plan_t* plan;
+
+    // entire data array
+    double complex* A;
+
+    // the stride (which should imply the array is be dense)
+    nx_size_t* stride;
+
+    // outer dimension
+    nx_size_t outer_dim;
+
+    // temporary storage
+    double complex* tmp;
+
+};
+
+
+// internal functino to perform an FFT over the outer dimension of the FFT
+static bool my_fft_outer(int loop_N, nx_size_t* dim, nx_size_t* idx, void* _user_data) {
+
+    struct my_fft_outer_data* data = (struct my_fft_outer_data*)_user_data;
+
+    // get pointer to start
+    double complex* A_start = data->A + nx_szsdot(loop_N, 1, dim, &data->stride[1], idx);
+    
+    int i;
+
+    // get into contiguous memory
+    for (i = 0; i < data->outer_dim; ++i) {
+        data->tmp[i] = A_start[i * data->stride[0]];
+    }
+
+
+    // perform 1D FFT
+    if (!nx_fft_plan_do_1Dip(data->plan, data->tmp)) return false;
+
+    // store back into normal mem
+    for (i = 0; i < data->outer_dim; ++i) {
+        A_start[i * data->stride[0]] = data->tmp[i];
+    }
+
+    // success
+    return true;
+}
+
+
 // Perform an ND in-place FFT, i.e.:
 // A' = FFT(A)
 bool nx_fft_plan_do(nx_fft_plan_t* self, double complex* A) {
@@ -364,7 +413,7 @@ bool nx_fft_plan_do(nx_fft_plan_t* self, double complex* A) {
     if (self->Nd == 1) {
         // do one dimensional
         return nx_fft_plan_do_1Dip(self, A);
-    } else if (self->Nd == 2) {
+    } else if (false && self->Nd == 2) {
         // loop through recursively
         nx_size_t d0 = self->dim[0], d1 = self->dim[1];
         double complex* tmp = ks_malloc(sizeof(*tmp) * d0);
@@ -392,11 +441,56 @@ bool nx_fft_plan_do(nx_fft_plan_t* self, double complex* A) {
             }
         }
 
+
         return true;
 
     } else {
-        ks_throw_fmt(ks_type_ToDoError, "Need to handle FFT where Nd>2");
-        return false;
+
+        // stride is the product of all lower slices
+        nx_size_t slice_stride = 1;
+        int i;
+
+        for (i = 1; i < self->Nd; ++i) {
+            slice_stride *= self->dim[i];
+        }
+
+        // perform (N-1)d FFTs on the slices
+        for (i = 0; i < self->dim[0]; ++i) {
+            // do sub slices
+            if (!nx_fft_plan_do(self->ND.sub_plans[0], A + slice_stride * i)) return false;
+        }
+
+
+        nx_size_t* stride = ks_malloc(sizeof(*stride) * self->Nd);
+        stride[self->Nd - 1] = 1;
+        for (i = self->Nd - 2; i >= 0; i--) {
+            stride[i] = stride[i + 1] * self->dim[i + 1];
+        }
+
+
+        // loop dimensions, since we are looping over 1D sections
+        int loop_N = self->Nd - 1;
+
+        struct my_fft_outer_data data;
+
+        data.plan = self->ND.sub_plans[0];
+        data.A = A;
+        data.stride = stride;
+
+        // compute size & temporary buffer for a single 1D iteration through the outer dimension
+        data.outer_dim = self->dim[0];
+        data.tmp = ks_malloc(sizeof(double complex) * data.outer_dim);
+
+        // now, apply FFT on outer loops
+        if (!nx_T_apply_loop(self->Nd - 1, &self->dim[1], my_fft_outer, (void*)&data)) {
+            ks_free(data.tmp);
+            ks_free(stride);
+            return false;
+        }
+
+        //ks_free(data.tmp);
+        //ks_free(all_strides);
+        return true;
     }
 }
 

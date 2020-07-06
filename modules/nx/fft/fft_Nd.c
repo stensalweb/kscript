@@ -12,16 +12,21 @@ struct my_loop_fft_data {
     //plan for executing inner loop
     nx_fft_plan_t* plan;
 
+    // A & B data
     void* Ad, *Bd;
 
+    // data types (should be CPLX_FP64)
     enum nx_dtype Adtype, Bdtype;
+
+    // temporary array
+    nxar_t Ra;
 
     // how big is the loop?
     int loop_N;
 
     // stride of the loop
-    nx_size_t* lp_A_stride;
-    nx_size_t* lp_B_stride;
+    nx_size_t* loop_A_stride;
+    nx_size_t* loop_B_stride;
 
 
     // FFT dimension
@@ -34,8 +39,6 @@ struct my_loop_fft_data {
     nx_size_t* fft_A_stride;
     nx_size_t* fft_B_stride;
 
-    // temporary array
-    nxar_t Ra;
 
 };
 
@@ -44,9 +47,10 @@ static bool my_loop_fft(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, void* _
     struct my_loop_fft_data* data = (struct my_loop_fft_data*)_user_data;
 
     // get pointer to start of this thing
-    void* dp_A = nx_get_ptr(data->Ad, nx_dtype_size(data->Adtype), loop_N, loop_dim, data->lp_A_stride, idx);
-    void* dp_B = nx_get_ptr(data->Bd, nx_dtype_size(data->Bdtype), loop_N, loop_dim, data->lp_B_stride, idx);
+    void* dp_A = nx_get_ptr(data->Ad, nx_dtype_size(data->Adtype), loop_N, loop_dim, data->loop_A_stride, idx);
+    void* dp_B = nx_get_ptr(data->Bd, nx_dtype_size(data->Bdtype), loop_N, loop_dim, data->loop_B_stride, idx);
 
+    // construct nxar's for each
     nxar_t Ar = (nxar_t){
         .data = dp_A,
         .dtype = data->Adtype,
@@ -63,32 +67,37 @@ static bool my_loop_fft(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, void* _
         .stride = data->fft_B_stride
     };
 
-    // Now, fill 'R" with numbers from 'A'
-    // TODO: allow multi-dimensional input, and then loop over the last dimension
+
+    // Set: R[:] = A[fft_idx[*idx]]
+    // Essentially this is one FFT to be performed; each one is done seperately in this loop
     if (!nx_T_cast(Ar, data->Ra)) return false;
 
-
-    // perform the computation
+    // Perform: R' = FFT(R)
     if (!nx_fft_plan_do(data->plan, data->Ra.data)) return false;
 
-    // now, set 'B' to the value, casted
+    // Set: B[fft_idx[*idx]] = R[:]
     if (!nx_T_cast(data->Ra, Br)) return false;
 
     return true;
 }
 
-// Compute B = FFT(A)
+// Compute B = FFT(A), with N dimensions
 bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
 
+    // get size of the FFT
     int fft_N = N;
-    int lp_N = A.N - fft_N;
+
+    assert(fft_N == plan0->Nd && "fft_N != plan dimensions!");
+
+    // and the size of the loop
+    int loop_N = A.N - fft_N;
 
     // stride of loop dimensions
-    nx_size_t* lp_dim = ks_malloc(sizeof(*lp_dim) * lp_N);
+    nx_size_t* loop_dim = ks_malloc(sizeof(*loop_dim) * loop_N);
 
     // strides
-    nx_size_t* lp_A_stride = ks_malloc(sizeof(*lp_A_stride) * lp_N);
-    nx_size_t* lp_B_stride = ks_malloc(sizeof(*lp_B_stride) * lp_N);
+    nx_size_t* loop_A_stride = ks_malloc(sizeof(*loop_A_stride) * loop_N);
+    nx_size_t* loop_B_stride = ks_malloc(sizeof(*loop_B_stride) * loop_N);
 
     // FFT dimensions
     nx_size_t* fft_dim = ks_malloc(sizeof(*fft_dim) * fft_N);
@@ -97,8 +106,7 @@ bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
     nx_size_t* fft_A_stride = ks_malloc(sizeof(*fft_A_stride) * fft_N);
     nx_size_t* fft_B_stride = ks_malloc(sizeof(*fft_B_stride) * fft_N);
 
-
-    int i, j, fi = 0, ri = 0;
+    int i, j, fi = 0, li = 0;
     for (i = 0; i < A.N; ++i) {
 
         bool isAxis = false;
@@ -110,52 +118,63 @@ bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
         }
     
         if (isAxis) {
-            
-            // in FFT dims
+            // axis of FFT transform
             fft_dim[fi] = A.dim[i];
             fft_A_stride[fi] = A.stride[i];
             fft_B_stride[fi] = B.stride[i];
             fi++;
-
         } else {
-
-            // add to loop dimensions
-            lp_dim[ri] = A.dim[i];
-            lp_A_stride[ri] = A.stride[i];
-            lp_B_stride[ri] = B.stride[i];
-            ri++;
-
+            // axis of loop
+            loop_dim[li] = A.dim[i];
+            loop_A_stride[li] = A.stride[i];
+            loop_B_stride[li] = B.stride[i];
+            li++;
         }
     }
 
-    struct my_loop_fft_data my_data;
-    my_data.plan = plan0;
-    my_data.loop_N = lp_N;
 
+    struct my_loop_fft_data my_data;
+
+    // plan
+    my_data.plan = plan0;
+
+    // arguments (A==input, B==output)
     my_data.Ad = A.data;
     my_data.Bd = B.data;
 
     my_data.Adtype = A.dtype;
     my_data.Bdtype = B.dtype;
 
-    my_data.lp_A_stride = lp_A_stride;
-    my_data.lp_B_stride = lp_B_stride;
+    // loop sizes for each
+    my_data.loop_N = loop_N;
 
+    my_data.loop_A_stride = loop_A_stride;
+    my_data.loop_B_stride = loop_B_stride;
+
+
+    // FFT sizes for each
     my_data.fft_N = fft_N;
 
     my_data.fft_dim = fft_dim;
     my_data.fft_A_stride = fft_A_stride;
     my_data.fft_B_stride = fft_B_stride;
 
-    nx_size_t Rsz = 1;
-    for (i = 0; i < fft_N; ++i) Rsz *= fft_dim[i];
 
+    // size the result buffer for a single operation needs to be
+    nx_size_t Rsz = 1;
+    for (i = 0; i < fft_N; ++i) {
+        Rsz *= fft_dim[i];
+    }
+
+    // densely packed array for the FFT
     double complex* Rdata = ks_malloc(sizeof(*Rdata) * Rsz);
 
+    // strides (densely packed, so calculate it)
     nx_size_t* Rstride = ks_malloc(sizeof(*Rstride) * fft_N);
     Rstride[fft_N - 1] = 1;
-    for (i = fft_N - 2; i >= 0; --i) Rstride[i] = Rstride[i + 1] * fft_dim[i + 1];
-
+    for (i = fft_N - 2; i >= 0; --i) {
+        Rstride[i] = Rstride[i + 1] * fft_dim[i + 1];
+    }
   
     my_data.Ra = (nxar_t){
         .data = Rdata,
@@ -165,18 +184,19 @@ bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
         .stride = Rstride
     };
 
-    bool ret = nx_T_apply_loop(my_data.loop_N, lp_dim, my_loop_fft, (void*)&my_data);
+    // now, calculate all the loops
+    bool ret = nx_T_apply_loop(my_data.loop_N, loop_dim, my_loop_fft, (void*)&my_data);
 
-    ks_free(lp_dim);
-    ks_free(lp_A_stride);
-    ks_free(lp_B_stride);
+    ks_free(loop_dim);
+    ks_free(loop_A_stride);
+    ks_free(loop_B_stride);
 
     ks_free(fft_dim);
     ks_free(fft_A_stride);
     ks_free(fft_B_stride);
 
-    ks_free(Rdata);
-    ks_free(Rstride);
+    //ks_free(Rdata);
+    //ks_free(Rstride);
 
     return ret;
 }

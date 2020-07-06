@@ -256,12 +256,134 @@ static KS_TFUNC(fft, ifft2d) {
         return NULL;
     }
 
-
-    
     KS_DECREF(dels);
     nx_fft_plan_free(plan);
     return (ks_obj)to_ret;
 }
+
+
+
+
+// nx.fft.fftNd(N, A, B=none, axes=none)
+static KS_TFUNC(fft, fftNd) {
+    KS_REQ_N_ARGS_RANGE(n_args, 2, 4);
+    int64_t N;
+    ks_obj aA, aB = KSO_NONE;
+    ks_obj a_axes = KSO_NONE;
+    if (!ks_parse_params(n_args, args, "N%i64 A%any ?B%any ?axes%any", &N, &aA, &aB, &a_axes)) return NULL;
+
+    nxar_t Ar, Br;
+
+    // refs to delete
+    ks_list dels = ks_list_new(0, NULL);
+
+    // convert them to C arrays
+    if (!nx_get_nxar(aA, &Ar, dels) || (aB != KSO_NONE && !nx_get_nxar(aB, &Br, dels))) {
+        KS_DECREF(dels);
+        return NULL;
+    }
+
+    ks_obj to_ret = NULL;
+
+    if (aB == KSO_NONE) {
+
+        // create new array
+        // TODO: auto-detect type as well
+        nx_array newB = nx_array_new((nxar_t){
+            .data = NULL,
+            .dtype = NX_DTYPE_CPLX_FP64,
+            .N = Ar.N,
+            .dim = Ar.dim,
+            .stride = NULL
+        });
+
+        // set nxar
+        Br = NXAR_ARRAY(newB);
+        //ks_list_push(dels, (ks_obj)newB);
+        to_ret = KS_NEWREF(newB);
+    } else {
+        to_ret = KS_NEWREF(aB);
+    }
+
+
+    // axes to compute on
+    int* axes = ks_malloc(sizeof(*axes) * N);
+    int i;
+
+    if (a_axes == KSO_NONE) {
+        // default to last axes
+
+        for (i = 0; i < N; ++i) {
+            axes[i] = -i - 1;
+        }
+
+    } else {
+        // otherwise, read integers
+        ks_list l_axes = ks_list_from_iterable(a_axes);
+        if (!l_axes) {
+            KS_DECREF(to_ret);
+            KS_DECREF(dels);
+            ks_free(axes);
+            return NULL;
+        }
+
+        if (l_axes->len != N) {
+            KS_DECREF(to_ret);
+            KS_DECREF(dels);
+            KS_DECREF(l_axes);
+            ks_free(axes);
+            return ks_throw_fmt(ks_type_SizeError, "Expected len(axes)==%i for an %iD FFT", (int)N, (int)N);
+        }
+
+        for (i = 0; i < N; ++i) {
+            int64_t v64;
+            if (!ks_num_get_int64(l_axes->elems[i], &v64)) {
+                KS_DECREF(to_ret);
+                KS_DECREF(dels);
+                KS_DECREF(l_axes);
+                ks_free(axes);
+                return NULL;
+            }
+            axes[i] = v64;
+        }
+
+        KS_DECREF(l_axes);
+    }
+
+
+    // make sure they are in bounds
+    for (i = 0; i < N; ++i) axes[i] = ((axes[i] % Ar.N) + Ar.N) % Ar.N;
+
+    nx_size_t* fft_dims = ks_malloc(sizeof(*fft_dims) * N * 100);
+
+    for (i = 0; i < N; ++i) {
+        fft_dims[i] = Ar.dim[axes[i]];
+    }
+
+    // create plan
+    nx_fft_plan_t* plan = nx_fft_plan_create(NX_FFT_NONE, N, fft_dims);
+    if (!plan) {
+        KS_DECREF(to_ret);
+        KS_DECREF(dels);
+        ks_free(axes);
+        return NULL;
+    }
+
+
+    // try to add them, if not throw an error
+    if (!nx_T_fft_Nd(plan, N, axes, Ar, Br)) {
+        KS_DECREF(to_ret);
+        KS_DECREF(dels);
+        ks_free(axes);
+        nx_fft_plan_free(plan);
+        return NULL;
+    }
+
+    //KS_DECREF(dels);
+    //nx_fft_plan_free(plan);
+    return (ks_obj)to_ret;
+}
+
 
 
 // add the FFT module to `nxmod`
@@ -276,6 +398,11 @@ void nx_mod_add_fft(ks_module nxmod) {
 
         {"fft2d",        (ks_obj)ks_cfunc_new2(fft_fft2d_, "nx.fft.fft2d(A, B=none, axis0=-2, axis1=-1)")},
         {"ifft2d",       (ks_obj)ks_cfunc_new2(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
+
+
+        {"fftNd",        (ks_obj)ks_cfunc_new2(fft_fftNd_, "nx.fft.fftNd(N, A, B=none, axes=none)")},
+        //{"ifft2d",       (ks_obj)ks_cfunc_new2(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
+
 
         {NULL, NULL}
     });

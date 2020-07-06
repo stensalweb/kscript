@@ -17,6 +17,8 @@
 void ks_obj_free(ks_obj obj) {
     assert(obj->refcnt <= 0);
 
+    ks_trace("Freeing %T obj @ %p", obj, obj);
+
     if (obj->type->__free__ == NULL) {
         // just free memory & dereference the type,
         // assume nothing else as it wasn't provided

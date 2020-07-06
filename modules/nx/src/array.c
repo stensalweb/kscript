@@ -28,7 +28,6 @@ KS_TYPE_DECLFWD(nx_type_array);
 // Create a new array with a given data type, and dimensions
 nx_array nx_array_new(nxar_t nxar) {
 
-
     // create a new result
     nx_array self = KS_ALLOC_OBJ(nx_array);
     KS_INIT_OBJ(self, nx_type_array);
@@ -74,7 +73,6 @@ nx_array nx_array_new(nxar_t nxar) {
 
     if (nxar.data) {
         // copy it
-
 
         if (!nx_T_cast(
             nxar,
