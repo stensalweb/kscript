@@ -99,7 +99,7 @@ KS_TYPE_DECLFWD(cNk_type_iter_Context);
 
 // error callback to be used by GLFW
 static void _GLFW_errorcb(int er, const char* d) {
-    ks_warn("GLFW: %s [code: %d]", d, er);
+    ks_warn("GLFW: %s [code: %i]", d, er);
 }
 
 // key function call back from GLFW
