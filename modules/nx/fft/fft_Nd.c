@@ -6,6 +6,7 @@
 #include "../nx-impl.h"
 
 
+/*
 // FFT data structure for multi-loop iteration
 struct my_loop_fft_data {
 
@@ -55,7 +56,7 @@ static bool my_loop_fft(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, void* _
     nxar_t Ar = (nxar_t){
         .data = dp_A,
         .dtype = data->Adtype,
-        .N = data->fft_N,
+        .rank = data->fft_N,
         .dim = data->fft_dim,
         .stride = data->fft_A_stride
     };
@@ -63,7 +64,7 @@ static bool my_loop_fft(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, void* _
     nxar_t Br = (nxar_t){
         .data = dp_B,
         .dtype = data->Bdtype,
-        .N = data->fft_N,
+        .rank = data->fft_N,
         .dim = data->fft_dim,
         .stride = data->fft_B_stride
     };
@@ -87,10 +88,10 @@ bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
     // get size of the FFT
     int fft_N = N;
 
-    assert(fft_N == plan0->Nd && "fft_N != plan dimensions!");
+    assert(fft_N == plan0->rank && "fft_N != plan dimensions!");
 
     // and the size of the loop
-    int loop_N = A.N - fft_N;
+    int loop_N = A.rank - fft_N;
 
     // stride of loop dimensions
     nx_size_t* loop_dim = ks_malloc(sizeof(*loop_dim) * loop_N);
@@ -107,7 +108,7 @@ bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
     nx_size_t* fft_B_stride = ks_malloc(sizeof(*fft_B_stride) * fft_N);
 
     int i, j, fi = 0, li = 0;
-    for (i = 0; i < A.N; ++i) {
+    for (i = 0; i < A.rank; ++i) {
 
         bool isAxis = false;
         for (j = 0; j < N; ++j) {
@@ -179,7 +180,7 @@ bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B) {
     my_data.Ra = (nxar_t){
         .data = Rdata,
         .dtype = NX_DTYPE_CPLX_FP64,
-        .N = fft_N,
+        .rank = fft_N,
         .dim = fft_dim,
         .stride = Rstride
     };
@@ -216,3 +217,4 @@ bool nx_T_fft_2d(nx_fft_plan_t* plan0, int axis0, int axis1, nxar_t A, nxar_t B)
 
 
 
+*/

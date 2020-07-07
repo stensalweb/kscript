@@ -9,7 +9,7 @@
 #define SUBMOD "fft"
 
 
-
+/*
 // nx.fft.fft1d(A, B=none, axis=-1)
 static KS_TFUNC(fft, fft1d) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
@@ -37,7 +37,7 @@ static KS_TFUNC(fft, fft1d) {
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = NX_DTYPE_CPLX_FP64,
-            .N = Ar.N,
+            .rank = Ar.rank,
             .dim = Ar.dim,
             .stride = NULL
         });
@@ -50,7 +50,7 @@ static KS_TFUNC(fft, fft1d) {
         to_ret = KS_NEWREF(aB);
     }
 
-    axis0 = ((axis0 % Ar.N) + Ar.N) % Ar.N;
+    axis0 = ((axis0 % Ar.rank) + Ar.rank) % Ar.rank;
 
     nx_fft_plan_t* plan = nx_fft_plan_create(NX_FFT_NONE, 1, (nx_size_t[]){ Ar.dim[axis0] });
     if (!plan) {
@@ -98,7 +98,7 @@ static KS_TFUNC(fft, ifft1d) {
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = NX_DTYPE_CPLX_FP64,
-            .N = Ar.N,
+            .rank = Ar.rank,
             .dim = Ar.dim,
             .stride = NULL
         });
@@ -111,7 +111,7 @@ static KS_TFUNC(fft, ifft1d) {
         to_ret = KS_NEWREF(aB);
     }
 
-    axis0 = ((axis0 % Ar.N) + Ar.N) % Ar.N;
+    axis0 = ((axis0 % Ar.rank) + Ar.rank) % Ar.rank;
 
     nx_fft_plan_t* plan = nx_fft_plan_create(NX_FFT_INVERSE, 1, (nx_size_t[]){ Ar.dim[axis0] });
     if (!plan) {
@@ -162,7 +162,7 @@ static KS_TFUNC(fft, fft2d) {
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = NX_DTYPE_CPLX_FP64,
-            .N = Ar.N,
+            .rank = Ar.rank,
             .dim = Ar.dim,
             .stride = NULL
         });
@@ -175,8 +175,8 @@ static KS_TFUNC(fft, fft2d) {
         to_ret = KS_NEWREF(aB);
     }
 
-    axis0 = ((axis0 % Ar.N) + Ar.N) % Ar.N;
-    axis1 = ((axis1 % Ar.N) + Ar.N) % Ar.N;
+    axis0 = ((axis0 % Ar.rank) + Ar.rank) % Ar.rank;
+    axis1 = ((axis1 % Ar.rank) + Ar.rank) % Ar.rank;
 
     nx_fft_plan_t* plan = nx_fft_plan_create(NX_FFT_NONE, 2, (nx_size_t[]){ Ar.dim[axis0], Ar.dim[axis1] });
     if (!plan) {
@@ -224,7 +224,7 @@ static KS_TFUNC(fft, ifft2d) {
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = NX_DTYPE_CPLX_FP64,
-            .N = Ar.N,
+            .rank = Ar.rank,
             .dim = Ar.dim,
             .stride = NULL
         });
@@ -237,8 +237,8 @@ static KS_TFUNC(fft, ifft2d) {
         to_ret = KS_NEWREF(aB);
     }
 
-    axis0 = ((axis0 % Ar.N) + Ar.N) % Ar.N;
-    axis1 = ((axis1 % Ar.N) + Ar.N) % Ar.N;
+    axis0 = ((axis0 % Ar.rank) + Ar.rank) % Ar.rank;
+    axis1 = ((axis1 % Ar.rank) + Ar.rank) % Ar.rank;
 
     nx_fft_plan_t* plan = nx_fft_plan_create(NX_FFT_INVERSE, 2, (nx_size_t[]){ Ar.dim[axis0], Ar.dim[axis1] });
     if (!plan) {
@@ -263,7 +263,7 @@ static KS_TFUNC(fft, ifft2d) {
 
 
 
-
+*/
 // nx.fft.fftNd(N, A, B=none, axes=none)
 static KS_TFUNC(fft, fftNd) {
     KS_REQ_N_ARGS_RANGE(n_args, 2, 4);
@@ -291,8 +291,8 @@ static KS_TFUNC(fft, fftNd) {
         // TODO: auto-detect type as well
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
-            .dtype = NX_DTYPE_CPLX_FP64,
-            .N = Ar.N,
+            .dtype = nx_dtype_cplx_fp64,
+            .rank = Ar.rank,
             .dim = Ar.dim,
             .stride = NULL
         });
@@ -301,6 +301,7 @@ static KS_TFUNC(fft, fftNd) {
         Br = NXAR_ARRAY(newB);
         //ks_list_push(dels, (ks_obj)newB);
         to_ret = KS_NEWREF(newB);
+
     } else {
         to_ret = KS_NEWREF(aB);
     }
@@ -352,7 +353,7 @@ static KS_TFUNC(fft, fftNd) {
 
 
     // make sure they are in bounds
-    for (i = 0; i < N; ++i) axes[i] = ((axes[i] % Ar.N) + Ar.N) % Ar.N;
+    for (i = 0; i < N; ++i) axes[i] = ((axes[i] % Ar.rank) + Ar.rank) % Ar.rank;
 
     nx_size_t* fft_dims = ks_malloc(sizeof(*fft_dims) * N * 100);
 
@@ -361,7 +362,7 @@ static KS_TFUNC(fft, fftNd) {
     }
 
     // create plan
-    nx_fft_plan_t* plan = nx_fft_plan_create(NX_FFT_NONE, N, fft_dims);
+    nx_fft_plan_t plan = nx_fft_plan_create(NX_FFT_PLAN_NONE, N, fft_dims, false);
     if (!plan) {
         KS_DECREF(to_ret);
         KS_DECREF(dels);
@@ -369,9 +370,8 @@ static KS_TFUNC(fft, fftNd) {
         return NULL;
     }
 
-
     // try to add them, if not throw an error
-    if (!nx_T_fft_Nd(plan, N, axes, Ar, Br)) {
+    if (!nx_fft_plan_do(plan, Ar, Br, axes)) {
         KS_DECREF(to_ret);
         KS_DECREF(dels);
         ks_free(axes);
@@ -392,14 +392,14 @@ void nx_mod_add_fft(ks_module nxmod) {
     ks_module submod = ks_module_new("nx." SUBMOD);
 
     ks_dict_set_cn(submod->attr, (ks_dict_ent_c[]){
-
+/*
         {"fft1d",        (ks_obj)ks_cfunc_new2(fft_fft1d_, "nx.fft.fft1d(A, B=none, axis=-1)")},
         {"ifft1d",       (ks_obj)ks_cfunc_new2(fft_ifft1d_, "nx.fft.ifft1d(A, B=none, axis=-2)")},
 
         {"fft2d",        (ks_obj)ks_cfunc_new2(fft_fft2d_, "nx.fft.fft2d(A, B=none, axis0=-2, axis1=-1)")},
         {"ifft2d",       (ks_obj)ks_cfunc_new2(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
 
-
+*/
         {"fftNd",        (ks_obj)ks_cfunc_new2(fft_fftNd_, "nx.fft.fftNd(N, A, B=none, axes=none)")},
         //{"ifft2d",       (ks_obj)ks_cfunc_new2(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
 

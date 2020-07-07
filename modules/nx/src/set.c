@@ -10,24 +10,29 @@
 struct my_setelem_1d_data {
 
     // the element that it is supposed to be set to
-    nx_any_t target_elem;
-
-
-    // sizeof(target_elem)
-    nx_size_t target_elem_size;
+    void* target_elem;
 
 };
 
 
 // internal 1D loop for setting 'data'
-static bool my_setelem_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
+static bool my_set_all_1d(int Nin, void** datas, nx_dtype* dtypes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
     NX_ASSERT_CHECK(Nin == 1);
 
     // convert to recognizable type
-    struct my_setelem_1d_data* user_data = _user_data;
+    struct my_setelem_1d_data* data = _user_data;
 
-    // set it as blocks
-    nx_memset_block(datas[0], (void*)&user_data->target_elem, dtype_sizes[0], strides[0] * dtype_sizes[0], dim);
+    // loop vars
+    nx_size_t i;
+
+    // data pointers
+    intptr_t dptr_0 = (intptr_t)datas[0];
+
+
+    // set all elements
+    for (i = 0; i < dim; ++i, dptr_0 += strides[0]) {
+        memcpy((void*)dptr_0, data->target_elem, dtypes[0]->size);
+    }
 
     // success
     return true;
@@ -36,22 +41,21 @@ static bool my_setelem_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_
 // set all elements to the correct type
 bool nx_T_set_all(nxar_t A, ks_obj obj) {
 
-    // size of individual element
-    int szof = nx_dtype_size(A.dtype);
-
-    // now, cast 'obj' to this any_t
-    nx_any_t obj_casted;
+    void* obj_casted = ks_malloc(A.dtype->size);
 
     // attempt to cast it
-    if (!nx_cast_to(obj, A.dtype, &obj_casted)) return false;
+    if (!nx_cast_to(obj, A.dtype, obj_casted)) return false;
 
     // now, copy it in every where
     struct my_setelem_1d_data user_data = (struct my_setelem_1d_data){
-        .target_elem = obj_casted,
-        .target_elem_size = szof
+        .target_elem = obj_casted
     };
 
-    return nx_T_apply_ufunc(1, &A.data, &A.dtype, &A.N, &A.dim, &A.stride, my_setelem_1d, (void*)&user_data);
+    bool rst = nx_T_apply_ufunc(1, &A.data, &A.dtype, &A.rank, &A.dim, &A.stride, my_set_all_1d, (void*)&user_data);
+
+    ks_free(obj_casted);
+
+    return rst;
 }
 
 

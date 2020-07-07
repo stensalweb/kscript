@@ -13,20 +13,22 @@ import itertools
 # pairs of data type
 dtype_pairs = [
 
-    ('NX_DTYPE_SINT8'     , 'int8_t'          ),
-    ('NX_DTYPE_UINT8'     , 'uint8_t'         ),
-    ('NX_DTYPE_SINT16'    , 'int16_t'         ),
-    ('NX_DTYPE_UINT16'    , 'uint16_t'        ),
-    ('NX_DTYPE_SINT32'    , 'int32_t'         ),
-    ('NX_DTYPE_UINT32'    , 'uint32_t'        ),
-    ('NX_DTYPE_SINT64'    , 'int64_t'         ),
-    ('NX_DTYPE_UINT64'    , 'uint64_t'        ),
+    ('nx_dtype_sint8'     , 'int8_t'          ),
+    ('nx_dtype_uint8'     , 'uint8_t'         ),
+    ('nx_dtype_sint16'    , 'int16_t'         ),
+    ('nx_dtype_uint16'    , 'uint16_t'        ),
+    ('nx_dtype_sint32'    , 'int32_t'         ),
+    ('nx_dtype_uint32'    , 'uint32_t'        ),
+    ('nx_dtype_sint64'    , 'int64_t'         ),
+    ('nx_dtype_uint64'    , 'uint64_t'        ),
 
-    ('NX_DTYPE_FP32'      , 'float'           ),
-    ('NX_DTYPE_FP64'      , 'double'          ),
+    ('nx_dtype_fp32'      , 'float'           ),
+    ('nx_dtype_fp64'      , 'double'          ),
 
-    ('NX_DTYPE_CPLX_FP32' , 'float complex'   ),
-    ('NX_DTYPE_CPLX_FP64' , 'double complex'  ),
+    ('nx_dtype_cplx_fp32' , 'float complex'   ),
+    ('nx_dtype_cplx_fp64' , 'double complex'  ),
+
+    # TODO: handle structures
 ]
 
 
@@ -36,6 +38,10 @@ print (f"""/* gen/nxt.h - GENERATED FILE FOR TEMPLATES
  * This defines macros that can be used to quickly generate templates/loops and supporting many data types
  *
  *
+ * Macros beginning with `_NXT_` are meant for internal use only, those beginning with `NXT_` are documented
+ *
+ * `NXT_COMBO` take a `_LOOP` parameter, which should be invoked via `_LOOP(NXT_TYPE_0, ...)`
+ *
  *
  */
 
@@ -43,84 +49,14 @@ print (f"""/* gen/nxt.h - GENERATED FILE FOR TEMPLATES
 #define NXT_H__
 
 
-// options to control whether special checks are made to see if the strides are 1 element
-//#define _NXT_CHECK_STRIDE_1A
-//#define _NXT_CHECK_STRIDE_2A
-//#define _NXT_CHECK_STRIDE_3A
-
-
 
 // internal 1argument case
-#ifdef _NXT_CHECK_STRIDE_1A
-#define _NXT_CASE_1A(_len, _dtypes, _dptr_A, _sb_A, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A) \\
-    else if (_dtypes[0] == NXT_TYPE_ENUM_A) {{ \\
-        if (_sb_A == sizeof(NXT_TYPE_A)) {{ \\
-            for (i = 0; i < _len; ++i, _dptr_A += sizeof(NXT_TYPE_A)) {{ \\
-                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A) \\
-            }} \\
-        }} else {{ \\
-            for (i = 0; i < _len; ++i, _dptr_A +=_sb_A) {{ \\
-                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A) \\
-            }} \\
-        }} \\
-    }}
-#else
-#define _NXT_CASE_1A(_len, _dtypes, _dptr_A, _sb_A, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A) \\
-    else if (_dtypes[0] == NXT_TYPE_ENUM_A) {{ \\
-        for (i = 0; i < _len; ++i, _dptr_A +=_sb_A) {{ \\
-            _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A) \\
-        }} \\
-    }}
-#endif
-
-
+#define _NXT_CASE_1A(_LOOP, _dtypes, NXT_DTYPE_0, NXT_TYPE_0) else if (_dtypes[0] == NXT_DTYPE_0) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0) }}
 // internal 2argument case
-#ifdef _NXT_CHECK_STRIDE_2A
-#define _NXT_CASE_2A(_len, _dtypes, _dptr_A, _dptr_B, _sb_A, _sb_B, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \\
-    else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B) {{ \\
-        if (_sb_A == sizeof(NXT_TYPE_A) && _sb_B == sizeof(NXT_TYPE_B)) {{ \\
-            for (i = 0; i < _len; ++i, _dptr_A += sizeof(NXT_TYPE_A), _dptr_B += sizeof(NXT_TYPE_B)) {{ \\
-                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \\
-            }} \\
-        }} else {{ \\
-            for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B) {{ \\
-                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \\
-            }} \\
-        }} \\
-    }}
-#else
-#define _NXT_CASE_2A(_len, _dtypes, _dptr_A, _dptr_B, _sb_A, _sb_B, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \\
-    else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B) {{ \\
-        for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B) {{ \\
-            _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B) \\
-        }} \\
-    }}
-#endif
-
-
-
+#define _NXT_CASE_2A(_LOOP, _dtypes, NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) else if (_dtypes[0] == NXT_DTYPE_0 && _dtypes[1] == NXT_DTYPE_1) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) }}
 // internal 3argument case
-#ifdef _NXT_CHECK_STRIDE_3A
-#define _NXT_CASE_3A(_len, _dtypes, _dptr_A, _dptr_B, _dptr_C, _sb_A, _sb_B, _sb_C, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \\
-    else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B && _dtypes[2] == NXT_TYPE_ENUM_C) {{ \\
-        if (_sb_A == sizeof(NXT_TYPE_A) && _sb_B == sizeof(NXT_TYPE_B) && _sb_C == sizeof(NXT_TYPE_C)) {{ \\
-            for (i = 0; i < _len; ++i, _dptr_A += sizeof(NXT_TYPE_A), _dptr_B += sizeof(NXT_TYPE_B), _dptr_C += sizeof(NXT_TYPE_C)) {{ \\
-                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \\
-            }} \\
-        }} else {{ \\
-            for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B, _dptr_C += _sb_C) {{ \\
-                _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \\
-            }} \\
-        }} \\
-    }}
-#else
-#define _NXT_CASE_3A(_len, _dtypes, _dptr_A, _dptr_B, _dptr_C, _sb_A, _sb_B, _sb_C, _LOOP_NAME, NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \\
-    else if (_dtypes[0] == NXT_TYPE_ENUM_A && _dtypes[1] == NXT_TYPE_ENUM_B && _dtypes[2] == NXT_TYPE_ENUM_C) {{ \\
-        for (i = 0; i < _len; ++i, _dptr_A +=_sb_A, _dptr_B += _sb_B, _dptr_C += _sb_C) {{ \\
-            _LOOP_NAME(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) \\
-        }} \\
-    }}
-#endif
+#define _NXT_CASE_3A(_LOOP, _dtypes, NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) else if (_dtypes[0] == NXT_DTYPE_0 && _dtypes[1] == NXT_DTYPE_1 && _dtypes[2] == NXT_DTYPE_2) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) }}
+
 
 
 """)
@@ -134,11 +70,11 @@ print (f"""
  *  
  *
  */
-#define NXT_GENERATE_1A(_len, _dtypes, _dptr_A, _sb_A, _LOOP_NAME) if (false) {{}} \\""")
+#define NXT_COMBO_1A(_LOOP, _dtypes) if (false) {{}} \\""")
 
 for trip in itertools.product(dtype_pairs, repeat=1):
     call_str = ", ".join(", ".join(dtp) for dtp in trip)
-    print (f"    _NXT_CASE_1A(_len, _dtypes, _dptr_A, _sb_A, _LOOP_NAME, {call_str}) \\")
+    print (f"    _NXT_CASE_1A(_LOOP, _dtypes, {call_str}) \\")
 
 
 print (f"""
@@ -149,12 +85,11 @@ print (f"""
  *  
  *
  */
-#define NXT_GENERATE_2A(_len, _dtypes, _dptr_A, _dptr_B, _sb_A, _sb_B, _LOOP_NAME) if (false) {{}} \\""")
+#define NXT_COMBO_2A(_LOOP, _dtypes) if (false) {{}} \\""")
 
 for trip in itertools.product(dtype_pairs, repeat=2):
     call_str = ", ".join(", ".join(dtp) for dtp in trip)
-    print (f"    _NXT_CASE_2A(_len, _dtypes, _dptr_A, _dptr_B, _sb_A, _sb_B, _LOOP_NAME, {call_str}) \\")
-
+    print (f"    _NXT_CASE_2A(_LOOP, _dtypes, {call_str}) \\")
 
 
 print (f"""
@@ -165,12 +100,11 @@ print (f"""
  *  
  *
  */
-#define NXT_GENERATE_3A(_len, _dtypes, _dptr_A, _dptr_B, _dptr_C, _sb_A, _sb_B, _sb_C, _LOOP_NAME) if (false) {{}} \\""")
+#define NXT_COMBO_3A(_LOOP, _dtypes) if (false) {{}} \\""")
 
 for trip in itertools.product(dtype_pairs, repeat=3):
     call_str = ", ".join(", ".join(dtp) for dtp in trip)
-    print (f"    _NXT_CASE_3A(_len, _dtypes, _dptr_A, _dptr_B, _dptr_C, _sb_A, _sb_B, _sb_C, _LOOP_NAME, {call_str}) \\")
-
+    print (f"    _NXT_CASE_3A(_LOOP, _dtypes, {call_str}) \\")
 
 
 

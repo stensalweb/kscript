@@ -8,7 +8,7 @@
 
 
 // internal, recursive string builder
-static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t dtype_size, int N, nx_size_t* dim, nx_size_t* stride, int depth) {
+static bool my_get_str(ks_str_b* SB, void* data, nx_dtype dtype, int N, nx_size_t* dim, nx_size_t* stride, int depth) {
 
     // truncation size
     nx_size_t trunc_size = 20;
@@ -29,40 +29,39 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
 
         // pointer & stride (in bytes)
         intptr_t dptr_A = (intptr_t)data;
-        nx_size_t sb_A = stride[0] * dtype_size;
 
+        // temporary storage
         char tmp[256];
-
-        // inner loop
-        #define INNER_LOOP(NXT_TYPE_ENUM_A, NXT_TYPE_A) { \
-            if (i > 0) ks_str_b_add_c(SB, ", "); \
-            if (NXT_TYPE_ENUM_A >= NX_DTYPE_SINT8 && NXT_TYPE_ENUM_A <= NX_DTYPE_UINT64) ks_str_b_add_fmt(SB, "%z", (ks_ssize_t)*(NXT_TYPE_A*)dptr_A); \
-            else if (NXT_TYPE_ENUM_A >= NX_DTYPE_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_FP64) { \
-                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f", (double)*(NXT_TYPE_A*)dptr_A); \
-                ks_str_b_add(SB, len, tmp); \
-            } \
-            else if (NXT_TYPE_ENUM_A >= NX_DTYPE_CPLX_FP32 && NXT_TYPE_ENUM_A <= NX_DTYPE_CPLX_FP64) { \
-                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f%+5.2fi", (double)creal(*(NXT_TYPE_A*)dptr_A), (double)cimag(*(NXT_TYPE_A*)dptr_A)); \
-                ks_str_b_add(SB, len, tmp); \
-            } else { \
-                ks_throw_fmt(ks_type_ToDoError, "Internal enum idx '%i' not handled in get_str", (int)NXT_TYPE_ENUM_A); \
-                return false; \
-            } \
-        }
 
         nx_size_t dim0 = dim[0];
         if (dim0 >= trunc_size) dim0 = trunc_size - 1;
 
-        // actually generate the loop body with all optimizations possible
-        NXT_GENERATE_1A(dim0, (&dtype), dptr_A, sb_A, INNER_LOOP)
+        #define GET_STR_LOOP(NXT_DTYPE_0, NXT_TYPE_0) for (i = 0; i < dim0; ++i, dptr_A += stride[0]) { \
+            if (i > 0) ks_str_b_add_c(SB, ", "); \
+            if (NXT_DTYPE_0->kind == NX_DTYPE_KIND_CINT) ks_str_b_add_fmt(SB, "%z", (ks_ssize_t)*(NXT_TYPE_0*)dptr_A); \
+            else if (NXT_DTYPE_0->kind == NX_DTYPE_KIND_CFLOAT) { \
+                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f", (double)*(NXT_TYPE_0*)dptr_A); \
+                ks_str_b_add(SB, len, tmp); \
+            } \
+            else if (NXT_DTYPE_0->kind == NX_DTYPE_KIND_CCOMPLEX) { \
+                int len = snprintf(tmp, sizeof(tmp) - 1, "%5.2f%+5.2fi", (double)creal(*(NXT_TYPE_0*)dptr_A), (double)cimag(*(NXT_TYPE_0*)dptr_A)); \
+                ks_str_b_add(SB, len, tmp); \
+            } else { \
+                ks_throw_fmt(ks_type_ToDoError, "Internal dtype '%S' not handled in get_str", NXT_DTYPE_0); \
+                return false; \
+            } \
+        }
+
+        NXT_COMBO_1A(GET_STR_LOOP, (&dtype));
 
         if (dim[0] >= trunc_size) {
             ks_str_b_add_fmt(SB, " ...(%z) ", dim[0] - trunc_size);
 
-            dptr_A = (intptr_t)data + sb_A * (dim[0] - 1);
+            dptr_A = (intptr_t)data + stride[0] * (dim[0] - 1);
             nx_size_t d1 = 1;
 
-            NXT_GENERATE_1A(d1, (&dtype), dptr_A, sb_A, INNER_LOOP)
+            dim0 = 1;
+            NXT_COMBO_1A(GET_STR_LOOP, (&dtype));
         }
 
 
@@ -75,7 +74,7 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
         // otherwise, recrusively call the my_get_str with sub-arrays
 
         // convert to an integer for math, and compute the amount changed per entry
-        intptr_t data_i = (intptr_t)data, data_i_delta = stride[0] * dtype_size;
+        intptr_t data_i = (intptr_t)data;
 
         ks_str_b_add_c(SB, "[");
 
@@ -85,10 +84,10 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
 
         // loop through all outer dimensions
         int i;
-        for (i = 0; i < dim0; i++, data_i += data_i_delta) {
+        for (i = 0; i < dim0; i++, data_i += stride[0]) {
             if (i > 0) ks_str_b_add_fmt(SB, "\n%*c", depth + 1, ' ');
 
-            bool stat = my_get_str(SB, (void*)data_i, dtype, dtype_size, N-1, dim+1, stride+1, depth + 1);
+            bool stat = my_get_str(SB, (void*)data_i, dtype, N-1, dim+1, stride+1, depth + 1);
             if (!stat) return false;
         }
 
@@ -96,9 +95,9 @@ static bool my_get_str(ks_str_b* SB, void* data, enum nx_dtype dtype, nx_size_t 
             ks_str_b_add_fmt(SB, "\n%*c...(%z)", depth + 1, ' ', dim[0] - trunc_size);
             ks_str_b_add_fmt(SB, "\n%*c", depth + 1, ' ');
 
-            data_i = (intptr_t)data + data_i_delta * (dim[0] - 1);
+            data_i = (intptr_t)data + stride[0] * (dim[0] - 1);
             
-            bool stat = my_get_str(SB, (void*)data_i, dtype, dtype_size, N-1, dim+1, stride+1, depth + 1);
+            bool stat = my_get_str(SB, (void*)data_i, dtype, N-1, dim+1, stride+1, depth + 1);
             if (!stat) return false;
         }
 
@@ -118,7 +117,7 @@ ks_str nx_get_str(nxar_t A) {
     ks_str_b SB;
     ks_str_b_init(&SB);
 
-    bool stat = my_get_str(&SB, A.data, A.dtype, nx_dtype_size(A.dtype), A.N, A.dim, A.stride, 0);
+    bool stat = my_get_str(&SB, A.data, A.dtype, A.rank, A.dim, A.stride, 0);
 
     ks_str res = ks_str_b_get(&SB);
     ks_str_b_free(&SB);

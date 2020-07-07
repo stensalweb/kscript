@@ -188,7 +188,7 @@ bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size_t* R_d
 
 
 // size,stride dot
-nx_size_t nx_szsdot(int N, nx_size_t dtype_sz, nx_size_t* dim, nx_size_t* stride, nx_size_t* idxs) {
+nx_size_t nx_szsdot(int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idxs) {
 
     // result offset (in elements)
     nx_size_t r = 0;
@@ -201,11 +201,11 @@ nx_size_t nx_szsdot(int N, nx_size_t dtype_sz, nx_size_t* dim, nx_size_t* stride
     }
 
     // convert to bytes
-    return dtype_sz * r;
+    return r;
 }
 
 
 // get pointer to element
-void* nx_get_ptr(void* data, nx_size_t dtype_sz, int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idx) {
-    return (void*)((intptr_t)data + nx_szsdot(N, dtype_sz, dim, stride, idx));
+void* nx_get_ptr(void* data, int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idx) {
+    return (void*)((intptr_t)data + nx_szsdot(N, dim, stride, idx));
 }

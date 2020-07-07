@@ -437,6 +437,9 @@ export SHARED_END
 STATIC_END       := {STATIC_END}
 export STATIC_END
 
+STRIP            ?= strip
+export STRIP
+
 STRIP_OPTS       ?= --strip-debug --strip-unneeded
 export STRIP_OPTS
 
@@ -598,7 +601,7 @@ $(libks_SHARED): $(libks_O)
 		-Wl,-Bsymbolic \\
 		-Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive \\
 		-shared {LIB_FLAGS} -o $@.$(KS_VERSION)
-	strip $@.$(KS_VERSION) $(STRIP_OPTS)
+	$(STRIP) $@.$(KS_VERSION) $(STRIP_OPTS)
 	rm -f $@
 	ln -s libks.$(SHARED_END).$(KS_VERSION) $@
 	{MAKE_success}
@@ -607,7 +610,7 @@ $(libks_SHARED): $(libks_O)
 $(libks_STATIC): $(libks_O)
 	@mkdir -p $(dir $@)
 	$(AR) cr $@ $^
-	strip $@ $(STRIP_OPTS)
+	$(STRIP) $@ $(STRIP_OPTS)
 	{MAKE_success}
 
 # rule to build the executable (no extension) from the library and it's `.o`'s
@@ -619,7 +622,7 @@ $(ks_BIN): $(libks_SHARED) $(ks_O)
 		-L../lib -L{PWD}/lib $(RPATH_FLAGS) \\
 		$(libks_SHARED).$(KS_VERSION) -lm -ldl -lpthread \\
 		-o $@
-	strip $@ $(STRIP_OPTS)
+	$(STRIP) $@ $(STRIP_OPTS)
 	{"cp $(libks_SHARED).$(KS_VERSION) $(dir $@)" if "KS__WINDOWS" in defs or "KS__CYGWIN" in defs else ""}
 	{MAKE_success}
 

@@ -23,39 +23,6 @@
 //#define NX_ASSERT_CHECK(_expr) { if (!(_expr)) { fprintf(stderr, "INTERNAL NX ASSERT ERROR: " #_expr "\n"); exit(1); } }
 #define NX_ASSERT_CHECK assert
 
-// return the size of a given dtype
-static int nx_dtype_size(enum nx_dtype dtype) {
-    /*  */ if (dtype == NX_DTYPE_SINT8) {
-        return sizeof(int8_t);
-    } else if (dtype == NX_DTYPE_UINT8) {
-        return sizeof(uint8_t);
-    } else if (dtype == NX_DTYPE_SINT16) {
-        return sizeof(int16_t);
-    } else if (dtype == NX_DTYPE_UINT16) {
-        return sizeof(uint16_t);
-    } else if (dtype == NX_DTYPE_SINT32) {
-        return sizeof(int32_t);
-    } else if (dtype == NX_DTYPE_UINT32) {
-        return sizeof(uint32_t);
-    } else if (dtype == NX_DTYPE_SINT64) {
-        return sizeof(int64_t);
-    } else if (dtype == NX_DTYPE_UINT64) {
-        return sizeof(uint64_t);
-    } else if (dtype == NX_DTYPE_FP32) {
-        return sizeof(float);
-    } else if (dtype == NX_DTYPE_FP64) {
-        return sizeof(double);
-    } else if (dtype == NX_DTYPE_CPLX_FP32) {
-        return sizeof(float complex);
-    } else if (dtype == NX_DTYPE_CPLX_FP64) {
-        return sizeof(double complex);
-    } else {
-        // indicates error
-        ks_throw_fmt(ks_type_TypeError, "Invalid nx dtype enumeration '%i'", (int)dtype);
-        return 0;
-    }
-}
-
 // return a tuple of a size array
 static ks_tuple nx_wrap_szar(int N, nx_size_t* sz) {
 
@@ -71,12 +38,12 @@ static ks_tuple nx_wrap_szar(int N, nx_size_t* sz) {
 
 
 // cast an object to a specific dtype
-static bool nx_cast_to(ks_obj obj, enum nx_dtype dtype, nx_any_t* to) {
+static bool nx_cast_to(ks_obj obj, nx_dtype dtype, void* to) {
 
     // cast-to error
     #define CTER() { \
         ks_catch_ignore(); \
-        ks_throw_fmt(ks_type_TypeError, "Could not cast '%T' object to nx type '%s'", obj, nx_dtype_get_name(dtype)); \
+        ks_throw_fmt(ks_type_TypeError, "Could not cast '%T' object to nx type '%S'", obj, dtype); \
         return false; \
     }
 
@@ -84,49 +51,49 @@ static bool nx_cast_to(ks_obj obj, enum nx_dtype dtype, nx_any_t* to) {
     int64_t v64;
     double vfp;
     double complex vcfp;
-    /*  */ if (dtype == NX_DTYPE_SINT8) {
+    /*  */ if (dtype == nx_dtype_sint8) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_sint8 = v64;
-    } else if (dtype == NX_DTYPE_UINT8) {
+        *(int8_t*)to = v64;
+    } else if (dtype == nx_dtype_uint8) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_uint8 = v64;
-    } else if (dtype == NX_DTYPE_SINT16) {
+        *(uint8_t*)to = v64;
+    } else if (dtype == nx_dtype_sint16) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_sint16 = v64;
-    } else if (dtype == NX_DTYPE_UINT16) {
+        *(int16_t*)to = v64;
+    } else if (dtype == nx_dtype_uint16) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_uint16 = v64;
-    } else if (dtype == NX_DTYPE_SINT32) {
+        *(uint16_t*)to = v64;
+    } else if (dtype == nx_dtype_sint32) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_sint32 = v64;
-    } else if (dtype == NX_DTYPE_UINT32) {
+        *(int32_t*)to = v64;
+    } else if (dtype == nx_dtype_uint32) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_uint32 = v64;
-    } else if (dtype == NX_DTYPE_SINT64) {
+        *(uint32_t*)to = v64;
+    } else if (dtype == nx_dtype_sint64) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_sint64 = v64;
-    } else if (dtype == NX_DTYPE_UINT64) {
+        *(int64_t*)to = v64;
+    } else if (dtype == nx_dtype_uint64) {
         if (!ks_num_get_int64(obj, &v64)) CTER()
-        to->v_uint64 = v64;
+        *(uint64_t*)to = v64;
 
-    } else if (dtype == NX_DTYPE_FP32) {
+    } else if (dtype == nx_dtype_fp32) {
         if (!ks_num_get_double(obj, &vfp)) CTER()
-        to->v_fp32 = vfp;
-    } else if (dtype == NX_DTYPE_FP64) {
+        *(float*)to = vfp;
+    } else if (dtype == nx_dtype_fp64) {
         if (!ks_num_get_double(obj, &vfp)) CTER()
-        to->v_fp64 = vfp;
+        *(double*)to = vfp;
 
-    } else if (dtype == NX_DTYPE_CPLX_FP32) {
+    } else if (dtype == nx_dtype_cplx_fp32) {
         if (!ks_num_get_double_complex(obj, &vcfp)) CTER()
-        to->v_cplx_fp64 = vcfp;
+        *(float complex*)to = vcfp;
 
-    } else if (dtype == NX_DTYPE_CPLX_FP64) {
+    } else if (dtype == nx_dtype_cplx_fp64) {
         if (!ks_num_get_double_complex(obj, &vcfp)) CTER()
-        to->v_cplx_fp64 = vcfp;
+        *(double complex*)to = vcfp;
 
     } else {
         // indicates error
-        ks_throw_fmt(ks_type_TypeError, "Could not cast '%T' object to nx type '%s'", obj, nx_dtype_get_name(dtype));
+        ks_throw_fmt(ks_type_TypeError, "Could not cast '%T' object to nx type '%S'", obj, dtype);
         return false;
     }
     return true;
@@ -136,38 +103,38 @@ static bool nx_cast_to(ks_obj obj, enum nx_dtype dtype, nx_any_t* to) {
 
 
 // convert from a Ctype into a ks_obj
-static ks_obj nx_cast_from(enum nx_dtype dtype, void* from) {
+static ks_obj nx_cast_from(nx_dtype dtype, void* from) {
 
-    /*  */ if (dtype == NX_DTYPE_SINT8) {
+    /*  */ if (dtype == nx_dtype_sint8) {
         return (ks_obj)ks_int_new(*(int8_t*)from);
-    } else if (dtype == NX_DTYPE_UINT8) {
+    } else if (dtype == nx_dtype_uint8) {
         return (ks_obj)ks_int_new(*(uint8_t*)from);
-    } else if (dtype == NX_DTYPE_SINT16) {
+    } else if (dtype == nx_dtype_sint16) {
         return (ks_obj)ks_int_new(*(int16_t*)from);
-    } else if (dtype == NX_DTYPE_UINT16) {
+    } else if (dtype == nx_dtype_uint16) {
         return (ks_obj)ks_int_new(*(uint16_t*)from);
-    } else if (dtype == NX_DTYPE_SINT32) {
+    } else if (dtype == nx_dtype_sint32) {
         return (ks_obj)ks_int_new(*(int32_t*)from);
-    } else if (dtype == NX_DTYPE_UINT32) {
+    } else if (dtype == nx_dtype_uint32) {
         return (ks_obj)ks_int_new(*(uint32_t*)from);
-    } else if (dtype == NX_DTYPE_SINT64) {
+    } else if (dtype == nx_dtype_sint64) {
         return (ks_obj)ks_int_new(*(int64_t*)from);
-    } else if (dtype == NX_DTYPE_UINT64) {
+    } else if (dtype == nx_dtype_uint64) {
         return (ks_obj)ks_int_new(*(uint64_t*)from);
 
-    } else if (dtype == NX_DTYPE_FP32) {
+    } else if (dtype == nx_dtype_fp32) {
         return (ks_obj)ks_float_new(*(float*)from);
-    } else if (dtype == NX_DTYPE_FP64) {
+    } else if (dtype == nx_dtype_fp64) {
         return (ks_obj)ks_float_new(*(double*)from);
 
-    } else if (dtype == NX_DTYPE_CPLX_FP32) {
+    } else if (dtype == nx_dtype_cplx_fp32) {
         return (ks_obj)ks_complex_new(*(float complex*)from);
 
-    } else if (dtype == NX_DTYPE_CPLX_FP64) {
+    } else if (dtype == nx_dtype_cplx_fp64) {
         return (ks_obj)ks_complex_new(*(double complex*)from);
 
     } else {
-        return ks_throw_fmt(ks_type_InternalError, "Did not handle dtype=%i in nx_cast_from", (int)dtype);
+        return ks_throw_fmt(ks_type_InternalError, "Did not handle dtype=%S", dtype);
     }
 }
 
@@ -187,36 +154,15 @@ static void nx_memset_block(void* dest, void* data, nx_size_t size, nx_size_t st
 }
 
 
-// enumeration values
-extern ks_Enum
-    nx_SINT8,
-    nx_UINT8,
-    nx_SINT16,
-    nx_UINT16,
-    nx_SINT32,
-    nx_UINT32,
-    nx_SINT64,
-    nx_UINT64,
-
-    nx_FP32,
-    nx_FP64,
-
-    nx_CPLX_FP32,
-    nx_CPLX_FP64
-;
-
-
-
 /** INTERNAL ROUTINES FOR INITIALIZATION **/
 
+void nx_type_dtype_init();
 void nx_type_array_init();
 void nx_type_view_init();
 
 // adding submodules
 void nx_mod_add_fft(ks_module nxmod);
 void nx_mod_add_la(ks_module nxmod);
-
-
 
 
 #endif

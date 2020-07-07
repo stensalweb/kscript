@@ -8,104 +8,6 @@
 
 #include "../nx-impl.h"
 
-// get by name
-enum nx_dtype nx_dtype_get(char* name) {
-
-    int sl = strlen(name);
-
-    // macro for string matching
-    #define ISS(_str) (sl == ((sizeof(_str)) - 1) && strncmp(_str, name, sl) == 0)
-
-    if (ISS("int8") || ISS("char")) {
-        return NX_DTYPE_SINT8;
-    } else if (ISS("uint8") || ISS("uchar")) {
-        return NX_DTYPE_UINT8;
-    } else if (ISS("int16") || ISS("short")) {
-        return NX_DTYPE_SINT16;
-    } else if (ISS("uint16") || ISS("ushort")) {
-        return NX_DTYPE_UINT16;
-    } else if (ISS("int32") || ISS("int") || ISS("i")) {
-        return NX_DTYPE_SINT32;
-    } else if (ISS("uint32") || ISS("uint")) {
-        return NX_DTYPE_UINT32;
-    } else if (ISS("int64") || ISS("long")) {
-        return NX_DTYPE_SINT64;
-    } else if (ISS("uint64") || ISS("ulong")) {
-        return NX_DTYPE_UINT64;
-    } else if (ISS("float32") || ISS("float") || ISS("f") || ISS("fp32")) {
-        return NX_DTYPE_FP32;
-    } else if (ISS("float64") || ISS("double") || ISS("d") || ISS("fp64")) {
-        return NX_DTYPE_FP64;
-    } else if (ISS("complex") || ISS("complex32") || ISS("cfp32")) {
-        return NX_DTYPE_CPLX_FP32;
-    } else if (ISS("dcomplex") || ISS("complex64") || ISS("cfp64")) {
-        return NX_DTYPE_CPLX_FP64;
-    } else {
-        // throw an error
-        ks_throw_fmt(ks_type_TypeError, "Unknown dtype specifier '%s'", name);
-        return 0;
-    }
-
-    #undef ISS
-
-}
-
-// Return an enumeration object
-// NOTE: Returns a new reference
-KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype) {
-    /*  */ if (dtype == NX_DTYPE_SINT8) {
-        return (ks_Enum)KS_NEWREF(nx_SINT8);
-    } else if (dtype == NX_DTYPE_UINT8) {
-        return (ks_Enum)KS_NEWREF(nx_UINT8);
-    } else if (dtype == NX_DTYPE_SINT16) {
-        return (ks_Enum)KS_NEWREF(nx_SINT16);
-    } else if (dtype == NX_DTYPE_UINT16) {
-        return (ks_Enum)KS_NEWREF(nx_UINT16);
-    } else if (dtype == NX_DTYPE_SINT32) {
-        return (ks_Enum)KS_NEWREF(nx_SINT32);
-    } else if (dtype == NX_DTYPE_UINT32) {
-        return (ks_Enum)KS_NEWREF(nx_UINT32);
-    } else if (dtype == NX_DTYPE_SINT64) {
-        return (ks_Enum)KS_NEWREF(nx_SINT64);
-    } else if (dtype == NX_DTYPE_UINT64) {
-        return (ks_Enum)KS_NEWREF(nx_UINT64);
-    } else if (dtype == NX_DTYPE_FP32) {
-        return (ks_Enum)KS_NEWREF(nx_FP32);
-    } else if (dtype == NX_DTYPE_FP64) {
-        return (ks_Enum)KS_NEWREF(nx_FP64);
-    } else if (dtype == NX_DTYPE_CPLX_FP32) {
-        return (ks_Enum)KS_NEWREF(nx_CPLX_FP32);
-    } else if (dtype == NX_DTYPE_CPLX_FP64) {
-        return (ks_Enum)KS_NEWREF(nx_CPLX_FP64);
-    } else {
-        return ks_throw_fmt(ks_type_Error, "Given unknown dtype enum (int: %i)", (int)dtype);
-    }
-}
-
-
-static char* _dtype_names[] = {
-    [NX_DTYPE_NONE]         = "error-type",
-
-    [NX_DTYPE_SINT8]        = "sint8",
-    [NX_DTYPE_UINT8]        = "uint8",
-    [NX_DTYPE_SINT16]       = "sint16",
-    [NX_DTYPE_UINT16]       = "uint16",
-    [NX_DTYPE_SINT32]       = "sint32",
-    [NX_DTYPE_UINT32]       = "uint32",
-    [NX_DTYPE_SINT64]       = "sint64",
-    [NX_DTYPE_UINT64]       = "uint64",
-
-    [NX_DTYPE_FP32]         = "fp32",
-    [NX_DTYPE_FP64]         = "fp64",
-
-    [NX_DTYPE_CPLX_FP32]    = "complex_fp32",
-    [NX_DTYPE_CPLX_FP64]    = "complex_fp64",
-};
-
-// get name
-char* nx_dtype_get_name(enum nx_dtype dtype) {
-    return _dtype_names[dtype];
-}
 
 bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd) {
 
@@ -117,7 +19,7 @@ bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd) {
         return true;
     } else if (ks_num_is_numeric(obj) || ks_is_iterable(obj)) {
         // convert to object
-        nx_array new_arr = nx_array_from_obj(obj, NX_DTYPE_NONE);
+        nx_array new_arr = nx_array_from_obj(obj, NX_DTYPE_KIND_NONE);
         if (!new_arr) return false;
 
         *nxar = NXAR_ARRAY(new_arr);
@@ -135,7 +37,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
     if (N == 0) {
         // return view of the entire array
         return (ks_obj)nx_view_new(nxar.src_obj, nxar);
-    } else if (N <= nxar.N) {
+    } else if (N <= nxar.rank) {
 
         // the index, or -1 if we need to calculate a slice
         int64_t* idxis = ks_malloc(N * sizeof(*idxs));
@@ -157,16 +59,16 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
             }
         }
 
-        if (!needSlice && N == nxar.N) {
+        if (!needSlice && N == nxar.rank) {
             // return single element
-            void* addr = nx_get_ptr(nxar.data, nx_dtype_size(nxar.dtype), N, nxar.dim, nxar.stride, idxis);
+            void* addr = nx_get_ptr(nxar.data, N, nxar.dim, nxar.stride, idxis);
             ks_free(idxs);
 
             return nx_cast_from(nxar.dtype, addr);
         } else {
 
             // result dimension is the number of indexes which were not integers + those not referenced
-            int rN = nxar.N - N;
+            int rN = nxar.rank - N;
             for (i = 0; i < N; ++i) if (idxis[i] < 0) rN++;
 
             // otherwise, calculate slices & return view
@@ -175,9 +77,6 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
 
             // offset from the base pointer
             nx_size_t total_offset = 0;
-
-            // dtype size
-            nx_size_t dtsz = nx_dtype_size(nxar.dtype);
 
 
             // return index
@@ -188,7 +87,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
 
                 if (idxis[i] >= 0) {
                     // single index here, just bump the array off
-                    total_offset += dtsz * idxis[i] * nxar.stride[i];
+                    total_offset += idxis[i] * nxar.stride[i];
 
                     //dim[ri] = self->dim[i];
                     //stride[ri] = self->stride[i];
@@ -228,7 +127,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
                     stride[ri] = nxar.stride[i] * delta;
 
                     // and add total offset to the first
-                    total_offset += dtsz * first * nxar.stride[i];
+                    total_offset += first * nxar.stride[i];
 
                     // claim this dimension
                     ri++;
@@ -257,7 +156,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
                 (nxar_t){
                     .data = (void*)((intptr_t)nxar.data + total_offset),
                     .dtype = nxar.dtype,
-                    .N = rN,
+                    .rank = rN,
                     .dim = dim,
                     .stride = stride
                 }
@@ -268,7 +167,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
         }
 
     } else {
-        return ks_throw_fmt(ks_type_KeyError, "nx.array[...] expected %i indices (for %iD array), but only got %i", nxar.N, nxar.N, N);
+        return ks_throw_fmt(ks_type_KeyError, "nx.array[...] expected %i indices (for %iD array), but only got %i", nxar.rank, nxar.rank, N);
     }
 
 }

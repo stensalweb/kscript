@@ -27,7 +27,6 @@ KS_TYPE_DECLFWD(nx_type_array);
 
 // Create a new array with a given data type, and dimensions
 nx_array nx_array_new(nxar_t nxar) {
-
     // create a new result
     nx_array self = KS_ALLOC_OBJ(nx_array);
     KS_INIT_OBJ(self, nx_type_array);
@@ -36,39 +35,39 @@ nx_array nx_array_new(nxar_t nxar) {
     self->dim = self->stride = self->data = NULL;
 
     self->dtype = nxar.dtype;
+    KS_INCREF(nxar.dtype);
 
     // create size information
-    self->N = nxar.N;
-    self->dim = ks_malloc(sizeof(*self->dim) * self->N);
-    self->stride = ks_malloc(sizeof(*self->stride) * self->N);
+    self->rank = nxar.rank;
+    self->dim = ks_malloc(sizeof(*self->dim) * self->rank);
+    self->stride = ks_malloc(sizeof(*self->stride) * self->rank);
 
     // copy the given data
-    memcpy(self->dim, nxar.dim, sizeof(*self->dim) * self->N);
+    memcpy(self->dim, nxar.dim, sizeof(*self->dim) * self->rank);
 
     // last dimension is immediate stride
-    self->stride[self->N - 1] = 1;
+    self->stride[self->rank - 1] = self->dtype->size;
 
     int i;
     // calculate strides
-    for (i = self->N - 2; i >= 0; --i) {
+    for (i = self->rank - 2; i >= 0; --i) {
         self->stride[i] = self->stride[i + 1] * self->dim[i + 1];
     }
 
     // size of 1 element
-    nx_size_t total_sz = nx_dtype_size(self->dtype);
+    nx_size_t total_sz = self->dtype->size;
 
     // times all dimensions
-    for (i = 0; i < self->N; ++i) {
+    for (i = 0; i < self->rank; ++i) {
         total_sz *= self->dim[i];
     }
-
 
     // allocate the data
     self->data = ks_malloc(total_sz);
 
     if (!self->data) {
         KS_DECREF(self);
-        return ks_throw_fmt(ks_type_Error, "Failed to allocate tensor of size [%+z] (%lGB)", self->N, self->dim, (int64_t)(total_sz / 1e9));
+        return ks_throw_fmt(ks_type_Error, "Failed to allocate tensor of size [%+z] (%lGB)", self->rank, self->dim, (int64_t)(total_sz / 1e9));
     }
 
     if (nxar.data) {
@@ -87,18 +86,19 @@ nx_array nx_array_new(nxar_t nxar) {
     } else {
 
         // set all to 0
-        int8_t tmp_0 = 0;
+        int tmp0 = 0;
 
         if (!nx_T_cast(
             (nxar_t){ 
-                .data = (void*)&tmp_0,
-                .dtype = NX_DTYPE_SINT8,
-                .N = 1,
+                .data = (void*)&tmp0,
+                .dtype = nx_dtype_sint32,
+                .rank = 1,
                 .dim = (nx_size_t[]){ 1 },
                 .stride = (nx_size_t[]){ 0 },
             },
             NXAR_ARRAY(self)
         )) {
+
             KS_DECREF(self);
             return NULL;
         }
@@ -110,9 +110,8 @@ nx_array nx_array_new(nxar_t nxar) {
 
 
 // recursive internal procedure for filling array from recursive iterators
-static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, ks_ssize_t** dims) {
+static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, ks_ssize_t** dims) {
     if (ks_is_iterable(cur)) {
-
         // we have a list, so need to continue recursively calling it
         ks_list elems = ks_list_from_iterable(cur);
         if (!elems) return false;
@@ -129,6 +128,7 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
             (*dims)[dep] = elems->len;
         }
 
+
         int i;
         for (i = 0; i < elems->len; ++i) {
             // recursively call more
@@ -136,6 +136,8 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
                 return false;
             }
         }
+
+
 
         KS_DECREF(elems);
 
@@ -148,31 +150,30 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
         if (my_idx == 0) {
             // we are the first! create 'resp'
             //*resp = nx_array_new(dtype, dep, *dims, NULL);
-            *resp = nx_array_new((nxar_t){ .N = dep, .dtype = dtype, .dim = *dims, .stride = NULL, .data = NULL });
+            *resp = nx_array_new((nxar_t){ .rank = dep, .dtype = dtype, .dim = *dims, .stride = NULL, .data = NULL });
         } else {
             // already created, ensure we are at maximum depth
-            if (dep != (*resp)->N) {
+            if (dep != (*resp)->rank) {
                 ks_throw_fmt(ks_type_SizeError, "Initializing entries had differing size!");
                 return false;
             }
         }
 
-        ks_ssize_t sizeof_dtype = nx_dtype_size(dtype);
-        if (sizeof_dtype < 0) return false;
 
         // get address of result:
-        uintptr_t addr = sizeof_dtype * my_idx + (uintptr_t)(*resp)->data;
+        intptr_t addr = (intptr_t)(*resp)->data + dtype->size * my_idx;
 
         // now, cast to C-type
         if (!nx_T_set_all((nxar_t){
             .data = (void*)addr, 
-            .dtype = dtype, 
-            .N = 1, 
+            .dtype = dtype,
+            .rank = 1, 
             .dim = (nx_size_t[]){ 1 }, 
             .stride = (nx_size_t[]){ 0 }
         }, cur)) {
             return false;
         }
+
     }
 
     return true;
@@ -181,13 +182,14 @@ static bool my_array_fill(enum nx_dtype dtype, nx_array* resp, ks_obj cur, int* 
 
 
 // create a nx array from an object
-nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype) {
+nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
 
     if (ks_is_iterable(obj)) {
 
+
         // try to auto-set it
-        if (dtype == NX_DTYPE_NONE) {
-            dtype = NX_DTYPE_FP32;
+        if (dtype == NULL) {
+            dtype = nx_dtype_fp32;
         }
 
         // current dimensional index
@@ -206,22 +208,23 @@ nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype) {
             return NULL;
         }
 
+
         ks_free(dims);
 
         return res;
     } else {
 
         // try to auto-set it
-        if (dtype == NX_DTYPE_NONE) {
+        if (dtype == NX_DTYPE_KIND_NONE) {
             if (obj->type == ks_type_int) {
-                dtype = NX_DTYPE_SINT64;
+                dtype = nx_dtype_sint64;
             } else if (obj->type == ks_type_float) {
-                dtype = NX_DTYPE_FP64;
+                dtype = nx_dtype_fp64;
             } else if (obj->type == ks_type_complex) {
-                dtype = NX_DTYPE_CPLX_FP64;
+                dtype = nx_dtype_cplx_fp64;
             } else {
                 // default to FP32
-                dtype = NX_DTYPE_FP32;
+                dtype = nx_dtype_fp32;
             }
         }
 
@@ -229,7 +232,7 @@ nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype) {
         nx_array res = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = dtype, 
-            .N = 1, 
+            .rank = 1, 
             .dim = (nx_size_t[]){ 1 },
             .stride = NULL
         });
@@ -249,12 +252,11 @@ nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype) {
 static KS_TFUNC(array, new) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
     ks_obj obj;
-    ks_Enum dtype = NULL;
-    if (!ks_parse_params(n_args, args, "obj%any ?dtype%*", &obj, &dtype, nx_enum_dtype)) return NULL;
-
+    nx_dtype dtype = NULL;
+    if (!ks_parse_params(n_args, args, "obj%any ?dtype%*", &obj, &dtype, nx_type_dtype)) return NULL;
 
     // use the creation routine
-    return (ks_obj)nx_array_from_obj(obj, dtype ? (enum nx_dtype)dtype->enum_idx : NX_DTYPE_NONE);
+    return (ks_obj)nx_array_from_obj(obj, dtype);
 
 }
 
@@ -293,11 +295,11 @@ static KS_TFUNC(array, getattr) {
 
     // attempt to get one of the attributes
     if (attr->len == 5 && strncmp(attr->chr, "shape", 5) == 0) {
-        return (ks_obj)ks_build_tuple("%+z", self->N, self->dim);
+        return (ks_obj)ks_build_tuple("%+z", self->rank, self->dim);
     } else if (attr->len == 6 && strncmp(attr->chr, "stride", 6) == 0) {
-        return (ks_obj)ks_build_tuple("%+z", self->N, self->stride);
+        return (ks_obj)ks_build_tuple("%+z", self->rank, self->stride);
     } else if (attr->len == 5 && strncmp(attr->chr, "dtype", 5) == 0) {
-        return (ks_obj)nx_dtype_get_enum(self->dtype);
+        return KS_NEWREF(self->dtype);
     } else {
 
         // now, try getting a member function

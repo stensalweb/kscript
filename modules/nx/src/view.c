@@ -16,14 +16,15 @@ nx_view nx_view_new(ks_obj ref, nxar_t nxar) {
     KS_INIT_OBJ(self, nx_type_view);
 
     self->data = nxar.data;
-    self->N = nxar.N;
+    self->rank = nxar.rank;
     self->dtype = nxar.dtype;
-    self->dim = ks_malloc(sizeof(*self->dim) * nxar.N);
-    self->stride = ks_malloc(sizeof(*self->stride) * nxar.N);
+    KS_INCREF(nxar.dtype);
+    self->dim = ks_malloc(sizeof(*self->dim) * nxar.rank);
+    self->stride = ks_malloc(sizeof(*self->stride) * nxar.rank);
 
     // TODO: perhaps allow '-1' arguments in dim for the enter size of 'ref'?
     int i;
-    for (i = 0; i < nxar.N; ++i) {
+    for (i = 0; i < nxar.rank; ++i) {
         self->dim[i] = nxar.dim[i];
         self->stride[i] = nxar.stride[i];
     }
@@ -76,11 +77,11 @@ static KS_TFUNC(view, getattr) {
 
     // attempt to get one of the attributes
     if (attr->len == 5 && strncmp(attr->chr, "shape", 5) == 0) {
-        return (ks_obj)ks_build_tuple("%+z", self->N, self->dim);
+        return (ks_obj)ks_build_tuple("%+z", self->rank, self->dim);
     } else if (attr->len == 6 && strncmp(attr->chr, "stride", 6) == 0) {
-        return (ks_obj)ks_build_tuple("%+z", self->N, self->stride);
+        return (ks_obj)ks_build_tuple("%+z", self->rank, self->stride);
     } else if (attr->len == 5 && strncmp(attr->chr, "dtype", 5) == 0) {
-        return (ks_obj)nx_dtype_get_enum(self->dtype);
+        return KS_NEWREF(self->dtype);
     } else {
 
         // now, try getting a member function

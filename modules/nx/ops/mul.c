@@ -9,26 +9,22 @@
 
 // internal 1D loop for multipling elementwise
 // datas[0] * datas[1] -> datas[2]
-static bool my_mul_1d(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
+static bool my_mul_1d(int Nin, void** datas, nx_dtype* dtypes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
     NX_ASSERT_CHECK(Nin == 3);
 
     // loop vars
-    int i;
+    nx_size_t i;
 
     // convert to integers for math
-    intptr_t dptr_A = (intptr_t)datas[0], dptr_B = (intptr_t)datas[1], dptr_C = (intptr_t)datas[2];
-    // stride (in bytes)
-    intptr_t sb_A = strides[0] * dtype_sizes[0], sb_B = strides[1] * dtype_sizes[1], sb_C = strides[2] * dtype_sizes[2];
+    intptr_t dptr_0 = (intptr_t)datas[0], dptr_1 = (intptr_t)datas[1], dptr_2 = (intptr_t)datas[2];
 
-
-    // inner loop
-    #define INNER_LOOP(NXT_TYPE_ENUM_A, NXT_TYPE_A, NXT_TYPE_ENUM_B, NXT_TYPE_B, NXT_TYPE_ENUM_C, NXT_TYPE_C) { \
-        *(NXT_TYPE_C*)dptr_C = *(NXT_TYPE_A*)dptr_A * *(NXT_TYPE_B*)dptr_B; \
+    // 1D computation loop template
+    #define INNER_LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) for (i = 0; i < dim; ++i, dptr_0 += strides[0], dptr_1 += strides[1], dptr_2 += strides[2]) { \
+        *(NXT_TYPE_2*)dptr_2 = *(NXT_TYPE_0*)dptr_0 * *(NXT_TYPE_1*)dptr_1; \
     }
 
-    // generate a huge body containing all the data combinations
-    NXT_GENERATE_3A(dim, dtypes, dptr_A, dptr_B, dptr_C, sb_A, sb_B, sb_C, INNER_LOOP)
-
+    // generate all combinations
+    NXT_COMBO_3A(INNER_LOOP, dtypes);
 
     // stop using the macro
     #undef INNER_LOOP
@@ -43,8 +39,8 @@ bool nx_T_mul(nxar_t A, nxar_t B, nxar_t C) {
     // apply the ufunc
     return nx_T_apply_ufunc(3, 
         (void*[]){ A.data, B.data, C.data }, 
-        (enum nx_dtype[]){ A.dtype, B.dtype, C.dtype }, 
-        (int[]){ A.N, B.N, C.N }, 
+        (nx_dtype[]){ A.dtype, B.dtype, C.dtype }, 
+        (int[]){ A.rank, B.rank, C.rank }, 
         (nx_size_t*[]){ A.dim, B.dim, C.dim }, 
         (nx_size_t*[]) { A.stride, B.stride, C.stride },
         my_mul_1d,

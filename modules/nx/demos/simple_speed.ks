@@ -22,13 +22,13 @@ p.add_arg_single("dtype", "What data type should be used for the comparison?", [
 args = p.parse()
 
 
-print (" ** Starting trial with %r %r".format(args.num, args.dtype))
+print (" ** Starting trial with %r %r".format(args.rankum, args.dtype))
 
 
 # kscript data
-kA = list(range(1, args.num+1))
-kB = list(range(3, 3 + 100 * args.num, 100))
-kC = list(range(args.num, 0, -1))
+kA = list(range(1, args.rankum+1))
+kB = list(range(3, 3 + 100 * args.rankum, 100))
+kC = list(range(args.rankum, 0, -1))
 
 
 # now, convert into numeriX arrays

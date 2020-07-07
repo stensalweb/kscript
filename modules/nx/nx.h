@@ -29,69 +29,57 @@
 #include <stdint.h>
 
 
-/* CONSTANTS */
-
-// Enum describing which data-type
-enum nx_dtype {
-
-    // None/error dtype
-    NX_DTYPE_NONE       =   0,
-
-    // signed/unsigned integers
-    NX_DTYPE_SINT8      =   1,
-    NX_DTYPE_UINT8      =   2,
-    NX_DTYPE_SINT16     =   3,
-    NX_DTYPE_UINT16     =   4,
-    NX_DTYPE_SINT32     =   5,
-    NX_DTYPE_UINT32     =   6,
-    NX_DTYPE_SINT64     =   7,
-    NX_DTYPE_UINT64     =   8,
-
-    // floating point numbers
-    NX_DTYPE_FP32       =   9,
-    NX_DTYPE_FP64       =  10,
-
-    // floating point complex
-    NX_DTYPE_CPLX_FP32  =  11,
-    NX_DTYPE_CPLX_FP64  =  12,
-
-};
-
-
-// the maximum size of an individual element
-#define NX_MAX_SIZEOF 64
-
-
 /* TYPES */
 
 // size type, for indices & sizes
 typedef ks_ssize_t nx_size_t;
 
-// nx_any_t : representing any specific data type
-// NOTE: this is a union, so not good for arrays, but good for declaring
-//   a local variable
-typedef union {
 
-    int8_t v_sint8;
-    uint8_t v_uint8;
-    int16_t v_sint16;
-    uint16_t v_uint16;
-    int32_t v_sint32;
-    uint32_t v_uint32;
-    int64_t v_sint64;
-    uint64_t v_uint64;
 
-    float v_fp32;
-    double v_fp64;
+enum nx_dtype_kind {
+    // none/error kind
+    NX_DTYPE_KIND_NONE      = 0,
 
-    float complex v_cplx_fp32;
-    double complex v_cplx_fp64;
+    // C-type integer
+    NX_DTYPE_KIND_CINT      = 1,
 
-    // raw data
-    uint8_t v_raw[NX_MAX_SIZEOF];
+    // float/double
+    NX_DTYPE_KIND_CFLOAT    = 2,
 
-} nx_any_t;
+    // float complexd/double complex
+    NX_DTYPE_KIND_CCOMPLEX  = 3,
 
+};
+
+
+// nx_dtype - type representing a data-type
+typedef struct {
+    KS_OBJ_BASE
+
+    // name of the data-type
+    ks_str name;
+
+    // size (in bytes) of the data-type
+    int size;
+
+    // what kind of datatype is it?
+    enum nx_dtype_kind kind;
+
+
+    union {
+
+        // if kind==NX_DTYPE_INT, describes the integer
+        struct {
+            
+            // whether or not the integer type is signed
+            bool isSigned;
+
+        } s_cint;
+
+    };
+
+
+}* nx_dtype;
 
 
 // nxar_t - minimal array designation, which means that any other valid type (nx.array, nx.view, C pointers)
@@ -101,18 +89,16 @@ typedef struct {
     
     // pointer to the start of the data
     void* data;
-    
-    // what type is the data?
-    enum nx_dtype dtype;
+
+    nx_dtype dtype;
     
     // number of dimensions of the array
-    int N;
+    int rank;
     
     // array of dimensions (i.e. sizes)
     nx_size_t* dim;
     
-    // array of strides (in number of elements)
-    // TODO: should this be in bytes instead?
+    // array of strides (i.e. byte sizes)
     nx_size_t* stride;
 
     // source object
@@ -125,7 +111,7 @@ typedef struct {
 #define NXAR_ARRAY(_array) ((nxar_t){ \
     .data = (_array)->data, \
     .dtype = (_array)->dtype, \
-    .N = (_array)->N, \
+    .rank = (_array)->rank, \
     .dim = (_array)->dim, \
     .stride = (_array)->stride, \
     .src_obj = (ks_obj)(_array), \
@@ -136,7 +122,7 @@ typedef struct {
 #define NXAR_VIEW(_view) ((nxar_t){ \
     .data = (_view)->data, \
     .dtype = (_view)->dtype, \
-    .N = (_view)->N, \
+    .rank = (_view)->rank, \
     .dim = (_view)->dim, \
     .stride = (_view)->stride, \
     .src_obj = (ks_obj)(_view), \
@@ -147,16 +133,15 @@ typedef struct {
 typedef struct {
     KS_OBJ_BASE
 
-    // what type of data does the tensor store
-    enum nx_dtype dtype;
-
     // pointer to the array 
     // NOTE: this must be ks_free'd by the array, as it owns this memory
     void* data;
 
-    // number of dimensions
-    // i.e. N==1 -> 'vector', N==2 -> 'matrix', N > 2 == 'tensor'
-    int N;
+    // what type of data does the tensor store
+    nx_dtype dtype;
+
+    // number of dimensions in the array
+    int rank;
 
     // array of [N] dimensions, detailing the size in each dimension
     // so, total number of elements == product(dim[:])
@@ -173,17 +158,16 @@ typedef struct {
 typedef struct {
     KS_OBJ_BASE
 
-    // what type of data does the tensor store
-    enum nx_dtype dtype;
-
     // pointer to the start of the array
     // NOTE: this is just a reference to 'data_src->data + offset`, so it 
     //   should not be freed
     void* data;
 
-    // number of dimensions
-    // i.e. N==1 -> 'vector', N==2 -> 'matrix', N > 2 == 'tensor'
-    int N;
+    // what type of data does the tensor store
+    nx_dtype dtype;
+
+    // number of dimensions in the array
+    int rank;
 
     // array of [N] dimensions, detailing the size in each dimension
     // so, total number of elements == product(dim[:])
@@ -203,7 +187,27 @@ typedef struct {
 extern ks_type nx_type_array, nx_type_view;
 
 // enumeration of the dtypes
-extern ks_type nx_enum_dtype;
+extern ks_type nx_type_dtype;
+
+
+
+// dtypes
+extern nx_dtype
+    nx_dtype_sint8,
+    nx_dtype_uint8,
+    nx_dtype_sint16,
+    nx_dtype_uint16,
+    nx_dtype_sint32,
+    nx_dtype_uint32,
+    nx_dtype_sint64,
+    nx_dtype_uint64,
+
+    nx_dtype_fp32,
+    nx_dtype_fp64,
+
+    nx_dtype_cplx_fp32,
+    nx_dtype_cplx_fp64
+;
 
 
 /* UFUNCS */
@@ -222,17 +226,16 @@ extern ks_type nx_enum_dtype;
  *
  * 'Nin' means the number of inputs to the function
  * 'dtypes' is an array of the data types of the various inputs
- * 'dtype_sizes' is an array of the size of each dtype, kept for efficiency reasons
  * 'datas' is an array of pointers to the data representing the respective inputs
  * 'dim' is the length of each 'data' (in elements). keep in mind that this is for 1D-only loops
- * 'strides' is the stride (in elements) of each array
+ * 'strides' is the stride (in bytes) of each array
  * 
  * 'user_data' is a user-defined pointer that was invoked when the function was applied
  * 
  * Should return success, or false on an error (and throw an error)
  * 
  */
-typedef bool (*nx_ufunc_f)(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, nx_size_t dim, nx_size_t* strides, void* _user_data);
+typedef bool (*nx_ufunc_f)(int Nin, void** datas, nx_dtype* dtypes, nx_size_t dim, nx_size_t* strides, void* _user_data);
 
 
 /* nx_loopfunc_f - describes a function which can be called in an N-dimensional loop
@@ -249,20 +252,22 @@ typedef bool (*nx_loopfunc_f)(int loop_N, nx_size_t* loop_dim, nx_size_t* loop_i
 
 
 
-/* DTYPE META */
+/* DTYPE */
 
 
-// Return a data type enumeration from a given name
-// NOTE: Returns 0 and throws an error if there was an invalid name
-KS_API enum nx_dtype nx_dtype_get(char* name);
-
-// Return the enum value for the name
-// NOTE: Returns a string that should not be modified or freed
-KS_API char* nx_dtype_get_name(enum nx_dtype dtype);
-
-// Return an enumeration object
+// Make an integer type
 // NOTE: Returns a new reference
-KS_API ks_Enum nx_dtype_get_enum(enum nx_dtype dtype);
+KS_API nx_dtype nx_dtype_make_int(char* name, int bits, bool isSigned);
+
+// Make a floating point type
+// NOTE: Returns a new reference
+KS_API nx_dtype nx_dtype_make_fp(char* name, int bits);
+
+// Make a floating point complex type
+// NOTE: Returns a new reference
+KS_API nx_dtype nx_dtype_make_cplx(char* name, int bits);
+
+
 
 
 /* ARRAY */
@@ -278,14 +283,14 @@ KS_API nx_array nx_array_new(enum nx_dtype dtype, int N, nx_size_t* dim, void* d
 // NOTE: Returns a new reference
 KS_API nx_array nx_array_new(nxar_t nxar);
 
-// Create a new nx array from a kscript object (use NX_DTYPE_NONE to auto-detect)
+// Create a new nx array from a kscript object (use NX_DTYPE_KIND_NONE to auto-detect)
 // The rules are:
 // If 'obj' is iterable:
 //   * recursively iterate through and convert each object over
 // Else:
 //   * Create a 1-D array of size (1,) containing the singular element
 // NOTE: Returns a new reference
-KS_API nx_array nx_array_from_obj(ks_obj obj, enum nx_dtype dtype);
+KS_API nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype);
 
 
 /* VIEW */
@@ -329,14 +334,14 @@ KS_API bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size
 
 
 // stride,size dot product, to calculate offset (in bytes) of a given N
-// returns dtype_size * sum((idxs[:] % dim[:]) * stride[:])
+// returns sum((idxs[:] % dim[:]) * stride[:])
 // NOTE: allows out of bounds indexes by wrapping (i.e. -1 becomes dim[i] - 1)
-KS_API nx_size_t nx_szsdot(int N, nx_size_t dtype_sz, nx_size_t* dim, nx_size_t* stride, nx_size_t* idxs);
+KS_API nx_size_t nx_szsdot(int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idxs);
 
 
 // Get pointer to the element of data[*idx]
 // NOTE: allows out of bounds indexes by wrapping (i.e. -1 becomes dim[i] - 1)
-KS_API void* nx_get_ptr(void* data, nx_size_t dtype_sz, int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idx);
+KS_API void* nx_get_ptr(void* data, int N, nx_size_t* dim, nx_size_t* stride, nx_size_t* idx);
 
 
 
@@ -344,7 +349,7 @@ KS_API void* nx_get_ptr(void* data, nx_size_t dtype_sz, int N, nx_size_t* dim, n
 
 // Apply 'ufunc' to 'datas', returns either 0 if there was no error, or the first error code generated
 // NOTE: returns success, or false and throws an error
-KS_API bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
+KS_API bool nx_T_apply_ufunc(int Nin, void** datas, nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
 
 
 /* LOOP UTILS */

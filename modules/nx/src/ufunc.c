@@ -15,8 +15,7 @@
 // use the dims__ and strides__ macro to index them
 // NOTE: this assumes that they are all the same dimensions, which their dimensions should have been padded and normalized
 //   so that extra dimensions are created to be '1'
-static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dtype_sizes, int N, nx_size_t* _dims, nx_size_t* _strides, nx_ufunc_f ufunc, void* _user_data) {
-
+static bool my_apply(int Nin, void** datas, nx_dtype* dtypes, int N, nx_size_t* _dims, nx_size_t* _strides, nx_ufunc_f ufunc, void* _user_data) {
     // macros to turn 1D arrays into 2D
     #define dims__(_i, _j) _dims[N * (_i) + (_j)]
     #define strides__(_i, _j) _strides[N * (_i) + (_j)]
@@ -24,7 +23,7 @@ static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
     if (N == 0) {
         // 0-dimensional data, special case
         // don't do anything
-        return 0;
+        return true;
     } else if (N == 1) {
         // 1-dimensional data, call the ufunc
         // we need to determine the largest size of any,
@@ -33,7 +32,6 @@ static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
 
         // loop variables
         int i;
-
 
         // find maximum length
         nx_size_t c_len = dims__(0, 0);
@@ -53,8 +51,9 @@ static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
                 g_strides[i] = strides__(i, 0);
             }
         }
+
         // actually call ufunc
-        bool stat = ufunc(Nin, datas, dtypes, dtype_sizes, c_len, g_strides, _user_data);
+        bool stat = ufunc(Nin, datas, dtypes, c_len, g_strides, _user_data);
 
         // free tmp resources
         ks_free(g_strides);
@@ -107,12 +106,12 @@ static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
                     g_datas[j] = datas[j];
                 } else {
                     // adjust strides off, since we are looping through different chunks of the array
-                    g_datas[j] = (void*)( (uintptr_t)datas[j] + strides__(j, 0) * dtype_sizes[j] * i );
+                    g_datas[j] = (void*)( (uintptr_t)datas[j] + strides__(j, 0) * i );
                 }
             }
 
             // recursively apply
-            bool stat = my_apply(Nin, g_datas, dtypes, dtype_sizes, N-1, g_dims, g_strides, ufunc, _user_data);
+            bool stat = my_apply(Nin, g_datas, dtypes, N-1, g_dims, g_strides, ufunc, _user_data);
             if (!stat) return stat;
 
         }
@@ -132,12 +131,11 @@ static bool my_apply(int Nin, void** datas, enum nx_dtype* dtypes, nx_size_t* dt
 
 }
 
-
 // API function to apply a ufunc
-bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data) {
+bool nx_T_apply_ufunc(int Nin, void** datas, nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data) {
 
     // ensure they can broadcast together
-    if (!nx_can_bcast(Nin, N, dims)) return 1;
+    if (!nx_can_bcast(Nin, N, dims)) return false;
 
     // loop vars
     int i, j, jr;
@@ -145,9 +143,6 @@ bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_s
     // calculate the maximum dimension
     nx_size_t max_N = N[0];
     for (i = 1; i < Nin; ++i) if (N[i] > max_N) max_N = N[i];
-
-    // store dtype sizes for efficiency
-    nx_size_t* dtype_sizes = ks_malloc(sizeof(*dtype_sizes) * Nin);
 
     // create the arrays that will be passed to calls of the ufunc
     nx_size_t* g_dims = ks_malloc(sizeof(*g_dims) * Nin * max_N);
@@ -159,8 +154,6 @@ bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_s
 
     // calculate padded dimensions & strides
     for (i = 0; i < Nin; ++i) {
-        // calculate size
-        dtype_sizes[i] = nx_dtype_size(dtypes[i]);
 
         // now, shift all shapes so that they are padded with '1''s on the left side (and their stride should be set to 0 in those places)
         // prepad:
@@ -177,10 +170,9 @@ bool nx_T_apply_ufunc(int Nin, void** datas, enum nx_dtype* dtypes, int* N, nx_s
     }
 
 
-    bool stat = my_apply(Nin, datas, dtypes, dtype_sizes, max_N, g_dims, g_strides, ufunc, _user_data);
+    bool stat = my_apply(Nin, datas, dtypes, max_N, g_dims, g_strides, ufunc, _user_data);
 
     // free temporary resources
-    ks_free(dtype_sizes);
     ks_free(g_dims);
     ks_free(g_strides);
 

@@ -61,4 +61,4 @@ install: $(mod_SHARED) $(mod_H)
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) $(libks_SHARED) -Wl,-rpath,'$$ORIGIN' $(mod_LIBS) -shared -o $@
-	strip $@ $(STRIP_OPTS)
+	$(STRIP) $@ $(STRIP_OPTS)
