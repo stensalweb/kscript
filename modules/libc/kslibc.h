@@ -18,14 +18,11 @@
 #ifdef KS_HAVE_FFI
 #include <ffi.h>
 #else
-#warn Building 'libc' without FFI support
+#warning Building 'libc' without FFI support
 #endif
 
 
-
 /* STANDARD TYPES */
-
-
 
 
 typedef struct {
@@ -98,7 +95,6 @@ typedef struct {
 }* libc_void;
 
 
-
 /* other types */
 
 typedef struct {
@@ -128,8 +124,15 @@ struct libc_fp_meta {
     // _ffi_types[0] gives the result type,
     // _ffi_types[1:] gives the types for the arguments
     ffi_type** _ffi_types;
+#else
+
+    // dummy variable, set to NULL
+    void* _ffi_types;
 
 #endif
+
+    // extra so there is not an empty struct when FFI is not included
+    int _;
 };
 
 

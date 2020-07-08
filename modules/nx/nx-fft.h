@@ -35,22 +35,29 @@ enum nx_fft_plan_type {
     // an (rank-1)D FFT over dims[1:], and then a 1D over dim[0]
     NX_FFT_PLAN_ND_DEFAULT     =  1,
 
+    // N-dimensional FFT plan, which internally uses FFTW3 (must be compiled with FFTW3 support)
+    NX_FFT_PLAN_ND_FFTW3       = 2,
+
+
     /* 1 DIMENSIONAL SPECIAL CASES */
 
     // 1D Dense plan, which is a matrix-vector product between the matrix of roots of unity
     //   and the input vector
     // Works for any size (including large primes), but 
     // O(N^2), but can be fast for very small sizes (<10)
+    // NOTE: This is only valid when rank==1
     NX_FFT_PLAN_1D_DENSE       = 10,
 
     // 1D Bluestein algorithm (i.e. Chirp-Z Transform)
     // Works for any size (including large primes)
+    // O(N*log(N)), but has a larger constant factor due to internal convolutions required
+    // I've found that BLUE takes about 5-15 times as much time as BFLY algorithm
     // NOTE: This is only valid when rank==1
-    // O(N*log(N)), but has a larger constant factor due to 
     NX_FFT_PLAN_1D_BLUE        = 11,
 
     // 1D Cooley-Tukey butterfly algorithm
     // O(N*log(N))
+    // This is by far the fastest plan I've implemented
     // NOTE: This is only valid when rank==1 && dims[0]==2**n
     NX_FFT_PLAN_1D_BFLY        = 12,
 
@@ -58,10 +65,11 @@ enum nx_fft_plan_type {
 
 
 // nx_fft_plan_t - C-style FFT plan for a given size
-typedef struct nx_fft_plan_s* nx_fft_plan_t;
+typedef struct nx_fft_plan_s* nx_fft_plan;
 
 // nx_fft_plan_t - C-style FFT plan for a given size
 struct nx_fft_plan_s {
+    KS_OBJ_BASE
 
     // number of dimensions of the transform
     int rank;
@@ -79,11 +87,30 @@ struct nx_fft_plan_s {
     // discriminated union, check `ptype`
     union {
 
+        #ifdef KS_HAVE_FFTW3
+        // rankD plan, when ptype==NX_FFT_PLAN_ND_FFTW3
+        struct {
+
+            // internal plan used for it
+            fftw_plan plan;
+
+            // stride, which should be for dense arrays
+            nx_size_t* stride;
+
+            // temporary buffer to be transformed in-place,
+            // of size: sizeof(*tmp) * product(dim[:]), organized in row-major order
+            double complex* tmp;
+
+
+        } fftw3_nd;
+
+        #endif
+
         // rankD plan, when ptype==NX_FFT_PLAN_ND_DEFAULT
         struct {
 
             // 1D plans for each dimension
-            nx_fft_plan_t* plan_dims;
+            nx_fft_plan* plan_dims;
 
         } default_nd;
 
@@ -126,7 +153,7 @@ struct nx_fft_plan_s {
             // CONVOLVE(x, y) = IFFT(FFT(x)*FFT(y))
             // And, that IFFT(x) = (FFT(x)[0], FFT(x)[1:][::-1]) / N,
             // so we can just apply the forward plan twice and adjust
-            nx_fft_plan_t M_plan;
+            nx_fft_plan M_plan;
 
             // Roots of unity to squared indices power, i.e.:
             // Ws[j] = exp(-PI * i * j^2 / N)
@@ -144,39 +171,19 @@ struct nx_fft_plan_s {
 
 };
 
+// nx.fft.plan type
+extern ks_type nx_type_fft_plan;
 
 
 // Create an N-d FFT plan (of a given rank, and dimensions), of type 'plan_type'
 // NOTE: You can pass `NX_FFT_PLAN_TYPE_NONE` to auto-detect and create the best plan for your given dimensions
 // NOTE: Returns NULL if there was an error
-KS_API nx_fft_plan_t nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_size_t* dim, bool isInv);
-
-// Free resources allocated by a given FFT plan
-KS_API void nx_fft_plan_free(nx_fft_plan_t self);
+KS_API nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_size_t* dim, bool isInv);
 
 // Compute B = A, on axes, where `axes` are `plan->rank` number of axes
 // NOTE: Returns success, or false and throws error
-KS_API bool nx_fft_plan_do(nx_fft_plan_t plan, nxar_t A, nxar_t B, int* axes);
+KS_API bool nx_fft_plan_do(nx_fft_plan plan, nxar_t A, nxar_t B, int* axes);
 
-/*
-// Perform a 1D in-place FFT, i.e.:
-// A' = FFT(A)
-// Where 'A' is the length of the plan that it was created with (i.e. self->rank)
-// NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_fft_plan_do(nx_fft_plan_t* self, nxar_t A);
-
-// Compute: B = FFT(A[:]) (with given flags)
-// NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_fft_1d(nx_fft_plan_t* plan0, int axis0, nxar_t A, nxar_t B);
-
-// Compute: B = FFT(A[:]) (with given flags)
-// NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_fft_2d(nx_fft_plan_t* plan0, int axis0, int axis1, nxar_t A, nxar_t B);
-
-// Compute B = FFT(A), on given axes
-// NOTE: Returns whether it was successful or not, and if not, throw an error
-KS_API bool nx_T_fft_Nd(nx_fft_plan_t* plan0, int N, int* axis, nxar_t A, nxar_t B);
-*/
 
 #endif /* NX_FFT_H__ */
 

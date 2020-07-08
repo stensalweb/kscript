@@ -9,10 +9,16 @@ MOD_NAME        := mm
 # -*- DEPENDS -*-
 
 # any static libraries that were built
-_include_static := -Wl,-Bsymbolic -Wl,--whole-archive $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),avcodec avformat avutil)) -Wl,--no-whole-archive
+_include_static := -Wl,-Bsymbolic -Wl,--whole-archive $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),avcodec avformat avutil swscale)) -Wl,--no-whole-archive
 
 # C libraries
-mod_LIBS        := $(_include_static) -lavcodec -lavformat -lavutil
+mod_LIBS        := $(_include_static)
+
+# add optional dependencies
+ifneq ($(findstring LIBAV,$(HAVE_LIBS)),)
+	mod_LIBS += -lavcodec -lavformat -lavutil -lswscale
+endif
+
 
 # other modules this one depends on
 mod_MODDEPS     := nx

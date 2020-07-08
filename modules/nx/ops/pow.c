@@ -1,4 +1,4 @@
-/* src/sub.c - subtract elementwise
+/* src/pow.c - exponentiate elementwise
  *
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -7,9 +7,11 @@
 #include "../nx-impl.h"
 
 
+#include <tgmath.h>
+
 // internal 1D loop for adding elementwise
-// datas[0] - datas[1] -> datas[2]
-static bool my_sub_1d(int N, nxar_t* arrs, int len, void* _user_data) {
+// datas[0] ** datas[1] -> datas[2]
+static bool my_pow_1d(int N, nxar_t* arrs, int len, void* _user_data) {
     NX_ASSERT_CHECK(N == 3);
 
     // loop vars
@@ -21,7 +23,7 @@ static bool my_sub_1d(int N, nxar_t* arrs, int len, void* _user_data) {
 
     // 1D computation loop template
     #define INNER_LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) for (i = 0; i < len; ++i, dptr_0 += strd_0, dptr_1 += strd_1, dptr_2 += strd_2) { \
-        *(NXT_TYPE_2*)dptr_2 = *(NXT_TYPE_0*)dptr_0 - *(NXT_TYPE_1*)dptr_1; \
+        *(NXT_TYPE_2*)dptr_2 = pow(*(NXT_TYPE_0*)dptr_0, *(NXT_TYPE_1*)dptr_1); \
     }
 
     // generate all combinations
@@ -34,9 +36,11 @@ static bool my_sub_1d(int N, nxar_t* arrs, int len, void* _user_data) {
     return true;
 }
 
-// calc A - B -> C
-bool nx_T_sub(nxar_t A, nxar_t B, nxar_t C) {
+// calc A ** B -> C
+bool nx_T_pow(nxar_t A, nxar_t B, nxar_t C) {
 
     // apply the ufunc
-    return nx_T_ufunc_apply(3, (nxar_t[]){ A, B, C }, my_sub_1d, NULL);
+    return nx_T_ufunc_apply(3, (nxar_t[]){ A, B, C }, my_pow_1d, NULL);
 }
+
+

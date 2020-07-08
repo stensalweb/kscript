@@ -66,14 +66,18 @@ void ks_mem_init() {
 
 // ks_ibuf - internal buffer datastructure used for storing meta-data about the allocated buffer
 struct ks_ibuf {
-    ks_size_t size;
+    int64_t size;
+
+    // padding so sizeof(ks_ibuf)==16
+    int64_t _pad;
 
     void* data[0];
 };
 
 
-// allocate 'sz' bytes of memory, return a pointer to it
+// allocate 'sz' bytes
 void* ks_malloc(ks_size_t sz) {
+
     if (sz == 0) return NULL;
 
     if (mut) ks_mutex_lock(mut);
@@ -100,7 +104,9 @@ void* ks_malloc(ks_size_t sz) {
 
     return usr_ptr;
 
+
 }
+
 
 // attempt to reallocate 'ptr' to 'new_sz' bytes, return a pointer to it,
 //   or NULL if the reallocation failed

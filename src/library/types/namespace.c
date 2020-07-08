@@ -47,6 +47,9 @@ static KS_TFUNC(namespace, getattr) {
     ks_obj obj = args[1];
 
     ks_obj res = ks_dict_get(self->attr, obj);
+    if (!res) {
+        return ks_throw_fmt(ks_type_KeyError, "'namespace' object did not contain the element '%S'", obj);
+    }
 
     // throw error if it didnt exist
     /*if (!res && obj->type == ks_type_str) {

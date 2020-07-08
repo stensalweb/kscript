@@ -52,7 +52,7 @@ static bool my_get_str(ks_str_b* SB, void* data, nx_dtype dtype, int N, nx_size_
             } \
         }
 
-        NXT_COMBO_1A(GET_STR_LOOP, (&dtype));
+        NXT_COMBO_1A(GET_STR_LOOP, dtype);
 
         if (dim[0] >= trunc_size) {
             ks_str_b_add_fmt(SB, " ...(%z) ", dim[0] - trunc_size);
@@ -61,7 +61,7 @@ static bool my_get_str(ks_str_b* SB, void* data, nx_dtype dtype, int N, nx_size_
             nx_size_t d1 = 1;
 
             dim0 = 1;
-            NXT_COMBO_1A(GET_STR_LOOP, (&dtype));
+            NXT_COMBO_1A(GET_STR_LOOP, dtype);
         }
 
 

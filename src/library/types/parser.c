@@ -1166,8 +1166,6 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
             }
         }
 
-
-
         if (ctok.type == KS_TOK_INT) {
             // push an integer onto the value stack
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
@@ -1224,7 +1222,6 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
 
             if (tok_iskw(ctok) && !(TOK_EQ(ctok, "true") || TOK_EQ(ctok, "false") || TOK_EQ(ctok, "none"))) {
                 KPPE_ERR(ctok, "Unexpected Keyword!");
-                goto kppe_end;
             }
 
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
@@ -1410,6 +1407,8 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
 
                 while (VALID() && CTOK().type != KS_TOK_RBRK) {
 
+                    if (CTOK().type == KS_TOK_COMMA) ADV_1();
+
                     // holding the 3 arguments for the slice
                     ks_ast slice_args[3] = { NULL, NULL, NULL };
 
@@ -1426,6 +1425,7 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                         KPPE_ERR(CTOK(), "Unexpected end of input");
                     }
 
+
                     // find first argument
                     if (CTOK().type == KS_TOK_COL) {
                         ncol++;
@@ -1437,7 +1437,7 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                         if (!*cslarg) {
                             KS_DECREF(subs_args);
                             KS_DECREF(obj);
-                            goto kppe_end;
+                            goto kppe_err;
                         }
                         if (CTOK().type == KS_TOK_COL) {
                             ncol++;
@@ -1445,12 +1445,15 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                         }
                     }
 
+
+
                     if (!VALID()) {
                         KS_DECREF(slice_args[0]);
                         KS_DECREF(subs_args);
                         KS_DECREF(obj);
                         KPPE_ERR(CTOK(), "Unexpected end of input");
                     }
+
 
                     // now, find second argument
                     cslarg++;
@@ -1482,7 +1485,7 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                             KS_DECREF(slice_args[0]);
                             KS_DECREF(subs_args);
                             KS_DECREF(obj);
-                            goto kppe_end;
+                            goto kppe_err;
                         }
                         if (CTOK().type == KS_TOK_COL) {
                             ncol++;
@@ -1532,7 +1535,7 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                             KS_DECREF(slice_args[1]);
                             KS_DECREF(subs_args);
                             KS_DECREF(obj);
-                            goto kppe_end;
+                            goto kppe_err;
                         }
                         if (CTOK().type == KS_TOK_COL) {
                             KS_DECREF(slice_args[0]);

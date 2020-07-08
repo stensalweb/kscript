@@ -1,187 +1,120 @@
-/* src/ufunc.c - implementation of ufunc logic
- *
+/* src/ufunc_new.c - new implementation of func
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
 #include "../nx-impl.h"
 
+// internal application functions, where arrs[:].rank is constant
+static bool my_apply(int N, nxar_t* arrs, nxar_t* arrs_1d, nx_size_t* dims, nx_size_t* idx, nx_ufunc_f ufunc, void* _user_data) {
 
-// apply the ufunc, which may call itself recursively
-// Both 'dims' and 'strides' are interpreted as a row-major 2D array containing:
-// [data0...]
-// [data1...]
-// i.e. the size information for each 'datas'
-// use the dims__ and strides__ macro to index them
-// NOTE: this assumes that they are all the same dimensions, which their dimensions should have been padded and normalized
-//   so that extra dimensions are created to be '1'
-static bool my_apply(int Nin, void** datas, nx_dtype* dtypes, int N, nx_size_t* _dims, nx_size_t* _strides, nx_ufunc_f ufunc, void* _user_data) {
-    // macros to turn 1D arrays into 2D
-    #define dims__(_i, _j) _dims[N * (_i) + (_j)]
-    #define strides__(_i, _j) _strides[N * (_i) + (_j)]
-
-    if (N == 0) {
-        // 0-dimensional data, special case
-        // don't do anything
-        return true;
-    } else if (N == 1) {
-        // 1-dimensional data, call the ufunc
-        // we need to determine the largest size of any,
-        // as there should be dims of either 1 or `len`
-        // the sizes of '1' should have a stride of 0
-
-        // loop variables
-        int i;
-
-        // find maximum length
-        nx_size_t c_len = dims__(0, 0);
-        for (i = 1; i < Nin; ++i) if (dims__(i, 0) > c_len) c_len = dims__(i, 0);
-
-        // now, calculate the relevant strides
-        nx_size_t* g_strides = ks_malloc(sizeof(*g_strides) * Nin);
-
-        // cop them over
-        for (i = 0; i < Nin; ++i) {
-            // if there is only 1 item, the stride should be 0 so it is the same value over and over
-            if (dims__(i, 0) == 1) {
-                // continually repeat the same value
-                g_strides[i] = 0;
-            } else {
-                // take the offset given
-                g_strides[i] = strides__(i, 0);
-            }
-        }
-
-        // actually call ufunc
-        bool stat = ufunc(Nin, datas, dtypes, c_len, g_strides, _user_data);
-
-        // free tmp resources
-        ks_free(g_strides);
-      
-        return stat;
-    } else {
-        // otherwise, recrusively reorganize calls and reduce further to 1D runs
-
-        // loop variables
-        int i, j;
-
-        // calculate the max dimension
-        int max_dim = dims__(0, 0);
-        for (i = 1; i < Nin; ++i) if (dims__(i, 0) > max_dim) max_dim = dims__(i, 0);
-
-        // temporary data array
-        void** g_datas = ks_malloc(sizeof(*g_datas) * Nin);
-
-        // now, allocate temporary variables for looping
-        nx_size_t* g_dims = ks_malloc(sizeof(*g_dims) * Nin * (N - 1));
-        nx_size_t* g_strides = ks_malloc(sizeof(*g_strides) * Nin * (N - 1));
-
-        // macro to turn the 1D arrays into 2D arrays
-        #define g_dims__(_i, _j) g_dims[(N - 1) * (_i) + (_j)]
-        #define g_strides__(_i, _j) g_strides[(N - 1) * (_i) + (_j)]
-
-        // shift dimensions, ignoring the leftmost, since we are currently iterating on that
-        // thus, we reduce the problem by 1 dimension
-        for (i = 0; i < Nin; ++i) {
-            for (j = 0; j < N - 1; ++j) {
-                //printf("TEST: %p\n", dims[i]);
-                g_dims__(i, j) = dims__(i, j + 1);
-
-                if (g_dims__(i, j) == 1) {
-                    // don't move the entire time, i.e. broadcast the value
-                    g_strides__(i, j) = 0;
-                } else {
-                    g_strides__(i, j) = strides__(i, j + 1);
-                }
-            }
-
-        }
-
-        // now, recursively call ourselves with each slice
-        for (i = 0; i < max_dim; ++i) {
-            // prepare arguments
-            for (j = 0; j < Nin; ++j) {
-                if (dims__(j, 0) == 1) {
-                    // broadcast the value over and over with no stride
-                    g_datas[j] = datas[j];
-                } else {
-                    // adjust strides off, since we are looping through different chunks of the array
-                    g_datas[j] = (void*)( (uintptr_t)datas[j] + strides__(j, 0) * i );
-                }
-            }
-
-            // recursively apply
-            bool stat = my_apply(Nin, g_datas, dtypes, N-1, g_dims, g_strides, ufunc, _user_data);
-            if (!stat) return stat;
-
-        }
-
-        // destroy temporary arrays
-        ks_free(g_datas);
-        ks_free(g_dims);
-        ks_free(g_strides);
-
-
-        // undefine utility macros
-        #undef g_dims__
-        #undef g_strides__
-
-        return true;
-    }
-
-}
-
-// API function to apply a ufunc
-bool nx_T_apply_ufunc(int Nin, void** datas, nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data) {
-
-    // ensure they can broadcast together
-    if (!nx_can_bcast(Nin, N, dims)) return false;
+    // loop over everything but the inner-most index
+    int loop_N = arrs[0].rank - 1;
 
     // loop vars
-    int i, j, jr;
+    nx_size_t i;
 
-    // calculate the maximum dimension
-    nx_size_t max_N = N[0];
-    for (i = 1; i < Nin; ++i) if (N[i] > max_N) max_N = N[i];
+    // zero out indices
+    for (i = 0; i < loop_N; ++i) idx[i] = 0;
 
-    // create the arrays that will be passed to calls of the ufunc
-    nx_size_t* g_dims = ks_malloc(sizeof(*g_dims) * Nin * max_N);
-    nx_size_t* g_strides = ks_malloc(sizeof(*g_strides) * Nin * max_N);
+    nx_size_t sz0 = 0;
 
-    // macro to turn the 1D arrays into 2D arrays
-    #define g_dims__(_i, _j) g_dims[max_N * (_i) + (_j)]
-    #define g_strides__(_i, _j) g_strides[max_N * (_i) + (_j)]
+    while (true) {
 
-    // calculate padded dimensions & strides
-    for (i = 0; i < Nin; ++i) {
+        for (i = 0; i < N; ++i) {
+            arrs_1d[i] = arrs[i];
 
+            // convert to 1D slice
+            arrs_1d[i].rank = 1;
+            arrs_1d[i].dim = &arrs[i].dim[arrs[i].rank - 1];
+            // either have stride of 0 (repeat element), or the stride that was given
+            arrs_1d[i].stride = arrs_1d[i].dim[0] == 1 ? &sz0 : &arrs[i].stride[arrs[i].rank - 1];
+            arrs_1d[i].data = nx_get_ptr(arrs[i].data, loop_N, arrs[i].dim, arrs[i].stride, idx);
+        }
+
+
+        // calculate 1D offsets
+        if (!ufunc(N, arrs_1d, dims[arrs[0].rank - 1], _user_data)) return false;
+
+        // increase least significant index
+        i = loop_N - 1;
+        if (i < 0) break;
+        idx[i]++;
+
+        while (i >= 0 && idx[i] >= dims[i]) {
+            idx[i] = 0;
+            i--;
+            if (i >= 0) idx[i]++;
+        }
+
+        // done; we have overflowed
+        if (i < 0) break;
+    }
+
+    
+    // success
+    return true;
+}
+
+
+// apply ufunc
+bool nx_T_ufunc_apply(int N, nxar_t* arrs, nx_ufunc_f ufunc, void* _user_data) {
+
+    // loop var
+    nx_size_t i;
+
+    // find the maximum rank
+    int max_rank = arrs[0].rank;
+    for (i = 1; i < N; ++i) if (arrs[i].rank > max_rank) max_rank = arrs[i].rank;
+
+    // create new arrays with padded dims & strides
+    nxar_t* new_arrs = ks_malloc(sizeof(*new_arrs) * N);
+    nxar_t* new_arrs_1d = ks_malloc(sizeof(*new_arrs_1d) * N);
+    nx_size_t* max_dims = ks_malloc(sizeof(*max_dims) * max_rank);
+    nx_size_t* idxs = ks_malloc(sizeof(*idxs) * max_rank);
+
+    for (i = 0; i < max_rank; ++i) max_dims[i] = 0;
+
+    for (i = 0; i < N; ++i) {
+        new_arrs[i] = arrs[i];
+
+        // pad to maximum rank
+        new_arrs[i].rank = max_rank;
+        new_arrs[i].dim = ks_malloc(sizeof(*new_arrs[i].dim) * max_rank);
+        new_arrs[i].stride = ks_malloc(sizeof(*new_arrs[i].stride) * max_rank);
+
+        int j, jr = 0;
+    
         // now, shift all shapes so that they are padded with '1''s on the left side (and their stride should be set to 0 in those places)
         // prepad:
-        for (j = 0; j < max_N - N[i]; ++j) {
-            g_dims__(i, j) = 1;
-            g_strides__(i, j) = 0;
+        for (j = 0; j < max_rank - arrs[i].rank; ++j) {
+            new_arrs[i].dim[j] = 1;
+            new_arrs[i].stride[j] = 0;
         }
 
         // now, copy the rest so that it is aligned on the right
-        for (jr = 0; j < max_N; ++j, ++jr) {
-            g_dims__(i, j) = dims[i][jr];
-            g_strides__(i, j) = strides[i][jr];
+        for (jr = 0; j < max_rank; ++j, ++jr) {
+            new_arrs[i].dim[j] = arrs[i].dim[jr];
+            new_arrs[i].stride[j] = arrs[i].stride[jr];
         }
+
+        // now, update max dimensions
+        for (j = 0; j < max_rank; ++j) if (new_arrs[i].dim[j] > max_dims[j]) max_dims[j] = new_arrs[i].dim[j];
     }
 
 
-    bool stat = my_apply(Nin, datas, dtypes, max_N, g_dims, g_strides, ufunc, _user_data);
+    // now, apply:
+    bool rst = my_apply(N, new_arrs, new_arrs_1d, max_dims, idxs, ufunc, _user_data);
 
-    // free temporary resources
-    ks_free(g_dims);
-    ks_free(g_strides);
+    for (i = 0; i < N; ++i) {
+//        ks_free(new_arrs[i].dim);
+//        ks_free(new_arrs[i].stride);
+    }
 
-    // undefine utility macros
-    #undef g_dims__
-    #undef g_strides__
-
-    return stat;
+//    ks_free(new_arrs);
+    ks_free(new_arrs_1d);
+//    ks_free(max_dims);
+//    ks_free(idxs);
+    return rst;
 
 }
-
-

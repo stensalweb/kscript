@@ -1,4 +1,4 @@
-/* src/cast.c - cast elementwise
+/* src/abs.c - compute absolute value
  *
  * 
  * @author: Cade Brown <brown.cade@gmail.com>
@@ -6,10 +6,10 @@
 
 #include "../nx-impl.h"
 
+#include <tgmath.h>
 
 // internal 1D loop for adding elementwise
-// datas[0] + datas[1] -> datas[2]
-static bool my_cast_1d(int N, nxar_t* arrs, int len, void* _user_data) {
+static bool my_abs_1d(int N, nxar_t* arrs, int len, void* _user_data) {
     NX_ASSERT_CHECK(N == 2);
 
     // loop vars
@@ -19,11 +19,9 @@ static bool my_cast_1d(int N, nxar_t* arrs, int len, void* _user_data) {
     intptr_t dptr_0 = (intptr_t)arrs[0].data, dptr_1 = (intptr_t)arrs[1].data;
     nx_size_t strd_0 = arrs[0].stride[0], strd_1 = arrs[1].stride[0];
 
-
-
     // 1D computation loop template
     #define INNER_LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) for (i = 0; i < len; ++i, dptr_0 += strd_0, dptr_1 += strd_1) { \
-        *(NXT_TYPE_1*)dptr_1 = *(NXT_TYPE_0*)dptr_0; \
+        *(NXT_TYPE_1*)dptr_1 = cabs(*(NXT_TYPE_0*)dptr_0); \
     }
 
     // generate all combinations
@@ -37,11 +35,11 @@ static bool my_cast_1d(int N, nxar_t* arrs, int len, void* _user_data) {
 }
 
 
-// calc B = (type(B))A
-bool nx_T_cast(nxar_t A, nxar_t B) {
+// calc B = abs(A)
+bool nx_T_abs(nxar_t A, nxar_t B) {
 
     // apply the ufunc
-    return nx_T_ufunc_apply(2, (nxar_t[]){ A, B }, my_cast_1d, NULL);
+    return nx_T_ufunc_apply(2, (nxar_t[]){ A, B }, my_abs_1d, NULL);
 }
 
 

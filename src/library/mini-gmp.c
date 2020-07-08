@@ -5,7 +5,7 @@
 // only include if we don't have the full version
 #ifndef KS_HAVE_GMP
 
-#warn Building kscript without GMP, integer math may be a little bit slow
+#warning Building kscript without GMP, integer math may be a little bit slow
 
 
 // NOTE: used in the kscript project when the full gmp is not in use

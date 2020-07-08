@@ -72,7 +72,6 @@ nx_array nx_array_new(nxar_t nxar) {
 
     if (nxar.data) {
         // copy it
-
         if (!nx_T_cast(
             nxar,
             NXAR_ARRAY(self)
@@ -86,7 +85,7 @@ nx_array nx_array_new(nxar_t nxar) {
     } else {
 
         // set all to 0
-        int tmp0 = 0;
+        int32_t tmp0 = 0;
 
         if (!nx_T_cast(
             (nxar_t){ 
@@ -111,7 +110,28 @@ nx_array nx_array_new(nxar_t nxar) {
 
 // recursive internal procedure for filling array from recursive iterators
 static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, ks_ssize_t** dims) {
-    if (ks_is_iterable(cur)) {
+
+    if (cur->type == nx_type_array || cur->type == nx_type_view) {
+        ks_throw_fmt(ks_type_ToDoError, "Need to implement sub-objects in array filling");
+
+        return false;
+        nxar_t cur_ar;
+        ks_list refadd = ks_list_new(0, NULL);
+        if (!nx_get_nxar(cur, &cur_ar, refadd)) {
+            KS_DECREF(refadd);
+            return false;
+        }
+
+        if (*resp) {
+
+        } else {
+            
+        }
+
+        // now, spread it out
+
+        KS_DECREF(refadd);
+    } else if (ks_is_iterable(cur)) {
         // we have a list, so need to continue recursively calling it
         ks_list elems = ks_list_from_iterable(cur);
         if (!elems) return false;
@@ -137,8 +157,6 @@ static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, 
             }
         }
 
-
-
         KS_DECREF(elems);
 
     } else {
@@ -158,7 +176,6 @@ static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, 
                 return false;
             }
         }
-
 
         // get address of result:
         intptr_t addr = (intptr_t)(*resp)->data + dtype->size * my_idx;
@@ -184,8 +201,19 @@ static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, 
 // create a nx array from an object
 nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
 
-    if (ks_is_iterable(obj)) {
+    if (obj->type == nx_type_array || obj->type == nx_type_view) {
+        nxar_t obj_ar;
+        ks_list refadd = ks_list_new(0, NULL);
+        if (!nx_get_nxar(obj, &obj_ar, refadd)) {
+            KS_DECREF(refadd);
+            return NULL;
+        }
+        nx_array res = nx_array_new(obj_ar);
+        KS_DECREF(refadd);
 
+        return res;
+
+    } else if (ks_is_iterable(obj)) {
 
         // try to auto-set it
         if (dtype == NULL) {
@@ -298,6 +326,8 @@ static KS_TFUNC(array, getattr) {
         return (ks_obj)ks_build_tuple("%+z", self->rank, self->dim);
     } else if (attr->len == 6 && strncmp(attr->chr, "stride", 6) == 0) {
         return (ks_obj)ks_build_tuple("%+z", self->rank, self->stride);
+    } else if (attr->len == 4 && strncmp(attr->chr, "rank", 4) == 0) {
+        return (ks_obj)ks_int_new(self->rank);
     } else if (attr->len == 5 && strncmp(attr->chr, "dtype", 5) == 0) {
         return KS_NEWREF(self->dtype);
     } else {
@@ -321,6 +351,18 @@ static KS_TFUNC(array, getitem) {
 
     return nx_nxar_getitem(NXAR_ARRAY(self), n_args-1, args+1);
 }
+
+
+// array.__setitem__(self, *idxs)
+// TODO; move the actual functionality to a C-API function
+static KS_TFUNC(array, setitem) {
+    KS_REQ_N_ARGS_MIN(n_args, 1);
+    nx_array self = (nx_array)args[0];
+    KS_REQ_TYPE(self, nx_type_array, "self");
+
+    return KSO_BOOL(nx_nxar_setitem(NXAR_ARRAY(self), n_args-2, args+1, args[n_args - 1]));
+}
+
 
 
 /* OPERATORS */
@@ -378,6 +420,18 @@ static KS_TFUNC(array, div) {
     }
 }
 
+// array.__pow__(L, R)
+static KS_TFUNC(array, pow) {
+    KS_REQ_N_ARGS(n_args, 2);
+
+    ks_obj ret = nx_F_pow->func(n_args, args);
+    if (!ret) {
+        ks_catch_ignore();
+        KS_ERR_BOP_UNDEF("**", args[0], args[1]);
+    } else {
+        return ret;
+    }
+}
 
 
 
@@ -395,6 +449,7 @@ void nx_type_array_init() {
         {"__getattr__", (ks_obj)ks_cfunc_new2(array_getattr_, "nx.array.__getattr__(self, attr)")},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
+        {"__setitem__", (ks_obj)ks_cfunc_new2(array_setitem_, "nx.array.__setitem__(self, *idxs, val)")},
 
 
         /* ops */
@@ -402,6 +457,7 @@ void nx_type_array_init() {
         {"__sub__",        (ks_obj)ks_cfunc_new2(array_sub_, "nx.array.__sub__(L, R)")},
         {"__mul__",        (ks_obj)ks_cfunc_new2(array_mul_, "nx.array.__mul__(L, R)")},
         {"__div__",        (ks_obj)ks_cfunc_new2(array_div_, "nx.array.__div__(L, R)")},
+        {"__pow__",        (ks_obj)ks_cfunc_new2(array_pow_, "nx.array.__pow__(L, R)")},
 
         {NULL, NULL}
     });

@@ -160,7 +160,6 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_START(KSB_PUSH)
             VMED_CONSUME(ksb_i32, op_i32);
-
             ks_list_push(self->stk, code->v_const->elems[op_i32.arg]);
 
         VMED_CASE_END
@@ -221,6 +220,7 @@ ks_obj ks__exec(ks_code code) {
                 goto EXC;
             }
     
+
             ks_list_push(self->stk, ret);
             
             for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);

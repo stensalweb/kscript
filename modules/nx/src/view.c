@@ -80,6 +80,8 @@ static KS_TFUNC(view, getattr) {
         return (ks_obj)ks_build_tuple("%+z", self->rank, self->dim);
     } else if (attr->len == 6 && strncmp(attr->chr, "stride", 6) == 0) {
         return (ks_obj)ks_build_tuple("%+z", self->rank, self->stride);
+    } else if (attr->len == 4 && strncmp(attr->chr, "rank", 4) == 0) {
+        return (ks_obj)ks_int_new(self->rank);
     } else if (attr->len == 5 && strncmp(attr->chr, "dtype", 5) == 0) {
         return KS_NEWREF(self->dtype);
     } else {

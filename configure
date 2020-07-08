@@ -44,6 +44,7 @@ parser.add_argument('--with-curl', '--without-curl', dest='with_curl', action=Ne
 parser.add_argument('--with-glfw3', '--without-glfw3', dest='with_glfw3', action=NegateAction, nargs=0, help='Enables/disables using the GLFW3 library for GUI', default=None)
 parser.add_argument('--with-libav', '--without-libav', dest='with_libav', action=NegateAction, nargs=0, help='Enables/disables using the libav (Audio/Video) library for multi-media operations', default=None)
 parser.add_argument('--with-ffi', '--without-ffi', dest='with_ffi', action=NegateAction, nargs=0, help='Enables/disables using the FFI (Foreign Function Interface) library for Cfuncs', default=None)
+parser.add_argument('--with-fftw3', '--without-fftw3', dest='with_fftw3', action=NegateAction, nargs=0, help='Enables/disables using the FFTW3 (Fastest-Fourier-Transform in the West) library for FFT speed up', default=None)
 
 args = parser.parse_args()
 
@@ -192,7 +193,9 @@ hasCURL        = False
 hasGLFW3       = False
 hasLIBAV       = False
 hasFFI         = False
+hasFFTW3       = False
 
+haves = []
 
 # search for libraries
 if args.with_gmp is not False:
@@ -225,26 +228,49 @@ if args.with_ffi is not False:
 	if args.with_ffi and not hasFFI:
 		raise Exception("'--with-ffi' given, but FFI was not found!")
 
+if args.with_fftw3 is not False:
+	hasFFTW3          = has_c_lib("libfftw3", "", "-lfftw3", "#include <fftw3.h>", "fftw_malloc(sizeof(fftw_complex) * 1024);")
+	if args.with_fftw3 and not hasFFTW3:
+		raise Exception("'--with-fftw3' given, but FFTW3 was not found!")
 
 
 
 # add them to the defines
-if hasGMP:        defs.append("KS_HAVE_GMP")
+if hasGMP:	
+	defs.append("KS_HAVE_GMP")
+	haves += ["GMP"]
 
-if hasREADLINE:   defs.append("KS_HAVE_READLINE")
+if hasREADLINE:
+	defs.append("KS_HAVE_READLINE")
+	haves += ["READLINE"]
 
-if hasCURL:       defs.append("KS_HAVE_CURL")
-else:             args.M = list(filter(lambda mod: mod not in ("modules/req", ), args.M))
+if hasCURL:
+	defs.append("KS_HAVE_CURL")
+	haves += ["CURL"]
+else:
+	args.M = list(filter(lambda mod: mod not in ("modules/req", ), args.M))
 
-if hasGLFW3:      defs.append("KS_HAVE_GLFW3")
-else: args.M = list(filter(lambda mod: mod not in ("modules/cnk", ), args.M))
+if hasGLFW3: 
+	defs.append("KS_HAVE_GLFW3")
+	haves += ["GLFW3"]
+else:
+	args.M = list(filter(lambda mod: mod not in ("modules/cnk", ), args.M))
 
-if hasLIBAV:      defs.append("KS_HAVE_LIBAV")
-else: args.M = list(filter(lambda mod: mod not in ("modules/mm", ), args.M))
-
-if hasFFI:        defs.append("KS_HAVE_FFI")
+if hasLIBAV:
+	defs.append("KS_HAVE_LIBAV")
+	haves += ["LIBAV"]
 #else: args.M = list(filter(lambda mod: mod not in ("modules/mm", ), args.M))
 
+if hasFFI: 
+	defs.append("KS_HAVE_FFI")
+	haves += ["FFI"]
+#else: args.M = list(filter(lambda mod: mod not in ("modules/mm", ), args.M))
+
+
+if hasFFTW3:
+	defs.append("KS_HAVE_FFTW3")
+	haves += ["FFTW3"]
+#else: args.M = list(filter(lambda mod: mod not in ("modules/mm", ), args.M))
 
 # check for integer sizes
 add_c_check("IntSizes", "#include <stdio.h>\n#include <stdint.h>", 'printf("-DSIZEOF_INT32_T=%zu -DSIZEOF_INT64_T=%zu -DSIZEOF_SIGNED_LONG=%zu -DSIZEOF_UNSIGNED_LONG=%zu\\n", sizeof(int32_t), sizeof(int64_t), sizeof(unsigned long), sizeof(signed long));')
@@ -477,10 +503,15 @@ _include_static := $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STAT
 _tmp             := {".tmp"}
 
 STD_MODULES      := {" ".join(args.M)}
+export STD_MODULES
+
+HAVE_LIBS        := {" ".join(haves)}
+export HAVE_LIBS
 
 ## modifying vars
-CFLAGS           += -I{PWD}/include
-LDFLAGS          += -L{PWD}/lib
+CFLAGS           += -I{PWD}/include -I{PWD}/deps/prefix/include
+LDFLAGS          += -L{PWD}/lib -L{PWD}/deps/prefix/lib
+
 
 # -*- FILES -*-
 

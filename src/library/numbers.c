@@ -633,7 +633,7 @@ ks_obj ks_num_mul(ks_obj L, ks_obj R) {
         bool Rf = ks_num_get_int64(R, &Rv);
 
         if (Lf && Rf) {
-            if (Lv > INT64_MAX / Rv || Lv < INT64_MIN / Rv) {
+            if ((Rv > 0) && (Lv > INT64_MAX / Rv || Lv < INT64_MIN / Rv)) {
                 // overflow; let it flow through and it end up using mpz types
 
             } else {

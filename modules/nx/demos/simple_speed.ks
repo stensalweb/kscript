@@ -17,18 +17,17 @@ p = getarg.Parser("simple_speed", "0.0.1", "Testing out the speed between kscrip
 
 p.add_arg_single("num", "How many data points?", ["-n", "--num"], int, 1000000)
 p.add_arg_single("trials", "How many trials?", ["-t", "--trials"], int, 10)
-p.add_arg_single("dtype", "What data type should be used for the comparison?", ["-d", "--dtype"], nx.dtype, nx.dtype.FP64)
+p.add_arg_single("dtype", "What data type should be used for the comparison?", ["-d", "--dtype"], nx.dtype, nx.fp64)
 
 args = p.parse()
 
-
-print (" ** Starting trial with %r %r".format(args.rankum, args.dtype))
+print (" ** Starting trial with %r %r".format(args.num, args.dtype))
 
 
 # kscript data
-kA = list(range(1, args.rankum+1))
-kB = list(range(3, 3 + 100 * args.rankum, 100))
-kC = list(range(args.rankum, 0, -1))
+kA = list(range(1, args.num+1))
+kB = list(range(3, 3 + 100 * args.num, 100))
+kC = list(range(args.num, 0, -1))
 
 
 # now, convert into numeriX arrays

@@ -178,8 +178,8 @@ static KS_TFUNC(mm, read_audio) {
  
     nx_array res = nx_array_new((nxar_t){
         .data = NULL,
-        .dtype = NX_DTYPE_FP64, 
-        2, 
+        .dtype = nx_dtype_fp64, 
+        .rank = 2, 
         .dim = (nx_size_t[]){ channels, size }, 
         .stride = NULL
     });
@@ -214,7 +214,28 @@ static KS_TFUNC(mm, read_image) {
     return (ks_obj)mm_read_image(fname->chr);
 }
 
+// mm.write_image(img, fname) -> write image to file
+static KS_TFUNC(mm, write_image) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_str fname;
+    ks_obj img;
+    if (!ks_parse_params(n_args, args, "fname%s img%any", &fname, &img)) return NULL;
 
+    nxar_t img_ar;
+    ks_list refadd = ks_list_new(0, NULL);
+    if (!nx_get_nxar(img, &img_ar, refadd)) {
+        KS_DECREF(refadd);
+        return NULL;
+    }
+
+    bool rst = mm_write_image(fname->chr, img_ar);
+    KS_DECREF(refadd);
+
+    if (!rst) return NULL;
+
+    return KSO_NONE;
+
+}
 
 // now, export them all
 static ks_module get_module() {
@@ -249,6 +270,7 @@ static ks_module get_module() {
         {"read_file",        (ks_obj)ks_cfunc_new2(mm_read_file_,  "mm.read_file(fname)")},
         {"read_audio",       (ks_obj)ks_cfunc_new2(mm_read_audio_, "mm.read_audio(fname)")},
         {"read_image",       (ks_obj)ks_cfunc_new2(mm_read_image_, "mm.read_image(fname)")},
+        {"write_image",       (ks_obj)ks_cfunc_new2(mm_write_image_, "mm.write_image(img, fname)")},
 
         {"Stream",           (ks_obj)mm_type_Stream},
 

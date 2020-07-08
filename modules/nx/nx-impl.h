@@ -159,6 +159,7 @@ static void nx_memset_block(void* dest, void* data, nx_size_t size, nx_size_t st
 void nx_type_dtype_init();
 void nx_type_array_init();
 void nx_type_view_init();
+void nx_type_fft_plan_init();
 
 // adding submodules
 void nx_mod_add_fft(ks_module nxmod);

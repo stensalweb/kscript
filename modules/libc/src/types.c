@@ -372,6 +372,8 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
         // now, create meta-data
         struct libc_fp_meta* fp_meta = ks_malloc(sizeof(*fp_meta));
 
+        #ifdef KS_HAVE_FFI
+
         fp_meta->_ffi_n = n_args;
         fp_meta->_ffi_types = ks_malloc(sizeof(*fp_meta->_ffi_types) * n_args);
 
@@ -395,7 +397,11 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
             ks_free(fp_meta->_ffi_types);
             return NULL;
         }
+        #else
+        // perhaps warn here?
+        fp_meta->_ffi_types = NULL;
 
+        #endif
 
         // this object can be unboxed elsewhere
         ks_obj fp_meta_obj = (ks_obj)libc_make_pointer(libc_type_void_p, (void*)fp_meta);
@@ -425,6 +431,7 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
             KS_DECREF(ofkey);
             return NULL;
         }
+
 
 
     } else {
@@ -698,13 +705,15 @@ static KS_TFUNC(function, call) {
     KS_REQ_N_ARGS_MIN(n_args, 1);
     libc_function self = (libc_function)args[0];
     KS_REQ_TYPE(self, libc_type_function, "self");
+    #ifdef KS_HAVE_FFI
 
     // get meta-data
     struct libc_fp_meta* fp_meta = self->fp_meta;
 
+
+
     // +1,-1 cancel out for including 'self', but not including the return value
     KS_REQ_N_ARGS(n_args, fp_meta->_ffi_n);
-
 
 
     // now, allocate temporary arrays
@@ -749,12 +758,19 @@ static KS_TFUNC(function, call) {
         if (f_args_alloc[i]) ks_free(f_args_alloc[i]);
     }
 
+
     ks_free(f_argdata);
     ks_free(f_args);
     ks_free(f_args_alloc);
 
     // get return value
     return my_from_ffitype(fp_meta->_ffi_types[0], f_args[0]);
+
+    #else
+
+    return ks_throw_fmt(ks_type_InternalError, "Tried to call C function pointer (%S), but `libc` was not compiled with libffi (use `./configure --with-ffi`)", self);
+
+    #endif
 }
 
 

@@ -27,21 +27,37 @@ nx_dtype
 ;
 
 
+// dtype cache, of already existing data-types
+static ks_dict dtype_cache = NULL;
+
 
 nx_dtype nx_dtype_make_int(char* name, int bits, bool isSigned) {
-
     if (bits % 8 != 0) {
         return ks_throw_fmt(ks_type_ArgError, "`CINT` dtype must have bits%%8==0");
+    }
+
+    ks_str sname = ks_str_new(name);
+    ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sname, sname->v_hash);
+
+    if (ret) {
+        if (ret->type == nx_type_dtype) {
+            KS_DECREF(sname);
+            return (nx_dtype)ret;
+        } else {
+            KS_DECREF(ret);
+        }
     }
 
     nx_dtype self = KS_ALLOC_OBJ(nx_dtype);
     KS_INIT_OBJ(self, nx_type_dtype);
     
-    self->name = ks_str_new(name);
+    self->name = sname;
 
     self->kind = NX_DTYPE_KIND_CINT;
     self->size = bits / 8;
     self->s_cint.isSigned = isSigned;
+
+    ks_dict_set_h(dtype_cache, (ks_obj)sname, sname->v_hash, (ks_obj)self);
 
     return self;
 }
@@ -54,13 +70,27 @@ nx_dtype nx_dtype_make_fp(char* name, int bits) {
         return ks_throw_fmt(ks_type_ArgError, "`CFLOAT` dtype must have bits in (32, 64)");
     }
 
+    ks_str sname = ks_str_new(name);
+    ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sname, sname->v_hash);
+
+    if (ret) {
+        if (ret->type == nx_type_dtype) {
+            KS_DECREF(sname);
+            return (nx_dtype)ret;
+        } else {
+            KS_DECREF(ret);
+        }
+    }
+
     nx_dtype self = KS_ALLOC_OBJ(nx_dtype);
     KS_INIT_OBJ(self, nx_type_dtype);
     
-    self->name = ks_str_new(name);
+    self->name = sname;
 
     self->kind = NX_DTYPE_KIND_CFLOAT;
     self->size = bits / 8;
+
+    ks_dict_set_h(dtype_cache, (ks_obj)sname, sname->v_hash, (ks_obj)self);
 
     return self;
 }
@@ -72,23 +102,55 @@ nx_dtype nx_dtype_make_cplx(char* name, int bits) {
         return ks_throw_fmt(ks_type_ArgError, "`CCOMPLEX` dtype must have bits in (32, 64)");
     }
 
+
+    ks_str sname = ks_str_new(name);
+    ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sname, sname->v_hash);
+
+    if (ret) {
+        if (ret->type == nx_type_dtype) {
+            KS_DECREF(sname);
+            return (nx_dtype)ret;
+        } else {
+            KS_DECREF(ret);
+        }
+    }
+
     nx_dtype self = KS_ALLOC_OBJ(nx_dtype);
     KS_INIT_OBJ(self, nx_type_dtype);
     
-    self->name = ks_str_new(name);
+    self->name = sname;
 
     self->kind = NX_DTYPE_KIND_CCOMPLEX;
     self->size = 2 * bits / 8;
+
+    ks_dict_set_h(dtype_cache, (ks_obj)sname, sname->v_hash, (ks_obj)self);
 
     return self;
 }
 
 
+// dtype.__new__(obj)
+static KS_TFUNC(dtype, new) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_obj obj = args[0];
 
+    if (obj->type == ks_type_str) {
+        ks_str sobj = (ks_str)obj;
+        ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sobj, sobj->v_hash);
+        if (!ret) {
+            return ks_throw_fmt(ks_type_KeyError, "Unknown dtype: %S", args[0]);
+        }
+        return ret;
+
+    } else {
+        return ks_throw_fmt(ks_type_TypeError, "Could not create dtype from object '%S'", obj);
+    }
+}
 
 
 // dtype.__free__(self)
 static KS_TFUNC(dtype, free) {
+    KS_REQ_N_ARGS(n_args, 1);
     nx_dtype self = (nx_dtype)args[0];
     KS_REQ_TYPE(self, nx_type_dtype, "self");
 
@@ -112,14 +174,21 @@ static KS_TFUNC(dtype, str) {
 void nx_type_dtype_init() {
     KS_INIT_TYPE_OBJ(nx_type_dtype, "nx.dtype");
 
+    // create cache
+    dtype_cache = ks_dict_new(0, NULL);
     ks_type_set_cn(nx_type_dtype, (ks_dict_ent_c[]) {
+
+        {"__new__", (ks_obj)ks_cfunc_new2(dtype_new_, "nx.dtype.__new__(obj)")},
+        {"__free__", (ks_obj)ks_cfunc_new2(dtype_free_, "nx.dtype.__free__(self)")},
+
         {"__str__", (ks_obj)ks_cfunc_new2(dtype_str_, "nx.dtype.__str__(self)")},
         {"__repr__", (ks_obj)ks_cfunc_new2(dtype_str_, "nx.dtype.__repr__(self)")},
 
-        {"__free__", (ks_obj)ks_cfunc_new2(dtype_free_, "nx.dtype.__free__(self)")},
+        {"_dtype_cache", (ks_obj)dtype_cache},
 
         {NULL, NULL}
     });
+
 
     nx_dtype_sint8 = nx_dtype_make_int("sint8", 8, true);
     nx_dtype_uint8 = nx_dtype_make_int("uint8", 8, false);

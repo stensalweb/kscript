@@ -12,9 +12,17 @@
 
 /* GFX LIBS */
 
+#ifdef KS_HAVE_GLFW3
+
 // include OpenGL/GLFW libraries
 #include "./ext/gl3w_gl3.h"
 #include <GLFW/glfw3.h>
+
+#else
+
+#error Compiling `cnk` without GLFW3 (use `./configure --with-glfw3`)
+
+#endif
 
 // versions of OpenGL to try to init
 static int _try_GLvers[][2] = {
@@ -51,8 +59,6 @@ static int  _NK_max_verbuf = 512 * 1024,
 // include Nuklear headers
 #include "./ext/nuklear.h"
 #include "./ext/nuklear_glfw_gl3.h"
-
-
 
 
 /* WRAPPER TYPES */

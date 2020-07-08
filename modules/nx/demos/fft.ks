@@ -8,9 +8,12 @@
 
 import nx
 
-x = nx.array(range(4))
+x = nx.array([5, 2, 3, 8])
 print (x)
 
-Fx = nx.fft.fftNd(1, x)
+Fx = nx.fft.fftN(1, x, none, (0,))
 print (Fx)
+
+xp = nx.fft.ifftN(1, Fx, none, (0,))
+print (xp)
 

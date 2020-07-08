@@ -29,6 +29,15 @@
 #include <stdint.h>
 
 
+#ifdef KS_HAVE_FFTW3
+
+// include FFTW3, which is more efficient at FFT computations
+#include <fftw3.h>
+
+#endif
+
+
+
 /* TYPES */
 
 // size type, for indices & sizes
@@ -224,18 +233,11 @@ extern nx_dtype
 
 /* nx_ufunc_f - describes the function signature required for a 1D ufunc, operating on a variable number of arrays
  *
- * 'Nin' means the number of inputs to the function
- * 'dtypes' is an array of the data types of the various inputs
- * 'datas' is an array of pointers to the data representing the respective inputs
- * 'dim' is the length of each 'data' (in elements). keep in mind that this is for 1D-only loops
- * 'strides' is the stride (in bytes) of each array
- * 
- * 'user_data' is a user-defined pointer that was invoked when the function was applied
  * 
  * Should return success, or false on an error (and throw an error)
  * 
  */
-typedef bool (*nx_ufunc_f)(int Nin, void** datas, nx_dtype* dtypes, nx_size_t dim, nx_size_t* strides, void* _user_data);
+typedef bool (*nx_ufunc_f)(int N, nxar_t* arrs, int len, void* _user_data);
 
 
 /* nx_loopfunc_f - describes a function which can be called in an N-dimensional loop
@@ -314,6 +316,14 @@ KS_API bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd);
 // NOTE: returns new reference, or NULL and throws an error
 KS_API ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs);
 
+// Implementation of nxar[*idxs] = obj
+// NOTE: returns success, or false and throws an error
+KS_API bool nx_nxar_setitem(nxar_t nxar, int N, ks_obj* idxs, ks_obj obj);
+
+
+
+
+
 /* SIZE/SHAPE UTILS */
 
 
@@ -347,13 +357,13 @@ KS_API void* nx_get_ptr(void* data, int N, nx_size_t* dim, nx_size_t* stride, nx
 
 /* GENERIC APPLICATION */
 
-// Apply 'ufunc' to 'datas', returns either 0 if there was no error, or the first error code generated
+
+// Apply `ufunc(*datas)`
 // NOTE: returns success, or false and throws an error
-KS_API bool nx_T_apply_ufunc(int Nin, void** datas, nx_dtype* dtypes, int* N, nx_size_t** dims, nx_size_t** strides, nx_ufunc_f ufunc, void* _user_data);
+KS_API bool nx_T_ufunc_apply(int N, nxar_t* datas, nx_ufunc_f ufunc, void* _user_data);
 
 
 /* LOOP UTILS */
-
 
 // Apply a `loop_N` dimensional loop (of dimensions `loop_dim`)
 // NOTE: returns success, or false and throws an error
@@ -401,6 +411,16 @@ KS_API bool nx_T_mul(nxar_t A, nxar_t B, nxar_t C);
 // NOTE: Returns whether it was successful or not, and if not, throw an error
 KS_API bool nx_T_div(nxar_t A, nxar_t B, nxar_t C);
 
+// Compute: A ** B -> C
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_pow(nxar_t A, nxar_t B, nxar_t C);
+
+
+// Compute: abs(A) -> B
+// NOTE: Returns whether it was successful or not, and if not, throw an error
+KS_API bool nx_T_abs(nxar_t A, nxar_t B);
+
+
 
 /* Cfunc objects */
 
@@ -410,7 +430,11 @@ extern ks_cfunc
     nx_F_add,
     nx_F_sub,
     nx_F_mul,
-    nx_F_div
+    nx_F_div,
+    nx_F_pow,
+
+    nx_F_abs
+
 ;
 
 

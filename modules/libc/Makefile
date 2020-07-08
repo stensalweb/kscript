@@ -12,7 +12,12 @@ MOD_NAME        := libc
 _include_static := -Wl,-Bsymbolic -Wl,--whole-archive $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),ffi)) -Wl,--no-whole-archive
 
 # C libraries
-mod_LIBS        := $(_include_static) -lffi
+mod_LIBS        := $(_include_static)
+
+# add optional dependencies
+ifneq ($(findstring FFI,$(HAVE_LIBS)),)
+	mod_LIBS += -lffi
+endif
 
 # other modules this one depends on
 mod_MODDEPS     := 

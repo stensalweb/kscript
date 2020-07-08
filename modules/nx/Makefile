@@ -9,10 +9,16 @@ MOD_NAME        := nx
 # -*- DEPENDS -*-
 
 # any static libraries that were built
-_include_static :=
+_include_static := -Wl,-Bsymbolic -Wl,--whole-archive $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),fftw3)) -Wl,--no-whole-archive
 
 # C libraries
-mod_LIBS        :=
+mod_LIBS        := $(_include_static)
+
+# add optional dependencies
+ifneq ($(findstring FFTW3,$(HAVE_LIBS)),)
+	mod_LIBS += -lfftw3
+endif
+
 
 # other modules this one depends on
 mod_MODDEPS     := 

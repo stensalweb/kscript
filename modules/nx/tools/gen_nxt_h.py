@@ -51,11 +51,11 @@ print (f"""/* gen/nxt.h - GENERATED FILE FOR TEMPLATES
 
 
 // internal 1argument case
-#define _NXT_CASE_1A(_LOOP, _dtypes, NXT_DTYPE_0, NXT_TYPE_0) else if (_dtypes[0] == NXT_DTYPE_0) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0) }}
+#define _NXT_CASE_1A(_LOOP, _dtype_0, NXT_DTYPE_0, NXT_TYPE_0) else if (_dtype_0 == NXT_DTYPE_0) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0) }}
 // internal 2argument case
-#define _NXT_CASE_2A(_LOOP, _dtypes, NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) else if (_dtypes[0] == NXT_DTYPE_0 && _dtypes[1] == NXT_DTYPE_1) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) }}
+#define _NXT_CASE_2A(_LOOP, _dtype_0, _dtype_1, NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) else if (_dtype_0 == NXT_DTYPE_0 && _dtype_1 == NXT_DTYPE_1) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1) }}
 // internal 3argument case
-#define _NXT_CASE_3A(_LOOP, _dtypes, NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) else if (_dtypes[0] == NXT_DTYPE_0 && _dtypes[1] == NXT_DTYPE_1 && _dtypes[2] == NXT_DTYPE_2) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) }}
+#define _NXT_CASE_3A(_LOOP, _dtype_0, _dtype_1, _dtype_2, NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) else if (_dtype_0 == NXT_DTYPE_0 && _dtype_1 == NXT_DTYPE_1 && _dtype_2 == NXT_DTYPE_2) {{ _LOOP(NXT_DTYPE_0, NXT_TYPE_0, NXT_DTYPE_1, NXT_TYPE_1, NXT_DTYPE_2, NXT_TYPE_2) }}
 
 
 
@@ -70,11 +70,11 @@ print (f"""
  *  
  *
  */
-#define NXT_COMBO_1A(_LOOP, _dtypes) if (false) {{}} \\""")
+#define NXT_COMBO_1A(_LOOP, _dtype_0) if (false) {{}} \\""")
 
 for trip in itertools.product(dtype_pairs, repeat=1):
     call_str = ", ".join(", ".join(dtp) for dtp in trip)
-    print (f"    _NXT_CASE_1A(_LOOP, _dtypes, {call_str}) \\")
+    print (f"    _NXT_CASE_1A(_LOOP, _dtype_0, {call_str}) \\")
 
 
 print (f"""
@@ -85,11 +85,11 @@ print (f"""
  *  
  *
  */
-#define NXT_COMBO_2A(_LOOP, _dtypes) if (false) {{}} \\""")
+#define NXT_COMBO_2A(_LOOP, _dtype_0, _dtype_1) if (false) {{}} \\""")
 
 for trip in itertools.product(dtype_pairs, repeat=2):
     call_str = ", ".join(", ".join(dtp) for dtp in trip)
-    print (f"    _NXT_CASE_2A(_LOOP, _dtypes, {call_str}) \\")
+    print (f"    _NXT_CASE_2A(_LOOP, _dtype_0, _dtype_1, {call_str}) \\")
 
 
 print (f"""
@@ -100,11 +100,11 @@ print (f"""
  *  
  *
  */
-#define NXT_COMBO_3A(_LOOP, _dtypes) if (false) {{}} \\""")
+#define NXT_COMBO_3A(_LOOP, _dtype_0, _dtype_1, _dtype_2) if (false) {{}} \\""")
 
 for trip in itertools.product(dtype_pairs, repeat=3):
     call_str = ", ".join(", ".join(dtp) for dtp in trip)
-    print (f"    _NXT_CASE_3A(_LOOP, _dtypes, {call_str}) \\")
+    print (f"    _NXT_CASE_3A(_LOOP, _dtype_0, _dtype_1, _dtype_2, {call_str}) \\")
 
 
 

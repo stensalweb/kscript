@@ -15,9 +15,8 @@ struct my_setelem_1d_data {
 };
 
 
-// internal 1D loop for setting 'data'
-static bool my_set_all_1d(int Nin, void** datas, nx_dtype* dtypes, nx_size_t dim, nx_size_t* strides, void* _user_data) {
-    NX_ASSERT_CHECK(Nin == 1);
+static bool my_set_all_1d(int N, nxar_t* arrs, int len, void* _user_data) {
+    NX_ASSERT_CHECK(N == 1);
 
     // convert to recognizable type
     struct my_setelem_1d_data* data = _user_data;
@@ -26,17 +25,18 @@ static bool my_set_all_1d(int Nin, void** datas, nx_dtype* dtypes, nx_size_t dim
     nx_size_t i;
 
     // data pointers
-    intptr_t dptr_0 = (intptr_t)datas[0];
+    intptr_t dptr_0 = (intptr_t)arrs[0].data;
+    nx_size_t strd_0 = arrs[0].stride[0];
 
 
     // set all elements
-    for (i = 0; i < dim; ++i, dptr_0 += strides[0]) {
-        memcpy((void*)dptr_0, data->target_elem, dtypes[0]->size);
+    for (i = 0; i < len; ++i, dptr_0 += strd_0) {
+        memcpy((void*)dptr_0, data->target_elem, arrs[0].dtype->size);
     }
 
-    // success
     return true;
 }
+
 
 // set all elements to the correct type
 bool nx_T_set_all(nxar_t A, ks_obj obj) {
@@ -51,7 +51,7 @@ bool nx_T_set_all(nxar_t A, ks_obj obj) {
         .target_elem = obj_casted
     };
 
-    bool rst = nx_T_apply_ufunc(1, &A.data, &A.dtype, &A.rank, &A.dim, &A.stride, my_set_all_1d, (void*)&user_data);
+    bool rst = nx_T_ufunc_apply(1, &A, my_set_all_1d, (void*)&user_data);
 
     ks_free(obj_casted);
 
