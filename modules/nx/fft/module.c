@@ -9,38 +9,14 @@
 #define SUBMOD "fft"
 
 
-// nx.fft.fftN(axes, A, B=none)
+// nx.fft.fftN(A, axes=none, B=none)
 static KS_TFUNC(fft, fftN) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
-    ks_obj a_axes;
+    ks_obj a_axes = NULL;
     ks_obj aA, aB = KSO_NONE;
-    if (!ks_parse_params(n_args, args, "axes%any A%any ?B%any", &a_axes, &aA, &aB)) return NULL;
+    if (!ks_parse_params(n_args, args, "A%any ?axes%any ?B%any", &aA, &a_axes, &aB)) return NULL;
 
     int i;
-
-    // convert axes to a list
-    ks_list l_axes = ks_list_from_iterable(a_axes);
-    if (!l_axes) return NULL;
-
-    // the FFT rank
-    int fft_rank = l_axes->len;
-
-    // determine axes
-    int* axes = ks_malloc(sizeof(*axes) * fft_rank);
-    for (i = 0; i < fft_rank; ++i) {
-        int64_t v64;
-        if (!ks_num_get_int64(l_axes->elems[i], &v64)) {
-            KS_DECREF(l_axes);
-            ks_free(axes);
-            return NULL;
-        }
-        axes[i] = v64;
-    }
-
-    // done with the list; all are now converted to ints
-    KS_DECREF(l_axes);
-
-
     nxar_t Ar, Br;
 
     // refs to delete
@@ -52,12 +28,52 @@ static KS_TFUNC(fft, fftN) {
         return NULL;
     }
 
+    // rank FFT
+    int fft_rank = -1;
+
+    // determine axes
+    int* axes = NULL;
+
+    // convert axes to a list
+    if (!a_axes || a_axes == KSO_NONE) {
+
+        // do it over all axes
+        fft_rank = Ar.rank;
+        axes = ks_malloc(sizeof(*axes) * fft_rank);
+
+        // all of them
+        for (i = 0; i < fft_rank; ++i) axes[i] = i;
+
+    } else {
+        ks_list l_axes = ks_list_from_iterable(a_axes);
+        if (!l_axes) {
+            KS_DECREF(dels);
+            return NULL;
+        }
+        
+        // FFT rank & axes
+        fft_rank = l_axes->len;
+        axes = ks_malloc(sizeof(*axes) * fft_rank);
+
+        for (i = 0; i < fft_rank; ++i) {
+            int64_t v64;
+            if (!ks_num_get_int64(l_axes->elems[i], &v64)) {
+                KS_DECREF(l_axes);
+                ks_free(axes);
+                KS_DECREF(dels);
+                return NULL;
+            }
+            axes[i] = v64;
+        }
+
+        // done with the list; all are now converted to ints
+        KS_DECREF(l_axes);
+    }
+
     ks_obj to_ret = NULL;
 
     if (aB == KSO_NONE) {
-
         // create new array
-        // TODO: auto-detect type as well
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = nx_dtype_cplx_fp64,
@@ -68,7 +84,7 @@ static KS_TFUNC(fft, fftN) {
 
         // set nxar
         Br = NXAR_ARRAY(newB);
-        //ks_list_push(dels, (ks_obj)newB);
+        ks_list_push(dels, (ks_obj)newB);
         to_ret = KS_NEWREF(newB);
 
     } else {
@@ -108,38 +124,14 @@ static KS_TFUNC(fft, fftN) {
     return (ks_obj)to_ret;
 }
 
-// nx.fft.ifftN(axes, A, B=none)
+// nx.fft.ifftN(A, axes=none, B=none)
 static KS_TFUNC(fft, ifftN) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
-    ks_obj a_axes;
+    ks_obj a_axes = NULL;
     ks_obj aA, aB = KSO_NONE;
-    if (!ks_parse_params(n_args, args, "axes%any A%any ?B%any", &a_axes, &aA, &aB)) return NULL;
+    if (!ks_parse_params(n_args, args, "A%any ?axes%any ?B%any", &aA, &a_axes, &aB)) return NULL;
 
     int i;
-
-    // convert axes to a list
-    ks_list l_axes = ks_list_from_iterable(a_axes);
-    if (!l_axes) return NULL;
-
-    // the FFT rank
-    int fft_rank = l_axes->len;
-
-    // determine axes
-    int* axes = ks_malloc(sizeof(*axes) * fft_rank);
-    for (i = 0; i < fft_rank; ++i) {
-        int64_t v64;
-        if (!ks_num_get_int64(l_axes->elems[i], &v64)) {
-            KS_DECREF(l_axes);
-            ks_free(axes);
-            return NULL;
-        }
-        axes[i] = v64;
-    }
-
-    // done with the list; all are now converted to ints
-    KS_DECREF(l_axes);
-
-
     nxar_t Ar, Br;
 
     // refs to delete
@@ -151,12 +143,52 @@ static KS_TFUNC(fft, ifftN) {
         return NULL;
     }
 
+    // rank FFT
+    int fft_rank = -1;
+
+    // determine axes
+    int* axes = NULL;
+
+    // convert axes to a list
+    if (!a_axes || a_axes == KSO_NONE) {
+
+        // do it over all axes
+        fft_rank = Ar.rank;
+        axes = ks_malloc(sizeof(*axes) * fft_rank);
+
+        // all of them
+        for (i = 0; i < fft_rank; ++i) axes[i] = i;
+
+    } else {
+        ks_list l_axes = ks_list_from_iterable(a_axes);
+        if (!l_axes) {
+            KS_DECREF(dels);
+            return NULL;
+        }
+        
+        // FFT rank & axes
+        fft_rank = l_axes->len;
+        axes = ks_malloc(sizeof(*axes) * fft_rank);
+
+        for (i = 0; i < fft_rank; ++i) {
+            int64_t v64;
+            if (!ks_num_get_int64(l_axes->elems[i], &v64)) {
+                KS_DECREF(l_axes);
+                ks_free(axes);
+                KS_DECREF(dels);
+                return NULL;
+            }
+            axes[i] = v64;
+        }
+
+        // done with the list; all are now converted to ints
+        KS_DECREF(l_axes);
+    }
+
     ks_obj to_ret = NULL;
 
     if (aB == KSO_NONE) {
-
         // create new array
-        // TODO: auto-detect type as well
         nx_array newB = nx_array_new((nxar_t){
             .data = NULL,
             .dtype = nx_dtype_cplx_fp64,
@@ -167,7 +199,7 @@ static KS_TFUNC(fft, ifftN) {
 
         // set nxar
         Br = NXAR_ARRAY(newB);
-        //ks_list_push(dels, (ks_obj)newB);
+        ks_list_push(dels, (ks_obj)newB);
         to_ret = KS_NEWREF(newB);
 
     } else {
@@ -192,7 +224,7 @@ static KS_TFUNC(fft, ifftN) {
         KS_DECREF(dels);
         return NULL;
     }
-    
+
     // try to add them, if not throw an error
     if (!nx_fft_plan_do(plan, Ar, Br, axes)) {
         ks_free(axes);
@@ -219,8 +251,8 @@ void nx_mod_add_fft(ks_module nxmod) {
 
         {"Plan",        (ks_obj)nx_type_fft_plan},
 
-        {"fftN",        (ks_obj)ks_cfunc_new2(fft_fftN_, "nx.fft.fftN(axes, A, B=none)")},
-        {"ifftN",        (ks_obj)ks_cfunc_new2(fft_ifftN_, "nx.fft.fftN(axes, A, B=none)")},
+        {"fftN",        (ks_obj)ks_cfunc_new2(fft_fftN_, "nx.fft.fftN(A, axes=none, B=none)")},
+        {"ifftN",        (ks_obj)ks_cfunc_new2(fft_ifftN_, "nx.fft.fftN(A, axes=none, B=none)")},
         //{"ifft2d",       (ks_obj)ks_cfunc_new2(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
 
 

@@ -43,13 +43,32 @@
 /* TYPE */
 
 
-// detailing which types of media
+// mm_media_type - details which kind of media a given object is
 enum mm_media_type {
 
+    // none (autodetect), or error
     MM_MEDIA_TYPE_NONE    = 0x0,
+
+    // audio data
     MM_MEDIA_TYPE_AUDIO   = 0x1,
+
+    // video/picture data
     MM_MEDIA_TYPE_VIDEO   = 0x2,
+
 };
+
+
+// mm_flags - generic flags
+enum mm_flags {
+
+    // none/no specific behavior
+    MM_FLAGS_NONE         = 0x0,
+
+    // Specifies/requests a grayscale image
+    MM_FLAGS_GREY         = 0x1,
+
+};
+
 
 // mm.Stream - an audio/video stream that can be opened by any URL
 typedef struct {
@@ -125,12 +144,28 @@ KS_API bool mm_Stream_open(mm_Stream self, char* url);
 // NOTE: Returns a new reference
 KS_API ks_blob mm_read_file(char* fname);
 
-// Read a file as an image array
-// TODO: Allow format conversion specifications (i.e. return as uint8's, convert to black&white, alpha, etc)
-// NOTE: Returns a new reference
-KS_API nx_array mm_read_image(char* fname);
+// Read, then decode an image file to an array, then return the array
+// By default, a tensor of (h, w, d) is returned, with `d` being the number of channels
+//   normally 3 or 4, and ordered RGB[A].
+// By default, the tensor contains elements of `fp32` (i.e. floats) between [0, 1] for all channels
+// `flags` controls the behavior (pass '0' or MM_FLAGS_NONE for the default behavior)
+// MM_FLAGS_GREY: Returns a greyscale image of size (h, w)
+// NOTE: Returns a new reference, or NULL and throws an error
+KS_API nx_array mm_read_image(char* fname, enum mm_flags flags);
 
-KS_API bool mm_write_image(char* fname, nxar_t img);
+// Interperet 'img' as an image with shape (h, w[, d]), and encode it to a file
+// It is assumped to be in a few different formats, based on size:
+//  If img.rank==3, then it is interpretered as (h, w, d), with 'd' being the number of color channels,
+//    which should be either 3 or 4 (in which case it is interpreted as RGB or RGBA)
+//  If img.rank==2, then it is interpreretd as (h, w) with the last channel being greyscale
+// As far as type conversions, we have:
+//   if img.dtype->kind == CINT, then it is assumed to be 8 bit unsigned fixed point. Modulo is performed
+//   if img.dtype->kind == CFLOAT or CCOMPLEX, then the value is scaled up (i.e. *255) before conversion. Modulo is performed
+//     (complex values are casted to their real components only)
+//   Otherwise, an error is thrown, as the type must be numeric
+// TODO: Should saturating the input be supported, or modulo kept as the standard?
+// NOTE: Returns whether successful, or false and throws an error
+KS_API bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags);
 
 
 

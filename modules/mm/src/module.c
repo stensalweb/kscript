@@ -211,7 +211,7 @@ static KS_TFUNC(mm, read_image) {
     ks_str fname;
     if (!ks_parse_params(n_args, args, "fname%s", &fname)) return NULL;
 
-    return (ks_obj)mm_read_image(fname->chr);
+    return (ks_obj)mm_read_image(fname->chr, 0);
 }
 
 // mm.write_image(img, fname) -> write image to file
@@ -228,7 +228,7 @@ static KS_TFUNC(mm, write_image) {
         return NULL;
     }
 
-    bool rst = mm_write_image(fname->chr, img_ar);
+    bool rst = mm_write_image(fname->chr, img_ar, 0);
     KS_DECREF(refadd);
 
     if (!rst) return NULL;

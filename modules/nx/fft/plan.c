@@ -889,7 +889,15 @@ static KS_TFUNC(plan, str) {
 
     enum nx_fft_plan_type pt = self->ptype;
 
-    return (ks_obj)ks_fmt_c("nx.fft.Plan(rank=%i, dim=(%+z), ptype='%s')", self->rank, self->rank, self->dim, pt == NX_FFT_PLAN_NONE ? "NONE" : pt == NX_FFT_PLAN_ND_DEFAULT ? "ND_DEFAULT" : pt == NX_FFT_PLAN_ND_FFTW3 ? "ND_FFTW3" : pt == NX_FFT_PLAN_1D_DENSE ? "1D_DENSE" : pt == NX_FFT_PLAN_1D_BFLY ? "1D_BFLY" : pt == NX_FFT_PLAN_1D_BLUE ? "1D_BLUE" : "UNKNOWN");
+    return (ks_obj)ks_fmt_c("nx.fft.Plan(rank=%i, dim=(%+z), ptype='%s')", self->rank, self->rank, self->dim, 
+        pt == NX_FFT_PLAN_NONE ? "NONE" : 
+        pt == NX_FFT_PLAN_ND_DEFAULT ? "ND_DEFAULT" : 
+        pt == NX_FFT_PLAN_ND_FFTW3 ? "ND_FFTW3" : 
+        pt == NX_FFT_PLAN_1D_DENSE ? "1D_DENSE" : 
+        pt == NX_FFT_PLAN_1D_BFLY ? "1D_BFLY" : 
+        pt == NX_FFT_PLAN_1D_BLUE ? "1D_BLUE" :
+        "UNKNOWN"
+    );
 }
 
 
