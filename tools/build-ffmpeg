@@ -202,7 +202,7 @@ if build "libvpx"; then
         sed "s/-Wl,--no-undefined -Wl,-soname/-Wl,-undefined,error -Wl,-install_name/g" build/make/Makefile.patched > build/make/Makefile
     fi
 
-	execute ./configure --prefix="${WORKSPACE}" --disable-unit-tests --disable-shared
+	execute ./configure --prefix="${WORKSPACE}" --disable-unit-tests --disable-examples --disable-shared
 	execute make -j $MJOBS
 	execute make install
 	build_done "libvpx"
@@ -211,7 +211,7 @@ fi
 if build "lame"; then
 	download "https://netcologne.dl.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz" "lame-3.100.tar.gz"
 	cd "$PACKAGES"/lame-3.100 || exit
-	execute ./configure --prefix="${WORKSPACE}" --disable-shared --enable-static
+	execute ./configure --prefix="${WORKSPACE}" --disable-shared --enable-static CFLAGS="-D_O_BINARY=O_BINARY"
 	execute make -j $MJOBS
 	execute make install
 	build_done "lame"
@@ -246,9 +246,9 @@ if build "x264"; then
 	cd "$PACKAGES"/x264-stable || exit
 
 	if [[ "$OSTYPE" == "linux-gnu" ]]; then
-		execute ./configure --prefix="${WORKSPACE}" --enable-static --enable-pic CXXFLAGS="-fPIC"
+		execute ./configure --prefix="${WORKSPACE}" --enable-static --enable-pic CXXFLAGS="-fPIC" --disable-extras --disable-opencl --disable-avs
     else
-        execute ./configure --prefix="${WORKSPACE}" --enable-static --enable-pic
+        execute ./configure --prefix="${WORKSPACE}" --enable-static --enable-pic --disable-extras --disable-opencl --disable-avs
     fi
 
     execute make -j $MJOBS
@@ -275,12 +275,18 @@ if build "libvorbis"; then
 	build_done "libvorbis"
 fi
 
+
 if build "libtheora"; then
 	download "https://ftp.osuosl.org/pub/xiph/releases/theora/libtheora-1.1.1.tar.gz" "libtheora-1.1.1.tar.bz"
 	cd "$PACKAGES"/libtheora-1.1.1 || exit
 	sed "s/-fforce-addr//g" configure > configure.patched
 	chmod +x configure.patched
 	mv configure.patched configure
+	if [[ "$OSTYPE" == "cygwin" ]]; then
+		var=(/usr/share/automake*/config.guess)
+		execute cp $var ./config.guess
+    fi
+
 	execute ./configure --prefix="${WORKSPACE}" --with-ogg-libraries="${WORKSPACE}"/lib --with-ogg-includes="${WORKSPACE}"/include/ --with-vorbis-libraries="${WORKSPACE}"/lib --with-vorbis-includes="${WORKSPACE}"/include/ --enable-static --disable-shared --disable-oggtest --disable-vorbistest --disable-examples --disable-asm --disable-spec
 	execute make -j $MJOBS
 	execute make install
@@ -290,7 +296,12 @@ fi
 if build "pkg-config"; then
 	download "https://pkgconfig.freedesktop.org/releases/pkg-config-0.29.2.tar.gz" "pkg-config-0.29.2.tar.gz"
 	cd "$PACKAGES"/pkg-config-0.29.2 || exit
-	execute ./configure --silent --prefix="${WORKSPACE}" --with-pc-path="${WORKSPACE}"/lib/pkgconfig --with-internal-glib
+	
+	if [[ "$OSTYPE" == "cygwin" ]]; then
+		execute ./configure --silent --prefix="${WORKSPACE}" --with-pc-path="${WORKSPACE}"/lib/pkgconfig --with-internal-glib --without-libiconv
+    else
+		execute ./configure --silent --prefix="${WORKSPACE}" --with-pc-path="${WORKSPACE}"/lib/pkgconfig --with-internal-glib
+    fi
 	execute make -j $MJOBS
 	execute make install
 	build_done "pkg-config"
