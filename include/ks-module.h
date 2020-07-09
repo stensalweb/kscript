@@ -57,7 +57,7 @@ extern "C" {
 
 
 // the symbol that is expected to be exported by the module
-extern struct ks_module_cext_init __C_module_init__;
+KS_API extern struct ks_module_cext_init __C_module_init__;
 
 
 #ifdef __cplusplus

@@ -215,6 +215,8 @@ if args.with_curl is not False:
 
 if args.with_glfw3 is not False:
 	hasGLFW3          = has_c_lib("glfw3", "", "-lglfw -lX11 -ldl -lpthread -lm ", "#include <GLFW/glfw3.h>", "glfwInit(); glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);")
+	if not hasGLFW3:
+		hasGLFW3          = has_c_lib("glfw3", "", "-lglfw3 -lX11 -ldl -lpthread -lm ", "#include <GLFW/glfw3.h>", "glfwInit(); glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);")
 	if args.with_glfw3 and not hasGLFW3:
 		raise Exception("'--with-glfw3' given, but GLFW3 was not found!")
 

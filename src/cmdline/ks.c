@@ -10,13 +10,6 @@
 
 int main(int argc, char** argv) {
 
-    // now, try & initialize the library
-    if (!ks_init()) {
-        fprintf(stderr, "Failed to initialize kscript!\n");
-        return -1;
-    }
-
-
     // handle errors ourselves
     ks_opterr = 0;
 
@@ -47,7 +40,8 @@ int main(int argc, char** argv) {
         { NULL, 0, NULL, 0}
     };
 
-
+    // verbositity
+    int vdiff = 0;
     ks_optind = 0;
     
     while ((opt = ks_getopt_long(argc, argv, "+e:hvV", long_options, NULL)) != -1) {
@@ -71,8 +65,8 @@ int main(int argc, char** argv) {
             return 0;
         } else if (opt == 'v') {
             // increate verbosity
-            ks_log_level_set(ks_log_level() - 1);
-
+            //ks_log_level_set(ks_log_level() - 1);
+            vdiff ++;
         } else if (opt == 'e') {
             expr = ks_optarg;
             // stop parsing arguments
@@ -96,6 +90,16 @@ int main(int argc, char** argv) {
         }
     }
 
+    ks_log_level_set(ks_log_level() - vdiff);
+
+    // now, try & initialize the library
+    if (!ks_init()) {
+        fprintf(stderr, "Failed to initialize kscript!\n");
+        return -1;
+    }
+
+    ks_debug("argc: %i, argv[0]: %s", argc, argv[0]);
+    //printf("argv[0]: %s\n", argv[0]);
     // ensure a maximum of one is given 
     if (fname != NULL && expr != NULL) {
         OPT_ERR("%s: Given a file AND an expression (with '-e'), but only expected one", argv[0]);

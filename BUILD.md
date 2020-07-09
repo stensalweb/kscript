@@ -19,6 +19,56 @@ Linux (Ubuntu): `sudo apt install cmake m4 libgmp-dev libreadline-dev libcurl4-o
 MacOS: `brew install cmake gmp readline curl glfw libav`
 
 
+Windows (cygwin):
+cygw
+
+```
+make (4.3-1)
+cmake (3.13.1-1)
+gcc-core (9.3.0-2)
+gcc-g++ (9.3.0-2)
+python3 (3.8.3-1)
+curl (7.66.0-1)
+m4 (1.4.18-1)
+autoconf (13-1)
+automake (11-1)
+
+zlib (1.2.11-1)
+zlib-devel (1.2.11-1)
+
+libX11 (1.6.9-1)
+libX11-devel (1.6.9-1)
+libgmp (6.2.0-2)
+libgmp-devel (6.2.0-2)
+libreadline (7.0.3-3)
+libreadline-devel (7.0.3-3)
+libcurl4 (7.66.0-1)
+libcurl-devel (7.66.0-1)
+fftw3 (3.3.8-1)
+libfftw3-devel (3.3.8-1)
+libffi6 (3.2.1-2)
+libffi-devel (3.2.1-2)
+libGL1 (19.1.6)
+libGL-devel (19.1.6)
+
+xorg-server (1.20.5-3)
+xorg-server-devel (1.20.5-3)
+xinit (1.4.1-1)
+
+libXrand2 (1.5.2-1)
+libXrandr-devel (1.5.2-1)
+libXinerama1 (1.1.4-1)
+libXinerama-devel (1.1.4-1)
+libXcursor1 (1.2.0-1)
+libXcursor-devel (1.2.0-1)
+libXi6 (1.7.10-1)
+libXi-devel (1.7.10-1)
+
+
+
+
+```
+
 
 ## Build Process 
 

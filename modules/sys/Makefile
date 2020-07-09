@@ -56,7 +56,7 @@ install: $(mod_SHARED) $(mod_H)
 
 # rule to compile a single object file, no need to link yet
 %.o: %.c $(mod_H) | $(all_H)
-	$(CC) $(CFLAGS) $(patsubst %,-I$(KS_DIR)/modules/%,$(mod_MODDEPS)) $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) -DKS_BUILD $(patsubst %,-I$(KS_DIR)/modules/%,$(mod_MODDEPS)) $< -fPIC -c -o $@
 
 # rule to compile the module file, linking it with kscript
 $(mod_SHARED): $(mod_O)

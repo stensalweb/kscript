@@ -9,7 +9,7 @@
 // include this since this is a module.
 #include "ks-module.h"
 
-#include "../kslibc.h"
+#include "../kslibc-impl.h"
 
 
 #include <dlfcn.h>
@@ -188,7 +188,11 @@ static ks_module get_module() {
 
         KS_EEF(RTLD_LAZY),
         KS_EEF(RTLD_NOW),
+        
+        #if !defined(KS__WINDOWS) && !defined(KS__CYGWIN)
         KS_EEF(RTLD_BINDING_MASK),
+        #endif
+
         KS_EEF(RTLD_NOLOAD),
         KS_EEF(RTLD_DEEPBIND),
         KS_EEF(RTLD_GLOBAL),

@@ -105,6 +105,11 @@ bool ks_init() {
     ks_list_push(ks_paths, (ks_obj)myp);
     KS_DECREF(myp);
 
+    myp = ks_str_new("..");
+    ks_list_push(ks_paths, (ks_obj)myp);
+    KS_DECREF(myp);
+
+
     // get the environment variable
     char* env_ksp = getenv("KS_PATH");
 
@@ -136,6 +141,8 @@ bool ks_init() {
     wai_getExecutablePath(full_path, length, &dir_length);
     full_path[dir_length] = '\0';
 
+    ks_debug("wai_getExecutablePath: %s", full_path);
+
     ks_str full_path_o = ks_str_new(full_path);
     ks_str lib_path_o = ks_fmt_c("%s/../lib", full_path);
 
@@ -151,9 +158,9 @@ bool ks_init() {
     ks_str tmpstr = NULL;
     //#if defined(KS__LINUX) || defined(KS__CYGWIN)
     // add some default places to look
-    tmpstr = ks_str_new(KS_PREFIX "/lib/kscript/modules");
-    ks_list_push(ks_paths, (ks_obj)tmpstr);
-    KS_DECREF(tmpstr);
+    //tmpstr = ks_str_new(KS_PREFIX "/lib/kscript/modules");
+    //ks_list_push(ks_paths, (ks_obj)tmpstr);
+    //KS_DECREF(tmpstr);
     //#endif
     
     // initialize internal globals

@@ -854,7 +854,8 @@ static const char* global_matches[] = {
     "typeof(", "hash(", "print(",
     "len(", "exit(", "repr(",
 
-    "__import__(", "sleep(", "time("
+    "__import__(", "sleep(", "time(",
+    
     "iter(", "next(", "open(",
 
     "any(", "all(", 

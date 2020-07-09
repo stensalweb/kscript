@@ -58,8 +58,8 @@ mkdir -p $DIR_FFMPEG
 
 if [ ! -f "$DIR_GMP/build.done" ]; then
     cd $DIR_GMP
-    ./configure --prefix=$PREFIXDIR --enable-static --disable-shared --disable-assembly CFLAGS="-fPIC" &&
-        make -j$JOBS &&
+    ./configure --prefix=$PREFIXDIR --enable-static --disable-shared --disable-assembly CFLAGS="-fPIC" && \
+        make -j$JOBS && \
         make install || { echo "Compiling 'GMP' failed"; exit 1; }
     touch ./build.done
 fi
@@ -72,7 +72,7 @@ fi
 if [ ! -f "$DIR_FFI/build.done" ]; then
     cd $DIR_FFI
     ./configure --prefix=$PREFIXDIR --enable-static --disable-shared CFLAGS="-fPIC" &&
-        make -j$JOBS &&
+        make -j$JOBS && \
         make install || { echo "Compiling 'FFI' failed"; exit 1; }
     touch ./build.done
 fi
@@ -89,10 +89,10 @@ fi
 # -*- 4. Build GLFW
 if [ ! -f "$DIR_GLFW/build.done" ]; then
     cd $DIR_GLFW
-    cmake . -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=$HOME/projects/kscript/deps/prefix \
+    cmake . -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=$PREFIXDIR \
         -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=true \
-        -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF &&
-        make -j$JOBS &&
+        -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF && \
+        make -j$JOBS && \
         make install || { echo "Compiling 'GLFW' failed"; exit 1; }
     touch ./build.done
 fi
