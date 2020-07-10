@@ -37,8 +37,8 @@
 /*.tar.*
 /*.tar
 
-/deps/src/
-/deps/prefix/
+/deps/
+/deps/
 
 
 # -*- DEBIAN FILES -*-
