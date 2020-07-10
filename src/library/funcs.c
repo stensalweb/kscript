@@ -1248,12 +1248,12 @@ static KS_TFUNC(std, run_interactive) {
         ensure_readline();
 
         // yield GIL
-       // ks_GIL_unlock();
+        ks_GIL_unlock();
 
         // now, continue to read lines
         while ((cur_line = readline(PROMPT)) != NULL) {
 
-            //ks_GIL_lock();
+            ks_GIL_lock();
 
             num_lines++;
             // only add non-empty
@@ -1271,10 +1271,10 @@ static KS_TFUNC(std, run_interactive) {
             // free it. readline uses 'malloc', so we must use free
             free(cur_line);
 
-           // ks_GIL_unlock();
+            ks_GIL_unlock();
         }
         
-       // ks_GIL_lock();
+        ks_GIL_lock();
 
     } else {
     // do fallback version

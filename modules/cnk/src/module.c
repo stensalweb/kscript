@@ -775,9 +775,7 @@ static ks_module get_module() {
         {"layout_row_dynamic",       (ks_obj)ks_cfunc_new2(Context_layout_row_dynamic_,          "Context.layout_row_dynamic(self, height, cols=1)")},
         {"layout_row_static",        (ks_obj)ks_cfunc_new2(Context_layout_row_static_,           "Context.layout_row_static(self, height, item_width, cols=1)")},
 
-
         {"edit_string",              (ks_obj)ks_cfunc_new2(Context_edit_string_,        "Context.edit_string(self, edit_type, cur_str, max_len)")},
-
 
         {"button_label",                 (ks_obj)ks_cfunc_new2(Context_button_label_, "Context.button_label(self, label)")},
 

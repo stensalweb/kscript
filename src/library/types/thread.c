@@ -24,7 +24,12 @@ ks_stack_frame ks_stack_frame_new(ks_obj func) {
 
     self->func = KS_NEWREF(func);
 
-    self->kfunc = (ks_kfunc)(func->type == ks_type_kfunc ? func : NULL);
+    self->code = NULL;
+    if (func->type == ks_type_code) {
+        self->code = (ks_code)func;
+    } else if (func->type == ks_type_kfunc) {
+        self->code = ((ks_kfunc)func)->code;
+    }
 
     self->locals = NULL;
     self->pc = NULL;
@@ -45,7 +50,6 @@ static KS_TFUNC(stack_frame, free) {
 
     // free local variables, if allocated
     if (self->locals != NULL) KS_DECREF(self->locals);
-
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
@@ -146,7 +150,7 @@ void ks_mutex_unlock(ks_mutex self) {
 // acquire the GIL lock
 void ks_GIL_lock() {
     ks_thread th = ks_thread_get();
-    assert(th != NULL && "Not in a thread!");
+    assert(th != NULL && "ks_GIL_*() called outside of a thread!");
     if (!th->hasGIL) ks_mutex_lock(ks_GIL);
     th->hasGIL = true;
 }
@@ -154,7 +158,7 @@ void ks_GIL_lock() {
 // end GIL usage
 void ks_GIL_unlock() {
     ks_thread th = ks_thread_get();
-    assert(th != NULL && "Not in a thread!");
+    assert(th != NULL && "ks_GIL_*() called outside of a thread!");
     if (th->hasGIL) ks_mutex_unlock(ks_GIL);
     th->hasGIL = false;
 
@@ -468,7 +472,7 @@ void ks_type_thread_init() {
     });
 
     ks_type_set_cn(ks_type_thread, (ks_dict_ent_c[]){
-        {"__new__", (ks_obj)ks_cfunc_new2(thread_new_, "thread.__new__(func, args=(,), name=NONE)")},
+        {"__new__", (ks_obj)ks_cfunc_new2(thread_new_, "thread.__new__(func, args=(,), name=none)")},
 
         {"start", (ks_obj)ks_cfunc_new2(thread_start_, "thread.start(self)")},
         {"join", (ks_obj)ks_cfunc_new2(thread_join_, "thread.join(self)")},

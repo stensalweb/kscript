@@ -52,7 +52,6 @@ static void* code_error(ks_tok tok, char* fmt, ...) {
         }
 
 
-
         if (i < 0) i++;
         if (src[i] == '\n') i++;
 
@@ -905,8 +904,6 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
     return true;
 
 }
-
-
 
 
 // Generate corresponding bytecode for a given AST

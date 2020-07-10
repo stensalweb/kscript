@@ -1,10 +1,54 @@
 /* exec.c - implementation of the internal bytecode execution engine for kscript
  *
+ *
+ * Essentially, bytecode is just a sequence of bytes (shocking, I know...) that have operands,
+ * The first operand is the first byte, i.e. `bc[0]` tells what the first instruction does. From there,
+ *   each instruction has a given length (all of kscript's operands are either 1 or 5 bytes, check `ks.h`
+ *   by the `KSB_*` enumeration values to see specific ones).
+ * Then, the next operand is located at `bc[0 + 1]` or `bc[0 + 5]`. This process is iterated until some control
+ *   flow operand is encountered; for example KSB_RET or KSB_THROW, or an exception is generated.
  * 
- * There is a switch-case, and a computed-goto configuration for the execution engine
+ * In that case, we have an exception stack that we back up; we find the first valid exception handler,
+ *   and start executing at that point. We can just assume that the code generator has set up that address
+ *   (given to us with the opcode `KS_TRY_START`) to handle such a case.
+ * 
+ * If there are none available, we set `this->exc` and `this->exc_info` (this being the current thread),
+ *   and then return NULL, which signals that an exception was thrown. From there, however called the piece 
+ *   of code we are executing can make a few choices:
+ *   * If they are in a C-function, they will get a return value of 'NULL'; they can return 'NULL' to propogate
+ *       that error upwards even higher (making sure, of course, that they delete any dangling reference or
+ *       allocated memory)
+ *     Or, they can choose to catch that using `ks_catch()` or `ks_catch_ignore()`
+ *   * If they are in a kscript function, they have no choice, since they should have set up a 'try'/'catch'
+ *       block. The kscript interpreter will exit and print a stack trace leading up to the exception,
+ *       and exit with a non-zero exit code
+ *
+ * 
+ * The actual interpreting of the bytecode is abstracted; by default it uses a `switch; case` construct to
+ *   check the opcode, then perform the operation, and then continue on. This works fairly well for most things,
+ *   and has the opportunity (although not guaranteed) to catch mal-formed bytecode. Again, it could be malformed
+ *   and still execute (as it has A valid opcode), but at least you will get an abort message instead of a seg-fault
+ * There is another method, which is faster, but carries more risks, called 'computed GOTO'. This uses jump tables
+ *   instead of switch-cases, and thus reduces itself to a simple index instead of a bounds check + index
+ * Obviously, the risk of this is that if a malformed byte-code is given, it may jump to an undefined location,
+ *   causing a crash, or worse, continued execution with compromised memory, stack, etc.
+ * 
+ * For that reason, as of now, I am using the switch case, but I intend to continue improving the GOTO and doing more
+ *   tests until it is stable enough to be the default. However, I will continue to support the switch case due
+ *   to compatibility, error checking, error protection, and other reasons. However, the computed goto is quite
+ *   possibly faster (as CPython has shown)
  * 
  * 
+ * There is still progress to be made here (and in the internals around execution in general), for example, it would
+ *   be nice to allow promotion to a higher scope via the `global` keyword, similar to Python. It would be good to announce:
+ * ```
+ * global x, y, z
+ * x = y + z
+ * ```
+ * , for example
  * 
+ * 
+ *  -- REFERENCES --
  * 
  * More on computed goto: https://eli.thegreenplace.net/2012/07/12/computed-goto-for-efficient-dispatch-tables
  * 
@@ -13,38 +57,51 @@
 
 #include "ks-impl.h"
 
-// define one of 'VME__SWITCHCASE' or 'VME__GOTO' to switch between switch case statements, and computed goto
-//   (https://eli.thegreenplace.net/2012/07/12/computed-goto-for-efficient-dispatch-tables)
 
-// by default, use switch case statements, as these will handle malformed inputs and give a useful error
-//   message if there is an error
+/* utilities */
+
+
+// Yield the GIL (i.e. and allow other threads to unlock it), and then lock it back immediately,
+//   then continue executing
+// This is used to give other threads a chance to execute
+#define YIELDGIL() { ks_GIL_unlock(); ks_GIL_lock(); }
+
+// Check that a given assertion is valid.
+// NOTE: This may be removed (i.e. defined to nothing) to speed up execution speed;
+//   anything that uses VME_CHECK() should be a sanity check only; only in seriously
+//   broken builds should it ever actually abort. So, in release builds, it should probably
+//   be removed for speed
+#define VME_CHECK(...) assert(__VA_ARGS__)
+
+// maximum size of the exception handler stack
+#define MAX_EXC_STACK 512
+
+/* Virtual Machine Execution Dispatch (VMED)
+ *
+ * This code is used to control which method (SWITCHCASE or GOTO) is used for dispatching commands
+ * 
+ * See the header for comments regarding the generalities of both
+ * 
+ */
+
+// Uncomment the one that should be used
+// SWITCHCASE: Safe, pretty fast, and well documented. Standard C code
 #define VME__SWITCHCASE
-
-// for more optimized builds, use the computed goto to jump directly to the corresponding targets
-// Note that if there is incorrectly formed bytecode, this will cause a crash and there will not be a good reason
-//   printed, so this is not useful for debugging
+// GOTO: Using a computed GOTO table (see top of file comment block), which is less safe, but may be faster
 //#define VME__GOTO
 
-// yield the GIL temporarily and immediately take it back before continuing to execute
-#define VME_YIELDGIL { ks_GIL_unlock(); ks_GIL_lock(); }
 
-// disable yielding GIL
-//#define VME_YIELDGIL { }
-
-
-#define VME_ASSERT(...) assert(__VA_ARGS__)
-#define VME_ABORT() assert(false && "Internal Virtual Machine Error");
-
-// now, define the correct macros
-// VMED = Virtual Machine Execution Dispatch, these macros have to do with internal code generation
-
+// decide which method to use
 #if defined(VME__SWITCHCASE)
 
+// Start & end of the dispatcher
 #define VMED_START while (true) switch (*c_pc) {
-#define VMED_END default: fprintf(stderr, "ERROR: in kscript VM exec (%p), unknown instruction code '%i' encountered\n", code, (int)*c_pc); VME_ABORT(); break;}
+#define VMED_END default: fprintf(stderr, "ERROR: in kscript VM exec (%p), unknown instruction code '%i' encountered\n", code, (int)*c_pc); assert(false && "Internal Error"); break;}
 
-#define VMED_NEXT() { if (++gilct % 8 == 0) { VME_YIELDGIL } continue; }
+// Used to go to the next instruction
+#define VMED_NEXT() { continue; }
 
+// Start & end of a specific byte-code handler
 #define VMED_CASE_START(_bc) case _bc: {
 #define VMED_CASE_END VMED_NEXT() }
 
@@ -53,7 +110,7 @@
 #define VMED_START { VMED_NEXT();
 #define VMED_END }
 
-#define VMED_NEXT() { VME_YIELDGIL goto *goto_targets[*c_pc]; }
+#define VMED_NEXT() { goto *goto_targets[*c_pc]; }
 
 #define VMED_CASE_START(_bc) lbl_##_bc: {
 #define VMED_CASE_END VMED_NEXT() }
@@ -72,9 +129,19 @@ typedef struct {
 } exc_call_stk_item;
 
 
-// internal execution algorithm
-//ks_obj ks_thread_call_code(ks_thread self, ks_code code) {
+/* ks__exec -> perform execution on a thread
+ *
+ * This function makes a lot of assumptions, such as:
+ *   * You are on a thread currently
+ *   * The current thread has already had teh stack frame loaded (i.e.
+ *       this method does not create a stack frame)
+ *
+ * If any of these are not met, it will just abort (no exceptions generated),
+ *   because this IS this code that generates exceptions, it's okay to safeguard it like this
+ * 
+ */
 ks_obj ks__exec(ks_code code) {
+    // thread to execute on
     ks_thread self = ks_thread_get();
     assert(self != NULL && "'ks__exec()' called outside of a thread!");
     assert(self->stack_frames->len > 0 && "No stack frames available!");
@@ -83,13 +150,13 @@ ks_obj ks__exec(ks_code code) {
 
     // the current position in the exc_call_stk array
     int exc_call_stk_p = -1;
-    exc_call_stk_item exc_call_stk[256];
+    exc_call_stk_item exc_call_stk[MAX_EXC_STACK];
 
     // current stack frame
     ks_stack_frame this_stack_frame = (ks_stack_frame)self->stack_frames->elems[self->stack_frames->len - 1];
 
     // see if it was part of a kfunc
-    ks_kfunc this_kfunc = (ks_kfunc)this_stack_frame->kfunc;
+    ks_kfunc this_kfunc = (ks_kfunc)(this_stack_frame->func->type == ks_type_kfunc ? (ks_kfunc)this_stack_frame->func : NULL);
 
     // start program counter at the beginning
     #define c_pc (this_stack_frame->pc)
@@ -156,10 +223,12 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
-        /* STACK MANIPULATION */
+        /* -- Basic Stack Manipulation -- */
 
         VMED_CASE_START(KSB_PUSH)
             VMED_CONSUME(ksb_i32, op_i32);
+
+            // push on a constant value indicated by the argument
             ks_list_push(self->stk, code->v_const->elems[op_i32.arg]);
 
         VMED_CASE_END
@@ -167,6 +236,7 @@ ks_obj ks__exec(ks_code code) {
         VMED_CASE_START(KSB_DUP)
             VMED_CONSUME(ksb, op);
 
+            // duplicate the top of stack
             ks_list_push(self->stk, self->stk->elems[self->stk->len - 1]);
 
         VMED_CASE_END
@@ -174,18 +244,251 @@ ks_obj ks__exec(ks_code code) {
         VMED_CASE_START(KSB_POPU)
             VMED_CONSUME(ksb, op);
 
-            ks_obj val = ks_list_pop(self->stk);
-
-            KS_DECREF(val);
+            // pop (unused) off the top of the stack
+            ks_list_popu(self->stk);
 
         VMED_CASE_END
+
+        VMED_CASE_START(KSB_TRUTHY)
+            VMED_CONSUME(ksb, op);
+
+            // convert TOS to its boolean value
+            ks_obj TOS = ks_list_pop(self->stk);
+            int truthy = ks_truthy(TOS);
+            KS_DECREF(TOS);
+
+            // negative value indicates an exception/error was thrown
+            if (truthy < 0) goto EXC;
+
+            // otherwise, convert to a bool object
+            ks_list_push(self->stk, KSO_BOOL(truthy));
+
+        VMED_CASE_END
+
+
+
+        /* -- Generating Primitives/Iterables -- */
+
+        VMED_CASE_START(KSB_SLICE)
+            VMED_CONSUME(ksb, op);
+
+            // double check we have enough
+            VME_CHECK(self->stk->len >= 3 && "'slice' instruction requires 3 items on the stack!");
+
+            // last 3 objects
+            ks_obj* slice_objs = &self->stk->elems[self->stk->len - 3];
+
+            // construct a slice
+            ks_slice new_slice = ks_slice_new(slice_objs[0], slice_objs[1], slice_objs[2]);
+
+            // remove args from the stack
+            for (i = 0; i < 3; ++i) {
+                ks_list_popu(self->stk);
+            }
+
+            // push on the created slice
+            ks_list_push(self->stk, (ks_obj)new_slice);
+            KS_DECREF(new_slice);
+
+        VMED_CASE_END
+
+
+        VMED_CASE_START(KSB_TUPLE)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // double check we have enough
+            VME_CHECK(self->stk->len >= op_i32.arg && "'tuple' instruction required more arguments than existed!");
+
+            // construct the tuple
+            ks_tuple new_tuple = ks_tuple_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
+
+            // remove args from the stack
+            for (i = 0; i < op_i32.arg; ++i) ks_list_popu(self->stk);
+
+            // push on the created tuple
+            ks_list_push(self->stk, (ks_obj)new_tuple);
+            KS_DECREF(new_tuple);
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_LIST)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // double check we have enough
+            VME_CHECK(self->stk->len >= op_i32.arg && "'list' instruction required more arguments than existed!");
+
+            // construct the list
+            ks_list new_list = ks_list_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
+
+            // remove args from the stack
+            for (i = 0; i < op_i32.arg; ++i) ks_list_popu(self->stk);
+
+            // push on the created list
+            ks_list_push(self->stk, (ks_obj)new_list);
+            KS_DECREF(new_list);
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_DICT)
+            VMED_CONSUME(ksb_i32, op_i32);
+            
+            // double check there are enough & there are an even number (should be (key, vals), so they better match)
+            VME_CHECK(self->stk->len >= op_i32.arg && "'dict' instruction required more arguments than existed!");
+            VME_CHECK(op_i32.arg % 2 == 0 && "'dict' instruction requires an even number of arguments!");
+
+            // construct the dictionary
+            ks_dict new_dict = ks_dict_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
+
+            // remove args from the stack
+            for (i = 0; i < op_i32.arg; ++i) ks_list_popu(self->stk);
+
+            // push on the created dictionary
+            ks_list_push(self->stk, (ks_obj)new_dict);
+            KS_DECREF(new_dict);
+
+        VMED_CASE_END
+
+
+        /* CONTROL FLOW */
+
+
+        VMED_CASE_START(KSB_JMP)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // unconditionally advance the program counter
+            c_pc += op_i32.arg;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_JMPT)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // take the top item off, see if truthy
+            ks_obj cond = ks_list_pop(self->stk);
+            int truthy = ks_truthy(cond);
+            KS_DECREF(cond);
+            if (truthy < 0) goto EXC;
+
+            // conditionally 'jump' in the code
+            if (truthy) c_pc += op_i32.arg;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_JMPF)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+
+            // take the top item off, see if truthy
+            ks_obj cond = ks_list_pop(self->stk);
+            int truthy = ks_truthy(cond);
+            
+            if (truthy < 0) goto EXC;
+            KS_DECREF(cond);
+
+            // conditionally do jump
+            if (!truthy) c_pc += op_i32.arg;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_CALL)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // copy into local arguments array
+            // NOTE: This is neccessary, because the thread might have to have the stack resized
+            //   during the subsequent function call. If that happens, all of the sudden a pointer we
+            //   gave to `ks_call` is no longer valid (due to reallocation), so we need to preserve
+            //   them here locally
+            ENSURE_ARGS(op_i32.arg);
+            ks_list_popn(self->stk, op_i32.arg, args);
+
+            // ask kscript to call it
+            // TODO: Perhaps add short-circuit logic here?
+            ks_obj ret = ks_call(args[0], op_i32.arg - 1, &args[1]);
+            if (!ret) goto EXC;
+            
+            // push the result on the stack where the arguments started
+            ks_list_push(self->stk, ret);
+
+            // we are finished with the arguments
+            for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_RET)
+            VMED_CONSUME(ksb, op);
+
+            // we need to return the top-of-stack
+            ret_val = ks_list_pop(self->stk);
+            goto RET;
+
+        VMED_CASE_END
+
+
+        /* -- Exceptions/Errors/Handlers -- */
+
+
+        VMED_CASE_START(KSB_TRY_START)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // ensure we haven't had too many
+            VME_CHECK(exc_call_stk_p < MAX_EXC_STACK && "EXC Call Stack Exceeded!");
+
+            // add a new item to the exception stack, where the address is the argument + current position
+            // (i.e. the code generator gives us the relative address to the handler)
+            exc_call_stk[++exc_call_stk_p] = (exc_call_stk_item){ .to_c_pc = c_pc + op_i32.arg };
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_TRY_END)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // ensure there was an exception handler present
+            VME_CHECK(exc_call_stk_p >= 0 && "Input Bytecode Malformed; deleting exc call stack item where none exists!");
+
+            // remove the top one
+            exc_call_stk_p--;
+
+            // now, perform an unconditional jump (this byte tells us where the non-handler code begins, i.e. after the catch{} block ends)
+            c_pc += op_i32.arg;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_THROW)
+            VMED_CONSUME(ksb, op);
+
+            // throw the object on the top of the stack
+            ks_obj exc_obj = ks_list_pop(self->stk);
+            ks_throw(exc_obj);
+            KS_DECREF(exc_obj);
+
+            // treat it like an error/exception and go there
+            goto EXC;
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_ASSERT)
+            VMED_CONSUME(ksb, op);
+
+            // we want to assert the object is truthy
+            ks_obj ass_obj = ks_list_pop(self->stk);
+            int truthy = ks_truthy(ass_obj);
+            KS_DECREF(ass_obj);
+            if (truthy < 0) goto EXC;
+
+            if (!truthy) {
+                ks_throw_fmt(ks_type_AssertError, "'assert' statement failed!");
+                goto EXC;
+            }
+
+        VMED_CASE_END
+
+
+        /* -- Item Getting -- */
 
         VMED_CASE_START(KSB_GETITEM)
             VMED_CONSUME(ksb_i32, op_i32);
 
-            // first, consume an array to call
-
-            // load args
+            // load args, ensuring we can store them
             ENSURE_ARGS(op_i32.arg);
             ks_list_popn(self->stk, op_i32.arg, args);
 
@@ -228,214 +531,6 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
-        VMED_CASE_START(KSB_LIST)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            VME_ASSERT(self->stk->len >= op_i32.arg && "'list' instruction required more arguments than existed!");
-
-            // construct the list
-            ks_list new_list = ks_list_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
-
-            // remove from the stack
-            for (i = 0; i < op_i32.arg; ++i) {
-                ks_list_popu(self->stk);
-            }
-
-            // push it back on
-            ks_list_push(self->stk, (ks_obj)new_list);
-            KS_DECREF(new_list);
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_SLICE)
-            VMED_CONSUME(ksb, op);
-
-            VME_ASSERT(self->stk->len >= 3 && "'slice' instruction requires 3 items on the stack!");
-
-            // construct the slice
-            ks_slice new_slice = ks_slice_new(self->stk->elems[self->stk->len - 3], self->stk->elems[self->stk->len - 2], self->stk->elems[self->stk->len - 1]);
-
-            // remove from the stack
-            for (i = 0; i < 3; ++i) {
-                ks_list_popu(self->stk);
-            }
-
-            // push it back on
-            ks_list_push(self->stk, (ks_obj)new_slice);
-            KS_DECREF(new_slice);
-
-        VMED_CASE_END
-
-
-        VMED_CASE_START(KSB_TUPLE)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            VME_ASSERT(self->stk->len >= op_i32.arg && "'tuple' instruction required more arguments than existed!");
-
-            // construct the tuple
-            ks_tuple new_tuple = ks_tuple_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
-
-            // remove from the stack
-            for (i = 0; i < op_i32.arg; ++i) {
-                ks_list_popu(self->stk);
-            }
-
-            // push it back on
-            ks_list_push(self->stk, (ks_obj)new_tuple);
-            KS_DECREF(new_tuple);
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_DICT)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            VME_ASSERT(self->stk->len >= op_i32.arg && "'dict' instruction required more arguments than existed!");
-            VME_ASSERT(op_i32.arg % 2 == 0 && "'dict' instruction requires an even number of arguments!");
-
-            // construct the dictionary
-            ks_dict new_dict = ks_dict_new(op_i32.arg, &self->stk->elems[self->stk->len - op_i32.arg]);
-
-            // remove from the stack
-            for (i = 0; i < op_i32.arg; ++i) {
-                ks_list_popu(self->stk);
-            }
-
-            // push it back on
-            ks_list_push(self->stk, (ks_obj)new_dict);
-            KS_DECREF(new_dict);
-
-        VMED_CASE_END
-
-
-
-        /* CONTROL FLOW */
-
-        VMED_CASE_START(KSB_CALL)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            // load args
-            ENSURE_ARGS(op_i32.arg);
-            ks_list_popn(self->stk, op_i32.arg, args);
-
-            ks_obj ret = ks_call(args[0], op_i32.arg - 1, &args[1]);
-            if (!ret) {
-                // err
-                goto EXC;
-            }
-            
-            ks_list_push(self->stk, ret);
-
-            for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_RET)
-            VMED_CONSUME(ksb, op);
-
-            // return TOS
-            ret_val = ks_list_pop(self->stk);
-            goto RET;
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_THROW)
-            VMED_CONSUME(ksb, op);
-
-            // throw it
-            ks_obj exc_obj = ks_list_pop(self->stk);
-            ks_throw(exc_obj);
-
-            // handle it
-            goto EXC;
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_ASSERT)
-            VMED_CONSUME(ksb, op);
-
-            // throw it
-            ks_obj ass_obj = ks_list_pop(self->stk);
-            int truthy = ks_truthy(ass_obj);
-            KS_DECREF(ass_obj);
-            if (truthy < 0) goto EXC;
-
-            if (!truthy) {
-                ks_throw_fmt(ks_type_AssertError, "'assert' statement failed!");
-                goto EXC;
-            }
-
-        VMED_CASE_END
-
-
-        VMED_CASE_START(KSB_JMP)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            // increment program counter
-            c_pc += op_i32.arg;
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_JMPT)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            // take the top item off
-            ks_obj cond = ks_list_pop(self->stk);
-            int truthy = ks_truthy(cond);
-            KS_DECREF(cond);
-            if (truthy < 0) goto EXC;
-
-            if (truthy) {
-                // do jump
-                c_pc += op_i32.arg;
-            }
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_JMPF)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-
-            // take the top item off
-            ks_obj cond = ks_list_pop(self->stk);
-            int truthy = ks_truthy(cond);
-            
-            if (truthy < 0) goto EXC;
-            KS_DECREF(cond);
-
-            if (!truthy) {
-                // do jump
-                c_pc += op_i32.arg;
-            }
-
-        VMED_CASE_END
-
-
-        VMED_CASE_START(KSB_TRY_START)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            VME_ASSERT(exc_call_stk_p < 4095 && "EXC Call Stack Exceeded!");
-
-            // add the handler address
-            exc_call_stk[++exc_call_stk_p] = (exc_call_stk_item){ .to_c_pc = c_pc + op_i32.arg };
-
-
-        VMED_CASE_END
-
-        VMED_CASE_START(KSB_TRY_END)
-            VMED_CONSUME(ksb_i32, op_i32);
-
-            VME_ASSERT(exc_call_stk_p >= 0 && "Input Bytecode Malformed; deleting exc call stack item where none exists!");
-
-            // handle try block end
-            // TODO
-
-            exc_call_stk_p--;
-
-            // now, perform an unconditional jump
-            c_pc += op_i32.arg;
-
-
-        VMED_CASE_END
 
 
         /* VALUE LOOKUP */
@@ -444,7 +539,7 @@ ks_obj ks__exec(ks_code code) {
             VMED_CONSUME(ksb_i32, op_i32);
 
             ks_str name = (ks_str)code->v_const->elems[op_i32.arg];
-            VME_ASSERT(name->type == ks_type_str && "load [name] : 'name' must be a string");
+            VME_CHECK(name->type == ks_type_str && "load [name] : 'name' must be a string");
 
             ks_obj val = NULL;
             
@@ -478,7 +573,6 @@ ks_obj ks__exec(ks_code code) {
             ks_list_push(self->stk, val);
             KS_DECREF(val);
 
-
             // increment program counter
             //c_pc += op_i32.arg;
 
@@ -494,7 +588,7 @@ ks_obj ks__exec(ks_code code) {
              */
 
             ks_str name = (ks_str)code->v_const->elems[op_i32.arg];
-            VME_ASSERT(name->type == ks_type_str && "store [name] : 'name' must be a string");
+            VME_CHECK(name->type == ks_type_str && "store [name] : 'name' must be a string");
 
             // get top
             ks_obj val = self->stk->elems[self->stk->len - 1];
@@ -515,7 +609,7 @@ ks_obj ks__exec(ks_code code) {
             VMED_CONSUME(ksb_i32, op_i32);
 
             ks_str attr = (ks_str)code->v_const->elems[op_i32.arg];
-            VME_ASSERT(attr->type == ks_type_str && "load_attr [name] : 'name' must be a string");
+            VME_CHECK(attr->type == ks_type_str && "load_attr [name] : 'name' must be a string");
 
             ks_obj obj = ks_list_pop(self->stk);
 
@@ -535,7 +629,7 @@ ks_obj ks__exec(ks_code code) {
             VMED_CONSUME(ksb_i32, op_i32);
 
             ks_str attr = (ks_str)code->v_const->elems[op_i32.arg];
-            VME_ASSERT(attr->type == ks_type_str && "store_attr [name] : 'name' must be a string");
+            VME_CHECK(attr->type == ks_type_str && "store_attr [name] : 'name' must be a string");
 
             assert(self->stk->len >= 2 && "store_attr : Not enough items on stack!");
 
@@ -654,8 +748,6 @@ ks_obj ks__exec(ks_code code) {
 
         VMED_CASE_END
 
-
-
         // template for a binary operator case
         // 3rd argument is the 'extra code' to be ran to possibly shortcut it
         #define T_BOP_CASE(_bop,  _str, _func, ...) { \
@@ -708,20 +800,6 @@ ks_obj ks__exec(ks_code code) {
         T_UOP_CASE(KSB_UOP_NEG, "-", ks_F_neg, {})
         T_UOP_CASE(KSB_UOP_SQIG, "~", ks_F_sqig, {})
 
-        VMED_CASE_START(KSB_TRUTHY)
-            VMED_CONSUME(ksb, op);
-
-            ks_obj TOS = ks_list_pop(self->stk);
-            int truthy = ks_truthy(TOS);
-            KS_DECREF(TOS);
-            if (truthy < 0) goto EXC;
-
-
-            ks_list_push(self->stk, truthy == 0 ? KSO_FALSE : KSO_TRUE);
-
-        VMED_CASE_END
-
-
         VMED_CASE_START(KSB_UOP_NOT)
             VMED_CONSUME(ksb, op);
 
@@ -734,7 +812,6 @@ ks_obj ks__exec(ks_code code) {
             ks_list_push(self->stk, truthy == 0 ? KSO_TRUE : KSO_FALSE);
 
         VMED_CASE_END
-
 
     VMED_END
 
