@@ -116,22 +116,6 @@ extern "C" {
 #include <ks-config.h>
 
 
-// The READLINE library is used for the active interpreter
-#ifdef KS_HAVE_READLINE
-#include <readline/readline.h>
-#include <readline/history.h>
-#endif
-
-
-// GMP is used 
-#ifdef KS_HAVE_GMP
-#include <gmp.h>
-#else
-// we include a slightly modified copy of the 'mini-gmp' library (https://gmplib.org/devel/mini-gmp-status)
-//   for compatibility when not built with GMP
-#include <ks-mini-gmp.h>
-#endif
-
 /* Cross-platform headers */
 #include <limits.h>
 #include <stdint.h>
@@ -158,6 +142,28 @@ extern "C" {
 #else
 //
 #endif
+
+
+/* optional dependencies */
+
+
+// The READLINE library is used for the active interpreter
+#ifdef KS_HAVE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
+
+// GMP is used
+#ifdef KS_HAVE_GMP
+#include <gmp.h>
+#else
+// we include a slightly modified copy of the 'mini-gmp' library (https://gmplib.org/devel/mini-gmp-status)
+//   for compatibility when not built with GMP
+#include <ks-mini-gmp.h>
+#endif
+
+
 
 
 /* Math/Numeric Constants */

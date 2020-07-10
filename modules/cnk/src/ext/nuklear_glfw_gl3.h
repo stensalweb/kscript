@@ -130,6 +130,7 @@ nk_glfw3_device_create(void)
     dev->prog = glCreateProgram();
     dev->vert_shdr = glCreateShader(GL_VERTEX_SHADER);
     dev->frag_shdr = glCreateShader(GL_FRAGMENT_SHADER);
+
     glShaderSource(dev->vert_shdr, 1, &vertex_shader, 0);
     glShaderSource(dev->frag_shdr, 1, &fragment_shader, 0);
     glCompileShader(dev->vert_shdr);
@@ -365,15 +366,20 @@ nk_glfw3_init(GLFWwindow *win, enum nk_glfw_init_state init_state)
 {
     glfw.win = win;
     if (init_state == NK_GLFW3_INSTALL_CALLBACKS) {
+
         glfwSetScrollCallback(win, nk_gflw3_scroll_callback);
         glfwSetCharCallback(win, nk_glfw3_char_callback);
         glfwSetMouseButtonCallback(win, nk_glfw3_mouse_button_callback);
     }
+
     nk_init_default(&glfw.ctx, 0);
+
     glfw.ctx.clip.copy = nk_glfw3_clipboard_copy;
     glfw.ctx.clip.paste = nk_glfw3_clipboard_paste;
     glfw.ctx.clip.userdata = nk_handle_ptr(0);
     glfw.last_button_click = 0;
+
+
     nk_glfw3_device_create();
 
     glfw.is_double_click_down = nk_false;

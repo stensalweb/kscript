@@ -205,6 +205,70 @@ static KS_TFUNC(str, cmp) {
     KS_ERR_BOP_UNDEF("<=>", L, R);
 };
 
+
+// str.__lt__(L, R)
+static KS_TFUNC(str, lt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        return (ks_obj)KSO_BOOL(my_strcmp((ks_str)L, (ks_str)R) < 0);
+    }
+
+    KS_ERR_BOP_UNDEF("<", L, R);
+};
+
+// str.__le__(L, R)
+static KS_TFUNC(str, le) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        return (ks_obj)KSO_BOOL(my_strcmp((ks_str)L, (ks_str)R) <= 0);
+    }
+
+    KS_ERR_BOP_UNDEF("<=", L, R);
+};
+
+// str.__gt__(L, R)
+static KS_TFUNC(str, gt) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        return (ks_obj)KSO_BOOL(my_strcmp((ks_str)L, (ks_str)R) > 0);
+    }
+
+    KS_ERR_BOP_UNDEF(">", L, R);
+};
+
+// str.__ge__(L, R)
+static KS_TFUNC(str, ge) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        return (ks_obj)KSO_BOOL(my_strcmp((ks_str)L, (ks_str)R) >= 0);
+    }
+
+    KS_ERR_BOP_UNDEF(">=", L, R);
+};
+
+// str.__ne__(L, R)
+static KS_TFUNC(str, ne) {
+    KS_REQ_N_ARGS(n_args, 2);
+    ks_obj L = args[0], R = args[1];
+
+    if (L->type == ks_type_str && R->type == ks_type_str) {
+        return (ks_obj)KSO_BOOL(my_strcmp((ks_str)L, (ks_str)R) != 0);
+    }
+
+    KS_ERR_BOP_UNDEF("!=", L, R);
+};
+
+
+
+
 // str.__eq__(L, R) -> check whether objects are equal
 static KS_TFUNC(str, eq) {
     KS_REQ_N_ARGS(n_args, 2);
@@ -601,7 +665,12 @@ void ks_type_str_init() {
         {"__add__", (ks_obj)ks_cfunc_new2(str_add_, "str.__add__(L, R)")},
 
         {"__cmp__", (ks_obj)ks_cfunc_new2(str_cmp_, "str.__cmp__(L, R)")},
+        {"__lt__", (ks_obj)ks_cfunc_new2(str_lt_, "str.__lt__(L, R)")},
+        {"__le__", (ks_obj)ks_cfunc_new2(str_le_, "str.__le__(L, R)")},
+        {"__gt__", (ks_obj)ks_cfunc_new2(str_gt_, "str.__gt__(L, R)")},
+        {"__ge__", (ks_obj)ks_cfunc_new2(str_ge_, "str.__ge__(L, R)")},
         {"__eq__", (ks_obj)ks_cfunc_new2(str_eq_, "str.__eq__(L, R)")},
+        {"__ne__", (ks_obj)ks_cfunc_new2(str_ne_, "str.__ne__(L, R)")},
 
         {"__getitem__", (ks_obj)ks_cfunc_new2(str_getitem_, "str.__getitem__(self, idx)")},
 

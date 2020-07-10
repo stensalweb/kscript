@@ -26,12 +26,14 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <ks.h>
+
 #include "gl3w_gl3.h"
 #include <stdlib.h>
 
 #define ARRAY_SIZE(x)  (sizeof(x) / sizeof((x)[0]))
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(KS__CYGWIN)
 #define WIN32_LEAN_AND_MEAN 1
 #include <windows.h>
 
@@ -96,6 +98,7 @@ static GL3WglProc (*glx_get_proc_address)(const GLubyte *);
 
 static int open_libgl(void)
 {
+	
 	libgl = dlopen("libGL.so.1", RTLD_LAZY | RTLD_LOCAL);
 	if (!libgl)
 		return GL3W_ERROR_LIBRARY_OPEN;
@@ -126,6 +129,7 @@ static struct {
 
 static int parse_version(void)
 {
+
 	if (!glGetIntegerv)
 		return GL3W_ERROR_INIT;
 

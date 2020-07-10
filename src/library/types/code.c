@@ -506,9 +506,13 @@ static KS_TFUNC(code, str) {
         OP_CASE(KSB_BOP_GE, ">=")
         OP_CASE(KSB_BOP_EQ, "==")
         OP_CASE(KSB_BOP_NE, "!=")
+
+        OP_CASE(KSB_BOP_BINOR, "|")
+        OP_CASE(KSB_BOP_BINAND, "&")
         
         #define UOP_CASE(_op, _str) case _op: ks_str_b_add_fmt(&SB, "bop " _str); break;
 
+        OP_CASE(KSB_UOP_NOT, "!")
         OP_CASE(KSB_UOP_NEG, "-")
         OP_CASE(KSB_UOP_SQIG, "~")
 
@@ -520,7 +524,7 @@ static KS_TFUNC(code, str) {
 
 
         default:
-            ks_str_b_add_fmt(&SB, "<err>");
+            ks_str_b_add_fmt(&SB, "<err:%i>", (int)op);
             haderr = true;
             break;
         }

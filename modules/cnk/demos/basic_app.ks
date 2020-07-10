@@ -11,6 +11,7 @@
 # So, you shouldn't have to install anything extra
 import cnk
 
+
 # create a context, with a given (w, h, title)
 # this will be the state of the application, and will handle everything
 ctx = cnk.Context(640, 480, "Basic Application Window")

@@ -12,7 +12,7 @@ MOD_NAME        := cnk
 _include_static := -Wl,-Bsymbolic -Wl,--whole-archive $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),glfw3)) -Wl,--no-whole-archive
 
 # C libraries
-mod_LIBS        := $(_include_static) -lglfw3 -lX11
+mod_LIBS        := $(_include_static) -lX11 -lm -lGL -lm -lGLU
 
 # other modules this one depends on
 mod_MODDEPS     := nx
@@ -21,7 +21,8 @@ mod_MODDEPS     := nx
 # -*- FILES -*-
 
 # C source files
-mod_C           := $(wildcard src/*.c) $(wildcard src/ext/*.c)
+#mod_C           := $(wildcard src/*.c) $(wildcard src/ext/*.c)
+mod_C           := $(wildcard src/*.c) 
 
 # C header files
 mod_H           :=

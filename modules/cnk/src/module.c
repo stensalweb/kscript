@@ -12,17 +12,137 @@
 
 /* GFX LIBS */
 
-#ifdef KS_HAVE_GLFW3
+// define which backend to use
+//#define CNK_USE_GLFW
+#define CNK_USE_XLIB
+
+// TODO: remove refs to this
+static void
+die(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fputs("\n", stderr);
+    exit(EXIT_FAILURE);
+}
+
+
+
+
+
+
+#if defined(CNK_USE_XLIB)
+
+// misc options
+#define NK_INCLUDE_FIXED_TYPES
+#define NK_INCLUDE_STANDARD_IO
+#define NK_INCLUDE_STANDARD_VARARGS
+#define NK_INCLUDE_DEFAULT_ALLOCATOR
+#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
+#define NK_INCLUDE_FONT_BAKING
+#define NK_INCLUDE_DEFAULT_FONT
+
+// implement using XLIB
+#define NK_XLIB_GL3_IMPLEMENTATION
+#define NK_XLIB_LOAD_OPENGL_EXTENSIONS
+
+// actually place code in this file
+#define NK_IMPLEMENTATION
+
+// include Nuklear headers
+#include "./ext/nuklear.h"
+#include "./ext/nuklear_xlib_gl3.h"
+
+static int gl_err = nk_false;
+
+static int _X_errorcb(Display* display, XErrorEvent* ev) {
+    char tmp[256];
+    return 0;
+}
+
+static int gl_error_handler(Display *display, XErrorEvent *ev) {
+    fprintf(stderr, "GLX: %p\n", display);
+    gl_err = nk_true;
+    return 0;
+}
+
+// return whether it has an extension within the string
+static int has_extension(const char *string, const char *ext) {
+    const char *start, *where, *term;
+    where = strchr(ext, ' ');
+    if (where || *ext == '\0')
+        return nk_false;
+
+    for (start = string;;) {
+        where = strstr((const char*)start, ext);
+        if (!where) break;
+        term = where + strlen(ext);
+        if (where == start || *(where - 1) == ' ') {
+            if (*term == ' ' || *term == '\0')
+                return nk_true;
+        }
+        start = term;
+    }
+    return nk_false;
+}
+
+
+static struct {
+    // X display
+    Display* display;
+
+} my_xlib;
+
+
+#elif defined(CNK_USE_GLFW)
 
 // include OpenGL/GLFW libraries
 #include "./ext/gl3w_gl3.h"
 #include <GLFW/glfw3.h>
 
+// misc options
+#define NK_INCLUDE_FIXED_TYPES
+#define NK_INCLUDE_STANDARD_IO
+#define NK_INCLUDE_STANDARD_VARARGS
+#define NK_INCLUDE_DEFAULT_ALLOCATOR
+#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
+#define NK_INCLUDE_FONT_BAKING
+#define NK_INCLUDE_DEFAULT_FONT
+#define NK_KEYSTATE_BASED_INPUT
+
+// use GLFW with OpenGL 3 implementation
+#define NK_GLFW_GL3_IMPLEMENTATION
+
+// actually define the implementation in this file
+#define NK_IMPLEMENTATION
+
+// include Nuklear headers
+#include "./ext/nuklear.h"
+#include "./ext/nuklear_glfw_gl3.h"
+
+// error callback to be used by GLFW
+static void _GLFW_errorcb(int er, const char* d) {
+    ks_warn("GLFW: %s [code: %i]", d, er);
+}
+
+// key function call back from GLFW
+static void _GLFW_keycb(GLFWwindow *win, unsigned int codepoint) {
+    cNk_Context ctx = (cNk_Context)glfwGetWindowUserPointer(win);
+    nk_input_unicode(ctx->ctx, codepoint);
+}
+
+
 #else
-
-#error Compiling `cnk` without GLFW3 (use `./configure --with-glfw3`)
-
+#error CNK_USE_* must be defined!
 #endif
+
+
+
+/* generic OpenGL configuration */
+
+
 
 // versions of OpenGL to try to init
 static int _try_GLvers[][2] = {
@@ -39,26 +159,7 @@ static int  _NK_max_verbuf = 512 * 1024,
             _NK_max_elebuf = 128 * 1024;
 
 
-// Nuklear options
-#define NK_INCLUDE_FIXED_TYPES
-#define NK_INCLUDE_STANDARD_IO
-#define NK_INCLUDE_STANDARD_VARARGS
-#define NK_INCLUDE_DEFAULT_ALLOCATOR
-#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
-#define NK_INCLUDE_FONT_BAKING
-#define NK_INCLUDE_DEFAULT_FONT
-#define NK_IMPLEMENTATION
-#define NK_KEYSTATE_BASED_INPUT
 
-// actually define the implementation in this file
-#define NK_IMPLEMENTATION
-
-// use GLFW with OpenGL 3 implementation
-#define NK_GLFW_GL3_IMPLEMENTATION
-
-// include Nuklear headers
-#include "./ext/nuklear.h"
-#include "./ext/nuklear_glfw_gl3.h"
 
 
 /* WRAPPER TYPES */
@@ -67,8 +168,28 @@ static int  _NK_max_verbuf = 512 * 1024,
 typedef struct {
     KS_OBJ_BASE
 
+    #if defined(CNK_USE_XLIB)
+
+    // X11-specific
+    struct {
+        Display* display;
+
+        Window window;
+
+        XVisualInfo *vis;
+        Colormap cmap;
+        XSetWindowAttributes swa;
+        XWindowAttributes attr;
+        GLXFBConfig fbc;
+        Atom wm_delete_window;
+        int width, height;
+
+    } x;
+
+    #elif defined(CNK_USE_GLFW)
     // the GLFW window the context is bound to
     GLFWwindow* window;
+    #endif
 
     // the main Nuklear context
     struct nk_context* ctx;
@@ -101,18 +222,6 @@ typedef struct {
 // declare an iterable type to wrap it
 KS_TYPE_DECLFWD(cNk_type_iter_Context);
 
-/* LIB FUNCTIONS */
-
-// error callback to be used by GLFW
-static void _GLFW_errorcb(int er, const char* d) {
-    ks_warn("GLFW: %s [code: %i]", d, er);
-}
-
-// key function call back from GLFW
-static void _GLFW_keycb(GLFWwindow *win, unsigned int codepoint) {
-    cNk_Context ctx = (cNk_Context)glfwGetWindowUserPointer(win);
-    nk_input_unicode(ctx->ctx, codepoint);
-}
 
 
 /* Context class */
@@ -131,8 +240,146 @@ static KS_TFUNC(Context, new) {
     cNk_Context self = KS_ALLOC_OBJ(cNk_Context);
     KS_INIT_OBJ(self, cNk_type_Context);
 
+
+    self->background_color[0] = self->background_color[1] = self->background_color[2] = 0.1f;
+
+
+    #if defined(CNK_USE_XLIB)
+
+    if (!(self->x.display = XOpenDisplay(NULL))) {
+        return ks_throw_fmt(ks_type_InternalError, "Failed to open X display\n");
+    }
+
+    GLXContext glContext;
+
+    int glx_major, glx_minor;
+
+    if (!glXQueryVersion(self->x.display, &glx_major, &glx_minor)) {
+        return ks_throw_fmt(ks_type_InternalError, "Failed to query OpenGL version\n");
+    }
+
+    ks_debug("[X11]: Queried OpenGL version %i.%i\n", glx_major, glx_minor);
+
+    /* find and pick matching framebuffer visual */
+    int fb_count;
+    static GLint attr[] = {
+        GLX_X_RENDERABLE,   True,
+        GLX_DRAWABLE_TYPE,  GLX_WINDOW_BIT,
+        GLX_RENDER_TYPE,    GLX_RGBA_BIT,
+        GLX_X_VISUAL_TYPE,  GLX_TRUE_COLOR,
+        GLX_RED_SIZE,       8,
+        GLX_GREEN_SIZE,     8,
+        GLX_BLUE_SIZE,      8,
+        GLX_ALPHA_SIZE,     8,
+        GLX_DEPTH_SIZE,     24,
+        GLX_STENCIL_SIZE,   8,
+        GLX_DOUBLEBUFFER,   True,
+        None
+    };
+    GLXFBConfig *fbc;
+    fbc = glXChooseFBConfig(self->x.display, DefaultScreen(self->x.display), attr, &fb_count);
+    if (!fbc) die("[X11]: Error: failed to retrieve framebuffer configuration\n");
+    {
+        /* pick framebuffer with most samples per pixel */
+        int i;
+        int fb_best = -1, best_num_samples = -1;
+        for (i = 0; i < fb_count; ++i) {
+            XVisualInfo *vi = glXGetVisualFromFBConfig(self->x.display, fbc[i]);
+            if (vi) {
+                int sample_buffer, samples;
+                glXGetFBConfigAttrib(self->x.display, fbc[i], GLX_SAMPLE_BUFFERS, &sample_buffer);
+                glXGetFBConfigAttrib(self->x.display, fbc[i], GLX_SAMPLES, &samples);
+                if ((fb_best < 0) || (sample_buffer && samples > best_num_samples))
+                    fb_best = i, best_num_samples = samples;
+            }
+        }
+        self->x.fbc = fbc[fb_best];
+        XFree(fbc);
+        self->x.vis = glXGetVisualFromFBConfig(self->x.display, self->x.fbc);
+    }
+
+
+    /* create window */
+    self->x.cmap = XCreateColormap(self->x.display, RootWindow(self->x.display, self->x.vis->screen), self->x.vis->visual, AllocNone);
+    self->x.swa.colormap =  self->x.cmap;
+    self->x.swa.background_pixmap = None;
+    self->x.swa.border_pixel = 0;
+    self->x.swa.event_mask =
+        ExposureMask | KeyPressMask | KeyReleaseMask |
+        ButtonPress | ButtonReleaseMask| ButtonMotionMask |
+        Button1MotionMask | Button3MotionMask | Button4MotionMask | Button5MotionMask|
+        PointerMotionMask| StructureNotifyMask;
+    self->x.window = XCreateWindow(self->x.display, RootWindow(self->x.display, self->x.vis->screen), 0, 0,
+        width, height, 0, self->x.vis->depth, InputOutput,
+        self->x.vis->visual, CWBorderPixel|CWColormap|CWEventMask, &self->x.swa);
+    if (!self->x.window) die("[X11]: Failed to create window\n");
+    XFree(self->x.vis);
+    XStoreName(self->x.display, self->x.window, "Demo");
+    XMapWindow(self->x.display, self->x.window);
+    self->x.wm_delete_window = XInternAtom(self->x.display, "WM_DELETE_WINDOW", False);
+    XSetWMProtocols(self->x.display, self->x.window, &self->x.wm_delete_window, 1);
+
+
+
+    /* create opengl context */
+    typedef GLXContext(*glxCreateContext)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
+    int(*old_handler)(Display*, XErrorEvent*) = XSetErrorHandler(gl_error_handler);
+    const char *extensions_str = glXQueryExtensionsString(self->x.display, DefaultScreen(self->x.display));
+    glxCreateContext create_context = (glxCreateContext)
+        glXGetProcAddressARB((const GLubyte*)"glXCreateContextAttribsARB");
+
+    gl_err = nk_false;
+    if (!has_extension(extensions_str, "GLX_ARB_create_context") || !create_context) {
+        fprintf(stdout, "[X11]: glXCreateContextAttribARB() not found...\n");
+        fprintf(stdout, "[X11]: ... using old-style GLX context\n");
+        glContext = glXCreateNewContext(self->x.display, self->x.fbc, GLX_RGBA_TYPE, 0, True);
+    } else {
+        GLint attr[] = {
+            GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
+            GLX_CONTEXT_MINOR_VERSION_ARB, 0,
+            None
+        };
+        glContext = create_context(self->x.display, self->x.fbc, 0, True, attr);
+        XSync(self->x.display, False);
+        if (gl_err || !glContext) {
+            /* Could not create GL 3.0 context. Fallback to old 2.x context.
+                * If a version below 3.0 is requested, implementations will
+                * return the newest context version compatible with OpenGL
+                * version less than version 3.0.*/
+            attr[1] = 1; attr[3] = 0;
+            gl_err = nk_false;
+            fprintf(stdout, "[X11] Failed to create OpenGL 3.0 context\n");
+            fprintf(stdout, "[X11] ... using old-style GLX context!\n");
+            glContext = create_context(self->x.display, self->x.fbc, 0, True, attr);
+        }
+    }
+    XSync(self->x.display, False);
+    XSetErrorHandler(old_handler);
+    if (gl_err || !glContext)
+        die("[X11]: Failed to create an OpenGL context\n");
+    glXMakeCurrent(self->x.display, self->x.window, glContext);
+
+
+    self->ctx = nk_x11_init(self->x.display, self->x.window);
+
+    /* load font assets */
+    nk_x11_font_stash_begin(&self->atlas);
+
+    /*struct nk_font *droid = nk_font_atlas_add_from_file(atlas, "../../../extra_font/DroidSans.ttf", 14, 0);*/
+    /*struct nk_font *roboto = nk_font_atlas_add_from_file(atlas, "../../../extra_font/Roboto-Regular.ttf", 14, 0);*/
+    /*struct nk_font *future = nk_font_atlas_add_from_file(atlas, "../../../extra_font/kenvector_future_thin.ttf", 13, 0);*/
+    /*struct nk_font *clean = nk_font_atlas_add_from_file(atlas, "../../../extra_font/ProggyClean.ttf", 12, 0);*/
+    /*struct nk_font *tiny = nk_font_atlas_add_from_file(atlas, "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
+    /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas, "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
+
+    nk_x11_font_stash_end();
+
+
+    #elif defined(CNK_USE_GLFW)
+
     // construct a new GLFW window with the given parameters
     self->window = glfwCreateWindow(width, height, title->chr, NULL, NULL);
+
     glfwMakeContextCurrent(self->window);
     glfwSetCharCallback(self->window, _GLFW_keycb);
 
@@ -141,6 +388,7 @@ static KS_TFUNC(Context, new) {
 
     // create a context from the GLFW window
     self->ctx = nk_glfw3_init(self->window, NK_GLFW3_INSTALL_CALLBACKS);
+
 
     /* load font assets */
     nk_glfw3_font_stash_begin(&self->atlas);
@@ -155,13 +403,12 @@ static KS_TFUNC(Context, new) {
     nk_glfw3_font_stash_end();
 
 
+    #endif
+
+
     /* load cursor assets */
 
     // nk_style_load_all_cursors(ctx, atlas->cursors);
-
-
-    self->background_color[0] = self->background_color[1] = self->background_color[2] = 0.1f;
-
 
 
     return (ks_obj)self;
@@ -183,8 +430,15 @@ static KS_TFUNC(Context, free) {
     // clean up font atlas
     nk_font_atlas_cleanup(self->atlas);
 
+
+    #if defined(CNK_USE_XLIB)
+
+    #elif defined(CNK_USE_GLFW)
+
     // destroy the window the context was created around
     glfwDestroyWindow(self->window);
+
+    #endif
 
     return KSO_NONE;
 }
@@ -205,7 +459,14 @@ static KS_TFUNC(Context, getattr) {
     if (attr->len == 4 && strncmp(attr->chr, "size", 4) == 0) {
         // return (width, height) tuple of the window size
         int ww, wh;
+        
+        #if defined(CNK_USE_XLIB)
+
+        #elif defined(CNK_USE_GLFW)
+
         glfwGetWindowSize(self->window, &ww, &wh);
+        #endif
+
         return (ks_obj)ks_tuple_new_n(2, (ks_obj[]){ (ks_obj)ks_int_new(ww), (ks_obj)ks_int_new(wh) });
     } else {
 
@@ -256,7 +517,12 @@ static KS_TFUNC(Context, setattr) {
         KS_DECREF(val_list);
 
         // set the size
+                
+        #if defined(CNK_USE_XLIB)
+
+        #elif defined(CNK_USE_GLFW)
         glfwSetWindowSize(self->window, sizes[0], sizes[1]);
+        #endif
         return KSO_NONE;
     } else {
         KS_ERR_ATTR(self, attr);
@@ -275,13 +541,22 @@ static KS_TFUNC(Context, frame_start) {
     cNk_Context self = (cNk_Context)args[0];
     KS_REQ_TYPE(self, cNk_type_Context, "self");
 
-    // update GLFW things
+    bool rst = true;
 
+    // update GLFW things
+    #if defined(CNK_USE_XLIB)
+
+    
+
+    #elif defined(CNK_USE_GLFW)
     glfwPollEvents();
     nk_glfw3_new_frame();
+    rst = !glfwWindowShouldClose(self->window);
+
+    #endif
 
     // return whether it should keep going
-    return KSO_BOOL(!glfwWindowShouldClose(self->window));
+    return KSO_BOOL(rst);
 }
 
 
@@ -295,9 +570,16 @@ static KS_TFUNC(Context, frame_end) {
     cNk_Context self = (cNk_Context)args[0];
     KS_REQ_TYPE(self, cNk_type_Context, "self");
 
+    bool rst = true;
+
     // query the actual size
     int dw, dh;
+    #if defined(CNK_USE_XLIB)
+
+
+    #elif defined(CNK_USE_GLFW)
     glfwGetWindowSize(self->window, &dw, &dh);
+    #endif
 
     // render the entire window
     glViewport(0, 0, dw, dh);
@@ -306,14 +588,26 @@ static KS_TFUNC(Context, frame_end) {
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
+
+
+    #if defined(CNK_USE_XLIB)
+
+    nk_x11_render(NK_ANTI_ALIASING_ON, _NK_max_verbuf, _NK_max_elebuf);
+    glXSwapBuffers(self->x.display, self->x.window);
+
+
+    #elif defined(CNK_USE_GLFW)
     // use the Nuklear GLFW3 render helper (with our configuration of max memory)
     nk_glfw3_render(NK_ANTI_ALIASING_ON, _NK_max_verbuf, _NK_max_elebuf);
 
     // swap buffers
     glfwSwapBuffers(self->window);
 
+    rst = !glfwWindowShouldClose(self->window);
+    #endif
+
     // return whether it should keep going
-    return KSO_BOOL(!glfwWindowShouldClose(self->window));
+    return KSO_BOOL(rst);
 }
 
 
@@ -635,29 +929,14 @@ static KS_TFUNC(iter_Context, next) {
 
     // query the actual size
     int dw, dh;
-    glfwGetWindowSize(self->context->window, &dw, &dh);
 
-    // render the entire window
-    glViewport(0, 0, dw, dh);
+    ks_obj r = Context_frame_end_(1, (ks_obj*)&self->context);
+    if (!r) return NULL;
+    KS_DECREF(r);
 
-    // set background color
-    glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-
-    // use the Nuklear GLFW3 render helper (with our configuration of max memory)
-    nk_glfw3_render(NK_ANTI_ALIASING_ON, _NK_max_verbuf, _NK_max_elebuf);
-
-    // swap buffers
-    glfwSwapBuffers(self->context->window);
-
-    // stop iterating
-    if (glfwWindowShouldClose(self->context->window)) {
-        return ks_throw_fmt(ks_type_OutOfIterError, "");
-    }
-
-    // update GLFW things for the next frame
-    glfwPollEvents();
-    nk_glfw3_new_frame();
+    r = Context_frame_start_(1, (ks_obj*)&self->context);
+    if (!r) return NULL;
+    KS_DECREF(r);
 
     // return the frame count
     return (ks_obj)ks_int_new(self->frame_n++);
@@ -689,16 +968,28 @@ static KS_TFUNC(Context, iter) {
     return (ks_obj)res;
 }
 
-
 // now, export them all
 static ks_module get_module() {
     
     /* import & initialize required graphics libraries */
 
-    /* OpenGL */
 
+    #if defined(CNK_USE_XLIB)
+
+
+    #elif defined(CNK_USE_GLFW)
+
+    ks_debug("Calling gl3wInit()...");
+
+    int stat;
     // Initialize OpenGL extension wrangler
-    gl3wInit();
+    if (stat = gl3wInit()) {
+        if (stat == GL3W_ERROR_LIBRARY_OPEN) {
+            return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!, reason: GL3W_ERROR_LIBRARY_OPEN)");
+        } else {
+            return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!)");
+        }
+    }
 
     // attempt to find a supported Major/Minor version of OpenGL
     int i;
@@ -719,11 +1010,13 @@ static ks_module get_module() {
     /* GLFW */
 
     glfwSetErrorCallback(_GLFW_errorcb);
+    ks_debug("Calling glfwInit()...");
 
     // initialize GLFW
     if (!glfwInit()) {
         return ks_throw_fmt(ks_type_Error, "Failed to initialize GLFW");
     }
+    ks_debug("Setting GLFW Window Hints......");
 
     // set the OpenGL version to be used
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, _GLvers[0]);
@@ -735,6 +1028,9 @@ static ks_module get_module() {
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
+
+
+    #endif
 
     /* kscript code */
 
@@ -1005,6 +1301,7 @@ static ks_module get_module() {
     glfwTerminate();
     */
 
+    ks_debug("Returning cnk module");
 
     return mod;
 }
