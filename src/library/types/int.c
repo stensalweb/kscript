@@ -147,9 +147,10 @@ ks_int ks_int_new_s(char* str, int base) {
     // try to calculate in a 64 bit integer
     int64_t v64 = 0;
 
-    // extract a sign from the integer
-    bool isSigned = *str == '-';
-    if (isSigned) {
+
+    bool isNeg = *str == '-';
+
+    if (isNeg || *str == '+') {
         str++;
         len--;
     }
@@ -173,7 +174,7 @@ ks_int ks_int_new_s(char* str, int base) {
         i++;
     }
 
-    return ks_int_new(v64);
+    return ks_int_new(isNeg ? -v64 : v64);
 
     do_mpz_str:;
 

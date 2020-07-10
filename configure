@@ -18,6 +18,27 @@ import glob
 
 import argparse
 
+
+
+# colors (from blender)
+class bcol:
+    # reset to default output
+    RESET    = '\033[0m'
+
+    HEADER   = '\033[95m'
+
+    OKBLUE   = '\033[94m'
+    OKGREEN  = '\033[92m'
+
+    # warn, fail, statuses
+    WARN     = '\033[93m'
+    FAIL     = '\033[91m'
+
+    # bold, underline, text
+    BOLD     = '\033[1m'
+    ULIN     = '\033[4m'
+
+
 print ("Python Version: " + str(sys.version))
 
 class NegateAction(argparse.Action):
@@ -549,16 +570,17 @@ libks_O          := $(patsubst %.c,$(_tmp)/%.o,$(libks_C))
 ks_O             := $(patsubst %.c,$(_tmp)/%.o,$(ks_C))
 
 
+# -*- TESTS -*-
 
-# -*- FUNCS -*-
+# kscript tests
+tests_KS         := $(wildcard tests/*.ks)
 
 
-
+PRINT = @echo -e "\e[1;34mBuilding $<\e[0m"
 
 # -*- RULES -*-
 
-.PHONY: all default clean install uninstall modules FORCE
-
+.PHONY: all default clean install check uninstall modules FORCE
 
 
 # default target to build
@@ -569,14 +591,21 @@ all: default
 
 clean: FORCE
 	rm -rf $(wildcard $(_tmp) debian/usr build lib bin *.deb)
-	for subdir in $(STD_MODULES); do \\
+	@for subdir in $(STD_MODULES); do \\
 		$(MAKE) -C $$subdir clean || exit 1 ; \\
 	done
 
 modules: $(libks_SHARED) FORCE
-	for subdir in $(STD_MODULES); do \\
+	@for subdir in $(STD_MODULES); do \\
 		$(MAKE) -C $$subdir || exit 1 ; \\
 	done
+
+
+tests/%.ks: $(ks_BIN) FORCE
+	@$(ks_BIN) $@ && echo "\e[1;92mPASSED: $@\e[0m" || (echo "\e[1;91mFAILED: $@\e[0m" && exit 1)
+
+check: FORCE $(tests_KS)
+	@echo "\e[1;92mSUCCESS\e[0m"
 
 # target to force another target
 FORCE:

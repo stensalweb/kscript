@@ -831,7 +831,7 @@ ks_obj ks_num_pow(ks_obj L, ks_obj R) {
         if (Rsgn == 0) return (ks_obj)ks_int_new(1);
         // x^-y == 0
         if (Lsgn > 0 && Rsgn < 0) return (ks_obj)ks_int_new(0);
-        if (Lsgn < 0) return ks_throw_fmt(ks_type_MathError, "Negative number in base: %S", L);
+        //if (Lsgn < 0) return ks_throw_fmt(ks_type_MathError, "Negative number in base: %S", L);
 
         // values for left and right
         int64_t Lv, Rv;

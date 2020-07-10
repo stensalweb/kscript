@@ -1554,16 +1554,23 @@ static bool my_sort_merge(ks_list res, ks_list keys, int start, int stop) {
 /* sort(objs, func=none) -> []
  *
  * Return a list of objects, sorted by their result of a function (default: identity function)
+ * 
+ * TODO: Also implement other algorithms, other than mergesort and bubble
+ * 
  */
 static KS_FUNC(sort) {
     KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
     ks_obj objs = args[0];
     KS_REQ_ITERABLE(objs, "objs");
 
-
     // collect into a list
     ks_list res = ks_list_from_iterable(objs);
     if (!res) return NULL;
+
+    // make a copy of it
+    ks_list copy = ks_list_new(res->len, res->elems);
+    KS_DECREF(res);
+    res = copy;
 
     // the keys to sort by (default==objs)
     ks_list keys = NULL;

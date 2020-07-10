@@ -1145,9 +1145,11 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
 
         // check if we should stop parsing due to being at the end
         if (ctok.type == KS_TOK_EOF || 
-            ctok.type == KS_TOK_SEMI || 
-            ((flags & KS_PARSE_RETEARLYEXTRARBRK) && (ctok.type == KS_TOK_RBRC ||
-            ctok.type == KS_TOK_COL))) goto kppe_end;
+            ctok.type == KS_TOK_SEMI ||
+            ((flags & KS_PARSE_RETEARLYEXTRARBRK) && ctok.type == KS_TOK_RBRC) ||
+            ctok.type == KS_TOK_COL
+
+        ) goto kppe_end;
 
         else if (ctok.type == KS_TOK_LBRC && (ltok.type && (tok_isval(ltok.type) || ltok.type == KS_TOK_RPAR || ltok.type == KS_TOK_RBRK))) {
 
@@ -1715,7 +1717,6 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
 
         } else if (ctok.type == KS_TOK_LBRC) {
 
-
             // parsing '{' which means a dictionary literal
 
 
@@ -1764,6 +1765,7 @@ ks_ast ks_parser_parse_expr(ks_parser self, enum ks_parse_flags flags) {
                 }
 
                 ADV_1();
+                while (VALID() && CTOK().type == KS_TOK_NEWLINE) ADV_1();
 
             }
 

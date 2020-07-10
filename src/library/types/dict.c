@@ -590,7 +590,23 @@ static KS_TFUNC(dict, keys) {
     return (ks_obj)ret;
 }
 
+// dict.vals(self) -> return a list of vals
+static KS_TFUNC(dict, vals) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
 
+    ks_list ret = ks_list_new(0, NULL);
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].hash != 0 && self->entries[i].val != NULL) {
+            ks_list_push(ret, self->entries[i].val);
+        }
+    }
+
+    return (ks_obj)ret;
+}
 
 // dict.__str__(self) -> convert to string
 static KS_TFUNC(dict, str) {
@@ -647,6 +663,26 @@ static KS_TFUNC(dict, free) {
 
     return KSO_NONE;
 }
+
+
+// dict.__len__(self) -> return length in elements
+static KS_TFUNC(dict, len) {
+    KS_REQ_N_ARGS(n_args, 1);
+    ks_dict self = (ks_dict)args[0];
+    KS_REQ_TYPE(self, ks_type_dict, "self");
+
+    int64_t ret = 0;
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].hash != 0 && self->entries[i].val != NULL) {
+            ret++;
+        }
+    }
+
+    return (ks_obj)ks_int_new(ret);
+}
+
 
 
 
@@ -723,7 +759,10 @@ void ks_type_dict_init() {
         
         {"__iter__", (ks_obj)ks_cfunc_new2(dict_iter_, "dict.__iter__(self)")},
 
+        {"__len__", (ks_obj)ks_cfunc_new2(dict_len_, "dict.__len__(self)")},
+
         {"keys", (ks_obj)ks_cfunc_new2(dict_keys_, "dict.keys(self)")},
+        {"vals", (ks_obj)ks_cfunc_new2(dict_vals_, "dict.vals(self)")},
 
         {NULL, NULL}   
     });
