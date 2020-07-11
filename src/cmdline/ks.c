@@ -90,10 +90,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    //ks_log_c_set("ks", KS_LOG_WARN - vdiff);
-
     // now, try & initialize the library
-    if (!ks_init()) {
+    if (!ks_init(KS_LOG_WARN - vdiff)) {
         fprintf(stderr, "Failed to initialize kscript!\n");
         return -1;
     }

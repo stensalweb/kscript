@@ -2114,8 +2114,9 @@ KS_API extern ks_list ks_paths;
 
 /* GENERIC/GENERAL LIBRARY FUNCTIONS */
 
-// Attempt to initialize the library. Return 'true' on success, 'false' otherwise
-KS_API bool ks_init();
+// Attempt to initialize the library. Return 'true' on success, 'false' otherwise,
+// optionally give a log level
+KS_API bool ks_init(int loglevel);
 
 // Type to hold a kscript version
 typedef struct {

@@ -49,7 +49,7 @@ static void handle_signal(int sig_num) {
 
 
 // initialize the whole library
-bool ks_init() {
+bool ks_init(int level) {
 
     // handle signals
     //signal(SIGINT, handle_signal);
@@ -63,6 +63,9 @@ bool ks_init() {
 
     // initialize the builtin types
     ks_type_type_init();
+    ks_type_logger_init();
+    ks_log_c_set("ks", level);
+
     ks_type_none_init();
     ks_type_bool_init();
     ks_type_int_init();
@@ -77,9 +80,6 @@ bool ks_init() {
     ks_type_namespace_init();
     ks_type_Error_init();
     ks_type_Enum_init();
-
-
-    ks_type_logger_init();
 
     ks_type_thread_init();
     ks_type_iostream_init();

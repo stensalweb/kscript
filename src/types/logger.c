@@ -12,11 +12,11 @@
 
 // printed names for the levels (including colors)
 static const char* _level_strs[] = {
-    WHITE       "T",
-    WHITE       "D",
-    WHITE       "I",
-    BOLD YELLOW "W",
-    BOLD RED    "E"
+    COL_WHT  "T",
+    COL_WHT  "D",
+    COL_WHT  "I",
+    COL_WARN "W",
+    COL_FAIL "E",
 };
 
 
@@ -102,6 +102,7 @@ void ks_type_logger_init() {
 
     KS_INIT_TYPE_OBJ(ks_type_logger, "logger");
     logmut = ks_mutex_new();
+    ks_all_loggers = ks_dict_new(0, NULL);
 
     ks_type_set_cn(ks_type_logger, (ks_dict_ent_c[]){
         {"__new__", (ks_obj)ks_cfunc_new2(logger_new_, "logger.__new__(name)")},
@@ -125,7 +126,7 @@ void ks_log_c(int level, const char* file, int line, const char* logname, const 
         ks_mutex_lock(logmut);
 
         // print message preceder
-        fprintf(stderr, BOLD "%s" RESET " [%s] [@%s:%i]: ", _level_strs[level], lgr->name->chr, file, line);
+        fprintf(stderr, "[%s:%s] [@%s:%i]" RESET ": ", _level_strs[level], lgr->name->chr, file, line);
 
         // now, convert arguments using the C string formatter I wrote for kscript
         va_list args;
