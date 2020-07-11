@@ -228,7 +228,7 @@ static void* thread_init(void* _self) {
     // set the global variable
     pthread_setspecific(this_thread_key, (void*)self);
 
-    ks_debug("thread <%p> initializing!", self);
+    ks_debug("ks", "thread <%p> initializing!", self);
 
     // execute
     ks_GIL_lock();
@@ -242,7 +242,7 @@ static void* thread_init(void* _self) {
     // store the result
     self->result = ret;
 
-    ks_debug("thread <%p> done!", self);
+    ks_debug("ks", "thread <%p> done!", self);
 
     ks_GIL_unlock();
 

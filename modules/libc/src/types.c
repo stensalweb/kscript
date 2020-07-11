@@ -778,7 +778,7 @@ void libc_init_types() {
 
     // emit a warning
     if (sizeof(void*) != sizeof(void (*)())) {
-        ks_warn("Size of normal pointers & function pointers differs (%i vs %i)", (int)sizeof(void*), (int)sizeof(void (*)()));
+        ks_warn("ks", "Size of normal pointers & function pointers differs (%i vs %i)", (int)sizeof(void*), (int)sizeof(void (*)()));
     }
 
 

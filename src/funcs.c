@@ -328,7 +328,7 @@ static KS_FUNC(exit) {
         ks_int obj = (ks_int)args[0];
         KS_REQ_TYPE(obj, ks_type_int, "code");
         if (obj->isLong) {
-            ks_warn("Tried to exit with long integer... You should be using one that can fit in 64 bits");
+            ks_warn("ks", "Tried to exit with long integer... You should be using one that can fit in 64 bits");
             exit(1);
         } else {
             exit((int)obj->v_i64);
@@ -1093,7 +1093,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     }
 
     // debug the code it is going to run
-    ks_debug("CODE: %S", myc);
+    ks_debug("ks", "CODE: %S", myc);
 
     // now, call the code object with no arguments, and return the result
     // If there is an error, it will return NULL, and the thread will call ks_errend(),
@@ -1164,7 +1164,7 @@ static KS_TFUNC(std, run_file) {
     }
 
     // debug the code it is going to run
-    ks_debug("CODE: %S", myc);
+    ks_debug("ks", "CODE: %S", myc);
 
     // now, call the code object with no arguments, and return the result
     // If there is an error, it will return NULL, and the thread will call ks_errend(),
@@ -1211,7 +1211,7 @@ static KS_TFUNC(std, run_expr) {
     }
 
     // debug the code it is going to run
-    ks_debug("CODE: %S", myc);
+    ks_debug("ks", "CODE: %S", myc);
 
     // now, call the code object with no arguments, and return the result
     // If there is an error, it will return NULL, and the thread will call ks_errend(),
@@ -1236,7 +1236,7 @@ static KS_TFUNC(std, run_interactive) {
     int num_lines = 0;
 
     #ifndef KS_HAVE_READLINE
-    ks_warn("Using interactive interpreter, but not compiled with readline!");
+    ks_warn("ks", "Using interactive interpreter, but not compiled with readline!");
     #endif
 
     // get whether its an actual terminal screen

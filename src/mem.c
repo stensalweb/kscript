@@ -29,7 +29,7 @@
 
 // only enable trace calls if the build enabled memory tracing
 #ifdef KS_MEM_TRACE
-#define memtrace(...) if (ks_log_level() == KS_LOG_TRACE) { fprintf(stderr, "[ks_mem] " __VA_ARGS__); }
+#define memtrace(...) { fprintf(stderr, "[ks_mem] " __VA_ARGS__); }
 #else
 #define memtrace(...)
 #endif

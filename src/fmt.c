@@ -474,13 +474,13 @@ ks_str ks_fmt_vc(const char* fmt, va_list ap) {
             ks_obj v_obj = va_arg(ap, ks_obj);
             
             if (!ks_is_iterable(v_obj)) {
-                ks_error("ks_fmt_c given %%I with no iterable!");
+                ks_error("ks", "ks_fmt_c given %%I with no iterable!");
                 exit(1);
             }
 
             ks_list iterl = ks_list_from_iterable(v_obj);
             if (!iterl) {
-                ks_error("ks_fmt_c given %%I with invalid iterable!");
+                ks_error("ks", "ks_fmt_c given %%I with invalid iterable!");
                 exit(1);
             }
 

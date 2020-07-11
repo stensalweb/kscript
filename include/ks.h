@@ -190,23 +190,23 @@ enum {
     // (typically > 500MB), any odd occurences (for example, a dictionary having a lot of collisions
     // could be debugged, so that people can see that their dictionary building schemes are inefficient)
     // most builds are built with DEBUG support
-    KS_LOG_DEBUG,
+    KS_LOG_DEBUG = 1,
     
     // info, i.e. large operations (such as allocations/deallocations >= 10% of system memory), things such
     // as successful module imports, initialization information, etc
-    KS_LOG_INFO,
+    KS_LOG_INFO  = 2,
 
     // warn, i.e. warning of odd/peculiar happenings that don't neccessarily halt the program, but should be
     // attended to, such as extremely large allocations >= 25% of system memory, a FILE read did not produce the
     // correct result to return (like fread(..., n, 1, fp) != n)), or a parameter was NULL
     // This is the default value for release software
-    KS_LOG_WARN,
+    KS_LOG_WARN  = 3,
 
     // error, i.e. critical issues that cause problems if not paid any attention to.
     // this includes thrown exceptions which are not caught, a FILE was not opened correctly, 
     // a doublefree/corruption error occured, an object was NULL when it shouldn't have been
     // This is always printed out, can not be ignored by setting the logging level
-    KS_LOG_ERROR,
+    KS_LOG_ERROR = 4,
 
 
     KS_LOG__END
@@ -1112,6 +1112,22 @@ typedef struct {
 }* ks_blob;
 
 
+// ks_logger - internal logging class
+typedef struct {
+    KS_OBJ_BASE
+
+    // see KS_LOG_* enum values for explanation of the levels
+    int level;
+
+    // name of the logger, for example 'ks_mem' for the internal memory logger
+    ks_str name;
+
+}* ks_logger;
+
+
+// all kscript loggers, keyed by name
+extern ks_dict ks_all_loggers;
+
 
 // token type for the kscript parser
 typedef struct ks_tok ks_tok;
@@ -2007,6 +2023,8 @@ KS_API extern ks_type
     ks_type_mutex,
     ks_type_thread,
 
+    ks_type_logger,
+
     ks_type_code,
     ks_type_ast,
     ks_type_parser,
@@ -2133,27 +2151,48 @@ KS_API void ks_sleep(double dur);
 
 /* LOGGING */
 
-// return the current logging level, one of KS_LOG_* enum values
-KS_API int ks_log_level();
 
-// set the logging level to `new_level`
-KS_API void ks_log_level_set(int new_level);
+
+// Get a C logger,
+// If the requested name does not exist, behavior depends on 'createIfNeeded'
+// If 'createIfNeeded' is set, then a new logger is created with a level of `KS_LOG_WARN`
+// Else, an error is thrown and NULL is returned
+KS_API ks_logger ks_logger_get(const char* logname, bool createIfNeeded);
+
+
+// C logging function
+// 'level' is the logging level (check KS_LOG_* enums)
+// 'file' is the file it was sent at (this should be filled in by `ks_trace` & etc macros)
+//   can be 'NULL' if you want to leave off the file
+// 'line' is the current line of the file (filled in)
+//   can be '-1' to not print (also, will not be printed if 'file==NULL')
+// 'logname' is the identifier of the logger, for example 'ks_mem' is the internal one used by the memory logger
+// NOTE: if 'logname' is not created yet, it will be created with 'KS_LOG_WARN' as the default level
+//   use `ks_log_c_setlevel()`
+KS_API void ks_log_c(int level, const char* file, int line, const char* logname, const char* fmt, ...);
+
+// NOTE: if 'logname' is not created yet, it will be created with 'KS_LOG_WARN' as the default level
+KS_API int ks_log_c_level(const char* logname);
+
+// NOTE: if 'logname' is not created yet, it will be created with and its level will be initialized
+KS_API void ks_log_c_set(const char* logname, int level);
+
 
 // generically log given a level, the current file, line, and a C-style format string, with a list of arguments
 // NOTE: don't use this, use the macros like `ks_info`, and `ks_warn`, which make it easier to use the logging
 //   system
-KS_API void ks_log(int level, const char *file, int line, const char* fmt, ...);
+//KS_API void ks_log(int level, const char *file, int line, const char* fmt, ...);
 
 // prints a trace message, assuming the current log level allows for it
-#define ks_trace(...) ks_log(KS_LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_trace(_name, ...) ks_log_c(KS_LOG_TRACE, __FILE__, __LINE__, _name, __VA_ARGS__)
 // prints a debug message, assuming the current log level allows for it
-#define ks_debug(...) ks_log(KS_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_debug(_name, ...) ks_log_c(KS_LOG_DEBUG, __FILE__, __LINE__, _name, __VA_ARGS__)
 // prints a info message, assuming the current log level allows for it
-#define ks_info(...)  ks_log(KS_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_info(_name, ...)  ks_log_c(KS_LOG_INFO, __FILE__, __LINE__, _name, __VA_ARGS__)
 // prints a warn message, assuming the current log level allows for it
-#define ks_warn(...)  ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_warn(_name, ...)  ks_log_c(KS_LOG_WARN, __FILE__, __LINE__, _name, __VA_ARGS__)
 // prints a error message, assuming the current log level allows for it
-#define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_error(_name, ...) ks_log_c(KS_LOG_ERROR, __FILE__, __LINE__, _name, __VA_ARGS__)
 
 // disable tracing
 #ifdef KS_C_NO_TRACE

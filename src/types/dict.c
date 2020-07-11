@@ -481,6 +481,7 @@ ks_obj ks_dict_get(ks_dict self, ks_obj key) {
 }
 
 ks_obj ks_dict_get_c(ks_dict self, char* key) {
+
     ks_str key_str = ks_str_new(key);
     ks_obj res = ks_dict_get_h(self, (ks_obj)key_str, key_str->v_hash);
     KS_DECREF(key_str);

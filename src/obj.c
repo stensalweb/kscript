@@ -17,7 +17,7 @@
 void ks_obj_free(ks_obj obj) {
     assert(obj->refcnt <= 0);
 
-    ks_trace("Freeing %T obj @ %p", obj, obj);
+    ks_trace("[ks]", "Freeing %T obj @ %p", obj, obj);
 
     if (obj->type->__free__ == NULL) {
         // just free memory & dereference the type,
@@ -30,13 +30,13 @@ void ks_obj_free(ks_obj obj) {
 
             ks_obj res = ((ks_cfunc)obj->type->__free__)->func(1, &obj);
             if (!res) {
-                ks_warn("Error freeing object %p", obj);
+                ks_warn("ks", "Error freeing object %p", obj);
             }
 
         } else if (!ks_call(obj->type->__free__, 1, &obj)) {
             // otherwise, call the function
             // there was an error in the freeing function
-            ks_warn("Error freeing object %p", obj);
+            ks_warn("ks", "Error freeing object %p", obj);
         }
     }
 }
@@ -171,7 +171,7 @@ void* ks_throw(ks_obj obj) {
 
     // ensure 
     if (cth->exc != NULL) {
-        ks_warn("Already object on cth->exc: %S, then obj: %S", cth->exc, obj);
+        ks_warn("ks", "Already object on cth->exc: %S, then obj: %S", cth->exc, obj);
     }
     assert(cth->exc == NULL && "There was already an object thrown and not caught, but someone threw something else!");
 

@@ -60,6 +60,7 @@ bool ks_init() {
 
     ks_log_init();
 
+
     // initialize the builtin types
     ks_type_type_init();
     ks_type_none_init();
@@ -77,10 +78,14 @@ bool ks_init() {
     ks_type_Error_init();
     ks_type_Enum_init();
 
+
+    ks_type_logger_init();
+
     ks_type_thread_init();
     ks_type_iostream_init();
 
     ks_type_slice_init();
+
 
     ks_type_cfunc_init();
     ks_type_kfunc_init();
@@ -166,7 +171,7 @@ bool ks_init() {
     full_path[dir_length] = '\0';
 
 
-    ks_debug("wai_getExecutablePath: %s", full_path);
+    ks_debug("ks", "wai_getExecutablePath: %s", full_path);
 
     // relative paths 
     const char* path_rels[] = {

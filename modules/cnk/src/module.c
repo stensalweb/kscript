@@ -171,7 +171,7 @@ KS_TYPE_DECLFWD(cNk_type_iter_Context);
 static int _X_errorcb(Display* display, XErrorEvent* ev) {
     char tmp[256];
     XGetErrorText(display, ev->error_code, tmp, sizeof(tmp) - 1);
-    ks_warn("[X11]: %s\n", tmp);
+    ks_warn("ks", "[X11]: %s\n", tmp);
     return 0;
 }
 
@@ -200,7 +200,7 @@ static bool _X_hasext(const char *string, const char *ext) {
 
 // error callback to be used by GLFW
 static void _GLFW_errorcb(int er, const char* d) {
-    ks_warn("GLFW: %s [code: %i]", d, er);
+    ks_warn("ks", "GLFW: %s [code: %i]", d, er);
 }
 
 // key function call back from GLFW
@@ -244,7 +244,7 @@ static KS_TFUNC(Context, new) {
         return ks_throw_fmt(ks_type_InternalError, "Failed to query OpenGL version");
     }
 
-    ks_debug("[X11]: Queried OpenGL version %i.%i\n", glx_major, glx_minor);
+    ks_debug("ks", "[X11]: Queried OpenGL version %i.%i\n", glx_major, glx_minor);
 
     /* find and pick matching framebuffer visual */
     int fb_count;
@@ -336,7 +336,7 @@ static KS_TFUNC(Context, new) {
     bool hadErr = false;
 
     if (!_X_hasext(extensions_str, "GLX_ARB_create_context") || !create_context) {
-        ks_info("[X11]: glxCreateContextAttribARB() was not found, so using old style GLX context");
+        ks_info("ks", "[X11]: glxCreateContextAttribARB() was not found, so using old style GLX context");
         self->x.glCTX = glXCreateNewContext(self->x.display, self->x.fbc, GLX_RGBA_TYPE, 0, True);
     } else {
         GLint attr[] = {
@@ -353,7 +353,7 @@ static KS_TFUNC(Context, new) {
                 * version less than version 3.0.*/
             attr[1] = 1; attr[3] = 0;
             hadErr = false;
-            ks_info("[X11]: Failed to create OpenGL 3.0 context, using old style GLX context");
+            ks_info("ks", "[X11]: Failed to create OpenGL 3.0 context, using old style GLX context");
             self->x.glCTX = create_context(self->x.display, self->x.fbc, 0, True, attr);
         }
     }
@@ -1017,7 +1017,7 @@ static ks_module get_module() {
 
     #elif defined(CNK_USE_GLFW)
 
-    ks_debug("Calling gl3wInit()...");
+    ks_debug("ks", "Calling gl3wInit()...");
 
     int stat;
     // Initialize OpenGL extension wrangler
@@ -1034,7 +1034,7 @@ static ks_module get_module() {
     for (i = 0; _try_GLvers[i][0] > 0; ++i) {
         int major = _try_GLvers[i][0], minor = _try_GLvers[i][1];
         // see if this version is supported
-        ks_debug("Trying OpenGL %i.%i", major, minor);
+        ks_debug("ks", "Trying OpenGL %i.%i", major, minor);
         if (gl3wIsSupported(major, minor) == 0) {
             // set the version to the correct one
             _GLvers[0] = major, _GLvers[1] = minor;
@@ -1048,13 +1048,13 @@ static ks_module get_module() {
     /* GLFW */
 
     glfwSetErrorCallback(_GLFW_errorcb);
-    ks_debug("Calling glfwInit()...");
+    ks_debug("ks", "Calling glfwInit()...");
 
     // initialize GLFW
     if (!glfwInit()) {
         return ks_throw_fmt(ks_type_Error, "Failed to initialize GLFW");
     }
-    ks_debug("Setting GLFW Window Hints......");
+    ks_debug("ks", "Setting GLFW Window Hints......");
 
     // set the OpenGL version to be used
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, _GLvers[0]);
@@ -1339,7 +1339,7 @@ static ks_module get_module() {
     glfwTerminate();
     */
 
-    ks_debug("Returning cnk module");
+    ks_debug("ks", "Returning cnk module");
 
     return mod;
 }

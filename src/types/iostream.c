@@ -161,7 +161,7 @@ ks_str ks_iostream_readstr_n(ks_iostream self, ks_ssize_t sz) {
     size_t actual_bytes = fread(tmp, 1, sz, self->fp);
     if (actual_bytes != sz) {
         // discrepancy
-        //ks_warn("Problem reading string!");
+        //ks_warn("ks", "Problem reading string!");
     }
 
     tmp[actual_bytes] = '\0';
@@ -192,7 +192,7 @@ ks_blob ks_iostream_readblob_n(ks_iostream self, ks_ssize_t sz) {
     size_t actual_bytes = fread(tmp, 1, sz, self->fp);
     if (actual_bytes != sz) {
         // discrepancy
-        //ks_warn("Problem reading string!");
+        //ks_warn("ks", "Problem reading string!");
     }
 
 

@@ -704,8 +704,10 @@ CC             := {CC}
 CFLAGS         := {CFLAGS}
 LDFLAGS        := {LDFLAGS}
 
-STRIP          ?= strip
-STRIP_OPTS     ?= --strip-debug --strip-unneeded
+STRIP          ?= #
+STRIP_OPTS     ?= #
+#STRIP          ?= strip
+#STRIP_OPTS     ?= --strip-debug --strip-unneeded
 
 
 # -- Main Library / Executable --

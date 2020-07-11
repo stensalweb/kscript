@@ -26,7 +26,7 @@ void ks_sleep(double dur) {
     tim.tv_nsec = 1000000000 * (dur - fa);
 
     if (nanosleep(&tim, &tim2) != 0) {
-        ks_warn("nanosleep() syscall returned non-zero!");
+        ks_warn("ks", "nanosleep() syscall returned non-zero!");
     }
 
 }
@@ -46,7 +46,7 @@ ks_str ks_readfile(char* fname) {
 
     char* csrc = ks_malloc(len + 1);
     if (len != fread(csrc, 1, len, fp)) {
-        ks_warn("Reading %i bytes failed for file %s", len, fname);
+        ks_warn("ks", "Reading %i bytes failed for file %s", len, fname);
     }
     csrc[len] = '\0';
 

@@ -2147,13 +2147,13 @@ KS_API void ks_log(int level, const char *file, int line, const char* fmt, ...);
 // prints a trace message, assuming the current log level allows for it
 #define ks_trace(...) ks_log(KS_LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
 // prints a debug message, assuming the current log level allows for it
-#define ks_debug(...) ks_log(KS_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_debug("ks", ...) ks_log(KS_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
 // prints a info message, assuming the current log level allows for it
-#define ks_info(...)  ks_log(KS_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_info("ks", ...)  ks_log(KS_LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 // prints a warn message, assuming the current log level allows for it
-#define ks_warn(...)  ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_warn("ks", ...)  ks_log(KS_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 // prints a error message, assuming the current log level allows for it
-#define ks_error(...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define ks_error("ks", ...) ks_log(KS_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 // disable tracing
 #ifdef KS_C_NO_TRACE
@@ -2164,7 +2164,7 @@ KS_API void ks_log(int level, const char *file, int line, const char* fmt, ...);
 // disable debug
 #ifdef KS_C_NO_DEBUG
 #undef ks_debug
-#define ks_debug(...)
+#define ks_debug("ks", ...)
 #endif
 
 // Implementation similar to 'printf', but using custom kscript formatting options:

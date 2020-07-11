@@ -62,7 +62,7 @@
  * getopt opterr optind optopt optreset optarg are all in defines.h which is
  * pulled in by includes.h.
  */
-#define warnx		ks_warn
+#define warnx		printf
 
 #include <errno.h>
 #include <stdlib.h>

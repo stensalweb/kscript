@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    ks_log_level_set(ks_log_level() - vdiff);
+    //ks_log_c_set("ks", KS_LOG_WARN - vdiff);
 
     // now, try & initialize the library
     if (!ks_init()) {
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    ks_debug("argc: %i, argv[0]: %s", argc, argv[0]);
+    ks_debug("ks", "argc: %i, argv[0]: %s", argc, argv[0]);
     //printf("argv[0]: %s\n", argv[0]);
     // ensure a maximum of one is given 
     if (fname != NULL && expr != NULL) {

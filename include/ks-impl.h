@@ -60,6 +60,7 @@ void ks_type_Enum_init();
 void ks_type_kfunc_init();
 void ks_type_iostream_init();
 
+void ks_type_logger_init();
 void ks_type_code_init();
 void ks_type_ast_init();
 void ks_type_parser_init();

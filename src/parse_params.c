@@ -37,7 +37,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
         int name_len = i - name_i;
 
         if (fmt[i] != '%') {
-            ks_error("Incorrect usage of ks_parse_params()!");
+            ks_error("ks", "Incorrect usage of ks_parse_params()!");
             exit(1);
             return false;
         }
@@ -212,7 +212,7 @@ bool ks_parse_params(int n_args, ks_obj* args, const char* fmt, ...) {
             *val_p = arg;
 
         } else {
-            ks_error("Incorrect usage of ks_parse_params()! (unknown argspec)");
+            ks_error("ks", "Incorrect usage of ks_parse_params()! (unknown argspec)");
             exit(1);
             return false;
         }

@@ -367,7 +367,7 @@ static ks_obj tok_getval(ks_tok tok) {
 static int64_t tok_getint(ks_tok tok) {
 
     if (tok.type != KS_TOK_INT) {
-        ks_warn("tok_getint() passed a non-integer token (type %i)", tok.type);
+        ks_warn("ks", "tok_getint() passed a non-integer token (type %i)", tok.type);
         return 0;
     }
     static char tmp[100];
@@ -381,7 +381,7 @@ static int64_t tok_getint(ks_tok tok) {
 // generates a float rom the token, assuming it is an integer literal
 static double tok_getfloat(ks_tok tok) {
     if (tok.type != KS_TOK_FLOAT) {
-        ks_warn("tok_getfloat() passed a non-float token (type %i)", tok.type);
+        ks_warn("ks", "tok_getfloat() passed a non-float token (type %i)", tok.type);
         return 0;
     }
     static char tmp[100];

@@ -167,7 +167,7 @@ bool ks_code_tofile(ks_code self, char* fname) {
     FILE* fp = fopen(fname, "wb");
 
     if (!fp) {
-        ks_warn("Failed to open file '%s' in 'ks_code_tofile()'", fname);
+        ks_warn("ks", "Failed to open file '%s' in 'ks_code_tofile()'", fname);
         return false;
     }
 
@@ -235,19 +235,19 @@ ks_code ks_code_fromfile(char* fname) {
     FILE* fp = fopen(fname, "rb");
 
     if (!fp) {
-        ks_warn("Failed to open file '%s' in 'ks_code_fromfile()'", fname);
+        ks_warn("ks", "Failed to open file '%s' in 'ks_code_fromfile()'", fname);
         return NULL;
     }
 
     char magic[256] = "";
 
     if (5 != fread(magic, 1, 5, fp)) {
-        ks_warn("Failed to parse magic word 'KSBC' from file '%s' in 'ks_code_fromfile()'", fname);
+        ks_warn("ks", "Failed to parse magic word 'KSBC' from file '%s' in 'ks_code_fromfile()'", fname);
         return NULL;
     }
 
     if (strncmp(magic, "KSBC\n", 5) != 0) {
-        ks_warn("Failed to parse magic word 'KSBC' from file '%s' in 'ks_code_fromfile()'", fname);
+        ks_warn("ks", "Failed to parse magic word 'KSBC' from file '%s' in 'ks_code_fromfile()'", fname);
         return NULL;
     }
 
@@ -259,7 +259,7 @@ ks_code ks_code_fromfile(char* fname) {
     int vcl = 0;
 
     if (fscanf(fp, "vcl:%i\n", &vcl) != 1) {
-        ks_warn("Failed to parse v_const length from file '%s' in 'ks_code_fromfile()'", fname);
+        ks_warn("ks", "Failed to parse v_const length from file '%s' in 'ks_code_fromfile()'", fname);
         KS_DECREF(self);
         return NULL;
     }
@@ -281,7 +281,7 @@ ks_code ks_code_fromfile(char* fname) {
             if (cur_line[cur_len] =='\n') cur_line[cur_len] = '\0';
 
             // successfull
-            //ks_info("Line: '%s'", cur_line);
+            //ks_info("ks", "Line: '%s'", cur_line);
             if (strncmp(cur_line, "str:", 4) == 0) {
                 // parse out string
                 ks_str s0 = ks_str_new(cur_line + 4);
@@ -304,7 +304,7 @@ ks_code ks_code_fromfile(char* fname) {
             }
 
         } else {
-            ks_warn("Invalid line in file '%s'", fname);
+            ks_warn("ks", "Invalid line in file '%s'", fname);
         }
     }
 
@@ -315,7 +315,7 @@ ks_code ks_code_fromfile(char* fname) {
     // now, parse the actual bytes
     int bcn = 0;
     if (fscanf(fp, "bcn:%i\n", &bcn) != 1) {
-        ks_warn("Failed to parse bcn length from file '%s' in 'ks_code_fromfile()'", fname);
+        ks_warn("ks", "Failed to parse bcn length from file '%s' in 'ks_code_fromfile()'", fname);
         KS_DECREF(self);
         return NULL;
     }
@@ -325,7 +325,7 @@ ks_code ks_code_fromfile(char* fname) {
     self->bc = ks_malloc(bcn);
 
     if (bcn != fread(self->bc, 1, bcn, fp)) {
-        ks_warn("Failed to parse bc bytes (length %i) from file '%s' in 'ks_code_fromfile()'", bcn, fname);
+        ks_warn("ks", "Failed to parse bc bytes (length %i) from file '%s' in 'ks_code_fromfile()'", bcn, fname);
         KS_DECREF(self);
         return NULL;
     }

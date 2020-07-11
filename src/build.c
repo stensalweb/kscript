@@ -98,7 +98,7 @@ KS_API ks_tuple ks_build_tuple(const char* fmt, ...) {
                 KS_DECREF(new_obj);
 
             } else {
-                ks_error("Unknown format specifier in `ks_build_tuple`, got '%%%s'", field);
+                ks_error("ks", "Unknown format specifier in `ks_build_tuple`, got '%%%s'", field);
                 exit(1);
             }
         

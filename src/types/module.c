@@ -40,7 +40,7 @@ static ks_module attempt_load(char* cname) {
         // now, load it via dlopen
         void* handle = dlopen(cname, RTLD_LAZY | RTLD_GLOBAL);    
         if (handle == NULL) {
-            ks_debug("[import] file '%s' failed: dlerror(): %s", cname, dlerror());
+            ks_debug("ks", "[import] file '%s' failed: dlerror(): %s", cname, dlerror());
             return NULL;
         }
         
@@ -50,14 +50,14 @@ static ks_module attempt_load(char* cname) {
             // call the function, and return its result
             ks_module mod = cext_init->init_func();
             if (!mod) {
-                ks_debug("[import] file '%s' failed: Exception was thrown by '__C_module_init__->init_func()'", cname);
+                ks_debug("ks", "[import] file '%s' failed: Exception was thrown by '__C_module_init__->init_func()'", cname);
                 return NULL;
             }
 
-            ks_debug("[import] file '%s' succeeded!", cname);
+            ks_debug("ks", "[import] file '%s' succeeded!", cname);
             return mod;
         } else {
-            ks_debug("[import] file '%s' failed: No '__C_module_init__' symbol!", cname);
+            ks_debug("ks", "[import] file '%s' failed: No '__C_module_init__' symbol!", cname);
             return NULL;
         }
 
@@ -78,7 +78,7 @@ ks_module ks_module_import(char* mname) {
     ks_module mod = NULL;
 
     ks_str mod_key = ks_str_new(mname);
-    ks_debug("[import] trying to import '%s'...", mname);
+    ks_debug("ks", "[import] trying to import '%s'...", mname);
     
     // check the cache for quick return
     mod = (ks_module)ks_dict_get_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash);
@@ -153,6 +153,7 @@ void ks_module_add_enum_members(ks_module self, ks_type enumtype) {
 
 // add member types
 void ks_dict_add_enum_members(ks_dict self, ks_type enumtype) {
+
     // get the enum keys array
     ks_list e_keys = (ks_list)ks_dict_get_c(enumtype->attr, "_enum_keys");
     if (!e_keys) return;
@@ -162,8 +163,6 @@ void ks_dict_add_enum_members(ks_dict self, ks_type enumtype) {
         return;
 
     }
-
-
 
     int i;
     for (i = 0; i < e_keys->len; ++i) {
