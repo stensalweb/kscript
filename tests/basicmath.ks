@@ -59,4 +59,3 @@ assert int(false) != int(true)
 
 assert !!1
 assert !0
-

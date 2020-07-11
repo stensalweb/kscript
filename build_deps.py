@@ -567,9 +567,7 @@ libs = [
         "--disable-shared --enable-static --disable-assembly CFLAGS='-fPIC'"),
     target_CMI("ffi", "libffi-3.3", "https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz", 
         "--disable-shared --enable-static CFLAGS='-fPIC' >/dev/null"),
-    target_CCMI("glfw3", "glfw-3.3.2", "https://github.com/glfw/glfw/releases/download/3.3.2/glfw-3.3.2.zip", 
-        "-DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=true -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF -DGLFW_BUILD_DOCS=OFF"),
-        
+
     # libav
     target_CMI("ffmpeg", "ffmpeg-192d1d3", "https://git.ffmpeg.org/gitweb/ffmpeg.git/snapshot/192d1d34eb3668fa27f433e96036340e1e5077a0.tar.gz",
         "--pkgconfigdir='" + PREFIX + "/pkgconfig' --pkg-config-flags='--static' --extra-cflags='-I" + PREFIX + "/include' --extra-ldflags='-L" + PREFIX + "/lib' --extra-libs='-lpthread -lm' --enable-static --disable-debug --disable-shared --disable-ffplay --disable-doc --enable-openssl --enable-gpl --enable-version3 --enable-nonfree --enable-pthreads --enable-libvpx --enable-libmp3lame --enable-libopus --enable-libtheora --enable-libvorbis --enable-libx264 --enable-libx265 --enable-runtime-cpudetect --enable-libfdk-aac --enable-avfilter --enable-libopencore_amrwb --enable-libopencore_amrnb --enable-filters --enable-libvidstab --enable-libaom", [], [

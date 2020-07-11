@@ -16,23 +16,8 @@
 //#define CNK_USE_GLFW
 #define CNK_USE_XLIB
 
-// TODO: remove refs to this
-static void
-die(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fputs("\n", stderr);
-    exit(EXIT_FAILURE);
-}
 
-
-
-
-
-
+// define per-implementation code
 #if defined(CNK_USE_XLIB)
 
 // misc options
@@ -54,47 +39,6 @@ die(const char *fmt, ...)
 // include Nuklear headers
 #include "./ext/nuklear.h"
 #include "./ext/nuklear_xlib_gl3.h"
-
-static int gl_err = nk_false;
-
-static int _X_errorcb(Display* display, XErrorEvent* ev) {
-    char tmp[256];
-    return 0;
-}
-
-static int gl_error_handler(Display *display, XErrorEvent *ev) {
-    fprintf(stderr, "GLX: %p\n", display);
-    gl_err = nk_true;
-    return 0;
-}
-
-// return whether it has an extension within the string
-static int has_extension(const char *string, const char *ext) {
-    const char *start, *where, *term;
-    where = strchr(ext, ' ');
-    if (where || *ext == '\0')
-        return nk_false;
-
-    for (start = string;;) {
-        where = strstr((const char*)start, ext);
-        if (!where) break;
-        term = where + strlen(ext);
-        if (where == start || *(where - 1) == ' ') {
-            if (*term == ' ' || *term == '\0')
-                return nk_true;
-        }
-        start = term;
-    }
-    return nk_false;
-}
-
-
-static struct {
-    // X display
-    Display* display;
-
-} my_xlib;
-
 
 #elif defined(CNK_USE_GLFW)
 
@@ -121,17 +65,6 @@ static struct {
 // include Nuklear headers
 #include "./ext/nuklear.h"
 #include "./ext/nuklear_glfw_gl3.h"
-
-// error callback to be used by GLFW
-static void _GLFW_errorcb(int er, const char* d) {
-    ks_warn("GLFW: %s [code: %i]", d, er);
-}
-
-// key function call back from GLFW
-static void _GLFW_keycb(GLFWwindow *win, unsigned int codepoint) {
-    cNk_Context ctx = (cNk_Context)glfwGetWindowUserPointer(win);
-    nk_input_unicode(ctx->ctx, codepoint);
-}
 
 
 #else
@@ -170,11 +103,15 @@ typedef struct {
 
     #if defined(CNK_USE_XLIB)
 
-    // X11-specific
+    // X11-specific variables
     struct {
         Display* display;
 
         Window window;
+
+        // OpenGL context
+        GLXContext glCTX;
+
 
         XVisualInfo *vis;
         Colormap cmap;
@@ -187,8 +124,10 @@ typedef struct {
     } x;
 
     #elif defined(CNK_USE_GLFW)
+
     // the GLFW window the context is bound to
     GLFWwindow* window;
+
     #endif
 
     // the main Nuklear context
@@ -224,6 +163,55 @@ KS_TYPE_DECLFWD(cNk_type_iter_Context);
 
 
 
+/* helper functions */
+
+#if defined(CNK_USE_XLIB)
+
+// X error call back function
+static int _X_errorcb(Display* display, XErrorEvent* ev) {
+    char tmp[256];
+    XGetErrorText(display, ev->error_code, tmp, sizeof(tmp) - 1);
+    ks_warn("[X11]: %s\n", tmp);
+    return 0;
+}
+
+// return whether or not an extensions string has a given extension in it
+static bool _X_hasext(const char *string, const char *ext) {
+    const char *start, *where, *term;
+    where = strchr(ext, ' ');
+    if (where || *ext == '\0')
+        return false;
+
+    for (start = string;;) {
+        where = strstr((const char*)start, ext);
+        if (!where) break;
+        term = where + strlen(ext);
+        if (where == start || *(where - 1) == ' ') {
+            if (*term == ' ' || *term == '\0')
+                return true;
+        }
+        start = term;
+    }
+
+    return false;
+}
+
+#elif defined(CNK_USE_GLFW)
+
+// error callback to be used by GLFW
+static void _GLFW_errorcb(int er, const char* d) {
+    ks_warn("GLFW: %s [code: %i]", d, er);
+}
+
+// key function call back from GLFW
+static void _GLFW_keycb(GLFWwindow *win, unsigned int codepoint) {
+    cNk_Context ctx = (cNk_Context)glfwGetWindowUserPointer(win);
+    nk_input_unicode(ctx->ctx, codepoint);
+}
+
+#endif
+
+
 /* Context class */
 
 /* Context.__new__(width, height, title) -> Context
@@ -247,15 +235,13 @@ static KS_TFUNC(Context, new) {
     #if defined(CNK_USE_XLIB)
 
     if (!(self->x.display = XOpenDisplay(NULL))) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to open X display\n");
+        return ks_throw_fmt(ks_type_InternalError, "Failed to open X display");
     }
-
-    GLXContext glContext;
 
     int glx_major, glx_minor;
 
     if (!glXQueryVersion(self->x.display, &glx_major, &glx_minor)) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to query OpenGL version\n");
+        return ks_throw_fmt(ks_type_InternalError, "Failed to query OpenGL version");
     }
 
     ks_debug("[X11]: Queried OpenGL version %i.%i\n", glx_major, glx_minor);
@@ -276,30 +262,34 @@ static KS_TFUNC(Context, new) {
         GLX_DOUBLEBUFFER,   True,
         None
     };
+
+    // Get framebuffer configuration
     GLXFBConfig *fbc;
     fbc = glXChooseFBConfig(self->x.display, DefaultScreen(self->x.display), attr, &fb_count);
-    if (!fbc) die("[X11]: Error: failed to retrieve framebuffer configuration\n");
-    {
-        /* pick framebuffer with most samples per pixel */
-        int i;
-        int fb_best = -1, best_num_samples = -1;
-        for (i = 0; i < fb_count; ++i) {
-            XVisualInfo *vi = glXGetVisualFromFBConfig(self->x.display, fbc[i]);
-            if (vi) {
-                int sample_buffer, samples;
-                glXGetFBConfigAttrib(self->x.display, fbc[i], GLX_SAMPLE_BUFFERS, &sample_buffer);
-                glXGetFBConfigAttrib(self->x.display, fbc[i], GLX_SAMPLES, &samples);
-                if ((fb_best < 0) || (sample_buffer && samples > best_num_samples))
-                    fb_best = i, best_num_samples = samples;
-            }
-        }
-        self->x.fbc = fbc[fb_best];
-        XFree(fbc);
-        self->x.vis = glXGetVisualFromFBConfig(self->x.display, self->x.fbc);
+    if (!fbc) {
+        return ks_throw_fmt(ks_type_InternalError, "Failed to retrieve framebuffer config from X");
     }
 
+    // pick the configuration with the most samples/pixel
+    int i;
+    int fb_best = -1, best_num_samples = -1;
+    for (i = 0; i < fb_count; ++i) {
+        XVisualInfo *vi = glXGetVisualFromFBConfig(self->x.display, fbc[i]);
+        if (vi) {
+            int sample_buffer, samples;
+            glXGetFBConfigAttrib(self->x.display, fbc[i], GLX_SAMPLE_BUFFERS, &sample_buffer);
+            glXGetFBConfigAttrib(self->x.display, fbc[i], GLX_SAMPLES, &samples);
+            if ((fb_best < 0) || (sample_buffer && samples > best_num_samples))
+                fb_best = i, best_num_samples = samples;
+        }
+    }
+    self->x.fbc = fbc[fb_best];
+    XFree(fbc);
 
-    /* create window */
+    // get visual
+    self->x.vis = glXGetVisualFromFBConfig(self->x.display, self->x.fbc);
+
+    // now, create a colormap, etc in order to create a window
     self->x.cmap = XCreateColormap(self->x.display, RootWindow(self->x.display, self->x.vis->screen), self->x.vis->visual, AllocNone);
     self->x.swa.colormap =  self->x.cmap;
     self->x.swa.background_pixmap = None;
@@ -309,57 +299,76 @@ static KS_TFUNC(Context, new) {
         ButtonPress | ButtonReleaseMask| ButtonMotionMask |
         Button1MotionMask | Button3MotionMask | Button4MotionMask | Button5MotionMask|
         PointerMotionMask| StructureNotifyMask;
+    
+    // create window
     self->x.window = XCreateWindow(self->x.display, RootWindow(self->x.display, self->x.vis->screen), 0, 0,
         width, height, 0, self->x.vis->depth, InputOutput,
-        self->x.vis->visual, CWBorderPixel|CWColormap|CWEventMask, &self->x.swa);
-    if (!self->x.window) die("[X11]: Failed to create window\n");
+        self->x.vis->visual, CWBorderPixel|CWColormap|CWEventMask, &self->x.swa
+    );
+
+    if (!self->x.window) {
+        return ks_throw_fmt(ks_type_InternalError, "Failed to create window in X");
+    }
+    
     XFree(self->x.vis);
-    XStoreName(self->x.display, self->x.window, "Demo");
+    // set title
+    XStoreName(self->x.display, self->x.window, title->chr);
     XMapWindow(self->x.display, self->x.window);
     self->x.wm_delete_window = XInternAtom(self->x.display, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(self->x.display, self->x.window, &self->x.wm_delete_window, 1);
 
+    /* OpenGL context configuration */
 
 
-    /* create opengl context */
-    typedef GLXContext(*glxCreateContext)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
-    int(*old_handler)(Display*, XErrorEvent*) = XSetErrorHandler(gl_error_handler);
+    // error handler
+    int (*old_handler)(Display*, XErrorEvent*) = XSetErrorHandler(_X_errorcb);
+
+    // Create context FP
+    typedef GLXContext (*glxCreateContext)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
+
+    // load extensions for OpenGL
     const char *extensions_str = glXQueryExtensionsString(self->x.display, DefaultScreen(self->x.display));
-    glxCreateContext create_context = (glxCreateContext)
-        glXGetProcAddressARB((const GLubyte*)"glXCreateContextAttribsARB");
 
-    gl_err = nk_false;
-    if (!has_extension(extensions_str, "GLX_ARB_create_context") || !create_context) {
-        fprintf(stdout, "[X11]: glXCreateContextAttribARB() not found...\n");
-        fprintf(stdout, "[X11]: ... using old-style GLX context\n");
-        glContext = glXCreateNewContext(self->x.display, self->x.fbc, GLX_RGBA_TYPE, 0, True);
+    // Attempt to get the context
+    glxCreateContext create_context = (glxCreateContext)glXGetProcAddressARB((const GLubyte*)"glXCreateContextAttribsARB");
+
+    // whether or not we had an error
+    bool hadErr = false;
+
+    if (!_X_hasext(extensions_str, "GLX_ARB_create_context") || !create_context) {
+        ks_info("[X11]: glxCreateContextAttribARB() was not found, so using old style GLX context");
+        self->x.glCTX = glXCreateNewContext(self->x.display, self->x.fbc, GLX_RGBA_TYPE, 0, True);
     } else {
         GLint attr[] = {
             GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
             GLX_CONTEXT_MINOR_VERSION_ARB, 0,
             None
         };
-        glContext = create_context(self->x.display, self->x.fbc, 0, True, attr);
+        self->x.glCTX = create_context(self->x.display, self->x.fbc, 0, True, attr);
         XSync(self->x.display, False);
-        if (gl_err || !glContext) {
+        if (hadErr || !self->x.glCTX) {
             /* Could not create GL 3.0 context. Fallback to old 2.x context.
                 * If a version below 3.0 is requested, implementations will
                 * return the newest context version compatible with OpenGL
                 * version less than version 3.0.*/
             attr[1] = 1; attr[3] = 0;
-            gl_err = nk_false;
-            fprintf(stdout, "[X11] Failed to create OpenGL 3.0 context\n");
-            fprintf(stdout, "[X11] ... using old-style GLX context!\n");
-            glContext = create_context(self->x.display, self->x.fbc, 0, True, attr);
+            hadErr = false;
+            ks_info("[X11]: Failed to create OpenGL 3.0 context, using old style GLX context");
+            self->x.glCTX = create_context(self->x.display, self->x.fbc, 0, True, attr);
         }
     }
+
+
     XSync(self->x.display, False);
     XSetErrorHandler(old_handler);
-    if (gl_err || !glContext)
-        die("[X11]: Failed to create an OpenGL context\n");
-    glXMakeCurrent(self->x.display, self->x.window, glContext);
+    if (hadErr || !self->x.glCTX) {
+        return ks_throw_fmt(ks_type_InternalError, "Failed to create an OpenGL context in X");
+    }
 
+    // make it the current context
+    glXMakeCurrent(self->x.display, self->x.window, self->x.glCTX);
 
+    // now, finally, initialize Nuklear
     self->ctx = nk_x11_init(self->x.display, self->x.window);
 
     /* load font assets */
@@ -389,7 +398,6 @@ static KS_TFUNC(Context, new) {
     // create a context from the GLFW window
     self->ctx = nk_glfw3_init(self->window, NK_GLFW3_INSTALL_CALLBACKS);
 
-
     /* load font assets */
     nk_glfw3_font_stash_begin(&self->atlas);
 
@@ -401,7 +409,6 @@ static KS_TFUNC(Context, new) {
     /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas, "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
 
     nk_glfw3_font_stash_end();
-
 
     #endif
 
@@ -461,7 +468,9 @@ static KS_TFUNC(Context, getattr) {
         int ww, wh;
         
         #if defined(CNK_USE_XLIB)
-
+        XGetWindowAttributes(self->x.display, self->x.window, &self->x.attr);
+        ww = self->x.attr.width;
+        ww = self->x.attr.height;
         #elif defined(CNK_USE_GLFW)
 
         glfwGetWindowSize(self->window, &ww, &wh);
@@ -546,13 +555,24 @@ static KS_TFUNC(Context, frame_start) {
     // update GLFW things
     #if defined(CNK_USE_XLIB)
 
-    
+    // TODO: seperate events maybe?
+    XEvent evt;
+    nk_input_begin(self->ctx);
+    while (XPending(self->x.display)) {
+        XNextEvent(self->x.display, &evt);
+        if (evt.type == ClientMessage) rst = false;
+        if (XFilterEvent(&evt, self->x.window)) continue;
+        nk_x11_handle_event(&evt);
+    }
+
+    nk_input_end(self->ctx);
 
     #elif defined(CNK_USE_GLFW)
+
     glfwPollEvents();
     nk_glfw3_new_frame();
-    rst = !glfwWindowShouldClose(self->window);
-
+    if (glfwWindowShouldClose(self->window)) rst = false;
+    
     #endif
 
     // return whether it should keep going
@@ -575,19 +595,22 @@ static KS_TFUNC(Context, frame_end) {
     // query the actual size
     int dw, dh;
     #if defined(CNK_USE_XLIB)
-
-
+    XGetWindowAttributes(self->x.display, self->x.window, &self->x.attr);
+    dw = self->x.attr.width;
+    dh = self->x.attr.height;
     #elif defined(CNK_USE_GLFW)
     glfwGetWindowSize(self->window, &dw, &dh);
     #endif
+
+
+    /* shared OpenGL code */
 
     // render the entire window
     glViewport(0, 0, dw, dh);
 
     // set background color
     glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-
+    glClearColor(self->background_color[0], self->background_color[1], self->background_color[2], self->background_color[3]);
 
 
     #if defined(CNK_USE_XLIB)
@@ -603,7 +626,7 @@ static KS_TFUNC(Context, frame_end) {
     // swap buffers
     glfwSwapBuffers(self->window);
 
-    rst = !glfwWindowShouldClose(self->window);
+    if (glfwWindowShouldClose(self->window)) rst = false;
     #endif
 
     // return whether it should keep going
@@ -845,9 +868,6 @@ static KS_TFUNC(Context, layout_row) {
 
 
 
-
-
-
 /* Context.edit_string(self, edit_type, cur_str, max_len) -> new_str
  *
  * Edits a string (returns new string)
@@ -927,16 +947,34 @@ static KS_TFUNC(iter_Context, next) {
     cNk_iter_Context self = (cNk_iter_Context)args[0];
     KS_REQ_TYPE(self, cNk_type_iter_Context, "self");
 
-    // query the actual size
-    int dw, dh;
+    int truthy;
+    bool keepGoing;
+    ks_obj r;
 
-    ks_obj r = Context_frame_end_(1, (ks_obj*)&self->context);
-    if (!r) return NULL;
-    KS_DECREF(r);
+    if (self->frame_n > 0) {
+        r = Context_frame_end_(1, (ks_obj*)&self->context);
+        if (!r) return NULL;
+
+        truthy = ks_truthy(r);
+        KS_DECREF(r);
+        if (truthy < 0) return NULL;
+
+        // tell whether we should keep going
+        keepGoing = truthy != 0;
+        if (!keepGoing) return ks_throw_fmt(ks_type_OutOfIterError, "");
+    }
+
 
     r = Context_frame_start_(1, (ks_obj*)&self->context);
     if (!r) return NULL;
+
+    truthy = ks_truthy(r);
     KS_DECREF(r);
+    if (truthy < 0) return NULL;
+
+    // tell whether we should keep going
+    keepGoing = truthy != 0;
+    if (!keepGoing) return ks_throw_fmt(ks_type_OutOfIterError, "");
 
     // return the frame count
     return (ks_obj)ks_int_new(self->frame_n++);
@@ -987,7 +1025,7 @@ static ks_module get_module() {
         if (stat == GL3W_ERROR_LIBRARY_OPEN) {
             return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!, reason: GL3W_ERROR_LIBRARY_OPEN)");
         } else {
-            return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!)");
+            //return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!)");
         }
     }
 

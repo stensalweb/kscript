@@ -15,31 +15,9 @@ import os
 import subprocess
 import platform
 import glob
+import configparser
 
 import argparse
-
-
-
-# colors (from blender)
-class bcol:
-    # reset to default output
-    RESET    = '\033[0m'
-
-    HEADER   = '\033[95m'
-
-    OKBLUE   = '\033[94m'
-    OKGREEN  = '\033[92m'
-
-    # warn, fail, statuses
-    WARN     = '\033[93m'
-    FAIL     = '\033[91m'
-
-    # bold, underline, text
-    BOLD     = '\033[1m'
-    ULIN     = '\033[4m'
-
-
-print ("Python Version: " + str(sys.version))
 
 class NegateAction(argparse.Action):
     def __call__(self, parser, ns, values, option):
@@ -59,6 +37,8 @@ parser.add_argument('-M', nargs='*', help='Modules to build with kscript', defau
 parser.add_argument('--enable-trace', '--disable-trace', dest='trace', action=NegateAction, nargs=0, help='Enables/disables \'ks_trace()\', disabling may increase performance', default=True)
 parser.add_argument('--enable-rpath', '--disable-rpath', dest='rpath', action=NegateAction, nargs=0, help='Enables/disables the use of local library paths, useful for local installations only. Use `--disable-rpath` for any packages/installed programs', default=True)
 
+parser.add_argument('--with-colors', '--without-colors', dest='with_colors', action=NegateAction, nargs=0, help='Enables/disables color output in the library, binary, and build system', default=True)
+
 parser.add_argument('--with-gmp', '--without-gmp', dest='with_gmp', action=NegateAction, nargs=0, help='Enables/disables using the GNU MP (GMP) library for multiprecision', default=None)
 parser.add_argument('--with-readline', '--without-readline', dest='with_readline', action=NegateAction, nargs=0, help='Enables/disables using the GNU readline library for command line interpreting', default=None)
 parser.add_argument('--with-curl', '--without-curl', dest='with_curl', action=NegateAction, nargs=0, help='Enables/disables using the CURL library for network operations', default=None)
@@ -68,6 +48,105 @@ parser.add_argument('--with-ffi', '--without-ffi', dest='with_ffi', action=Negat
 parser.add_argument('--with-fftw3', '--without-fftw3', dest='with_fftw3', action=NegateAction, nargs=0, help='Enables/disables using the FFTW3 (Fastest-Fourier-Transform in the West) library for FFT speed up', default=None)
 
 args = parser.parse_args()
+
+
+
+# colors
+# https://misc.flogisoft.com/bash/tip_colors_and_formatting
+
+
+class Col:
+	# -- Format Codes --
+
+	RESET    = '\033[0m'
+	
+	BOLD     = '\033[1m'
+	DIM      = '\033[2m'
+	ULIN     = '\033[4m'
+	BLINK    = '\033[5m'
+	RVRS     = '\033[7m'
+	HIDE     = '\033[8m'
+
+	# -- Text Col --
+
+	DFT      = '\033[39m'
+
+	WHT      = '\033[97m'
+	BLK      = '\033[30m'
+
+	GRY      = '\033[90m'
+	LGRY     = '\033[37m'
+
+	RED      = '\033[31m'
+	GRN      = '\033[32m'
+	YLW      = '\033[33m'
+	BLU      = '\033[34m'
+	MGA      = '\033[35m'
+	CYN      = '\033[36m'
+
+	LRED     = '\033[91m'
+	LGRN     = '\033[92m'
+	LYLW     = '\033[93m'
+	LBLU     = '\033[94m'
+	LMGA     = '\033[95m'
+	LCYN     = '\033[96m'
+
+	# -- Background Col --
+
+	BK_DFT   = '\033[49m'
+
+	BK_WHT   = '\033[107m'
+	BK_BLK   = '\033[40m'
+
+	BK_GRY   = '\033[100m'
+	BK_LGRY  = '\033[47m'
+
+
+	BK_RED   = '\033[41m'
+	BK_GRN   = '\033[42m'
+	BK_YLW   = '\033[43m'
+	BK_BLU   = '\033[44m'
+	BK_MGA   = '\033[45m'
+	BK_CYN   = '\033[46m'
+
+	BK_LRED  = '\033[101m'
+	BK_LGRN  = '\033[102m'
+	BK_LYLW  = '\033[103m'
+	BK_LBLU  = '\033[104m'
+	BK_LMGA  = '\033[105m'
+	BK_LCYN  = '\033[106m'
+
+	# -*- Aliases -*-
+    # (these are replaced via 'setattr' later)
+	WARN     = '$YLW'
+	FAIL     = '$RED'
+	SUCC     = '$GRN'
+
+
+# if we don't want to use colors, set every attribute of the class to '', i.e. no color formatting
+if not args.with_colors:
+	for a in dir(Col):
+		if not a.startswith('__'):
+			setattr(Col, a, '')
+
+# now, replace aliases that begin with '$'
+for a in dir(Col):
+	v = getattr(Col, a)
+	if not a.startswith('__') and v.startswith('$'):
+		setattr(Col, a, getattr(Col, v[1:]))
+
+
+class BuildError(Exception):
+    """ BuildError - raised when an error in building occurs
+    """
+
+    def __init__(self, target, message):
+        self.target = target
+        self.message = message
+        super().__init__(f"{Col.FAIL}FAIL: {Col.BLU}{self.target}{Col.RESET}: {Col.WARN}{self.message}{Col.RESET}")
+
+
+
 
 # -*- Config Vars
 
@@ -83,8 +162,8 @@ _tmp      = PWD + "/.tmp"
 
 LIB_FLAGS = ""
 
-CFLAGS   += f" -I{PWD}/deps/prefix/include "
-LDFLAGS  += f" -L{PWD}/deps/prefix/lib "
+#CFLAGS   += f" -I{PWD}/deps/prefix/include "
+#LDFLAGS  += f" -L{PWD}/deps/prefix/lib "
 
 
 # list of -D defines
@@ -145,17 +224,16 @@ int main(int argc, char** argv) {{
 	haslib = shell(f"{CC} {CFLAGS} {cflag} {fname} {LDFLAGS} {lflag} -o {_tmp}/a.out") and shell(f"{_tmp}/a.out")
 
 	if not haslib:
-		print (f" --   Not found!")
+		print (f"{Col.WARN} --   Not found: {Col.BLU}{name}!{Col.RESET}")
 	else:
 		# add to variables
 		# remove definitions
 		cflag = " ".join(filter(lambda arg: not arg.startswith("-D"), cflag.split(" ")))
 
-		CFLAGS       += " " + cflag
-		LIB_FLAGS    += " " + lflag
+		CFLAGS       += " " * (not CFLAGS.endswith(' ')) + cflag
+		LIB_FLAGS    += " " * (not LIB_FLAGS.endswith(' '))+ lflag
 
-		print (f" --   Found!")
-
+		print (f"{Col.GRN} --   Found: {Col.BLU}{name}!{Col.RESET}")
 
 	return haslib
 
@@ -186,13 +264,13 @@ int main(int argc, char** argv) {{
 	# now, compile and run
 	s0 = shell(f"{CC} {CFLAGS} {fname} {LDFLAGS} -o {_tmp}/a.out")
 	if not s0:
-		raise Exception(f"Compilation failed for C check '{name}'")
+		raise Exception(f"{Col.FAIL}Compilation failed for C check '{Col.WARN}{name}{Col.FAIL}'{Col.RESET}")
 
 	print (f"{CC} {CFLAGS} {fname} {LDFLAGS} -o {_tmp}/a.out")
 	s1, out = shell_output(f"{_tmp}/a.out")
 
 	if not s1:
-		raise Exception(f"Execution failed for C check '{name}'")
+		raise Exception(f"{Col.FAIL}Execution failed for C check '{Col.WARN}{name}{Col.FAIL}'{Col.RESET}")
 
 	print (f" --   Done, got: '{out}'")
 
@@ -257,7 +335,6 @@ if args.with_fftw3 is not False:
 		raise Exception("'--with-fftw3' given, but FFTW3 was not found!")
 
 
-
 # add them to the defines
 if hasGMP:	
 	defs.append("KS_HAVE_GMP")
@@ -320,9 +397,16 @@ class _WithMessage:
 def genMsg(name, opts={}):
 	print(" --- Configuring")
 
+# write file
+def write_file(fname, contents):
+	fp = open(fname, 'r')
+	cur_c = fp.read()
+	fp.close()
+	if cur_c != contents:
+		fp = open(fname, 'w')
+		fp.write(contents)
+		fp.close() 
 
-# command to run on 'makefile' target success
-MAKE_success = '@echo "\\n|| Built: $@\\n"'
 
 # newline
 _newline = "\n"
@@ -376,9 +460,7 @@ if "KS_OTHER" in defs:
 
 with _WithMessage("./include/ks-config"):
 
-	f_config = open("./include/ks-config.h", "w")
-
-	f_config.write(f"""/* ks_config.h - (generated by ./configure). Please rerun ./configure, and do NOT modify this file!
+	write_file("./include/ks-config.h", f"""/* ks_config.h - (generated by ./configure). Please rerun ./configure, and do NOT modify this file!
 *
 * Configure Script Ran:
 * $ {" ".join(sys.argv)}
@@ -448,7 +530,7 @@ extern "C" {{
 
 /* modules */
 
-{_newline.join("#define KS_HAVE_MODULE_" + mod[mod.index('/')+1:].upper() for mod in args.M)}
+{_newline.join("#define KS_HAVE_MODULE_" + mod[mod.rfind('/')+1:].upper() for mod in args.M)}
 
 
 /* misc. defines */
@@ -475,225 +557,282 @@ extern "C" {{
 
 """)
 
-	f_config.close()
-
 
 ## ./Makefile
 
-with _WithMessage("./Makefile"):
-	f_Makefile = open("./Makefile", "w")
+# generate code for a given module,
+# returns (targets, installs, files, rules)
+def gen_module(module):
 
+	# get the configuration the module has
+    cfp = configparser.ConfigParser()
+    cfp.read(f"{module}/build.ini")
+
+	# module name (no directory)
+    name = module[module.rfind('/')+1:]
+
+    # generated shared library
+    target = f"lib/ksm/{name}/libksm_{name}.{SHARED_END}"
+
+    # newly generated rules
+    new_files = []
+
+	# dependency modules
+    c_deps    = cfp['Module']['DEPS'].split()
+    c_files   = cfp['Compile']['FILES'].split()
+    c_headers = cfp['Compile']['HEADERS'].split()
+
+	# object files
+    gen_o = []
+    gen_c = []
+
+    installs = []
+
+    for hed in c_headers:
+        installs += [f"{hed}"]
+
+    installs += [f"libksm_{name}.{SHARED_END}"]
+
+
+	# go through all files to compile
+    for fname in c_files:
+        if fname.endswith('.c'):
+            gen_c += [f"{module}/{fname}"]
+            gen_o += [f"{module}/{fname.replace('.c', '.o')}"]
+        else:
+            raise BuildError(module, f"Unknown file type for file: {module}/{fname}")
+
+    new_make  = f"""
+# -- MODULE: {module} --
+
+# header files
+{name}_H := {" ".join(f"lib/ksm/{name}/{h}" for h in c_headers)}
+
+{name}_C := {" ".join(gen_c)}
+{name}_O := $(patsubst %.c,$(_tmp)/%.o,$({name}_C))
+
+# compilation rule for one target
+$(_tmp)/{module}/%.o: {module}/%.c $({name}_H) $(ks_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS){' ' + cfp['Compile']['CFLAGS'] if cfp['Compile']['CFLAGS'] else ''} -I./include -I{module} -DKS_BUILD {"".join(f"-I./modules/{dep}" for dep in c_deps)} $< -fPIC -c -o $@
+
+# rule to copy headers
+lib/ksm/{name}/%.h: {module}/%.h
+	@mkdir -p $(dir $@)
+	cp $< $@
+
+# rule to generate target
+{target}: $(libks_SHARED) $({name}_O) $({name}_H) $(ks_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(LDFLAGS) {cfp['Compile']['LDFLAGS']} -L./lib -Wl,-rpath,'$$ORIGIN' \\
+		$({name}_O) \\
+		{cfp['Compile']['LIBS']} -lks -shared -o $@
+	@$(STRIP) $@ $(STRIP_OPTS)
+	{MAKE_SUCC}
+
+"""
+
+
+    return [target], installs, new_files, new_make
+
+
+# make success
+MAKE_SUCC = f"@echo {Col.SUCC} -- BUILT: {Col.BLU}$@{Col.SUCC} -- {Col.RESET}"
+
+with _WithMessage("./Makefile"):
+
+
+	mod_targets = []
+
+	# makefile rules for the modules
+	mod_rules = ""
+
+	# extra generated files that need to be cleaned, for example
+	mod_files = []
+
+	mod_installs = []
+
+	install_modules = ""
+
+	for module in args.M:
+
+		# now, configure a single module
+		_targets, _installs, _files, _rules = gen_module(module)
+
+		mod_targets += _targets
+		mod_installs += _installs
+		mod_files += _files
+		mod_rules += _rules
+
+		name = module[module.rfind('/')+1:]
+		
+		install_modules += f"\tinstall -d $(TODIR)/lib/ksm/{name}\n"
+
+		for fl in _installs:
+			install_modules += f"\tinstall -m 644 ./lib/ksm/{name}/{fl} $(TODIR)/lib/ksm/{name}\n"
+
+
+
+	f_Makefile = open("./Makefile", "w")
 	f_Makefile.write(f"""# -*- Makefile (generated by ./configure). Please rerun ./configure, and do NOT modify this file! -*-
 
-# -*- VARS -*-
-
-SHARED_END       := {SHARED_END}
-export SHARED_END
-STATIC_END       := {STATIC_END}
-export STATIC_END
-
-STRIP            ?= strip
-export STRIP
-
-STRIP_OPTS       ?= --strip-debug --strip-unneeded
-export STRIP_OPTS
-
-KS_VERSION_MAJOR := {args.V[0]}
-export KS_VERSION_MAJOR
-KS_VERSION_MINOR := {args.V[1]}
-export KS_VERSION_MINOR
-KS_VERSION_PATCH := {args.V[2]}
-export KS_VERSION_PATCH
-
-KS_VERSION       := $(KS_VERSION_MAJOR).$(KS_VERSION_MINOR).$(KS_VERSION_PATCH)
-export KS_VERSION
-
-CC               := {CC}
-export CC
-CFLAGS           := {CFLAGS}
-export CFLAGS
-LDFLAGS          := {LDFLAGS}
-export LDFLAGS
-
-# only should be enabled in local builds
-RPATH_FLAGS      := {"-Wl,-rpath,'$$ORIGIN' -Wl,-rpath,'$$ORIGIN/../lib' -Wl,-rpath,./lib -Wl,-rpath-link,./" if args.rpath else ""}
-
-KS_DIR           := {PWD}
-export KS_DIR
-
-PREFIX           ?= {PREFIX}
-export PREFIX
-DESTDIR          ?= {DESTDIR}
-export DESTDIR
-
-# static libraries that were built
-_include_static := $(wildcard $(patsubst %,$(KS_DIR)/deps/prefix/lib/lib%.$(STATIC_END),gmp readline history))
-
-_tmp             := {".tmp"}
-
-STD_MODULES      := {" ".join(args.M)}
-export STD_MODULES
-
-HAVE_LIBS        := {" ".join(haves)}
-export HAVE_LIBS
-
-## modifying vars
-CFLAGS           += -I{PWD}/include -I{PWD}/deps/prefix/include
-LDFLAGS          += -L{PWD}/lib -L{PWD}/deps/prefix/lib
+# saved for static linking
+# -Wl,-Bsymbolic -Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive
 
 
-# -*- FILES -*-
+# rpath flags
+#  -Wl,-rpath,./lib -Wl,-rpath-link,./ 
+
+# -- Version / Metadata --
+
+KSV0           := {args.V[0]}
+KSV1           := {args.V[1]}
+KSV2           := {args.V[2]}
+KSV            := $(KSV0).$(KSV1).$(KSV2)
+
+
+# -- Paths / Files --
+
+PREFIX         ?= {PREFIX}
+DESTDIR        ?= {DESTDIR}
+
+_tmp           := .tmp
+
+# -- Commands / Utilities --
+
+CC             := {CC}
+CFLAGS         := {CFLAGS}
+LDFLAGS        := {LDFLAGS}
+
+STRIP          ?= strip
+STRIP_OPTS     ?= --strip-debug --strip-unneeded
+
+
+# -- Main Library / Executable --
 
 # general purpose headers
-all_H            := $(wildcard include/*.h)
-ks_H             := $(all_H)
-export ks_H
+ks_H           := $(wildcard include/*.h)
 
-# kscript library
-libks_C          := {files("src/library/*.c")} {files("src/library/types/*.c")}
+# - libks, the main kscript library
+libks_C        := $(wildcard src/*.c src/types/*.c)
+libks_O        := $(patsubst %.c,$(_tmp)/%.o,$(libks_C))
+libks_SHARED   := lib/libks.{SHARED_END}
+libks_STATIC   := lib/libks.{STATIC_END}
 
-# kscript binary/commandline executable
-ks_C             := {files("src/cmdline/*.c")}
-
-
-# -*- TARGETS -*-
-
-# target files
-libks_SHARED     := {PWD}/lib/libks.$(SHARED_END)
-export libks_SHARED
-libks_STATIC     := {PWD}/lib/libks.$(STATIC_END)
-export libks_STATIC
-ks_BIN           := bin/ks
-
-# generated
-libks_O          := $(patsubst %.c,$(_tmp)/%.o,$(libks_C))
-ks_O             := $(patsubst %.c,$(_tmp)/%.o,$(ks_C))
+# - ks, the kscript binary
+ks_C           := $(wildcard src/cmdline/*.c)
+ks_O           := $(patsubst %.c,$(_tmp)/%.o,$(ks_C))
+ks_BIN         := bin/ks
 
 
-# -*- TESTS -*-
+# -- Unit Tests / Checks --
 
 # kscript tests
-tests_KS         := $(wildcard tests/*.ks)
+tests_KS       := $(wildcard tests/*.ks)
 
 
-PRINT = @echo -e "\e[1;34mBuilding $<\e[0m"
+# -- Rule Definitions --
 
-# -*- RULES -*-
+# declare those that aren't actual files
+.PHONY: default lib bin modules check install uninstall clean FORCE
 
-.PHONY: all default clean install check uninstall modules FORCE
+# now, describe different build targets
 
-
-# default target to build
 default: $(libks_SHARED) modules $(ks_BIN)
 
-# build everything
-all: default
+lib: $(libks_SHARED) $(libks_STATIC)
 
-clean: FORCE
-	rm -rf $(wildcard $(_tmp) debian/usr build lib bin *.deb)
-	@for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir clean || exit 1 ; \\
-	done
+bin: $(ks_BIN)
 
-modules: $(libks_SHARED) FORCE
-	@for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir || exit 1 ; \\
-	done
+modules: {" ".join(mod_targets)}
+	@echo {Col.SUCC}{Col.BOLD}ALL MODULES BUILT{Col.RESET}
+
+check: $(tests_KS) FORCE
+	@echo {Col.SUCC}{Col.BOLD}ALL TESTS PASSED{Col.RESET}
 
 
 tests/%.ks: $(ks_BIN) FORCE
-	@$(ks_BIN) $@ && echo "\e[1;92mPASSED: $@\e[0m" || (echo "\e[1;91mFAILED: $@\e[0m" && exit 1)
+	@$(ks_BIN) $@ && echo {Col.SUCC}PASSED: {Col.BLU}$@{Col.RESET} || (echo {Col.FAIL}{Col.BOLD}FAILED: {Col.WARN}$@{Col.RESET} && exit 1)
 
-check: FORCE $(tests_KS)
-	@echo "\e[1;92mSUCCESS\e[0m"
-
-# target to force another target
-FORCE:
+# install directory
+TODIR := $(DESTDIR)$(PREFIX)
 
 # rule to install the whole package to PREFIX
-install: default $(libks_STATIC) $(ks_H) FORCE
-	install -d $(DESTDIR)$(PREFIX)/bin/
-	install -d $(DESTDIR)$(PREFIX)/lib/kscript/modules
-	install -d $(DESTDIR)$(PREFIX)/share/doc/kscript
-	install -d $(DESTDIR)$(PREFIX)/include/
-	install -d $(DESTDIR)$(PREFIX)/share/man/man1
+install: $(ks_BIN) $(libks_SHARED) modules $(ks_H) FORCE
+	install -d $(TODIR)/bin
+	install -d $(TODIR)/include
+	install -d $(TODIR)/lib/ksm
 
-	install -m 755 $(ks_BIN) $(DESTDIR)$(PREFIX)/bin/
-	install -m 644 $(libks_SHARED).$(KS_VERSION) $(libks_STATIC) $(DESTDIR)$(PREFIX)/lib/
-	install -m 644 $(all_H) $(DESTDIR)$(PREFIX)/include/
-	install -m 644 $(wildcard {PWD}/share/doc/*) $(DESTDIR)$(PREFIX)/share/doc/kscript
-	install -m 644 $(wildcard {PWD}/share/man/man1/*) $(DESTDIR)$(PREFIX)/share/man/man1
+	install -d $(TODIR)/share/man/man1
+	install -d $(TODIR)/share/doc/kscript
 
-	# add dependencies
-	#install -m 644 $(wildcard deps/prefix/lib/*) $(DESTDIR)$(PREFIX)/lib/
-	#install -m 644 $(wildcard deps/prefix/include/*) $(DESTDIR)$(PREFIX)/include/
+	install -m 755 $(ks_BIN) $(TODIR)/bin
+	install -m 644 $(libks_SHARED) $(TODIR)/lib
+	install -m 644 $(ks_H) $(TODIR)/include
 
-	#mv $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
+{install_modules}
 
-	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
-	ln -s libks.$(SHARED_END).$(KS_VERSION) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED))
-
-	gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog
-	mv $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.gz $(DESTDIR)$(PREFIX)/share/doc/kscript/changelog.Debian.gz
-
-	gzip -9 -n -f $(DESTDIR)$(PREFIX)/share/man/man1/ks.1
-
-	for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir install || exit 1 ; \\
-	done
-
+	#gzip -9 -n -f $(TODIR)/share/doc/kscript/changelog
+	#mv $(TODIR)/share/doc/kscript/changelog.gz $(TODIR)/share/doc/kscript/changelog.Debian.gz
+	#gzip -9 -n -f $(TODIR)/share/man/man1/ks.1
 
 
 # rule to uninstall the whole package from PREFIX
 uninstall: FORCE
-	rm -f $(DESTDIR)$(PREFIX)/bin/$(notdir $(ks_BIN))
-	rm -f $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_STATIC)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)) $(DESTDIR)$(PREFIX)/lib/$(notdir $(libks_SHARED)).$(KS_VERSION)
-	rm -f $(patsubst %,$(DESTDIR)$(PREFIX)/include/%,$(notdir $(all_H)))
+	rm -f $(TODIR)/bin/$(notdir $(ks_BIN))
+	rm -f $(TODIR)/lib/$(notdir $(libks_STATIC)) $(TODIR)/lib/$(notdir $(libks_SHARED))
+	rm -f $(patsubst %,$(TODIR)/include/%,$(notdir $(ks_H)))
+	rm -f $(TODIR)/lib/ksm
 
-	for subdir in $(STD_MODULES); do \\
-		$(MAKE) -C $$subdir uninstall || exit 1 ; \\
-	done
+clean: FORCE
+	rm -rf $(wildcard $(_tmp) debian/usr build lib bin *.deb)
+
+all: lib modules bin check install
+
+# target to force another target
+FORCE:
+
 
 # rule to compile a single object file
 $(_tmp)/src/%.o: src/%.c $(all_H)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -DKS_BUILD $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) -I./include -DKS_BUILD $< -fPIC -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
 # Since `libks_o` contains many files, we use `$^` to mean `all input files together`
 $(libks_SHARED): $(libks_O)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) \\
-		$^ $(LDFLAGS) \\
-		-Wl,-soname,libks.so.$(KS_VERSION) \\
-		-Wl,-Bsymbolic \\
-		-Wl,--whole-archive $(_include_static) -Wl,--no-whole-archive \\
-		-shared {LIB_FLAGS} -o $@.$(KS_VERSION)
-	$(STRIP) $@.$(KS_VERSION) $(STRIP_OPTS)
-	rm -f $@
-	ln -s libks.$(SHARED_END).$(KS_VERSION) $@
-	{MAKE_success}
+	$(CC) $(LDFLAGS) -L./lib \\
+		$^ \\
+		{LIB_FLAGS} -shared -o $@
+	@$(STRIP) $@ $(STRIP_OPTS)
+	{MAKE_SUCC}
 
 # rule to build the static object file (.a)
 $(libks_STATIC): $(libks_O)
 	@mkdir -p $(dir $@)
 	$(AR) cr $@ $^
-	$(STRIP) $@ $(STRIP_OPTS)
-	{MAKE_success}
+	@$(STRIP) $@ $(STRIP_OPTS)
+	{MAKE_SUCC}
 
 # rule to build the executable (no extension) from the library and it's `.o`'s
 #   since we require a library, and object files, we don't use `$^`, but just build
 #   explicitly
 $(ks_BIN): $(libks_SHARED) $(ks_O)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(ks_O) $(LDFLAGS) \\
-		-L../lib -L{PWD}/lib $(RPATH_FLAGS) \\
-		$(libks_SHARED).$(KS_VERSION) -lm -ldl -lpthread \\
-		-o $@
-	$(STRIP) $@ $(STRIP_OPTS)
-	{"cp $(libks_SHARED).$(KS_VERSION) $(dir $@)" if "KS__WINDOWS" in defs or "KS__CYGWIN" in defs else ""}
-	{MAKE_success}
+	$(CC) $(LDFLAGS) -L./lib -Wl,-rpath,'$$ORIGIN' -Wl,-rpath,'$$ORIGIN/../lib' \\
+		$(ks_O) \\
+		-lm -ldl -lpthread -lks -o $@
+	@$(STRIP) $@ $(STRIP_OPTS)
+	{MAKE_SUCC}
 
+
+# -- Modules --
+
+all_mod_installs := 
+
+
+{mod_rules}
 
 
 """)

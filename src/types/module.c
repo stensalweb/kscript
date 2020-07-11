@@ -30,7 +30,6 @@ ks_module ks_module_new(char* mname) {
 // attempt to load a single file, without any extra paths
 // Do not raise error, just return NULL if not successful
 static ks_module attempt_load(char* cname) {
-    ks_debug("[import] trying %s...", cname);
 
     char* ext = strrchr(cname, '.');
 
@@ -41,7 +40,7 @@ static ks_module attempt_load(char* cname) {
         // now, load it via dlopen
         void* handle = dlopen(cname, RTLD_LAZY | RTLD_GLOBAL);    
         if (handle == NULL) {
-            ks_debug("[import] '%s' failed: dlerror(): %s", cname, dlerror());
+            ks_debug("[import] file '%s' failed: dlerror(): %s", cname, dlerror());
             return NULL;
         }
         
@@ -51,14 +50,14 @@ static ks_module attempt_load(char* cname) {
             // call the function, and return its result
             ks_module mod = cext_init->init_func();
             if (!mod) {
-                ks_debug("[import] '%s' failed: Exception was thrown by '__C_module_init__->init_func()'", cname);
+                ks_debug("[import] file '%s' failed: Exception was thrown by '__C_module_init__->init_func()'", cname);
                 return NULL;
             }
 
-            ks_debug("[import] '%s' succeeded!", cname);
+            ks_debug("[import] file '%s' succeeded!", cname);
             return mod;
         } else {
-            ks_debug("[import] '%s' failed: No '__C_module_init__' symbol!", cname);
+            ks_debug("[import] file '%s' failed: No '__C_module_init__' symbol!", cname);
             return NULL;
         }
 
@@ -79,6 +78,7 @@ ks_module ks_module_import(char* mname) {
     ks_module mod = NULL;
 
     ks_str mod_key = ks_str_new(mname);
+    ks_debug("[import] trying to import '%s'...", mname);
     
     // check the cache for quick return
     mod = (ks_module)ks_dict_get_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash);
@@ -86,7 +86,6 @@ ks_module ks_module_import(char* mname) {
         KS_DECREF(mod_key);
         return mod;
     }
-
 
     int i;
     for (i = 0; i < ks_paths->len; ++i) {
@@ -98,13 +97,6 @@ ks_module ks_module_import(char* mname) {
 
         if (mod != NULL) goto finish;
         if (ks_thread_get()->exc) goto finish;
-
-        ctry = ks_fmt_c("%S/modules/%s/libksm_%s.%s", ks_paths->elems[i], mname, mname, KS_SHARED_END);
-
-        mod = attempt_load(ctry->chr);
-        KS_DECREF(ctry);
-        if (mod != NULL) goto finish;
-
     }
 
 
@@ -121,7 +113,6 @@ ks_module ks_module_import(char* mname) {
         KS_DECREF(mod_key);
         return mod;
     }
-
 
 }
 

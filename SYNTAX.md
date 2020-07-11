@@ -1,5 +1,47 @@
 # kscript syntax
 
+## Values
+
+### Lists & Tuples
+
+Lists and tuples are created similarly; lists use `[]` and tuples use `()`
+
+For example, a list of integers can be constructed like: `[1, 5, 2]`, and a tuple like `(1, 5, 2)`. You can always include an extra comma at the end, such that:
+
+```python
+x = [1, 5, 2]
+x = [1, 5, 2,]
+y = (1, 5, 2)
+y = (1, 5, 2,)
+```
+
+Are equivalent. They can also span multiple lines, i.e.:
+
+```python
+x = [
+    1,
+    2,
+    3,
+]
+```
+
+Empty lists are created like `[]`, and empty tuples are created like `(,)`, the comma is required for tuples
+
+
+### Dictionaries
+
+
+Dictionaries are created with the `{ KEY: VALUE, }` idiom, like so:
+
+```python
+x = {
+    "MyName": "Cade",
+}
+
+```
+
+Similar to lists & tuples, they can span multiple lines, include an optional extra comma after the last element, and the empty dictionary is `{}`
+
 
 ## Control Flow
 
@@ -13,6 +55,7 @@ y = 5
 ```
 
 You can use a ';' to end a statement that has nothing following it, but this is redundant and generally avoided.
+
 
 ## Conditionals/Loops
 
@@ -46,7 +89,7 @@ Using `elif` has the same effect as `else if`
 
 The `while` loop is similar to most languages' constructs. However, there is no equivalent of `do { ... } while (COND)`
 
-Also, there is a `while; else` loop. It works differently than python's (see [https://realpython.com/lessons/while-loop-else-clause/](https://realpython.com/lessons/while-loop-else-clause/)).
+Also, there is a `while; else` loop. It works differently than Python's (see [https://realpython.com/lessons/while-loop-else-clause/](https://realpython.com/lessons/while-loop-else-clause/)).
 
 The `else` part of a `while` loop is executed only if the condition is false on the FIRST run.
 
@@ -86,5 +129,6 @@ while len(data) > 0 {
 
 I introduced this feature to help with more readable data processing. For example, some times you would require that `data` has some elements in it. If not, the `else` clause will execute, and you can clearly handle that case.
 
+This way the check conditional (whether `data` had any items) is not repeated
 
 

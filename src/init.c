@@ -32,7 +32,7 @@ const ks_version_t* ks_version() {
 ks_mutex ks_GIL = NULL;
 
 // global vars
-ks_dict ks_globals = NULL, ks_internal_globals = NULL;
+ks_dict ks_globals = NULL;
 
 // the paths to search
 ks_list ks_paths = NULL;
@@ -98,40 +98,64 @@ bool ks_init() {
     // construct a mutex to lock the global interpreter
     ks_GIL = ks_mutex_new();
 
-    // read in paths
+    // read in paths to search for modules 
+    // ORDER:
+    //   Literal paths
+    //   KS_PATH variable
+    //   Relative to executable
     ks_paths = ks_list_new(0, NULL);
 
-    ks_str myp = ks_str_new(".");
-    ks_list_push(ks_paths, (ks_obj)myp);
-    KS_DECREF(myp);
+    /* Literal paths */
 
-    myp = ks_str_new("..");
-    ks_list_push(ks_paths, (ks_obj)myp);
-    KS_DECREF(myp);
+    // literal paths
+    const char* path_lits[] = {
+        ".",
+        NULL,
+    };
 
+    const char** this_path = &path_lits[0];
 
-    // get the environment variable
+    // add literals
+    while (*this_path) {
+        ks_str tmp_path = ks_str_new((char*)*this_path);
+        ks_list_push(ks_paths, (ks_obj)tmp_path);
+        KS_DECREF(tmp_path);
+
+        this_path++;
+    }
+
+    /* KS_PATH paths */
+
+    // get the environment variable (if it exists),
+    //   add those paths
     char* env_ksp = getenv("KS_PATH");
-
     if (env_ksp != NULL) {
+        // make a copy of the `KS_PATH` variable,
+        //   since strtok() is destructive
         int slen = strlen(env_ksp);
-        char* dup = ks_malloc(slen + 1);
-        strncpy(dup, env_ksp, slen);
+        char* dup_ksp = ks_malloc(slen + 1);
+        strncpy(dup_ksp, env_ksp, slen);
 
-        char* tok = strtok(dup, ":");
+        // iterate through tokens seperated by ':',
+        //   the seperator
+        char* tok = strtok(dup_ksp, ":");
 
         while (tok != NULL) {
-            // add to the paths
-            myp = ks_str_new(tok);
-            ks_list_push(ks_paths, (ks_obj)myp);
-            KS_DECREF(myp);
+            // add to paths variable
+            ks_str tmp_path = ks_str_new(tok);
+            ks_list_push(ks_paths, (ks_obj)tmp_path);
+            KS_DECREF(tmp_path);
 
             // grab next token
             tok = strtok(NULL, ":");
         }
 
-        ks_free(dup);
+        // free temporary, mutated version
+        ks_free(dup_ksp);
     }
+
+
+    /* Relative-To-Executable paths */
 
 
     // find out the full path of 'argv[0]'
@@ -141,36 +165,47 @@ bool ks_init() {
     wai_getExecutablePath(full_path, length, &dir_length);
     full_path[dir_length] = '\0';
 
+
     ks_debug("wai_getExecutablePath: %s", full_path);
 
-    ks_str full_path_o = ks_str_new(full_path);
-    ks_str lib_path_o = ks_fmt_c("%s/../lib", full_path);
+    // relative paths 
+    const char* path_rels[] = {
+        "/../lib/ksm",
+        NULL,
+    };
 
-    // add a module lookup path to it
-    ks_str module_path_o = ks_fmt_c("%S/kscript/modules", lib_path_o);
-    ks_list_push(ks_paths, (ks_obj)module_path_o);
-    KS_DECREF(module_path_o);
+    // buffer for resolving paths
+    char* tmpbuf = NULL;
 
-    module_path_o = ks_fmt_c("%S/kscript", lib_path_o);
-    ks_list_push(ks_paths, (ks_obj)module_path_o);
-    KS_DECREF(module_path_o);
 
-    ks_str tmpstr = NULL;
-    //#if defined(KS__LINUX) || defined(KS__CYGWIN)
-    // add some default places to look
-    //tmpstr = ks_str_new(KS_PREFIX "/lib/kscript/modules");
-    //ks_list_push(ks_paths, (ks_obj)tmpstr);
-    //KS_DECREF(tmpstr);
-    //#endif
-    
+    // loop through relative paths
+    this_path = &path_rels[0];
+    while (*this_path) {
+        int sl = strlen(*this_path);
+        tmpbuf = ks_realloc(tmpbuf, sl + length + 4);
+        snprintf(tmpbuf, sl + length + 4, "%s%s", full_path, *this_path);
+
+        // TODO: replace ../ and symbolic links?
+        ks_str tmp_path = ks_str_new(tmpbuf);
+        ks_list_push(ks_paths, (ks_obj)tmp_path);
+        KS_DECREF(tmp_path);
+
+
+        this_path++;
+    }
+
+    ks_free(tmpbuf);
+
+    /*
     // initialize internal globals
     ks_internal_globals = ks_dict_new(0, NULL);
     // set it in the internal global dictionary
     ks_dict_set_cn(ks_internal_globals, (ks_dict_ent_c[]){
-        {"KSCRIPT_BINARY_DIR", (ks_obj)full_path_o},
-        {"KSCRIPT_LIB_DIR", (ks_obj)lib_path_o},
+        {"KSCRIPT_BINARY_DIR",   (ks_obj)full_path_o},
+        {"KSCRIPT_LIB_DIR",      (ks_obj)lib_path_o},
         {NULL, NULL}
     });
+    */
 
     ks_iostream ks__stdin  = ks_iostream_new_extern(stdin, "r");
     ks_iostream ks__stdout = ks_iostream_new_extern(stdout, "w");
