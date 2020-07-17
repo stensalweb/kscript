@@ -1,70 +1,38 @@
-/* types/none.c - the none-type
+/* none.c - implementation of the 'none'-type
  *
- * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
-
 
 #include "ks-impl.h"
 
 
-// forward declare it
-KS_TYPE_DECLFWD(ks_type_none);
-
-ks_none KS_NONE;
-
-/* member functions */
-
-
-// none.__str__(self) -> convert to string
-static KS_TFUNC(none, str) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_none self = (ks_none)args[0];
-    KS_REQ_TYPE(self, ks_type_none, "self");
-
-    // static globals so it only calculates once
-    static ks_str s_none = NULL;
-
-    // only update once
-    if (!s_none) {
-        s_none = ks_str_new("none");
-    }
-
-    // new reference
-    return KS_NEWREF(s_none);
-};
+static struct ks_none_s KS_NONE_s;
+ks_none KS_NONE = &KS_NONE_s;
 
 
 
-// none.__free__(self) -> do nothing, as nones should never be freed
+
+// none.__free__(self) -> free object
 static KS_TFUNC(none, free) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_none self = (ks_none)args[0];
-    KS_REQ_TYPE(self, ks_type_none, "self");
+    ks_none self = NULL;
+    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_none)) return NULL;
 
-    // up the refcnt so it won't be freed for a while
-    self->refcnt = INT32_MAX;
+    // reset references
+    self->refcnt = KS_REFS_INF;
 
     return KSO_NONE;
-};
-
-
-// initialize none type
-void ks_type_none_init() {
-    KS_INIT_TYPE_OBJ(ks_type_none, "none");
-
-    ks_type_set_cn(ks_type_none, (ks_dict_ent_c[]){
-        {"__str__", (ks_obj)ks_cfunc_new2(none_str_, "none.__str__(self)")},
-        {"__repr__", (ks_obj)ks_cfunc_new2(none_str_, "none.__repr__(self)")},
-
-        {"__free__", (ks_obj)ks_cfunc_new2(none_free_, "none.__free__(self)")},
-        {NULL, NULL}
-    });
-
-    // initialize global singleton
-    KS_NONE = KS_ALLOC_OBJ(ks_none);
-
-    KS_INIT_OBJ(KS_NONE, ks_type_none);
-
 }
 
+
+/* export */
+
+KS_TYPE_DECLFWD(ks_T_none);
+
+void ks_init_T_none() {
+    KS_INIT_OBJ(KS_NONE, ks_T_none)
+
+    ks_type_init_c(ks_T_none, "none", ks_T_obj, KS_KEYVALS(
+        {"__free__",               (ks_obj)ks_cfunc_new_c(none_free_, "none.__free__(self)")},
+    ));
+
+}

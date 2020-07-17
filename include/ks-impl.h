@@ -15,14 +15,8 @@
 extern "C" {
 #endif
 
-
-// for error printing
-
 // always include the main header
-#include "ks.h"
-
-
-#define _POSIX_C_SOURCE 199309L
+#include <ks.h>
 
 // other standard defines
 #include <math.h>
@@ -34,65 +28,32 @@ extern "C" {
 #include <dlfcn.h>
 
 
-// formatting colors
-#define BOLD   "\033[1m"
-#define RESET  "\033[0m"
-#define WHITE  "\033[37m"
-#define RED    "\033[31m"
-#define YELLOW "\033[33m"
 
-/* INTERNAL TYPE INITIALIZATION FUNCTIONS */
-void ks_type_type_init();
-void ks_type_none_init();
-void ks_type_bool_init();
-void ks_type_int_init();
-void ks_type_float_init();
-void ks_type_complex_init();
-void ks_type_blob_init();
-void ks_type_str_init();
-void ks_type_tuple_init();
-void ks_type_list_init();
-void ks_type_dict_init();
-void ks_type_slice_init();
-void ks_type_namespace_init();
-void ks_type_Error_init();
-void ks_type_Enum_init();
-void ks_type_kfunc_init();
-void ks_type_iostream_init();
 
-void ks_type_logger_init();
-void ks_type_code_init();
-void ks_type_ast_init();
-void ks_type_parser_init();
-void ks_type_cfunc_init();
-void ks_type_pfunc_init();
-void ks_type_thread_init();
-void ks_type_module_init();
+/* type initialization functions */
 
-void ks_util_init();
+void ks_init_T_obj();
+void ks_init_T_none();
+void ks_init_T_type();
 
-void ks_mem_init();
+void ks_init_T_bool();
+void ks_init_T_int();
+void ks_init_T_float();
 
-// init the logging system
-void ks_log_init();
+void ks_init_T_str();
+void ks_init_T_str_builder();
 
+void ks_init_T_list();
+void ks_init_T_tuple();
+void ks_init_T_dict();
+
+void ks_init_T_cfunc();
+void ks_init_T_Error();
+void ks_init_T_thread();
+void ks_init_T_logger();
+
+// extra initializations
 void ks_init_funcs();
-
-// internal function to hash a length of bytes, using djb hash
-static inline ks_hash_t ks_hash_bytes(int len, uint8_t* data) {
-
-    // hold our result
-    ks_hash_t res = 5381;
-
-    int i;
-    // do iterations of DJB: 
-    for (i = 0; i < len; ++i) {
-        res = (33 * res) + data[i];
-    }
-
-    // return out result, making sure it is never 0
-    return res == 0 ? 1 : res;
-}
 
 
 

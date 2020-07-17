@@ -1,106 +1,120 @@
-/*
+/* util.c - misc. utils for kscript
  *
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
-
 #include "ks-impl.h"
 
-// get the start time (initialize it in 'ks_init')
-static struct timeval ks_start_time = (struct timeval){ .tv_sec = 0, .tv_usec = 0 };
+// Returns a hash of given bytes, using djb2-based hashing algorithm
+ks_hash_t ks_hash_bytes(const uint8_t* data, ks_size_t sz) {
 
-// return the time since it started
-double ks_time() {
-    struct timeval curtime;
-    gettimeofday(&curtime, NULL);
-    return (curtime.tv_sec - ks_start_time.tv_sec) + 1.0e-6 * (curtime.tv_usec - ks_start_time.tv_usec);
+    // hold our result
+    ks_hash_t res = 5381;
+
+    int i;
+    // do iterations of DJB: 
+    for (i = 0; i < sz; ++i) {
+        res = (33 * res) + data[i];
+    }
+
+    // return out result, making sure it is never 0
+    return res == 0 ? 1 : res;
 }
 
-// sleep for a given duration
-void ks_sleep(double dur) {
-
-    double fa = floor(dur);
-
-    struct timespec tim, tim2;
-    tim.tv_sec = fa;
-    tim.tv_nsec = 1000000000 * (dur - fa);
-
-    if (nanosleep(&tim, &tim2) != 0) {
-        ks_warn("ks", "nanosleep() syscall returned non-zero!");
-    }
+// free an object
+void ks_obj_free(ks_obj obj, const char* file, const char* func, int line) {
+    ks_trace("ks", "[%s:%s:%i]: Freeing %p\n", file, func, line, obj);
 
 }
 
-// read a file's entire source and return as a string
-// return 'NULL' and throw an exception if there was an error
-ks_str ks_readfile(char* fname) {
-
-    FILE* fp = fopen(fname, "r");
-    if (!fp) {
-        return ks_throw_fmt(ks_type_Error, "Failed to open file '%s': %s", fname, strerror(errno));
+// calculate hash
+bool ks_obj_hash(ks_obj obj, ks_hash_t* out) {
+    if (obj->type == ks_T_str) {
+        *out = ((ks_str)obj)->v_hash;
+        return true;
+    } else {
+        printf("ERR COULD NOT HASH\n");
+        return false;
     }
-
-    fseek(fp, 0, SEEK_END);
-    int len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char* csrc = ks_malloc(len + 1);
-    if (len != fread(csrc, 1, len, fp)) {
-        ks_warn("ks", "Reading %i bytes failed for file %s", len, fname);
-    }
-    csrc[len] = '\0';
-
-    ks_str src = ks_str_new(csrc);
-    ks_free(csrc);
-    
-    return src;
 }
 
-// implementation of GNU's getline
-// Adapted from: https://gist.github.com/jstaursky/84cf1ddf91716d31558d6f0b5afc3feb
-int ks_getline(char** lineptr, size_t* n, FILE* fp) {
-    char    *buffer_tmp, *position;
-    size_t   block,      offset;
-    int      c;
 
-    if (!fp || !lineptr || !n) {
-        return -1;
+// calculate equality (ignore any errors in this function!)
+bool ks_obj_eq(ks_obj A, ks_obj B) {
+    // TODO: implement operator overloads
 
-    } else if (*lineptr == NULL || *n <= 1) {
-        // Minimum length for strings is 2 bytes
-        *n = 128;
-        if (!(*lineptr = ks_malloc(*n))) {
-            return -1;
+    /**/ if (A->type == B->type) {
+        // speed up some special cases here
+        /**/ if (A->type == ks_T_str) {
+            return ks_str_eq((ks_str)A, (ks_str)B);
         }
     }
+    return false;
+}
 
-    block = *n;
-    position = *lineptr;
+// call an object
+ks_obj ks_obj_call(ks_obj func, int n_args, ks_obj* args) {
 
-    // keep reading characters until newline is hit
-    while ((c = fgetc(fp)) != EOF && (*position++ = c) != '\n') {
-        // Keep track of our offset
-        offset = position - *lineptr;
-
-        if( offset >= *n ) {
-            buffer_tmp = ks_realloc(*lineptr, *n += block);
-            
-            /* Do not free. Return *lineptr. */
-            if (!buffer_tmp) {
-                return -1;
-            }
-
-            *lineptr = buffer_tmp;
-            position = *lineptr + offset;
-        }
+    if (func->type == ks_T_cfunc) {
+        // call CFUNC
+        return ((ks_cfunc)func)->func(n_args, args);
     }
-    // NUL-terminate
-    *position = '\0';
-    return (position - *lineptr - 1);
+
+    printf("CANT CALL\n");
+    return NULL;
 }
 
-// initialize the utilities
-void ks_util_init() {
 
-    gettimeofday(&ks_start_time, NULL);
+// Throw an object, return NULL 
+ks_obj ks_obj_throw(ks_obj obj) {
+    ks_thread th = ks_thread_get();
+
+    if (th->exc != NULL) {
+        ks_error("ks", "While handling '%S', another exception was thrown: '%S'", th->exc, obj);
+        exit(-1);
+        return NULL;
+    } else {
+
+        // keep the exception
+        th->exc = KS_NEWREF(obj);
+        return NULL;
+    }
 }
+
+// ignore any errors thrown
+void ks_catch_ignore() {
+
+    ks_thread th = ks_thread_get();
+
+    if (th->exc) {
+        KS_DECREF(th->exc);
+        th->exc = NULL;
+    }
+
+}
+
+// Throw an object, return NULL (use ks_throw macro)
+ks_obj ks_ithrow(const char* file, const char* func, int line, ks_type errtype, const char* fmt, ...) {
+
+    va_list ap;
+    va_start(ap, fmt);
+    ks_str what = ks_fmt_vc(fmt, ap);
+    va_end(ap);
+    ks_Error newerr = ks_Error_new(errtype, what);
+    KS_DECREF(what);
+
+    ks_obj_throw((ks_obj)newerr);
+    KS_DECREF(newerr);
+    return NULL;
+}
+
+// quit if there is any error
+void ks_exit_if_err() {
+    ks_thread th = ks_thread_get();
+
+    if (th->exc) {
+        ks_error("ks", "Uncaught object: %S", th->exc);
+        exit(-1);
+    }
+}
+
