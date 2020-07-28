@@ -42,7 +42,6 @@ ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig) {
 }
 
 
-
 // cfunc.__free__(self) -> free obj
 static KS_TFUNC(cfunc, free) {
     ks_cfunc self;
@@ -54,9 +53,8 @@ static KS_TFUNC(cfunc, free) {
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
 
-    return NULL;
+    return KSO_NONE;
 }
-
 
 
 /* export */

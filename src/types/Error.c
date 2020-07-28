@@ -47,9 +47,25 @@ static KS_TFUNC(Error, free) {
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_Error);
-KS_TYPE_DECLFWD(ks_T_InternalError);
-KS_TYPE_DECLFWD(ks_T_ArgError);
-KS_TYPE_DECLFWD(ks_T_KeyError);
+
+
+
+KS_TYPE_DECLFWD(ks_T_InternalError)
+KS_TYPE_DECLFWD(ks_T_ImportError)
+KS_TYPE_DECLFWD(ks_T_SyntaxError)
+KS_TYPE_DECLFWD(ks_T_IOError)
+KS_TYPE_DECLFWD(ks_T_TodoError)    
+KS_TYPE_DECLFWD(ks_T_KeyError)
+KS_TYPE_DECLFWD(ks_T_AttrError)
+KS_TYPE_DECLFWD(ks_T_TypeError)
+KS_TYPE_DECLFWD(ks_T_ArgError)
+KS_TYPE_DECLFWD(ks_T_SizeError)
+KS_TYPE_DECLFWD(ks_T_OpError)
+KS_TYPE_DECLFWD(ks_T_OutOfIterError)
+KS_TYPE_DECLFWD(ks_T_MathError)
+KS_TYPE_DECLFWD(ks_T_AssertError)
+
+
 
 void ks_init_T_Error() {
     // initialize singletons
@@ -61,9 +77,22 @@ void ks_init_T_Error() {
 
     #define SUBTYPE(_name) ks_type_init_c(ks_T_##_name, #_name, ks_T_Error, KS_KEYVALS());
 
-    SUBTYPE(InternalError);
-    SUBTYPE(ArgError);
-    SUBTYPE(KeyError);
+
+    SUBTYPE(InternalError)
+    SUBTYPE(ImportError)
+    SUBTYPE(SyntaxError)
+    SUBTYPE(IOError)
+    SUBTYPE(TodoError)    
+    SUBTYPE(KeyError)
+    SUBTYPE(AttrError)
+    SUBTYPE(TypeError)
+    SUBTYPE(ArgError)
+    SUBTYPE(SizeError)
+    SUBTYPE(OpError)
+    SUBTYPE(OutOfIterError)
+    SUBTYPE(MathError)
+    SUBTYPE(AssertError)
 
 
+    #undef SUBTYPE
 }

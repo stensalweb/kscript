@@ -32,7 +32,7 @@ typedef struct {
 
 } ksfmt_t;
 
-#define KSFMT_DFT ((ksfmt_t) { .isLeft = false, .hasPlus = false, .hasSpace = false, .hasZero = false, .width = 0, .base = 10 })
+#define KSFMT_DFT ((ksfmt_t) { .isLeft = false, .hasPlus = false, .hasSpace = false, .hasZero = false, .width = -1, .base = 10 })
 
 // construct a new string builder
 ks_str_builder ks_str_builder_new() {
@@ -67,10 +67,51 @@ bool ks_str_builder_add_str(ks_str_builder self, ks_obj obj) {
 
     if (obj->type == ks_T_str) {
         return ks_str_builder_add(self, ((ks_str)obj)->chr, ((ks_str)obj)->len_b);
+    } else if (obj->type == ks_T_bool) {
+        if (obj == KSO_TRUE) {
+            return ks_str_builder_add(self, "true", 4);
+        } else {
+            return ks_str_builder_add(self, "false", 5);
+        }
     } else if (obj->type->__str__ != NULL) {
         ks_str obj_str = (ks_str)ks_obj_call(obj->type->__str__, 1, &obj);
         if (!obj_str) return false;
         bool rst = ks_str_builder_add_str(self, (ks_obj)obj_str);
+        KS_DECREF(obj_str);
+        return rst;
+    } else {
+        return ks_str_builder_add_fmt(self, "%O", obj);
+    }
+}
+
+// Add repr(obj) to the string builder
+bool ks_str_builder_add_repr(ks_str_builder self, ks_obj obj) {
+
+    // try some builtins
+    if (obj == KSO_NONE) {
+        ks_str_builder_add(self, "none", 4);
+        return true;
+    } else if (obj == KSO_TRUE) {
+        ks_str_builder_add(self, "true", 4);
+        return true;
+    } else if (obj == KSO_TRUE) {
+        ks_str_builder_add(self, "false", 5);
+        return true;
+    } else if (obj->type == ks_T_str) {
+
+        ks_str esc = ks_str_escape((ks_str)obj);
+        ks_str_builder_add(self, "'", 1);
+        ks_str_builder_add(self, esc->chr, esc->len_b);
+        ks_str_builder_add(self, "'", 1);
+        KS_DECREF(esc);
+
+        return true;
+    }
+
+    if (obj->type->__repr__ != NULL) {
+        ks_str obj_str = (ks_str)ks_obj_call(obj->type->__repr__, 1, &obj);
+        if (!obj_str) return false;
+        bool rst = ks_str_builder_add_repr(self, (ks_obj)obj_str);
         KS_DECREF(obj_str);
         return rst;
     } else {
@@ -117,9 +158,9 @@ static bool add_i64(ks_str_builder sb, ksfmt_t ksfmt, int64_t val) {
         val /= ksfmt.base;
     } while (bp < sizeof(buf) - 1 && val > 0);
 
-    /*if (arg.width > 0) while (bp < n - 1 && bp < arg.width) {
-        buf[bp++] = arg.zero_pad ? '0' : ' ';
-    }*/
+    if (ksfmt.width > 0) while (bp < 255 - 1 && bp < ksfmt.width) {
+        buf[bp++] = ksfmt.hasZero ? '0' : ' ';
+    }
 
 
     // add negative sign to the end, which will be reversed
@@ -141,6 +182,9 @@ static bool add_i64(ks_str_builder sb, ksfmt_t ksfmt, int64_t val) {
 // add format
 // based roughly on: https://en.wikipedia.org/wiki/Printf_format_string
 bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
+
+    // original format
+    const char* ofmt = fmt;
 
     // maximum field size
     #define MAX_FIELD 256
@@ -200,7 +244,7 @@ bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
         if (strchr(field, '*') != NULL) {
             ksfmt.width = va_arg(ap, int);
         } else {
-            ksfmt.width = 0;
+            ksfmt.width = -1;
         }
 
 
@@ -211,8 +255,14 @@ bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
             add_i64(self, ksfmt, val);
 
         } else if (c == 'l') {
-            // %i -> base 10 integer, from C 'int'
+            // %i -> base 10 integer, from C 'int64_t'
             int64_t val = va_arg(ap, int64_t);
+
+            add_i64(self, ksfmt, val);
+
+        } else if (c == 'z') {
+            // %z -> base 10 integer, from a 'ks_size_t'
+            ks_size_t val = va_arg(ap, ks_size_t);
 
             add_i64(self, ksfmt, val);
 
@@ -225,21 +275,30 @@ bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
             ks_str_builder_add(self, "0x", 2);
             add_i64(self, ksfmt, (int64_t)val);
 
+        } else if (c == 'c') {
+            // %c -> char
+            char val = (char)va_arg(ap, int);
+
+            if (ksfmt.width < 0) ksfmt.width = 1;
+
+            int i;
+            for (i = 0; i < ksfmt.width; ++i) ks_str_builder_add(self, &val, 1);
+
         } else if (c == 's') {
             // %i -> base 10 integer, from C 'int'
             char* val = va_arg(ap, char*);
 
-            if (ksfmt.width < 1) ksfmt.width = strlen(val);
+
+            if (ksfmt.width < 0) ksfmt.width = strlen(val);
 
             ks_str_builder_add(self, val, ksfmt.width);
-
 
         } else if (c == 'O') {
             // %O -> add a simplified object format
             ks_obj val = va_arg(ap, ks_obj);
 
             // attempt to add it
-            if (!ks_str_builder_add_fmt(self, "<'%T' obj @ %p>", val, val)) {
+            if (!ks_str_builder_add_fmt(self, "<'%s' obj @ %p>", val->type->__name__->chr, val)) {
                 goto vfmt_end;
             }
 
@@ -260,15 +319,20 @@ bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
                 goto vfmt_end;
             }
 
+        } else if (c == 'R') {
+            // %R -> add repr(obj) to the result
+            ks_obj val = va_arg(ap, ks_obj);
 
+            // attempt to add it
+            if (!ks_str_builder_add_repr(self, val)) {
+                goto vfmt_end;
+            }
 
         } else {
-            printf("UNKNOWN FMT SPECIFIER\n");
+
+            ks_error("ks", "Unknown format specifier: '%c' in format string '%s'", c, ofmt);
             goto vfmt_end;
-
         }
-
-
     }
 
     rst = true;

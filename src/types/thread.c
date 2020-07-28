@@ -30,6 +30,13 @@ KS_API ks_thread ks_thread_new(const char* name, ks_obj target, int n_args, ks_o
     self->args = ks_malloc(sizeof(*self->args) * self->n_args);
     memcpy(self->args, args, sizeof(*self->args) * self->n_args);
 
+    self->stk = ks_list_new(0, NULL);
+
+    self->frames = ks_list_new(0, NULL);
+
+    self->exc = NULL;
+    self->exc_info = NULL;
+
     return self;
 }
 

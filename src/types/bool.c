@@ -39,5 +39,6 @@ void ks_init_T_bool() {
         {"__free__",               (ks_obj)ks_cfunc_new_c(bool_free_, "bool.__free__(self)")},
     ));
 
+    ks_T_bool->flags |= KS_TYPE_FLAGS_EQSS;
 
 }

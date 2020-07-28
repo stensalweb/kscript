@@ -76,6 +76,7 @@ ks_dict ks_dict_new(ks_size_t len, ks_obj* elems) {
     for (i = 0; i < len / 2; ++i) {
         // get key/val pair
         ks_obj key = elems[2 * i + 0], val = elems[2 * i + 1];
+        ks_dict_set(self, key, val);
 
     }
 
@@ -201,6 +202,48 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
 }
 
 
+// get a given element
+ks_obj ks_dict_get_h(ks_dict self, ks_obj key, ks_hash_t hash) {
+    if (self->n_buckets < 1) goto get_h_end;
+
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
+
+    // keep track of original
+    ks_size_t bi0 = bi, tries = 0;
+
+    do {
+
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
+
+        /**/ if (ei == KS_DICT_BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so we can say it does not contain the given key
+            return NULL;
+        } else if (ei == KS_DICT_BUCKET_DELETED) {
+            // do nothing; skip it
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+            if (self->entries[ei].key == key || ks_obj_eq(self->entries[ei].key, key)) {
+                // they are equal, so it contains the key already. Now, return the value
+                return KS_NEWREF(self->entries[ei].val);
+            }
+        }
+
+        // try again
+        tries++;
+
+        bi = (bi0 + KS_DICT_PROBE(tries)) % self->n_buckets;
+
+    } while (bi != bi0);
+
+
+    get_h_end: ;
+
+    // error: not in dictionary
+    return NULL;
+}
+
 // Set an item in a dictionary
 bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
 
@@ -267,6 +310,60 @@ bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
     return true;
 }
 
+// test whether or not the dictionary has a given key
+bool ks_dict_has_h(ks_dict self, ks_obj key, ks_hash_t hash) {
+    if (self->n_buckets < 1) goto has_h_end;
+
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
+
+    // keep track of original
+    ks_size_t bi0 = bi, tries = 0;
+
+    do {
+
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
+
+        /**/ if (ei == KS_DICT_BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so it is not in here
+            return false;
+        } else if (ei == KS_DICT_BUCKET_DELETED) {
+            // do nothing; skip it
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+
+            if (self->entries[ei].key == key || ks_obj_eq(self->entries[ei].key, key)) {
+                // they are equal, so it contains the key
+                return true;
+            }
+        }
+
+        tries++;
+
+        bi = (bi0 + KS_DICT_PROBE(tries)) % self->n_buckets;
+
+    } while (bi != bi0);
+
+    has_h_end: ;
+
+    // default case, never found
+    return false;
+}
+
+
+/* derivative methods */
+
+
+
+// Set an item in a dictionary
+ks_obj ks_dict_get(ks_dict self, ks_obj key) {
+    ks_hash_t hash;
+    if (!ks_obj_hash(key, &hash)) return false;
+
+    return ks_dict_get_h(self, key, hash);
+}
+
 
 // Set an item in a dictionary
 bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val) {
@@ -307,92 +404,6 @@ bool ks_dict_set_c(ks_dict self, ks_keyval_c* keyvals) {
     }
 
     return rst;
-}
-
-
-// get a given element
-ks_obj ks_dict_get_h(ks_dict self, ks_obj key, ks_hash_t hash) {
-    if (self->n_buckets < 1) goto get_h_end;
-
-    // bucket index (bi)
-    ks_size_t bi = hash % self->n_buckets;
-
-    // keep track of original
-    ks_size_t bi0 = bi, tries = 0;
-
-    do {
-
-        // get the entry index (ei), which is an index into self->entries
-        int ei = self->buckets[bi];
-
-        /**/ if (ei == KS_DICT_BUCKET_EMPTY) {
-            // we have found an empty bucket before a corresponding entry, so we can say it does not contain the given key
-            return NULL;
-        } else if (ei == KS_DICT_BUCKET_DELETED) {
-            // do nothing; skip it
-        } else if (self->entries[ei].hash == hash) {
-            // possible match; the hashes match
-            if (self->entries[ei].key == key || ks_obj_eq(self->entries[ei].key, key)) {
-                // they are equal, so it contains the key already. Now, return the value
-                return KS_NEWREF(self->entries[ei].val);
-            }
-        }
-
-        // try again
-        tries++;
-
-        bi = (bi0 + KS_DICT_PROBE(tries)) % self->n_buckets;
-
-    } while (bi != bi0);
-
-
-    get_h_end: ;
-
-    // error: not in dictionary
-    return NULL;
-}
-
-
-
-// test whether or not the dictionary has a given key
-bool ks_dict_has_h(ks_dict self, ks_obj key, ks_hash_t hash) {
-    if (self->n_buckets < 1) goto has_h_end;
-
-    // bucket index (bi)
-    ks_size_t bi = hash % self->n_buckets;
-
-    // keep track of original
-    ks_size_t bi0 = bi, tries = 0;
-
-    do {
-
-        // get the entry index (ei), which is an index into self->entries
-        int ei = self->buckets[bi];
-
-        /**/ if (ei == KS_DICT_BUCKET_EMPTY) {
-            // we have found an empty bucket before a corresponding entry, so it is not in here
-            return false;
-        } else if (ei == KS_DICT_BUCKET_DELETED) {
-            // do nothing; skip it
-        } else if (self->entries[ei].hash == hash) {
-            // possible match; the hashes match
-
-            if (self->entries[ei].key == key || ks_obj_eq(self->entries[ei].key, key)) {
-                // they are equal, so it contains the key
-                return true;
-            }
-        }
-
-        tries++;
-
-        bi = (bi0 + KS_DICT_PROBE(tries)) % self->n_buckets;
-
-    } while (bi != bi0);
-
-    has_h_end: ;
-
-    // default case, never found
-    return false;
 }
 
 bool ks_dict_has(ks_dict self, ks_obj key) {
@@ -440,6 +451,65 @@ static KS_TFUNC(dict, free) {
 
 
 
+// dict.__str__(self) -> convert to string
+static KS_TFUNC(dict, str) {
+    ks_dict self;
+    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_dict)) return NULL;
+
+    // build up a string
+    ks_str_builder sb = ks_str_builder_new();
+
+    ks_str_builder_add(sb, "{", 1);
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].hash != 0) {
+            if (i > 0 && i < self->n_entries) ks_str_builder_add(sb, ", ", 2);
+
+            // add the item
+            ks_str_builder_add_repr(sb, self->entries[i].key);
+            ks_str_builder_add(sb, ": ", 2);
+            ks_str_builder_add_repr(sb, self->entries[i].val);
+        }
+    }
+
+
+    ks_str_builder_add(sb, "}", 1);
+    ks_str ret = ks_str_builder_get(sb);
+    KS_DECREF(sb);
+
+    return (ks_obj)ret;
+}
+
+
+// dict.__getitem__(self, key) -> get an entry
+static KS_TFUNC(dict, getitem) {
+    ks_dict self;
+    ks_obj key;
+    if (!ks_getargs(n_args, args, "self:* key", &self, ks_T_dict, &key));
+
+    ks_obj ret = ks_dict_get(self, key);
+    if (!ret) {
+        KS_THROW_KEY_ERR(self, key);
+    } else {
+        return ret;
+    }
+}
+
+// dict.__setitem__(self, key, val) -> get an entry
+static KS_TFUNC(dict, setitem) {
+    ks_dict self;
+    ks_obj key, val;
+    if (!ks_getargs(n_args, args, "self:* key val", &self, ks_T_dict, &key, &val));
+    if (!ks_dict_set(self, key, val)) {
+        // shouldn't happen
+        KS_THROW_KEY_ERR(self, key);
+    } else {
+        return KS_NEWREF(val);
+    }
+}
+
+
 
 /* export */
 
@@ -448,6 +518,11 @@ KS_TYPE_DECLFWD(ks_T_dict);
 void ks_init_T_dict() {
     ks_type_init_c(ks_T_dict, "dict", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(dict_free_, "dict.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__str__(self)")},
+
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c(dict_getitem_, "dict.__getitem__(self, key)")},
+        {"__setitem__",            (ks_obj)ks_cfunc_new_c(dict_setitem_, "dict.__setitem__(self, key, val)")},
+
     ));
 
 }

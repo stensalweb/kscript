@@ -39,7 +39,6 @@ extern "C" {
 
 /* --- Macros --- */
 
-
 // KS_OBJ_BASE - use this macro whenever creating an object type, this must be the first thing
 //   defined in the struct `{ ... }` block
 #define KS_OBJ_BASE ks_type type; int64_t refcnt;
@@ -103,7 +102,7 @@ extern "C" {
 
 
 // A number of references for 'infinite' objects that should never be freed
-// (this number being large prevents 'free' functions from being re-ran)
+// (this number being large prevents 'free' functions from being re-ran frequently)
 #define KS_REFS_INF 0x10FFFFFFFFULL
 
 
@@ -115,6 +114,13 @@ typedef int64_t ks_ssize_t;
 
 // a hash type, representing a hash of an object
 typedef uint64_t ks_hash_t;
+
+// a single unicode character (NOT grapheme/etc, but rather a single, decoded value)
+typedef int32_t ks_unich;
+
+// include unicode
+#include <ks-unicode.h>
+
 
 
 /* --- Builtin Types --- */
@@ -132,6 +138,7 @@ typedef struct ks_type_s* ks_type;
 
 // ks_str - a string type, representing a list of characters. This type is immutable, so DO NOT MODIFY the bytes
 //   in a string
+// NOTE: See the file `types/str.c` for a more in depth explanation
 typedef struct ks_str_s* ks_str;
 
 // ks_list - a simple list type, holding references to other objects
@@ -139,8 +146,6 @@ typedef struct ks_list_s* ks_list;
 
 // ks_dict - a dictionary which maps arbitrary keys to arbitrary values
 typedef struct ks_dict_s* ks_dict;
-
-
 
 
 
@@ -159,11 +164,29 @@ extern ks_none KS_NONE;
 // 'none' downcasted to an object
 #define KSO_NONE ((ks_obj)KS_NONE)
 
+enum ks_type_flags {
+
+    // no special flags
+    KS_TYPE_FLAGS_NONE      = 0x00,
+
+    // Equal-Short-Circuit (EQSS), this means that if two pointers are equal, then the objects are equal
+    KS_TYPE_FLAGS_EQSS      = 0x01,
+
+};
+
+
 struct ks_type_s {
     KS_OBJ_BASE
 
     // attributes the type has
     ks_dict attr;
+
+    /* Flags
+     *
+     * These are flags specific to the type
+     * 
+     */
+    uint32_t flags;
 
 
     /* special case attributes 
@@ -184,37 +207,177 @@ struct ks_type_s {
     // type.__parents__ - list of parent types
     ks_list __parents__;
 
+
+    // type.__new__(type, *args) - construct a new object of a given type. This should normally take 1 argument or more
+    //   and if '__init__' is not NULL, this should be called always with 1, then called __init__ with the resultant
+    //   object and the rest of the arguments
+    //
+    // With immutable types (int, str, float, tuple, etc), the __new__() takes the value(s) to construct the type from,
+    //   and there is no __init__ (something that is immutable must be created and initialized with any value in the __new__
+    //   function). Therefore, the __new__ constructor takes arguments
+    //
+    // However, mutable types (i.e. most types) should have __new__() be callable with 1 argument to simply generate a new
+    //   type; with 'empty' values, then __init__() is called with arguments
+    //
+    // For example, when you call 'x = type(a, b, c)', 'type' is first checked if it has an __init__ method:
+    //   * if __init__ is found, the code is effectively: 'tmp = type.__new__(type); type.__init__(tmp, a, b, c)'
+    //       * the type assignment is required for sub-types that may use their parent type's '__new__()' method, so that
+    //           the created value has the correct type
+    //   * if __init__ is not found, the code is effectively: 'x = type.__new__(type, a, b, c);'
+    ks_obj __new__, __init__;
+
+
     // type.__free__(self) - free an object of a given type
     ks_obj __free__;
 
-    // type.__str__(self) - convert a given object to a string
-    ks_obj __str__;
 
+
+    // type conversion to standard types
+    ks_obj __bool__, __int__, __float__, __str__, __blob__;
+
+
+    // getattr/setattr - custom attribute getters & setters (i.e. `x.a = b`)
+    ks_obj __getattr__, __setattr__;
+
+    // getitem/setitem - custom item getting (i.e. `x[a] = b`)
+    ks_obj __getitem__, __setitem__;
+
+
+
+    // type.__repr__(self) - convert a given object to a (string) representation
+    ks_obj __repr__;
+
+
+    // len, hash, misc. properties
+    ks_obj __len__, __hash__;
+
+
+    // iter, next - iterator protocol
+    ks_obj __iter__, __next__;
+
+
+    // type.__call__(self, *args) - override the calling feature
+    ks_obj __call__;
+
+
+    // ops
+
+    // +, -, ~ operators (unary)
+    ks_obj __pos__, __neg__, __sqig__;
+
+    // +, -, *, /, %, ** operators
+    ks_obj __add__, __sub__, __mul__, __div__, __mod__, __pow__;
+
+    // <, >, <=, >=, ==, !=, <=> operators
+    ks_obj __lt__, __gt__, __le__, __ge__, __eq__, __ne__, __cmp__;
+
+    // |, &, ^ operators
+    ks_obj __binor__, __binand__, __binxor__;
 
 
 };
 
+
+
+// number of characters per entry in the 'offs' array; the main purpose here is
+//   to amortize some costly operators (such as getting the index of the 'i'th codepoint),
+//   see more in `types/str.c`
+#define KS_STR_OFF_EVERY   256
 
 struct ks_str_s {
     KS_OBJ_BASE
 
     // the value of the hash of the string contents, calculated via `ks_hash_bytes(chr, len_b)`
     ks_hash_t v_hash;
-
-    // the length (in characters) of the string
-    ks_size_t len;
-
-    // the length (in bytes) of the buffer that the string takes up
-    // NOTE: may be different than `len` for non-ascii sequences (i.e. unicode)
+    
+    // length (in bytes) of the string
     ks_size_t len_b;
 
-    // the actual string value. In memory, ks_str's are allocated so that taking `->chr` just gives the address of
-    // the start of the NUL-terminated part of the string. The [2] is to make sure that sizeof(ks_str) will allow
-    // for enough room for two characters (this is useful for the internal constants for single-length strings),
+    // length (in characters) of the string
+    // NOTE: For ASCII-data, len_c==len_b
+    ks_size_t len_c;
+
+    // array of character offsets into the 'chr' array
+    // NOTE: will be 'NULL' if len_b==len_c; in that case, the 'i'th offset is just 'i'
+    // Otherwise, it holds `len_c/KS_STR_OFF_EVERY` values, where `offs[i]` is the byte-offset into `chr` of the `i * KS_STR_OFF_EVERY`'th character
+    //   in unicode
+    ks_size_t* offs;
+
+    // the actual array of characters. In memory, ks_str's are allocated so that taking `->chr` just gives the address of
+    // the start of the NUL-terminated part of the string. The [SZ] is to make sure that sizeof(ks_str) will allow
+    // for enough room for 5 bytes (this is useful for the internal constants for single-length strings),
     // and so new strings can be created with: `malloc(sizeof(*ks_str) + len_b)`
     char chr[2];
 
 };
+
+
+// Get whether a string is ascii-only data. This is true if the length of the UTF8-data is the same as bytes (i.e. every character is a single byte)
+#define KS_STR_ISASCII(_str) ((_str)->len_b == (_str)->len_c)
+
+
+/* UTF8 special characters */
+
+enum ks_utf8_err {
+
+    // No error
+    KS_UTF8_ERR_NONE              = 0,
+
+    // Error, there was an attempted out-of-bounds read
+    KS_UTF8_ERR_OUTOFBOUNDS       = 1,
+
+};
+
+
+// unicode character representing there was an error
+#define KS_UNICH_WASERR ((ks_unich)-1)
+
+// ks_str_citer - C-iterator for processing single codepoints in a string; Source code is in `types/str.c`
+// you use it like:
+// ```
+// struct ks_str_citer cit = ks_str_citer_make(str_obj);
+// ks_unich ch;
+// while (!cit.done) {
+//   ch = ks_str_citer_next(&cit);
+//   if (cit.err) {
+//     // handle error
+//     break; 
+//   }
+//   if (ch == 'a') { // ... }
+//   else {
+//   // ERR, whatever you want 
+//   }
+// }
+// ```
+// No cleanup is neccessary, and no extra memory is taken
+//
+struct ks_str_citer {
+
+    // the string object that the iterator is iterating through
+    ks_str self;
+
+    // whether or not the iteration is finished
+    bool done;
+
+    // error code that the iterator gives, 0 means no error, check `KS_UTF8_ERR_*` definitions for various errors
+    enum ks_utf8_err err;
+
+    // current character index
+    int cchi;
+
+    // current byte index
+    int cbyi;
+
+};
+
+// Create a new C-style string iterator, starting at the beginning
+KS_API struct ks_str_citer ks_str_citer_make(ks_str self);
+
+// Get next unicode character, returns `KS_UNICH_WASERR` (a negative value) if there was an error that was thrown
+KS_API ks_unich ks_str_citer_next(struct ks_str_citer* cit);
+
+// 'Seek' in the string to a given index, returning whether it was successful or not
+KS_API bool ks_str_citer_seek(struct ks_str_citer* cit, ks_ssize_t idx);
 
 
 
@@ -265,6 +428,9 @@ extern ks_bool KS_TRUE, KS_FALSE;
 // create a boolean form a C-style conditional
 #define KSO_BOOL(_cond) ((ks_obj)((_cond) ? (KS_TRUE) : (KS_FALSE)))
 
+
+#define KSO_TRUE ((ks_obj)KS_TRUE)
+#define KSO_FALSE ((ks_obj)KS_FALSE)
 
 struct ks_int_s {
     KS_OBJ_BASE
@@ -353,6 +519,19 @@ typedef struct {
 }* ks_tuple;
 
 
+
+// ks_slice - aslice object, having a start, stop, step
+typedef struct {
+    KS_OBJ_BASE
+
+    // start, stop, and step (default should be NONE for all of these)
+    ks_obj start, stop, step;
+
+}* ks_slice;
+
+
+
+
 // A bucket will be this value if it is empty
 #define KS_DICT_BUCKET_EMPTY     -1
 
@@ -413,6 +592,38 @@ typedef struct {
 
 
 
+// ks_memberfunc - a wrapper around a function, filling in the first argument as a member instance,
+// when called, it behaves like `func(member_inst, *args)`
+typedef struct {
+    KS_OBJ_BASE
+
+    // the (static) member function that takes the first argument as `member_inst`
+    ks_obj func;
+
+    // the 0th arg
+    ks_obj member_inst;
+
+}* ks_memberfunc;
+
+/* Enums */
+
+// ks_Enum - base class for an enumeration
+// other Enumerations may derive from this class, like for example:
+// SideEnum derives from Enum,
+// and SideEnum.LEFT and SideEnum.RIGHT are elements
+// the Enum type itself has a list "_enum_keys", which is a list of string keys to the enum
+typedef struct {
+    KS_OBJ_BASE
+
+    // the integer enumeration value
+    ks_int enum_val;
+
+    // the name of this particular enum value
+    ks_str name;
+
+}* ks_Enum;
+
+
 
 /* Errors */
 
@@ -427,6 +638,9 @@ typedef struct {
     ks_str what;
 
 }* ks_Error;
+
+
+
 
 /* Logging */
 
@@ -496,13 +710,722 @@ typedef struct {
     // list of arguments to the thread
     ks_obj* args;
 
+    /* execution state */
+
+    // list of `ks_stack_frame`'s that it is currently executing
+    ks_list frames;
+
+    // current stack of objects that the code is executing on
+    ks_list stk;
+
 
     /* exceptions */
 
     // what exception was thrown (NULL if no error/exception)
     ks_obj exc;
 
+    // list of stack frames (NULL if no error/exception)
+    ks_list exc_info;
+
 }* ks_thread;
+
+
+/* Parsing / Code Generation */
+
+
+// enumeration of different token types
+enum {
+
+    // None/error token type
+    KS_TOK_NONE = 0,
+
+    // Represents a combination of multiple tokens of different types
+    KS_TOK_COMBO,
+
+    // an identifier (i.e. any valid variable name)
+    KS_TOK_IDENT,
+
+    // an integer numerical literal (i.e. '123', '345', etc)
+    KS_TOK_INT,
+
+    // an floating-point numerical literal (i.e. '123.0', '345.', etc)
+    KS_TOK_FLOAT,
+
+    // a string constant, wrapped in quotes (i.e. '"Abc\nDef"')
+    KS_TOK_STR,
+
+    // a comment token, which typically starts with '#' and goes until the end
+    //   of the line
+    KS_TOK_COMMENT,
+
+    // a newline token, i.e. 
+    //
+    KS_TOK_NEWLINE,
+
+    // an operator, i.e. '+', '-', '==', etc
+    KS_TOK_OP,
+
+    // End-Of-File token, always the last token for a given file
+    KS_TOK_EOF,
+    
+
+    /** GRAMMAR CHARACTERS **/
+
+    // a single left parenthesis i.e. '('
+    KS_TOK_LPAR,
+    // a single right parenthesis i.e. ')'
+    KS_TOK_RPAR,
+
+    // a single left bracket i.e. '['
+    KS_TOK_LBRK,
+    // a single right bracket i.e. ']'
+    KS_TOK_RBRK,
+
+    // a single left brace i.e. '{'
+    KS_TOK_LBRC,
+    // a single right brace i.e. '}'
+    KS_TOK_RBRC,
+
+    // a single dot/period i.e. '.'
+    KS_TOK_DOT,
+    // a single comma i.e. ','
+    KS_TOK_COMMA,
+    // a single colon i.e. ':'
+    KS_TOK_COL,
+    // a single colon i.e. ';'
+    KS_TOK_SEMI,
+
+};
+
+
+// ks_tok - kscript token from parser
+// These are not full 'objects', because that would require a lot of memory,
+//   objects, and pointers for parsers. Many files have upwards of 10k tokens,
+//   so allocating 10k objects & maintaining reference counts, etc would not
+//   be feasible or as efficient
+// Therefore, this structure does not hold a reference to 'parser',
+//   since it is a part of a parser at all times, and the integer members
+//   describe where in the source code the token is found
+struct ks_tok {
+
+    // the type of token, one of the KS_TOK_* enum values
+    int type;
+
+    // absolute position & length in the string source code
+    int pos, len;
+
+    // the line & column at which it first appeared
+    int line, col;
+
+};
+
+
+// ks_parser - an integrated parser which can parse kscript & bytecode to
+//   ASTs & code objects
+typedef struct {
+    KS_OBJ_BASE
+    
+    // the source code the parser is parsing on
+    ks_str src;
+
+    // the name of the source (human readable)
+    ks_str src_name;
+
+    // the current token index into the 'tok' array
+    int toki;
+
+    // number of tokens that were found
+    int tok_n;
+
+    // the array of tokens in the source code
+    struct ks_tok* tok;
+
+}* ks_parser;
+
+
+// Different kinds of ASTs
+enum {
+    // Represents a constant, such as 'none', 'true', 'false', int, string
+    // value is 'children[0]'
+    KS_AST_CONST,
+
+    // Represents a variable reference
+    // name is 'children[0]'
+    KS_AST_VAR,
+
+    // Represents a list constructor, like [1, 2, 3]
+    // elements are in children
+    KS_AST_LIST,
+
+    // Represents a tuple constructor, like (1, 2, 3)
+    // elements are in children
+    KS_AST_TUPLE,
+
+    // Represents a dictionary constructor, like {"key":"value", ...}
+    // elements are in children, there should be an even number (for keys & values)
+    KS_AST_DICT,
+
+    // Represents a slice constructor, like 1:2
+    // elements are in children
+    KS_AST_SLICE,
+
+
+    // Represents an attribute reference, 'children[0].(children[1])'
+    // the value is 'children[0]' (AST), but the attribute is a string, in 'children[1]'
+    KS_AST_ATTR,
+
+    // Represents a function call, func(*args)
+    // func is 'children[0]'
+    // args are 'children[1:]'
+    KS_AST_CALL,
+    
+    // represents a subscript call, i.e. obj[*args]
+    // obj is 'children[0]'
+    // args are 'children[1:]
+    KS_AST_SUBSCRIPT,
+
+    // Represents a return statement (a return without a result should be filled
+    //   with a 'none' constant)
+    // result is 'children[0]'
+    KS_AST_RET,
+
+    // Represents a throw statement
+    // expression is 'children[0]'
+    KS_AST_THROW,
+
+    // Represents an assertion, which requires 'children[0]' to evaluate to true
+    KS_AST_ASSERT,
+
+    // Represents a block of other ASTs
+    // all children are in 'children'
+    KS_AST_BLOCK,
+
+    /** CONTROL STRUCTURES **/
+
+    // represents a conditional block, which can have a variable number of children
+    // 'children[0]' is the primary conditional, children[1] os the body of the if
+    // If there is a 3rd child, then it is the 'else' block
+    // 'else if' is the same as having the entire child be an else section, so that
+    //   is what is done
+    // 
+    // EX:
+    // if (COND1) { BODY1 }
+    // elif (COND2) { BODY2 }
+    // else { BODY3 }
+    // Will decompose into:
+    // if [COND1, BODY1, [if COND2, BODY2, BODY3]
+    KS_AST_IF,
+
+    // represents a while loop, with continued iteration
+    // 'children[0]' is the main condition, 'children[1]' is the body
+    // And if there exists 'children[2]', that is the 'else' body
+    // The 'else' body is only executed if the FIRST call of the condition is false
+    // So:
+    // while (x > 3) { ... } else { throw 'Incorrect x' }
+    // Is the same (effectively) as:
+    // if (x <= 3) { throw 'Incorrect x' }
+    // while (x > 3) { ... }
+    KS_AST_WHILE,
+
+    // represents a 'try' block, which will try a given expression
+    // children[0] is the code inside the try block, and 'children[1]' is the code in the 'catch' block
+    KS_AST_TRY,
+
+    // represents a 'func' definition, with a given name, parameter name list, and body
+    // 'children[0]' is the function name (cast to ks_str)
+    // 'children[1]' is the list of parameter names (cast to ks_list)
+    // 'children[3]' is the body of the function, containing the code for the function
+    KS_AST_FUNC,
+
+    // represents a 'for' block, i.e. iterating through some iterable
+    // 'children[0]' is the item being iterated through (AST)
+    // 'children[1]' is the body to execute on each run (AST)
+    // 'children[2]' is the variable to assign to
+    KS_AST_FOR,
+
+
+    /** BINARY OPERATORS **/
+
+    // binary '+'
+    KS_AST_BOP_ADD,
+    // binary '-'
+    KS_AST_BOP_SUB,
+    // binary '*'
+    KS_AST_BOP_MUL,
+    // binary '/'
+    KS_AST_BOP_DIV,
+    // binary '%'
+    KS_AST_BOP_MOD,
+    // binary '**'
+    KS_AST_BOP_POW,
+
+    // binary '|'
+    KS_AST_BOP_BINOR,
+    // binary '&'
+    KS_AST_BOP_BINAND,
+    // binary '^'
+    KS_AST_BOP_BINXOR,
+
+
+    // binary '<=>'
+    KS_AST_BOP_CMP,
+
+    // binary '<'
+    KS_AST_BOP_LT,
+    // binary '<='
+    KS_AST_BOP_LE,
+    // binary '>'
+    KS_AST_BOP_GT,
+    // binary '>='
+    KS_AST_BOP_GE,
+    // binary '=='
+    KS_AST_BOP_EQ,
+    // binary '!='
+    KS_AST_BOP_NE,
+
+    // binary (short circuit) 'or'
+    KS_AST_BOP_OR,
+    // binary (short circuit) 'or'
+    KS_AST_BOP_AND,
+
+
+    // binary '=' (special case, only assignable things area allowed on the left side)
+    KS_AST_BOP_ASSIGN,
+
+
+    /** UNARY OPERATORS **/
+
+
+    // unary '+'
+    KS_AST_UOP_POS,
+    // unary '-'
+    KS_AST_UOP_NEG,
+    // unary '~'
+    KS_AST_UOP_SQIG,
+    // unary '!'
+    KS_AST_UOP_NOT
+
+};
+
+// the first AST kind that is a binary operator
+#define KS_AST_BOP__FIRST KS_AST_BOP_ADD
+
+// the last AST kind that is a binary operator
+#define KS_AST_BOP__LAST KS_AST_BOP_ASSIGN
+
+// the first AST kind that is a unary operator
+#define KS_AST_UOP__FIRST KS_AST_UOP_POS
+
+// the last AST kind that is a unary operator
+#define KS_AST_UOP__LAST KS_AST_UOP_NOT
+
+
+
+// ks_ast - an Abstract Syntax Tree, a high-level representation of a program/expression
+typedef struct {
+    KS_OBJ_BASE
+
+    // the kind of AST it is
+    int kind;
+
+    // the array of children nodes. They are packed differently per kind, so see the definition
+    //   for a kind first
+    ks_list children;
+
+    // tokens for the AST, representing where it is in the source code
+    struct ks_tok tok;
+
+}* ks_ast;
+
+
+/* BYTECODE 
+ *
+ * The format/syntax is SIZE:[type desc], i.e. 4:[int thing it does]
+ * 
+ * All instructions are at least 1 byte, and they start with the op code (i.e. 'KSB_*')
+ * 
+ * Some bytecodes have indexes that refer to a constants array, which is held by the code object
+ * 
+ * All bytecode is executed on a 'ks_thread', so references to the 'stack', and 'exceptions' are variables
+ *   on the thread (which can be obtained via `ks_thread_get()`)
+ * 
+ * Terminology:
+ *   TOS: Top Of Stack, i.e. the item that is on top of the stack
+ *   UTOS: Under Top Of Stack, i.e. the item directly under the top of the stack
+ * 
+ */
+
+// enumeration of all VM commands
+enum {
+
+    // Do nothing, just go to the next instruction. This should not be generated by code generators, but is included
+    //   as a matter of having it
+    // 1:[op]
+    KSB_NOOP = 0,
+
+
+    /** -- STACK MANIPULATION, these opcodes do simple operations on the stack -- **/
+
+    // Push a constant value onto the stack
+    // 1:[op] 4:[int index into the 'v_const' array of code constants]
+    KSB_PUSH,
+
+    // Push a new reference to the TOS on top of that, i.e.
+    // | A B
+    // ->
+    // | A B B
+    // 1:[op]
+    KSB_DUP,
+
+    // Pop off the TOS, and do not use it in any computation
+    // 1:[op]
+    KSB_POPU,
+
+    // Pop off TOS, convert to a boolean through truthiness value, and then push back on the boolean
+    // 1:[op]
+    KSB_TRUTHY,
+
+
+    /** -- OBJECT CONSTRUCTION, these opcodes create various types of objects -- **/
+
+    // Pop off 3 elements from the stack and construct a 'slice' from them ('none's should be added
+    //   if you want to leave some as 'default')
+    // 1:[op]
+    KSB_SLICE,
+
+    // Pop off 'num_elems' from the stack, create a tuple from them, and then push that tuple
+    //   back onto the stack
+    // 1:[op] 4:[int num_elems, number of elements to take off the stack]
+    KSB_TUPLE,
+
+    // Pop off 'num_elems' from the stack, create a list from them, and then push that list
+    //   back onto the stack
+    // 1:[op] 4:[int num_elems, number of elements to take off the stack]
+    KSB_LIST,
+
+    // Pop off 'num_elems' from the stack, treat them as a bunch of keys & values (interleaved),
+    //   and construct a dictionary from them. Then, push the dict back on the stack
+    // i.e. {"Cade": "Brown", "Kscript": 2342} should have:
+    // | "Cade" "Brown" "Kscript" 2342
+    // Then, 'KSB_DICT[4]' will create the dictionary
+    // 1:[op] 4:[int num_elems, aka num entries]
+    KSB_DICT,
+
+
+
+    /** -- CONTROL FLOW, these opcodes change the control flow of the program -- **/
+
+    // Jump, unconditionally, a 'relamt' bytes in the bytecode, from the position where the next
+    //   instruction would have been.
+    // EX: jmp +0 is always a no-op, the program counter is not changed
+    // EX: jmp -5 creates an infinite loop, because the jump instruction itself is 5 bytes,
+    //       so it would jump back exactly one instruction
+    // 1:[op] 4:[int relamt]
+    KSB_JMP,
+
+    // Pop off the TOS, get a truthiness value, and if it was truthy,
+    //   jump a specified number of bytes
+    // EX: jmpt +10 will skip 10 bytes if the TOS was truthy, otheriwse jumps 0
+    // 1:[op] 4:[int relamt]
+    KSB_JMPT,
+
+    // Pop off the TOS, get a truthiness value, and if it was NOT truthy,
+    //   jump a specified number of bytes
+    // EX: jmpf +10 will skip 10 bytes if the TOS was falsey
+    // 1:[op] 4:[int relamt]
+    KSB_JMPF,
+
+    // Pop off 'n_items', and perform a function call with them (the first object must be the function object)
+    // The item on the bottom of the stack
+    // Example: if the stack is | A B C , then KSB_CALL(n_items=3) will result in calculating 'A(B, C)' 
+    //   and pushing that result back on the stack
+    // If there are not 'n_items' on the stack, internally abort
+    // 1:[op] 4:[int n_items]
+    KSB_CALL,
+
+    // Pop off the TOS, and return that as the return value of the currently executing function,
+    //   causing the top item of the stack frame to be popped off
+    // 1:[op]
+    KSB_RET,
+
+    // Enter a 'try' block, which will cause the code to jump to +relamt if an exception is thrown
+    // NOTE: The relative amount is from the point which the TRY_START instruction is encountered;
+    //   not where the exception was thrown
+    // 1:[op] 4:[int relamt]
+    KSB_TRY_START,
+
+    // Exit a 'try' block, jumping unconditionally 'relamt'
+    // NOTE: This should be emitted at the end of the try block, but NOT in the exception block (as
+    //   that will exit the try block when something is thrown)
+    // 1:[op] 4:[int relamt]
+    KSB_TRY_END,
+
+    // Pop off the TOS, and 'throw' it up the call stack, rewinding, etc. If there was no
+    //   'catch' block set up, then it will cause the program to abort and print an error
+    // 1:[op]
+    KSB_THROW,
+
+    // Pop off the TOS, and 'assert' it is true, or throw an exception
+    // 1:[op]
+    KSB_ASSERT,
+
+
+
+    // Replace the function on top with a copy (i.e. new, distinct copy)
+    // 1:[op]
+    KSB_NEW_FUNC,
+
+    // Add a closure reference to the current stack frame to the TOS, which must be a kfunc
+    // 1:[op]
+    KSB_ADD_CLOSURE,
+
+    // Replace the TOS with iter(TOS), throwing an error if it couldn't do it
+    // 1:[op]
+    KSB_MAKE_ITER,
+
+    // Push on next(TOS), or, if there was an error, jump 'relamt' bytes in the bytecode and discard the error
+    // (i.e. finish the loop)
+    // 1:[op]
+    KSB_ITER_NEXT,
+
+    
+    /** -- VALUE LOOKUP -- **/
+
+    // Load a value indicated by 'v_const[idx]' (being the string name), and push it on the stack
+    // Raise an error if no such value was found
+    // 1:[op] 4:[int idx into 'v_const']
+    KSB_LOAD,
+
+    // Pop off the TOS, then calculate getattr(TOS, v_const[idx]). Then, push that attribute on
+    // Raise an error if no such attribute was found on the TOS
+    // Internally abort if there was no item on TOS
+    // 1:[op] 4:[int idx into 'v_const']
+    KSB_LOAD_ATTR,
+
+    // Store TOS into value 'v_const[idx]', creating it as a local if it was not found
+    // Internally abort if there was no item on TOS
+    // 1:[op] 4:[int idx into 'v_const']
+    KSB_STORE,
+
+    // Set an attribute to a value
+    // Pop off the set UTOS.<attr> = TOS, then removes both, and pushes back on TOS
+    // So stack goes from:
+    // | UTOS TOS  -> set UTOS.<attr>=TOS -> | TOS
+    // Internally abort if there was no item on TOS
+    // 1:[op] 4:[int idx into 'v_const' of 'attr'1]
+    KSB_STORE_ATTR,
+
+    // Get an item via a subscript, i.e. obj[args]
+    // 1:[op] 4:[int n_items : number of items (including object itself)]
+    KSB_GETITEM,
+
+    // Set an item via a subscript, i.e. obj[args] = val
+    // 1:[op] 4:[int n_items : number of items (including object itself and value)]
+    KSB_SETITEM,
+
+
+    /** OPERATORS **/
+
+    /***  UNARY ***/
+    // All of these operators replace the TOS with the operator applied to it
+
+    // the '+' operator (i.e. +a)
+    KSB_UOP_POS,
+    // the '-' operator (i.e. -a)
+    KSB_UOP_NEG,
+    // the '~' operator (i.e. ~a)
+    KSB_UOP_SQIG,
+
+    // the '!' operator (i.e. !a), which always converts to boolean
+    KSB_UOP_NOT,
+
+    /*** BINARY ***/
+    // All of these operators pop 2 items off, attempt to do the operation on them using
+    //   member functions, and then push that result back on
+    // Will throw an error if not supported
+    // NOTE: There are no 'OR' or 'AND' operators, because those are ALWAYS defined via truthiness conversion,
+    //   and cannot be overriden
+
+    // the '+' operator
+    KSB_BOP_ADD,
+    // the '-' operator
+    KSB_BOP_SUB,
+    // the '*' operator
+    KSB_BOP_MUL,
+    // the '/' operator
+    KSB_BOP_DIV,
+    // the '%' operator
+    KSB_BOP_MOD,
+    // the '**' operator
+    KSB_BOP_POW,
+
+    // the '|' operator
+    KSB_BOP_BINOR,
+    // the '&' operator
+    KSB_BOP_BINAND,
+    // the '^' operator
+    KSB_BOP_BINXOR,
+    
+    // the '<=>' operator
+    KSB_BOP_CMP,
+
+    // the '<' operator
+    KSB_BOP_LT,
+    // the '<=' operator
+    KSB_BOP_LE,
+    // the '>' operator
+    KSB_BOP_GT,
+    // the '>=' operator
+    KSB_BOP_GE,
+    // the '==' operator
+    KSB_BOP_EQ,
+    // the '!=' operator
+    KSB_BOP_NE,
+
+
+};
+
+
+/* TYPES/STRUCTURE DEFS */
+
+// try to pack these to single bytes
+#pragma pack(push, 1)
+
+// ksb - a single bytecode, i.e. sizeof(ksb) == 1
+// can be part of the opcode, or any other parts
+typedef uint8_t ksb;
+
+// ksb_i32 - a sigle bytecode with a 32 bit signed integer component, sizeof(ksb_i32) == 5
+typedef struct {
+
+    // the operation itself (KSB_* enum)
+    ksb op;
+
+    // the argument encoded
+    int32_t arg;
+
+} ksb_i32;
+
+// end single byte alignment
+#pragma pack(pop)
+
+
+// ks_code - a bytecode object, which holds instructions to be executed
+typedef struct {
+    KS_OBJ_BASE
+
+    // human readable name for the code object
+    ks_str name_hr;
+
+    // A reference to a list of constants, which are indexed by integers in the bytecode
+    ks_list v_const;
+
+
+    // number of bytes currently in the bytecode (bc)
+    int bc_n;
+
+    // a pointer to the actual bytecode, starting at index 0, through (bc_n-1)
+    // NOTE: it has variable length members, so you must traverse through the bytecode
+    ksb* bc;
+
+
+    // the parser (if non-NULL) that the code was created from
+    ks_parser parser;
+
+    // the number of meta-tokens, describing the input
+    int meta_n;
+
+    // array of meta-data tokens, which tell where the bytecode is located in the source code
+    // these are used for creating error messages, and create traceback information
+    // NOTE: I've designed this so that it is not a performance hit UNLESS there is an error/exception
+    //   thrown, as this is very important
+    struct ks_code_meta {
+
+        // the point at which this token is the relevant one
+        int bc_n;
+
+        // the token, which holds a reference to the parser
+        struct ks_tok tok;
+
+    }* meta;
+
+}* ks_code;
+
+
+
+// ks_kfunc - a kscrip
+typedef struct {
+    KS_OBJ_BASE
+
+    // human-readable name (default: <kfunc @ ADDR>)
+    ks_str name_hr;
+
+
+    // the bytecode to execute for the function
+    ks_code code;
+
+    // list of locals (i.e. dictionaries) for each closure that the function is wrapped in
+    ks_list closures;
+
+    // if true, then the function allows extra positional arguments (i.e. last argument is declared '*name')
+    // and `params[n_param - 1]` describes the var-arg (and should have `defa==NULL`)
+    bool isVarArg;
+
+    // the number of parameters (positional) that it takes (not including defaults/vararg)
+    int n_param;
+
+
+    // list of parameters
+    struct ks_kfunc_param {
+
+        // the name of the parameter
+        ks_str name;
+
+        // the 'default' object for the parameter, or 'NULL' if it is required
+        // (NOTE: if `isVarArg`, and this is `params[n_param - 1]`, then defa==NULL, but it is not required)
+        ks_obj defa;
+
+    }* params;
+
+
+}* ks_kfunc;
+
+
+
+// ks_stk_frame - represents a 'stack frame' of execution,
+//   which is typically a function call or evaluation
+typedef struct {
+    KS_OBJ_BASE
+
+    // the actual function being called, which is normally either:
+    //  'cfunc'
+    //  'kfunc'
+    // Or, (in the case of expressions, for example)
+    //  'code'
+    // Enough to say, anything using this value should check the type
+    ks_obj func;
+
+    // the 'code' (bytecode) object that the stack frame is operating on
+    // NOTE: May be NULL if the stack frame does not have a bytecode object
+    //   (i.e. is a C-style function that doesn't use local variables)
+    ks_code code;
+
+    // dictionary of local variables, iff type(func)==kfunc,
+    // otherwise, NULL
+    ks_dict locals;
+
+    // Current program counter (only valid if `code != NULL`),
+    //   in which case it is the current position (starting from code->bc+0)
+    ksb* pc;
+
+}* ks_stack_frame;
+
+
+// create a new stack frame
+// NOTE: This returns a new reference
+ks_stack_frame ks_stack_frame_new(ks_obj func);
+
+
 
 
 // main thread
@@ -522,21 +1445,47 @@ extern ks_type
     ks_T_int,
     ks_T_float,
     ks_T_complex,
+    ks_T_Enum,
 
     ks_T_list,
     ks_T_tuple,
+    ks_T_slice,
     ks_T_dict,
 
+    ks_T_parser,
+    ks_T_ast,
+    ks_T_code,
+    ks_T_kfunc,
+
     ks_T_cfunc,
+    ks_T_memberfunc,
 
     ks_T_logger,
 
+    ks_T_Enum,
+
     ks_T_Error,
     ks_T_InternalError,
-    ks_T_ArgError,
+    ks_T_ImportError,
+    ks_T_SyntaxError,
+    ks_T_IOError,
+    ks_T_TodoError,
+        
     ks_T_KeyError,
+    ks_T_AttrError,
+    
+    ks_T_TypeError,
+    ks_T_ArgError,
+    ks_T_SizeError,
+    
+    ks_T_OpError,
+    ks_T_OutOfIterError,
+    
+    ks_T_MathError,
+    ks_T_AssertError,
 
-    ks_T_thread
+    ks_T_thread,
+    ks_T_stack_frame
 
 ;
 
@@ -553,7 +1502,31 @@ static inline ks_obj ks_newref(ks_obj obj) {
 // General library functions
 
 // Initializes, kscript, returns whether it was successful or not
-KS_API bool ks_init();
+KS_API bool ks_init(int verbose);
+
+// Type to hold a kscript version
+typedef struct {
+    
+    // the semver <major>.<minor>.<patch> build
+    int major, minor, patch;
+
+    // the build type of kscript, typically either 'release' or 'debug'
+    const char* build_type;
+
+    // the date of the compilation
+    //   which is the '__DATE__' macro when it was compiled
+    const char* date;
+
+    // the time of the compilation,
+    //   which is the '__TIME__' macro when it was compiled
+    const char* time;
+
+} ks_version_t;
+
+// Get the version of kscript
+// NOTE: Do not free or modify this variable
+KS_API const ks_version_t* ks_version();
+
 
 // Returns a hash of given bytes, using djb2-based hashing algorithm
 KS_API ks_hash_t ks_hash_bytes(const uint8_t* data, ks_size_t sz);
@@ -618,6 +1591,7 @@ KS_API void ks_log_c_set(const char* logname, int level);
 
 
 
+
 // Memory related functions
 
 
@@ -638,6 +1612,13 @@ KS_API void* ks_realloc(void* ptr, ks_size_t sz);
 KS_API void ks_free(void* ptr);
 
 
+// General utility functions
+
+
+// Read an entire file, and return an allocated string buffer
+// NOTE: Returns the string, or NULL and throws an error
+KS_API ks_str ks_readfile(const char* fname, const char* mode);
+
 
 // General object manipulation
 
@@ -653,13 +1634,37 @@ KS_API bool ks_obj_hash(ks_obj obj, ks_hash_t* out);
 // NOTE: Ignores any errors generated while comparing them; if there was an error, this return false but does not throw anything
 KS_API bool ks_obj_eq(ks_obj A, ks_obj B);
 
+
+// Extented version of `ks_obj_call` that takes a non-required (i.e. NULL-able) locals dictionary
+KS_API ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals);
+
 // Call func() with the given arguments
 // NOTE: Returns the result of the function call, or NULL if an error was thrown
 KS_API ks_obj ks_obj_call(ks_obj func, int n_args, ks_obj* args);
 
+
+// Return whether or not 'obj' is a 'truthy' value, which is primarily defined by:
+//  * the value of 'obj', if 'obj' is a boolean
+//  * if 'obj' is non-zero if 'obj' is a numeric type
+//  * if 'len(obj)' is non-zero if it is an iterable
+//  * if 'type(obj).__bool__(self)' is defined, it is called, and its result is used
+// The result is -1 if there was a failure/exception in attempting to convert 'obj' to a boolean,
+// 0 if it was falsy, and 1 if it was truthy
+KS_API int ks_obj_truthy(ks_obj obj);
+
+// Return whether or not 'func' is callable as a function
+KS_API bool ks_obj_is_callable(ks_obj func);
+
+// Return whether or not 'obj' is iterable, through the `iter()` and `next()` protocol
+KS_API bool ks_obj_is_iterable(ks_obj obj);
+
+
 // Throw an object, return NULL 
 KS_API ks_obj ks_obj_throw(ks_obj obj);
 
+// Catch an exception (or return NULL if there was none),
+// and set 'frames' to the list of stack frames
+KS_API ks_obj ks_catch(ks_list* frames);
 
 // Catch and ignore any object thrown
 KS_API void ks_catch_ignore();
@@ -670,6 +1675,27 @@ KS_API ks_obj ks_ithrow(const char* file, const char* func, int line, ks_type er
 // throw an error type, i.e.
 // ks_throw(ks_T_Error, "My format: %i", 34);
 #define ks_throw(_errtype, ...) ks_ithrow(__FILE__, __func__, __LINE__, _errtype, __VA_ARGS__)
+
+// throw a specialized error message for binary operators
+#define KS_THROW_BOP_ERR(_bopstr, _L, _R) { ks_throw(ks_T_OpError, "Binary operator '%s' is undefined for '%T' and '%T'", _bopstr, _L, _R); return NULL; }
+
+// throw a specialized error message for unary operators
+#define KS_THROW_UOP_ERR(_uopstr, _V) { ks_throw(ks_T_OpError, "Unary operator '%s' is undefined for '%T'", _uopstr, _V); return NULL; }
+
+// throw a specialized error message for non-iterables
+#define KS_THROW_ITER_ERR(_V) { ks_throw(ks_T_Error, "'%T' object was not iterable!", _V); return NULL; }
+
+// throw a specialized error message for missing method
+#define KS_THROW_METH_ERR(_V, _meth) { ks_throw(ks_T_Error, "'%T' object had no '%s' method!", _V, _meth); return NULL; }
+
+// throw a type conversion error
+#define KS_THROW_TYPE_ERR(_obj, _totype) { ks_throw(ks_T_TypeError, "'%T' object could not be converted to %S", _obj, _totype); return NULL; }
+
+// throw an item key error
+#define KS_THROW_KEY_ERR(_obj, _key) { ks_throw(ks_T_KeyError, "'%T' object did not contain the key %S", _obj, _key); return NULL; }
+
+// throw an item attribute error
+#define KS_THROW_ATTR_ERR(_obj, _key) { ks_throw(ks_T_AttrError, "'%T' object did not contain the attribute '%S'", _obj, _key); return NULL; }
 
 
 // If there was an uncaught object on `th->exc`, print out the stack trace and quit
@@ -697,6 +1723,9 @@ KS_API ks_type ks_type_new(ks_str name, ks_type parent);
 KS_API void ks_type_init_c(ks_type self, const char* name, ks_type parent, ks_keyval_c* keyvals);
 
 
+// Get an attribute from a type, going up to its parents if neccessary
+KS_API ks_obj ks_type_get(ks_type self, ks_str key);
+
 // Set a given key,val pair to a type, returning success
 // NOTE: Returns success
 KS_API bool ks_type_set(ks_type self, ks_str key, ks_obj val);
@@ -718,6 +1747,26 @@ KS_API ks_int ks_int_new(int64_t val);
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_int ks_int_new_s(char* str, int base);
 
+// Create a new integer from an MPZ
+// NOTE: Returns a new reference
+KS_API ks_int ks_int_new_mpz(mpz_t val);
+
+// Create a new integer from an MPZ, that can use the `val` and clear if it
+//   is not required
+// NOTE: Don't call `mpz_clear(val)`; kscript now owns that
+// NOTE: Returns a new reference
+KS_API ks_int ks_int_new_mpz_n(mpz_t val);
+
+// Return the sign of self, i.e. { -1, 0, 1 }
+KS_API int ks_int_sgn(ks_int self);
+
+// Compare 2 integers, returning a comparator
+KS_API int ks_int_cmp(ks_int L, ks_int R);
+
+// Compare to a C-style integer
+KS_API int ks_int_cmp_c(ks_int L, int64_t R);
+
+
 
 // Construct a new 'float' object
 // NOTE: Returns new reference, or NULL if an error was thrown
@@ -729,6 +1778,12 @@ KS_API ks_float ks_float_new(double val);
 KS_API ks_complex ks_complex_new(double complex val);
 
 
+// Construct a new 'str' object, from a utf-8 string
+// NOTE: Native C ascii strings are allowed, in which case `len_b` is the number of characters, but
+//   for any non-ascii strings, the number of characters is less than the length in bytes
+// NOTE: if len_b < 0, then it is NUL-terminated, and the length is calculated via `strlen()`
+KS_API ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b);
+
 
 // Construct a new 'str' object, from a C-style string.
 // NOTE: If `len<0`, then `len` is calculated by the C `strlen()` function
@@ -739,11 +1794,42 @@ KS_API ks_str ks_str_new_c(const char* cstr, ks_ssize_t len);
 // Create new string from Cstring
 #define ks_str_new(_cstr) ks_str_new_c(_cstr, -1)
 
+
+
+// Convert a length one string to an ordinal, and return it
+// NOTE: Returns the value, or a negative number indiciating an error was thrown
+KS_API ks_unich ks_str_ord(ks_str str);
+
+// Returns a string of length 1 from a given unicode character (NOT encoded in UTF8; decoded as a single value)
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_str ks_str_chr(ks_unich chr);
+
+
+
+
+
+// Create a substring of another string, on given character indices
+// NOTE: indices must be adjusted! a negative `len_c` returns the rest of the string starting at 'start'
+KS_API ks_str ks_str_substr(ks_str self, ks_ssize_t start, ks_ssize_t len_c);
+
+
 // Compare two strings, and return their string comparison (i.e. strcmp() in C)
 KS_API int ks_str_cmp(ks_str A, ks_str B);
 
 // Return whether two strings are equal (this may be faster than `ks_str_cmp`)
 KS_API bool ks_str_eq(ks_str A, ks_str B);
+
+// Return whether a kscript string equals a C-style string (of length (in bytes) len, or strlen(cstr) if len<0)
+// NOTE: Only byte-wise equality is checked
+KS_API bool ks_str_eq_c(ks_str A, const char* cstr, ks_ssize_t len);
+
+// Escape the string 'A', i.e. replace '\' -> '\\', and newlines to '\n', replace unicode characters with their representations
+// NOTE: Returns a new reference
+KS_API ks_str ks_str_escape(ks_str A);
+
+// Undo the string escaping, i.e. replaces '\n' with a newline
+// NOTE: Returns a new reference
+KS_API ks_str ks_str_unescape(ks_str A);
 
 
 
@@ -758,6 +1844,7 @@ KS_API bool ks_str_builder_add(ks_str_builder self, void* data, ks_size_t len);
 // Add str(obj) to the string builder
 // NOTE: Returns success
 KS_API bool ks_str_builder_add_str(ks_str_builder self, ks_obj obj);
+KS_API bool ks_str_builder_add_repr(ks_str_builder self, ks_obj obj);
 
 // Add a given string formatting (see `ks_fmt_*` documentation for more)
 // NOTE: Returns success
@@ -776,9 +1863,42 @@ KS_API ks_str ks_str_builder_get(ks_str_builder self);
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_list ks_list_new(ks_size_t len, ks_obj* elems);
 
-// Construct a new tuple from an array of elements
-// NOTE: Returns new reference, or NULL if an error was thrown
-KS_API ks_tuple ks_tuple_new(ks_size_t len, ks_obj* elems);
+// Clear a list out, removing any references
+KS_API void ks_list_clear(ks_list self);
+
+// Pushes 'obj' on to the end of the list
+KS_API void ks_list_push(ks_list self, ks_obj obj);
+
+// Push 'objs' on to the end of the list
+KS_API void ks_list_pushn(ks_list self, int n, ks_obj* objs);
+
+// Pops the last element off of list and returns its reference
+// NOTE: Throws 'SizeError' if the list was empty
+KS_API ks_obj ks_list_pop(ks_list self);
+
+// Pop off 'n' items into 'dest'
+// NOTE: Returns a reference to each object, so now each object in 'dest' now has a reference
+//   you must handle!
+// NOTE: Returns success, or false and throws an error
+KS_API bool ks_list_popn(ks_list self, int n, ks_obj* dest);
+
+// Pops the last element off and throw away the reference
+// NOTE: Returns success, or false and throws an error
+KS_API bool ks_list_popu(ks_list self);
+
+// Pops the last 'n' elements off and throw away the references
+// NOTE: Returns success, or false and throws an error
+KS_API bool ks_list_popun(ks_list self, int n);
+
+
+// Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
+// NOTE: Returns a new reference
+KS_API ks_tuple ks_tuple_new(int len, ks_obj* elems);
+
+// Create a new kscript tuple from an array of elements, or an empty tuple if `len==0`
+// NOTE: This variant does not create references to the objects!, so don't call DECREF on 'elems'
+// NOTE: Returns a new reference
+KS_API ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
 
 
 
@@ -837,28 +1957,476 @@ KS_API ks_cfunc ks_cfunc_new(ks_cfunc_f func, ks_str name_hr, ks_str sig_hr);
 KS_API ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig);
 
 
+// Construct a new member function with the given function & member instance
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_memberfunc ks_memberfunc_new(ks_obj func, ks_obj member_inst);
+
+
 // Construct a new error of a given type, sets `.what` to the given string
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_Error ks_Error_new(ks_type errtype, ks_str what);
-
 
 // construct a new kscript thread
 // if 'name==NULL', then a name is generated
 KS_API ks_thread ks_thread_new(const char* name, ks_obj target, int n_args, ks_obj* args);
 
-
 // Return the current thread
 // NOTE: NO reference is returned; do not call KS_DECREF() on this!
 KS_API ks_thread ks_thread_get();
+
+
+
+// controlling how the parser parses
+enum ks_parse_flags {
+    // default, no special flags
+    KS_PARSE_NONE                 = 0x00,
+
+    // if set, accept '{}' blocks, and not dictionary literals
+    KS_PARSE_BLOCK                = 0x01,
+
+    // if true, ignore extra ']' at the end of line and return early
+    KS_PARSE_INBRK                = 0x02
+};
+
+// Create a new parser from some source code
+// Or, return NULL if there was an error (and 'throw' the exception)
+// NOTE: Returns a new reference
+KS_API ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
+
+// Parse out an expression from the parser
+// NOTE: Returns a new reference, or NULL and throw an error
+KS_API ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags);
+
+// Parse a single statement out of 'p'
+// NOTE: Returns a new reference
+KS_API ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags);
+
+// Parse the entire file out of 'p', returning the AST of the program
+// Or, return NULL if there was an error (and 'throw' the exception)
+// NOTE: Returns a new reference
+KS_API ks_ast ks_parser_file(ks_parser self);
+
+
+
+// convert token to a string with mark
+KS_API ks_str ks_tok_expstr(ks_parser parser, struct ks_tok tok);
+
+// convert token to string, just the 2 relevant lines
+KS_API ks_str ks_tok_expstr_2(ks_parser parser, struct ks_tok tok);
+
+
+/* AST (Abstract Syntax Trees) */
+
+// Create an AST representing a constant value
+// Type should be none, bool, int, or str
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_const(ks_obj val);
+
+// Create an AST representing a variable reference
+// Type should always be string
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_var(ks_str name);
+
+// Create an AST representing a list constructor
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_list(int n_items, ks_ast* items);
+
+// Create an AST representing a list constructor
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
+
+
+// Create an AST representing a dictionary constructor (n_items should be even, and have (key, val) interleaved)
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_dict(int n_items, ks_ast* items);
+
+// Create an AST representing a slice constructor
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_slice(ks_ast start, ks_ast stop, ks_ast step);
+
+
+
+
+// Create an AST representing an attribute reference
+// Type should always be string
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr);
+
+// Create an AST representing a function call
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args);
+
+// Create an AST representing a subscript
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_subscript(ks_ast obj, int n_args, ks_ast* args);
+
+// Create an AST representing a return statement
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_ret(ks_ast val);
+
+// Create an AST representing a throw statement
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_throw(ks_ast expr);
+
+// Create an AST representing an assertion
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_assert(ks_ast expr);
+
+
+// Create an AST representing a block of code
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_block(int num, ks_ast* elems);
+
+// Create an AST representing an 'if' construct
+// 'else_body' may be NULL, in which case it is constructed without an 'else' body
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_if(ks_ast cond, ks_ast if_body, ks_ast else_body);
+
+// Create an AST representing an 'while' construct
+// 'else_body' may be NULL, in which case it is constructed without an 'else' body
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body);
+
+
+// Create an AST representing a 'try' block
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name);
+
+// Create an AST representing a function definition
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body);
+
+// Create an AST representing a for loop
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_str assign_to);
+
+
+
+// Create a new AST represernting a binary operation on 2 objects
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R);
+
+// Create a new AST represernting a unary operation
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_uop(int uop_type, ks_ast V);
+
+
+
+/* CODE */
+
+// Create a new kscript code object, with a given constant list. The constant list can be non-empty,
+//   in which case new constants will be allocated starting at the end. Cannot be NULL
+// It can also be created with the 'parser' object (or it can be NULL)
+// NOTE: Returns a new reference
+KS_API ks_code ks_code_new(ks_list v_const, ks_parser parser);
+
+// Compile an AST into a bytecode object
+KS_API ks_code ks_compile(ks_parser parser, ks_ast self);
+
+// Append an array of bytecode to 'self'
+KS_API void ks_code_add(ks_code self, int len, ksb* data);
+
+// Add a constant to the internal constant list, return the index at which it was added (or already located)
+KS_API int ks_code_add_const(ks_code self, ks_obj val);
+
+// add a meta token (and hold a reference to the parser)
+KS_API void ks_code_add_meta(ks_code self, struct ks_tok tok);
+
+/*** ADDING BYTECODES (see ks.h for bytecode definitions) ***/
+KS_API void ksca_noop      (ks_code self);
+
+KS_API void ksca_push      (ks_code self, ks_obj val);
+KS_API void ksca_dup       (ks_code self);
+KS_API void ksca_popu      (ks_code self);
+
+KS_API void ksca_list      (ks_code self, int n_items);
+KS_API void ksca_tuple     (ks_code self, int n_items);
+KS_API void ksca_dict      (ks_code self, int n_items);
+KS_API void ksca_slice     (ks_code self);
+
+
+KS_API void ksca_getitem   (ks_code self, int n_items);
+KS_API void ksca_setitem   (ks_code self, int n_items);
+
+KS_API void ksca_call      (ks_code self, int n_items);
+KS_API void ksca_ret       (ks_code self);
+KS_API void ksca_throw     (ks_code self);
+KS_API void ksca_assert    (ks_code self);
+KS_API void ksca_jmp       (ks_code self, int relamt);
+KS_API void ksca_jmpt      (ks_code self, int relamt);
+KS_API void ksca_jmpf      (ks_code self, int relamt);
+
+KS_API void ksca_try_start (ks_code self, int relamt);
+KS_API void ksca_try_end   (ks_code self, int relamt);
+
+KS_API void ksca_closure   (ks_code self);
+KS_API void ksca_new_func  (ks_code self);
+
+KS_API void ksca_make_iter (ks_code self);
+KS_API void ksca_iter_next (ks_code self, int relamt);
+
+KS_API void ksca_load      (ks_code self, ks_str name);
+KS_API void ksca_load_attr (ks_code self, ks_str name);
+KS_API void ksca_store     (ks_code self, ks_str name);
+KS_API void ksca_store_attr(ks_code self, ks_str name);
+
+KS_API void ksca_bop       (ks_code self, int ksb_bop_type);
+KS_API void ksca_uop       (ks_code self, int ksb_uop_type);
+
+KS_API void ksca_truthy    (ks_code self);
+
+// C-style versions
+KS_API void ksca_load_c      (ks_code self, char* name);
+KS_API void ksca_load_attr_c (ks_code self, char* name);
+KS_API void ksca_store_c     (ks_code self, char* name);
+KS_API void ksca_store_attr_c(ks_code self, char* name);
+
+
+
+// Construct a new kfunc from bytecode and a human readable name
+KS_API ks_kfunc ks_kfunc_new(ks_code code, ks_str name_hr);
+
+// create a new copy of the kfunc
+KS_API ks_kfunc ks_kfunc_new_copy(ks_kfunc func);
+
+// add a parameter name (defa==NULL allows no default)
+KS_API void ks_kfunc_addpar(ks_kfunc self, ks_str name, ks_obj defa);
+
+
+
+// Construct a slice with paramaters.
+// NOTE: KSO_NONE should be used for defaults
+// NOTE: Returns a new reference
+KS_API ks_slice ks_slice_new(ks_obj start, ks_obj stop, ks_obj step);
+
+// Calculate C-iteration values
+// To be used like so:
+// if (!ks_slice_getci(slice, array_len, &first, &last, &delta)) return NULL;
+// for (i = first; i != last; i += delta) { ... do operation ... }
+// To calculate the number of indexes, you can use `(last - first) / delta`. `delta` is guaranteed to be non-zero
+// NOTE: Returns success, and if false, an error is thrown
+KS_API bool ks_slice_getci(ks_slice self, int64_t len, int64_t* first, int64_t* last, int64_t* delta);
+
+
+
+/* GENERIC NUMERICS (i.e. work with all numeric types) */
+
+// Attempt to hash 'self'
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_hash(ks_obj self, ks_hash_t* out);
+
+// Return whether a given object would fit an int64_t
+// Supported types:
+//   + bool
+//   + int
+//   - int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_fits_int64(ks_obj self);
+
+// Return whether a given object is a numeric type
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+KS_API bool ks_num_is_numeric(ks_obj self);
+
+// Return whether a given object is an integral type
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_is_integral(ks_obj self);
+
+
+// Attempt to convert 'self' to a boolean, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_bool(ks_obj self, bool* out);
+
+// Attempt to convert 'self' to a int64_t, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   - int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_int64(ks_obj self, int64_t* out);
+
+
+// Attempt to convert 'self' to a mpz_t (which is already initialized)
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   - float
+//   - complex
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_mpz(ks_obj self, mpz_t out);
+
+
+// Attempt to convert 'self' to a double, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   - complex
+//   + complex (real only)
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_double(ks_obj self, double* out);
+
+// Attempt to convert 'self' to a double complex, and set 'out' to the value
+// Supported types:
+//   + bool
+//   + int
+//   + int (long)
+//   + float
+//   + complex
+//   + complex (real only)
+// NOTE: If there was a problem, return false and throw an error
+KS_API bool ks_num_get_double_complex(ks_obj self, double complex* out);
+
+
+// Get the sign of a numeric object
+KS_API bool ks_num_sgn(ks_obj self, int* out);
+
+// compare 2 numeric objects
+KS_API bool ks_num_cmp(ks_obj L, ks_obj R, int* out);
+
+// compare 2 numeric objects
+KS_API bool ks_num_eq(ks_obj L, ks_obj R, bool* out);
+
+
+/* OPS */
+
+// Compute L+R
+KS_API ks_obj ks_num_add(ks_obj L, ks_obj R);
+// Compute L-R
+KS_API ks_obj ks_num_sub(ks_obj L, ks_obj R);
+// Compute L*R
+KS_API ks_obj ks_num_mul(ks_obj L, ks_obj R);
+// Compute L/R
+KS_API ks_obj ks_num_div(ks_obj L, ks_obj R);
+// Compute L%R
+KS_API ks_obj ks_num_mod(ks_obj L, ks_obj R);
+// Compute L**R
+KS_API ks_obj ks_num_pow(ks_obj L, ks_obj R);
+
+// Compute -L
+KS_API ks_obj ks_num_neg(ks_obj L);
+
+
+// Compute L<R
+KS_API ks_obj ks_num_lt(ks_obj L, ks_obj R);
+// Compute L<=R
+KS_API ks_obj ks_num_le(ks_obj L, ks_obj R);
+// Compute L>R
+KS_API ks_obj ks_num_gt(ks_obj L, ks_obj R);
+// Compute L>=R
+KS_API ks_obj ks_num_ge(ks_obj L, ks_obj R);
+
+
+// Compute L|R
+KS_API ks_obj ks_num_binor(ks_obj L, ks_obj R);
+// Compute L&R
+KS_API ks_obj ks_num_binand(ks_obj L, ks_obj R);
+// Compute L^R
+KS_API ks_obj ks_num_binxor(ks_obj L, ks_obj R);
+
+
+
+
+/* Execution */
+
+/* ks__exec -> perform execution on a thread
+ *
+ * This function makes a lot of assumptions, such as:
+ *   * You are on a thread currently
+ *   * The current thread has already had teh stack frame loaded (i.e.
+ *       this method does not create a stack frame)
+ *
+ * If any of these are not met, it will just abort (no exceptions generated),
+ *   because this IS this code that generates exceptions, it's okay to safeguard it like this
+ * 
+ */
+ks_obj ks__exec(ks_thread self, ks_code code);
+
+
 
 /* --- Global/Builtin Functions --- */
 
 // functions, found in `funcs.c`
 extern ks_cfunc
-    ks_F_print
+    ks_F_print,
 
+    ks_F_getattr,
+    ks_F_setattr,
+    ks_F_getitem,
+    ks_F_setitem,
+
+    ks_F_iter,
+    ks_F_next,
+
+    ks_F_repr,
+    ks_F_hash,
+    ks_F_len,
+    ks_F_typeof,
+
+    ks_F_chr,
+    ks_F_ord,
+
+    ks_F_add,
+    ks_F_sub,
+    ks_F_mul,
+    ks_F_div,
+    ks_F_mod,
+    ks_F_pow,
+
+    ks_F_binand,
+    ks_F_binor,
+    ks_F_binxor,
+
+    ks_F_cmp,
+
+    ks_F_lt,
+    ks_F_gt,
+    ks_F_le,
+    ks_F_ge,
+    ks_F_eq,
+    ks_F_ne,
+
+    ks_F_pos,
+    ks_F_neg,
+    ks_F_sqig,
+
+    ks_F_exec_file,
+    ks_F_exec_expr,
+    ks_F_exec_interactive
 
 ;
+
+// dictionary of globals
+extern ks_dict ks_globals;
+
 
 
 #ifdef __cplusplus
