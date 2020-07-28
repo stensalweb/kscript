@@ -159,6 +159,34 @@ static KS_TFUNC(list, free) {
 }
 
 
+
+
+// list.__str__(self) - to string
+static KS_TFUNC(list, str) {
+    ks_list self;
+    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_list)) return NULL;
+
+    ks_size_t i;
+
+    ks_str_builder sb = ks_str_builder_new();
+
+    ks_str_builder_add(sb, "[", 1);
+
+    // free references held to entries
+    for (i = 0; i < self->len; ++i) {
+        if (i > 0) ks_str_builder_add(sb, ", ", 2);
+        ks_str_builder_add_repr(sb, self->elems[i]);
+    }
+
+    ks_str_builder_add(sb, "]", 1);
+    
+    ks_str ret = ks_str_builder_get(sb);
+    KS_DECREF(sb);
+
+    return (ks_obj)ret;
+}
+
+
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_list);
@@ -166,6 +194,10 @@ KS_TYPE_DECLFWD(ks_T_list);
 void ks_init_T_list() {
     ks_type_init_c(ks_T_list, "list", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(list_free_, "list.__free__(self)")},
+        
+        {"__str__",                (ks_obj)ks_cfunc_new_c(list_str_, "list.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(list_str_, "list.__repr__(self)")},
+
     ));
 
 }

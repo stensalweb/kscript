@@ -376,9 +376,11 @@ KS_API struct ks_str_citer ks_str_citer_make(ks_str self);
 // Get next unicode character, returns `KS_UNICH_WASERR` (a negative value) if there was an error that was thrown
 KS_API ks_unich ks_str_citer_next(struct ks_str_citer* cit);
 
+// Peek at the current unicode character, but do not change the state of 'cit'
+KS_API ks_unich ks_str_citer_peek(struct ks_str_citer* cit);
+
 // 'Seek' in the string to a given index, returning whether it was successful or not
 KS_API bool ks_str_citer_seek(struct ks_str_citer* cit, ks_ssize_t idx);
-
 
 
 // ks_str_builder - string builder, which is a mutable type that can generate strings
@@ -811,10 +813,10 @@ struct ks_tok {
     // the type of token, one of the KS_TOK_* enum values
     int type;
 
-    // absolute position & length in the string source code
+    // absolute position & length in the string source code (in bytes)
     int pos, len;
 
-    // the line & column at which it first appeared
+    // the line & column at which it first appeared (in characters, not bytes!)
     int line, col;
 
 };
@@ -1776,6 +1778,30 @@ KS_API ks_float ks_float_new(double val);
 // Construct a new 'complex' object
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_complex ks_complex_new(double complex val);
+
+
+
+/* Raw C API for text: (source code is still in `types/str.c`) */
+
+
+// Calculate the length (in unicode characters, defined via the number of sequences decoded) of a string
+//   of (valid) UTF8. A negative return value indicates a unicode error was thrown
+// NOTE: If `len_b<0`, then `src` is assumed to be NUL-terminated
+KS_API ks_ssize_t ks_text_utf8_len_c(const char* src, ks_size_t len_b);
+
+// Transcode 'len_c' characters of utf8 text (located in 'src'), into utf32 (located in 'dest')
+// NOTE: it is assumed that there is enough space in both arrays; `dest` should have been allocated for
+//   at least `sizeof(ks_unich) * len_c`, and those are exactly the bytes that will be filled (no NULL-terminator) is given
+// NOTE: Returns the number of bytes decoded in utf8, or a negative number to indicate an error
+KS_API ks_ssize_t ks_text_utf8_to_utf32(const char* src, ks_unich* dest, ks_ssize_t len_c);
+
+// Transcode 'len_c' characters of utf32 text (located in 'src'), into utf8 (located in 'dest')
+// NOTE: it is assumed that there is enough space in both arrays; `dest` should have been allocated for
+//   at least `sizeof(ks_unich) * len_c`. 
+// NOTE: Returns the number of bytes decoded in utf8 (so, always >= len_c), or a negative number to indicate an error
+// A NUL-terminator is NOT added
+KS_API ks_ssize_t ks_text_utf32_to_utf8(const ks_unich* src, char* dest, ks_ssize_t len_c);
+
 
 
 // Construct a new 'str' object, from a utf-8 string

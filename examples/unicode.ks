@@ -1,15 +1,34 @@
 #!/usr/bin/env ks
 
+# Differentiation function
+func Δ(f) {
+    eps = 0.00001
+    func df(x) {
+        ret (f(x + eps) - f(x)) / eps
+    }
 
-#x = "ℕ"
-x = "𝑴"
-#x = "m"
-#x = "Приве́т नमस्ते שָׁלוֹםA"
+    ret df
+}
+
+# Exponentiation function
+# x^2
+# 2 * x
+func sqr(x) {
+    ret x ** 2.0
+}
+
+# compute derivative
+deriv = Δ(sqr)
+
+print (sqr(3), deriv(3))
+
+
+😀 = 23
+
+print (😀 + 4)
+
+
+x = "😀"
 
 print (len(x, 'chars'), len(x, 'bytes'))
-
-
-print (x.unidata())
-
-
 

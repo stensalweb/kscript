@@ -74,7 +74,7 @@
 #define VME_CHECK(...) assert(__VA_ARGS__)
 
 // maximum size of the exception handler stack
-#define MAX_EXC_STACK 512
+#define MAX_EXC_STACK 256
 
 /* Virtual Machine Execution Dispatch (VMED)
  *
@@ -408,10 +408,17 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             ENSURE_ARGS(op_i32.arg);
             ks_list_popn(self->stk, op_i32.arg, args);
 
+
             // ask kscript to call it
             // TODO: Perhaps add short-circuit logic here?
+            if (args[0]->type == ks_T_kfunc) {
+
+            }
+            
             ks_obj ret = ks_obj_call(args[0], op_i32.arg - 1, &args[1]);
+
             if (!ret) goto EXC;
+
             
             // push the result on the stack where the arguments started
             ks_list_push(self->stk, ret);
@@ -562,6 +569,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             // use closures to resolve the reference
             if (c_kfunc != NULL) {
                 for (i = c_kfunc->closures->len - 1; i >= 0; --i) {
+                    assert(c_kfunc->closures->elems[i]->type == ks_T_dict && "closure was not dict!");
                     val = ks_dict_get_h((ks_dict)c_kfunc->closures->elems[i], (ks_obj)name, name->v_hash);
                     if (val != NULL) goto found;
                 }
@@ -659,7 +667,9 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
 
             assert(top->type == ks_T_kfunc && "'new_func' used on TOS which was not a kfunc!");
 
-            ks_list_push(self->stk, (ks_obj)ks_kfunc_new_copy(top));
+            ks_kfunc new_top = ks_kfunc_new_copy(top);
+
+            ks_list_push(self->stk, (ks_obj)new_top);
 
             KS_DECREF(top);
 
@@ -667,6 +677,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
 
         VMED_CASE_START(KSB_ADD_CLOSURE)
             VMED_CONSUME(ksb, op);
+
 
             // get the TOS
             ks_kfunc top = (ks_kfunc)self->stk->elems[self->stk->len - 1];
@@ -680,9 +691,6 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             }
 
             ks_list_push(top->closures, (ks_obj)c_frame->locals);
-
-            // increment program counter
-            //c_pc += op_i32.arg;
 
         VMED_CASE_END
 

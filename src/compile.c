@@ -140,13 +140,13 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         ks_code_add_meta(to, self->tok);
 
         // add closure
-        /*if (self->children->elems[0]->type == ks_T_kfunc) {
+        if (self->children->elems[0]->type == ks_T_kfunc) {
             // copy and add closure to the function
             ksca_new_func(to);
             ksca_closure(to);
 
             ks_code_add_meta(to, self->tok);
-        }*/
+        }
 
         st->stk_len++;
 

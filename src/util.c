@@ -33,7 +33,7 @@ void ks_obj_free(ks_obj obj, const char* file, const char* func, int line) {
     isFreeing = true;
 
     if (!wasFreeing) {
-        ks_trace("ks", "[%s:%s:%i]: Freeing %O", file, func, line, obj);
+    //    ks_trace("ks", "[%s:%s:%i]: Freeing %O", file, func, line, obj);
     }
 
     if (obj->type->__free__ == NULL) {
@@ -123,14 +123,12 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         ret = ((ks_cfunc)func)->func(n_args, args);
     } else if (func->type == ks_T_kfunc) {
         // now, we need to unpack the kscript function
-
         // cast it to increase readability
         ks_kfunc kfc = (ks_kfunc)func;
 
         // either use the provided locals, or create new ones
         // This reference will be freed when the stack frame is freed
         c_frame->locals = locals ? (ks_dict)KS_NEWREF(locals) : ks_dict_new(0, NULL);
-
         
         // now, handle arguments
 

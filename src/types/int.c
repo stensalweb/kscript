@@ -85,7 +85,7 @@ ks_int ks_int_new_s(char* str, int base) {
     while (i < len) {
         int dig = my_getdig(str[i]);
         // check for invalid/out of range digit
-        if (dig < 0 || dig >= base) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: %s", base, str);
+        if (dig < 0 || dig >= base) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, str);
 
         int64_t old_v64 = v64;
         // calculate new value in 64 bits
@@ -331,7 +331,6 @@ static KS_TFUNC(int, new) {
 }
 
 
-
 // int.__str__(self) - to string
 static KS_TFUNC(int, str) {
     ks_int self;
@@ -409,6 +408,315 @@ static KS_TFUNC(int, free) {
 }
 
 
+
+// int.toRoman(self) - convert to a roman numeral string
+static KS_TFUNC(int, toRoman) {
+    ks_int self;
+    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_int)) return NULL;
+
+
+    // structure of roman numerals (in reverse order!)
+    static const struct _roman_s {
+        // string of the roman numeral
+        char* str;
+
+        // numeric value
+        int val;
+
+    } romans[] = {
+        {"M",     1000},
+        {"D",     500},
+        {"C",     100},
+        {"L",     50},
+        {"X",     10},
+        {"V",     5},
+        {"I",     1},
+    };
+
+    #define N_ROM ((sizeof(romans) / sizeof(romans[0])))
+
+    // add a given roman 'n' times
+    #define _ROM_ADD(_rom, _n) { \
+        int _i; \
+        for (_i = 0; _i < (_n); ++_i) { \
+            ks_str_builder_add(sb, _rom.str, 1); \
+        } \
+    }
+
+    // add a low, high roman pair
+    #define _ROM_PRE(_lwdig, _hidig) { \
+        ks_str_builder_add(sb, _lwdig.str, 1); \
+        ks_str_builder_add(sb, _hidig.str, 1); \
+    }
+    
+
+    if (self->isLong) {
+        // TODO;
+        ks_str_builder sb = ks_str_builder_new();
+
+        mpz_t val, tmp;
+        mpz_init_set(val, self->vz);
+        mpz_init(tmp);
+
+
+        // take out negative sign
+        bool isNeg = mpz_sgn(val) < 0;
+        if (isNeg) {
+            ks_str_builder_add(sb, "-", 1);
+            mpz_neg(val, val);
+        }
+
+        while (mpz_sgn(val) != 0) {
+            // handle highest first
+            if (mpz_cmp_ui(val, romans[0].val) >= 0) {
+                mpz_tdiv_qr_ui(tmp, val, val, romans[0].val);
+
+                if (!mpz_fits_slong_p(tmp)) {
+                    mpz_clear(val); mpz_clear(tmp);
+                    KS_DECREF(sb);
+                    return ks_throw(ks_T_InternalError, "Value '%S' too large to convert to roman numeral!", self);
+                }
+
+                int n_iter = mpz_get_si(tmp);
+                _ROM_ADD(romans[0], tmp);
+            } else {
+                // handle lower ones
+
+                // current roman
+                int crom = 1;
+
+                bool didBreak = false;
+
+                // check middle ones
+                while (crom < N_ROM - 1) {
+                    
+                    if (mpz_cmp_ui(val, romans[crom].val) >= 0) {
+                        
+                        // threshold
+                        int thres = romans[crom-1].val - romans[crom+1].val;
+
+                        if (mpz_cmp_ui(val, thres) < 0) {
+                            // just add the current roman value
+
+                            mpz_tdiv_qr_ui(tmp, val, val, romans[0].val);
+                            if (!mpz_fits_slong_p(tmp)) {
+                                mpz_clear(val); mpz_clear(tmp);
+                                KS_DECREF(sb);
+                                return ks_throw(ks_T_InternalError, "Value '%S' too large to convert to roman numeral!", self);
+                            }
+
+                            int n_iter = mpz_get_si(tmp);
+                            _ROM_ADD(romans[crom], n_iter);
+                        } else {
+                            // add a subtractive pair
+                            _ROM_PRE(romans[crom+1], romans[crom-1]);
+                            mpz_sub_ui(val, val, thres);
+                        }
+                        didBreak = true;
+                        break;
+                    }
+
+                    crom++;
+                }
+
+                if (!didBreak && val >= romans[N_ROM - 1].val) {
+                    // handle smallest case
+                    int thres = romans[N_ROM - 2].val - romans[N_ROM - 1].val;
+                    if (val < thres) {
+                        int n_iter = mpz_get_ui(val);
+                        _ROM_ADD(romans[N_ROM - 1], n_iter);
+                        mpz_set_ui(val, 0);
+                    } else {
+                        _ROM_PRE(romans[N_ROM - 1], romans[N_ROM - 2]);
+                        mpz_sub_ui(val, val, thres);
+                    }
+
+                }
+            }
+        }
+
+        mpz_clear(val);
+        mpz_clear(tmp);
+
+        ks_str res = ks_str_builder_get(sb);
+        KS_DECREF(sb);
+        return (ks_obj)res;
+
+
+    } else {
+        // current value
+        int64_t val = self->v64;
+
+        ks_str_builder sb = ks_str_builder_new();
+
+        // take out negative sign
+        bool isNeg = val < 0;
+        if (isNeg) {
+            ks_str_builder_add(sb, "-", 1);
+            val = -val;
+        }
+
+
+        while (val != 0) {
+            // handle highest first
+            if (val > romans[0].val) {
+                _ROM_ADD(romans[0], val / romans[0].val);
+                val %= romans[0].val;
+            } else {
+                // handle lower ones
+
+                // current roman
+                int crom = 1;
+
+                bool didBreak = false;
+
+                // check middle ones
+                while (crom < N_ROM - 1) {
+                    
+                    if (val >= romans[crom].val) {
+                        // threshold
+                        int thres = romans[crom-1].val - romans[crom+1].val;
+
+                        if (val < thres) {
+                            // just add the current roman value
+                            _ROM_ADD(romans[crom], val / romans[crom].val);
+                            val %= romans[crom].val;
+                        } else {
+                            // add a subtractive pair
+                            _ROM_PRE(romans[crom+1], romans[crom-1]);
+                            val -= thres;
+                        }
+                        didBreak = true;
+                        break;
+                    }
+
+                    crom++;
+                }
+
+                if (!didBreak && val >= romans[N_ROM - 1].val) {
+                    // handle smallest case
+                    int thres = romans[N_ROM - 2].val - romans[N_ROM - 1].val;
+                    if (val < thres) {
+                        _ROM_ADD(romans[N_ROM - 1], val);
+                        val = 0;
+                    } else {
+                        _ROM_PRE(romans[N_ROM - 1], romans[N_ROM - 2]);
+                        val -= thres;
+                    }
+
+                }
+
+            }
+        }
+
+        ks_str res = ks_str_builder_get(sb);
+        KS_DECREF(sb);
+        return (ks_obj)res;
+    }
+    #undef _ROM_ADD
+    #undef _ROM_PRE
+}
+
+
+// convert roman character to digit
+static int roman_dig(int romchar) {
+    /**/ if (romchar == 'I') return 1;
+    else if (romchar == 'V') return 5;
+    else if (romchar == 'X') return 10;
+    else if (romchar == 'L') return 50;
+    else if (romchar == 'C') return 100;
+    else if (romchar == 'D') return 500;
+    else if (romchar == 'M') return 1000;
+    else {
+        return -1;
+    }
+}
+
+// int.fromRoman(roman_str) - convert from a roman numeral string
+static KS_TFUNC(int, fromRoman) {
+    ks_str roman_str;
+    if (!ks_getargs(n_args, args, "roman_str:*", &roman_str, ks_T_str)) return NULL;
+
+    // structure of roman numerals (in reverse order!)
+    static const struct _roman_s {
+        // string of the roman numeral
+        char* str;
+
+        // numeric value
+        int val;
+
+    } romans[] = {
+        {"M",     1000},
+        {"D",     500},
+        {"C",     100},
+        {"L",     50},
+        {"X",     10},
+        {"V",     5},
+        {"I",     1},
+    };
+
+    #define N_ROM ((sizeof(romans) / sizeof(romans[0])))
+
+    // create new integer
+    mpz_t self;
+    mpz_init(self);
+
+
+    char* rom = roman_str->chr;
+    int i = 0;
+
+    // get if negative
+    bool isNeg = *rom == '-';
+    if (isNeg) {
+        rom++;
+        i++;
+    }
+
+    while (*rom) {
+
+        int dig = roman_dig(*rom);
+
+        // ensure there wasn't a problem
+        if (dig < 0) {
+            mpz_clear(self);
+            return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%S', invalid digit '%c'", roman_str, *rom);
+        }
+
+        if ((roman_str->len_c - i) > 2) {
+            int digp2 = roman_dig(rom[2]);
+            if (digp2 < 0) {
+                mpz_clear(self);
+                return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%S', invalid digit '%c'", roman_str, rom[2]);
+            } else if (dig < digp2) {
+                mpz_clear(self);
+                return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%S', some digits are in invalid order!", roman_str);
+            }
+        }
+
+
+        int digp1 = roman_dig(rom[1]);
+
+        if (dig >= digp1) {
+            mpz_add_ui(self, self, dig);
+        } else {
+            mpz_add_ui(self, self, digp1 - dig);
+            i++;
+            rom++;
+        }
+        
+        rom++;
+        i++;
+    }
+
+    if (isNeg) mpz_neg(self, self);
+
+    ks_int ret = ks_int_new_mpz_n(self);
+    return (ks_obj)ret;
+}
+
+
+
+
 // operators
 KST_NUM_OPFS(int)
 
@@ -432,9 +740,12 @@ void ks_init_T_int() {
     
     ks_type_init_c(ks_T_int, "int", ks_T_obj, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(int_new_, "int.__new__(typ, obj, base=none)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c(int_free_, "int.__free__(self)")},
 
         {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(int_free_, "int.__free__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(int_str_, "int.__repr__(self)")},
+        {"toRoman",                (ks_obj)ks_cfunc_new_c(int_toRoman_, "int.toRoman(self)")},
+        {"fromRoman",              (ks_obj)ks_cfunc_new_c(int_fromRoman_, "int.fromRoman(self)")},
 
         KST_NUM_OPKVS(int)
 

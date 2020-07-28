@@ -40,14 +40,12 @@ ks_parser ks_parser_new(ks_str src_code, ks_str src_name) {
 
 
 
-
 /* Parsing Implementation
  *
  * 
  * 
  * 
  */
-
 
 // helpful typedef so we don't have 'struct' everywhere
 typedef struct ks_tok ks_tok;
@@ -137,35 +135,50 @@ static void* syntax_error(ks_parser parser, ks_tok tok, char* fmt, ...) {
 
 /* CHARACTER SPECIFICATION */
 
+// true if the character is whitespace
+static bool is_white(ks_unich c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || ks_unich_info_get(c)->cat_gen == ks_unicat_Zs;
+}
+
+// return whether the character is a digit
+static bool is_digit(ks_unich c) {
+    return isdigit(c) || ks_unich_info_get(c)->cat_gen == ks_unicat_Nd;
+}
+
 // true if the character is a valid start to an identifier
-static bool is_ident_s(char c) {
-    return isalpha(c) || c == '_';
+static bool is_ident_s(ks_unich c) {
+    return c == '_' || ks_uni_isalpha(c) || ks_unich_info_get(c)->cat_gen == ks_unicat_So;
 }
 
 // true if the character is a valid middle part of an identifier
-static bool is_ident_m(char c) {
-    return is_ident_s(c) || isdigit(c);
-}
-
-// true if the character is whitespace
-static bool is_white(char c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+static bool is_ident_m(ks_unich c) {
+    return is_ident_s(c) || is_digit(c);
 }
 
 
 // tokenize a parser; only should be called at initialization
 static bool tokenize(ks_parser self) {
 
-    // add a token to the parser, using defined local variables
-    #define ADDTOK(_toktype) { \
-        self->tok = ks_realloc(self->tok, sizeof(*self->tok) * ++self->tok_n); \
-        self->tok[self->tok_n - 1] = (struct ks_tok){ .type = _toktype, .pos = start_i, .len = i - start_i, .line = start_line, .col = start_col }; \
-    }
+    // C-string iterator over the string for the source code
+    struct ks_str_citer cit = ks_str_citer_make(self->src);
 
-    // advance a single character, updating variables as needed
-    #define ADV() { \
-        char c = self->src->chr[i++]; \
-        if (c == '\n') { \
+    // current line & column
+    int line = 0, col = 0;
+
+    // peek the current character
+    #define PEEK() ks_str_citer_peek(&cit)
+    
+    // peek ahead another character
+    #define PEEK2(_to) { \
+        struct ks_str_citer _cit = cit; \
+        ks_str_citer_next(&_cit); \
+        _to = ks_str_citer_next(&_cit); \
+    }
+    // advance and assign
+    #define ADV(_to) { \
+        _to = ks_str_citer_next(&cit); \
+        ks_unich _ccur = _to; \
+        if (_ccur == '\n') { \
             line++; \
             col = 0; \
         } else { \
@@ -173,186 +186,176 @@ static bool tokenize(ks_parser self) {
         } \
     }
 
-    // advnace '_n' characters
-    #define ADVn(_n) { \
-        int ni = (_n); \
-        while (ni-- > 0) ADV(); \
+    // add a token to the parser, using defined local variables
+    #define ADDTOK(_toktype) { \
+        self->tok = ks_realloc(self->tok, sizeof(*self->tok) * ++self->tok_n); \
+        self->tok[self->tok_n - 1] = (ks_tok){ .type = _toktype, .pos = start_b, .len = cit.cbyi - start_b, .line = start_line, .col = start_col }; \
     }
 
-    int line = 0, col = 0;
+    ks_unich lc = PEEK();
 
-    int i;
-    for (i = 0; i < self->src->len_b; ) {
+    while (!cit.done) {
+        
+        // get character
+        ks_unich c = PEEK();
 
-        // skip whitespace
-        while (self->src->chr[i] && (self->src->chr[i] == ' ' || self->src->chr[i] == '\t' || self->src->chr[i] == '\r')) ADV();
+        // skip all white space
+        while (!cit.done && c != '\n' && is_white(c)) {
+            ADV(c)
+            c = PEEK();
+        }
+        c = PEEK();
 
-        // done
-        if (i >= self->src->len_b) break;
+        // done now
+        if (cit.done) break;
+        
+        // starting position (in bytes)
+        int start_b = cit.cbyi;
 
-        // capture where we started so the ADDTOK macro constructs them correctly
-        int start_i = i;
+        // starting line & column (column is in number of characters)
         int start_line = line, start_col = col;
+        //ADV(c);
 
-        char c = self->src->chr[i];
+        ks_unich cp2;
+        PEEK2(cp2);
 
-
-        // handle the basics
         if (is_ident_s(c)) {
-            // read all we can
+            // parse all valid identifier blocks
+
             do {
-                ADV();
-            } while (self->src->chr[i] && is_ident_m(self->src->chr[i]));
-
+                ADV(c);
+                c = PEEK();
+            } while (is_ident_m(c));
+            
             ADDTOK(KS_TOK_IDENT);
-        } else if (isdigit(c) || (c == '.' && isdigit(self->src->chr[i+1]))) {
-            // parse out a numerical constant
-            // it could be an int, float, and/or have an imaginary component
+        } else if (is_digit(c) || (c == '.' && is_digit(cp2))) {
+            // some sort of integer/float/complex constant
+            // so, numerical
+            // TODO: check for hex
 
-            // go through all the digits we can
-            while (isdigit(self->src->chr[i])) {
-                ADV();
+            // parse out first digits
+            while (c > 0 && is_digit(c)) {
+                ADV(c);
+                c = PEEK();
             }
 
-            if (self->src->chr[i] == '.') {
-                // we are parsing some sort of float
-                //return ks_throw_fmt(NULL, "No float support yet!");
-                ADV();
+            if (c == '.' || c == 'i') {
+                // the number is a floating point number (i.e. either real or complex)
+                // if it has a fractional part, accept that as well
+                if (c == '.') {
+                    ADV(c);
 
-                // any more digits ?
-                while (isdigit(self->src->chr[i])) {
-                    ADV();
-                }
-                bool isImag = false;
-                if (self->src->chr[i] == 'i') {
-                    // imaginary component
-                    ADV();
-                    isImag = true;
+                    // parse all digits of the fractional part
+                    while (is_digit(PEEK())) {
+                        ADV(c);
+                    }
+
                 }
 
-                if (self->src->chr[i] && is_ident_m(self->src->chr[i])) {
+                c = PEEK();
+                // get whether it is an imaginary number (and if so, skip the 'i')
+                bool isImag = c == 'i';
+                if (isImag) ADV(c);
+                c = PEEK();
+
+                if (c > 0 && is_ident_m(c)) {
                     ks_tok badtok = (ks_tok){ 
                         .type = KS_TOK_NONE, 
-                        .pos = start_i, .len = i - start_i, 
+                        .pos = start_b, .len = cit.cbyi - start_b, 
                         .line = start_line, .col = start_col 
                     };
-                    syntax_error(self, badtok, "Unexpected characters after %s literal", isImag ? "imaginary" : "float");
-                    return false;
+                    return syntax_error(self, badtok, "Unexpected characters after %s literal", isImag ? "imaginary" : "float");
                 }
 
+                // floating point literal
                 ADDTOK(KS_TOK_FLOAT);
-
-
             } else {
-
-                if (self->src->chr[i] == 'i') {
-                    // imaginary component
-                    ADV();
-
-                    if (self->src->chr[i] && is_ident_m(self->src->chr[i])) {
-                        ks_tok badtok = (ks_tok){ 
-                            .type = KS_TOK_NONE, 
-                            .pos = start_i, .len = i - start_i, 
-                            .line = start_line, .col = start_col 
-                        };
-                        syntax_error(self, badtok, "Unexpected characters after imaginary literal");
-                        return false;
-                    }
-                    // still consider this a float
-                    ADDTOK(KS_TOK_FLOAT);
-                } else {
-                    // handle long int
-                    if (self->src->chr[i] == 'L') ADV();
-                    // we are parsing an integer, so we're fininshed
-                    ADDTOK(KS_TOK_INT);
-                }
-
+                // the number is only an integer
+                ADDTOK(KS_TOK_INT);
             }
-
         } else if (c == '\'' || c == '"') {
-            // keep track of starting position 
-            char s_c = c;
-            int o_i = i;
+            // we need to parse a string literal
+            ADV(c);
 
-            // whether or not its triple quoted
+            // get the quote character
+            ks_unich quote_c = c;
+            char quote_c3[] = {c, c, c};
+
+            // whether or not it is a triple string
             bool isTriple = false;
-            if (strncmp(&self->src->chr[i], "\"\"\"", 3) == 0 || strncmp(&self->src->chr[i], "'''", 3) == 0) {
-                // claim 3
-                ADV();
-                ADV();
-                ADV();
+
+            // detect & skip what kind of quotation it is
+            if (strncmp(self->src->chr + cit.cbyi, quote_c3, 2) == 0) {
+                // triple quoted
                 isTriple = true;
+                ADV(c);
+                ADV(c);
             } else {
-                ADV();
+                ADV(c);
             }
 
-            while (self->src->chr[i] && (isTriple ? strncmp(&self->src->chr[i], &self->src->chr[o_i], 3) != 0 : self->src->chr[i] != s_c) && (self->src->chr[i] != '\n' || isTriple)) {
-                if (self->src->chr[i] == '\\') {
+            // parse through characters until the required ending is found
+            while ((isTriple ? strncmp(self->src->chr + cit.cbyi, quote_c3, 3) != 0 : c != quote_c) && (c != '\n' || isTriple)) {
+                if (c == '\\') {
                     // escape code; skip it
-                    ADV();
+                    ADV(c);
                 }
-                ADV();
+                ADV(c);
             }
 
-            if (!self->src->chr[i] || self->src->chr[i] != s_c) {
-
-                struct ks_tok badtok = (struct ks_tok){ 
-                    .type = KS_TOK_NONE, 
-                    .pos = start_i, .len = isTriple ? 3 : 1, 
-                    .line = start_line, .col = start_col 
-                };
-                //printf("HERE: '%s'\n", &self->src->chr[i]);
-
-                syntax_error(self, badtok, "Didn't find ending quote for string literal beginning here");
-                return false;
-            }
 
             if (isTriple) {
                 // double check
-                char res[] = {s_c, s_c, s_c};
-                if (strncmp(res, self->src->chr + i, 3) != 0) {
-                    struct ks_tok badtok = (struct ks_tok){ 
+                if (strncmp(self->src->chr + cit.cbyi, quote_c3, 3) != 0) {
+                    ks_tok badtok = (ks_tok){ 
                         .type = KS_TOK_NONE, 
-                        .pos = start_i, .len = isTriple ? 3 : 1, 
+                        .pos = start_b, .len = isTriple ? 3 : 1, 
                         .line = start_line, .col = start_col 
                     };
                     //printf("HERE: '%s'\n", &self->src->chr[i]);
 
-                    
-                    syntax_error(self, badtok, "Didn't find ending quote for string literal beginning here");
-                    return false;
-
+                    return syntax_error(self, badtok, "Didn't find ending quote for string literal beginning here");
                 }
                 
                 // skip all 3
-                ADV();
-                ADV();
-                ADV();
+                ADV(c);
+                ADV(c);
+                ADV(c);
             } else {
-                ADV();
+                if (c <= 0 || c != quote_c) {
+
+                    ks_tok badtok = (ks_tok){ 
+                        .type = KS_TOK_NONE, 
+                        .pos = start_b, .len = isTriple ? 3 : 1, 
+                        .line = start_line, .col = start_col 
+                    };
+
+                    return syntax_error(self, badtok, "Didn't find ending quote for string literal beginning here");
+                }
+
             }
 
             // add the token
             ADDTOK(KS_TOK_STR);
         } else if (c == '#') {
-            ADV();
+            // single-line comment, skip to the end of the line
+            ADV(c);
 
             // go until a newline
-            while (self->src->chr[i] && self->src->chr[i] != '\n') {
-                ADV();
+            while (c > 0 && c != '\n') {
+                ADV(c);
             }
 
             ADDTOK(KS_TOK_COMMENT);
 
             // skip newline
-            if (self->src->chr[i] != '\n') {
-                ADV();
+            if (c == '\n') {
+            //    ADV(c);
             }
-
         }
-        
+
         // case for a string literal mapping directly to a type
-        #define CASE_S(_type, _str) else if (strncmp(&self->src->chr[i], _str, sizeof(_str) - 1) == 0) { ADVn(sizeof(_str) - 1); ADDTOK(_type); }
+        #define CASE_S(_type, _str) else if (strncmp(self->src->chr + cit.cbyi, _str, sizeof(_str) - 1) == 0) { int _i; for (_i = 0; _i < sizeof(_str) - 1; ++_i) { ADV(c); } ADDTOK(_type); }
 
         CASE_S(KS_TOK_NEWLINE, "\n")
 
@@ -389,42 +392,59 @@ static bool tokenize(ks_parser self) {
 
         CASE_S(KS_TOK_OP, "&")
         CASE_S(KS_TOK_OP, "|")
-        CASE_S(KS_TOK_OP, "^")
 
         CASE_S(KS_TOK_OP, "~")
         CASE_S(KS_TOK_OP, "=")
         CASE_S(KS_TOK_OP, "!")
-
-
         else {
             // unexpected character
 
             // construct a dummy character with just 1 char
-            ADV();
             ks_tok badtok = (ks_tok){ 
                 .type = KS_TOK_NONE, 
-                .pos = start_i, .len = i - start_i, 
+                .pos = start_b, .len = cit.cbyi - start_b, 
                 .line = start_line, .col = start_col 
             };
 
+            // encode to UTF8
+            char utf8[4];
+            ks_ssize_t sz = ks_text_utf32_to_utf8(&c, utf8, 1);
+
             // give a syntax error
-            syntax_error(self, badtok, "Unexpected Character: '%*s'", 3, self->src->chr + start_i);
+            syntax_error(self, badtok, "Unexpected Character: '%*s' (%c)", (int)sz, utf8, c);
             return false;
             //return ks_throw_fmt(NULL, "Invalid Character: %c", c);
         }
 
         #undef CASE_S
+
     }
 
-    #undef ADV
-    #undef ADVn
-    #undef ADD_TOK
 
-    int start_i = i;
+    int start_b = cit.cbyi;
     int start_line = line, start_col = col;
 
     // add a buffer of 1 EOF so you can always check the next token without having to worry about seg faults
     ADDTOK(KS_TOK_EOF);
+
+    #undef ADDTOK
+    #undef PEEK
+    #undef ADV
+
+
+
+    if (ks_log_c_level("ks") == KS_LOG_TRACE) {
+        // print out all tokens
+        int i;
+        ks_trace("ks", "Tokenized: [%i] total", self->tok_n);
+
+
+        for (i = 0; i < self->tok_n; ++i) {
+            ks_trace("ks", "[%*i]: '%*s', typ: %i", 4, i, self->tok[i].len, self->src->chr + self->tok[i].pos, self->tok[i].type);
+        }
+
+    }
+
 
     // success
     return true;

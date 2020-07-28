@@ -62,63 +62,6 @@ bool ks_str_builder_add(ks_str_builder self, void* data, ks_size_t len) {
 }
 
 
-// Add str(obj) to the string builder
-bool ks_str_builder_add_str(ks_str_builder self, ks_obj obj) {
-
-    if (obj->type == ks_T_str) {
-        return ks_str_builder_add(self, ((ks_str)obj)->chr, ((ks_str)obj)->len_b);
-    } else if (obj->type == ks_T_bool) {
-        if (obj == KSO_TRUE) {
-            return ks_str_builder_add(self, "true", 4);
-        } else {
-            return ks_str_builder_add(self, "false", 5);
-        }
-    } else if (obj->type->__str__ != NULL) {
-        ks_str obj_str = (ks_str)ks_obj_call(obj->type->__str__, 1, &obj);
-        if (!obj_str) return false;
-        bool rst = ks_str_builder_add_str(self, (ks_obj)obj_str);
-        KS_DECREF(obj_str);
-        return rst;
-    } else {
-        return ks_str_builder_add_fmt(self, "%O", obj);
-    }
-}
-
-// Add repr(obj) to the string builder
-bool ks_str_builder_add_repr(ks_str_builder self, ks_obj obj) {
-
-    // try some builtins
-    if (obj == KSO_NONE) {
-        ks_str_builder_add(self, "none", 4);
-        return true;
-    } else if (obj == KSO_TRUE) {
-        ks_str_builder_add(self, "true", 4);
-        return true;
-    } else if (obj == KSO_TRUE) {
-        ks_str_builder_add(self, "false", 5);
-        return true;
-    } else if (obj->type == ks_T_str) {
-
-        ks_str esc = ks_str_escape((ks_str)obj);
-        ks_str_builder_add(self, "'", 1);
-        ks_str_builder_add(self, esc->chr, esc->len_b);
-        ks_str_builder_add(self, "'", 1);
-        KS_DECREF(esc);
-
-        return true;
-    }
-
-    if (obj->type->__repr__ != NULL) {
-        ks_str obj_str = (ks_str)ks_obj_call(obj->type->__repr__, 1, &obj);
-        if (!obj_str) return false;
-        bool rst = ks_str_builder_add_repr(self, (ks_obj)obj_str);
-        KS_DECREF(obj_str);
-        return rst;
-    } else {
-        return ks_str_builder_add_fmt(self, "%O", obj);
-    }
-}
-
 
 // return true if 'c' is a valid part of the field specifier, which means
 //   it is not alpha character
@@ -178,6 +121,67 @@ static bool add_i64(ks_str_builder sb, ksfmt_t ksfmt, int64_t val) {
     return true;
 }
 
+
+// Add str(obj) to the string builder
+bool ks_str_builder_add_str(ks_str_builder self, ks_obj obj) {
+
+    if (obj->type == ks_T_str) {
+        return ks_str_builder_add(self, ((ks_str)obj)->chr, ((ks_str)obj)->len_b);
+    } else if (obj->type == ks_T_bool) {
+        if (obj == KSO_TRUE) {
+            return ks_str_builder_add(self, "true", 4);
+        } else {
+            return ks_str_builder_add(self, "false", 5);
+        }
+    } else if (obj->type == ks_T_int && !((ks_int)obj)->isLong) {
+        // handle short integer
+        return add_i64(self, KSFMT_DFT, ((ks_int)obj)->v64);
+
+    } else if (obj->type->__str__ != NULL) {
+        ks_str obj_str = (ks_str)ks_obj_call(obj->type->__str__, 1, &obj);
+        if (!obj_str) return false;
+        bool rst = ks_str_builder_add_str(self, (ks_obj)obj_str);
+        KS_DECREF(obj_str);
+        return rst;
+    } else {
+        return ks_str_builder_add_fmt(self, "%O", obj);
+    }
+}
+
+// Add repr(obj) to the string builder
+bool ks_str_builder_add_repr(ks_str_builder self, ks_obj obj) {
+
+    // try some builtins
+    if (obj == KSO_NONE) {
+        ks_str_builder_add(self, "none", 4);
+        return true;
+    } else if (obj == KSO_TRUE) {
+        ks_str_builder_add(self, "true", 4);
+        return true;
+    } else if (obj == KSO_TRUE) {
+        ks_str_builder_add(self, "false", 5);
+        return true;
+    } else if (obj->type == ks_T_str) {
+
+        ks_str esc = ks_str_escape((ks_str)obj);
+        ks_str_builder_add(self, "'", 1);
+        ks_str_builder_add(self, esc->chr, esc->len_b);
+        ks_str_builder_add(self, "'", 1);
+        KS_DECREF(esc);
+
+        return true;
+    }
+
+    if (obj->type->__repr__ != NULL) {
+        ks_str obj_str = (ks_str)ks_obj_call(obj->type->__repr__, 1, &obj);
+        if (!obj_str) return false;
+        bool rst = ks_str_builder_add_str(self, (ks_obj)obj_str);
+        KS_DECREF(obj_str);
+        return rst;
+    } else {
+        return ks_str_builder_add_fmt(self, "%O", obj);
+    }
+}
 
 // add format
 // based roughly on: https://en.wikipedia.org/wiki/Printf_format_string

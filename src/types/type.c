@@ -306,6 +306,22 @@ static KS_TFUNC(type, free) {
 }
 
 
+// type.__getattr__(self, attr) - get atrtibute
+static KS_TFUNC(type, getattr) {
+    ks_type self;
+    ks_str attr;
+    if (!ks_getargs(n_args, args, "self:* attr:*", &self, ks_T_type, &attr, ks_T_str)) return NULL;
+
+ 
+    ks_obj ret = ks_type_get(self, attr);
+    if (!ret) {
+        KS_THROW_ATTR_ERR(self, attr);
+    } else {
+        return ret;
+    }
+}
+
+
 // type.__str__(self) - turn to string
 static KS_TFUNC(type, str) {
     ks_type self;
@@ -323,7 +339,8 @@ void ks_init_T_type() {
     ks_type_init_c(ks_T_type, "type", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(type_free_, "type.__free__(self)")},
 
-        {"__str__",               (ks_obj)ks_cfunc_new_c(type_str_, "type.__str__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c(type_str_, "type.__str__(self)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c(type_getattr_, "type.__getattr__(self, attr)")},
 
     ));
 

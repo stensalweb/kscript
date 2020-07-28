@@ -246,7 +246,7 @@ static KS_FUNC(chr) {
 
     ks_unich to_unich = ord;
     if (to_unich != ord) {
-        return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Expected between 0 and 11141111, but got '%z'", (ks_size_t)ord);
+        return ks_throw(ks_T_ArgError, "chr() given invalid value! Expected between 0 and 11141111, but got '%z'", (ks_size_t)ord);
     }
 
     return (ks_obj)ks_str_chr(to_unich);

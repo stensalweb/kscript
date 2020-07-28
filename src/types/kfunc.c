@@ -38,7 +38,8 @@ ks_kfunc ks_kfunc_new_copy(ks_kfunc func) {
     KS_INIT_OBJ(self, ks_T_kfunc);
 
     self->name_hr = (ks_str)KS_NEWREF(func->name_hr);
-    self->code = (ks_code)KS_NEWREF(func->code);
+    self->code = func->code;
+    KS_INCREF(func->code);
 
     // list of closures
     self->closures = ks_list_new(func->closures->len, func->closures->elems);
@@ -83,13 +84,11 @@ static KS_TFUNC(kfunc, free) {
 
     ks_free(self->params);
 
-
     // no need for the closures anymore
     KS_DECREF(self->closures);
 
     KS_DECREF(self->name_hr);
     KS_DECREF(self->code);
-
     
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);

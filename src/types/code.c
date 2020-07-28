@@ -60,6 +60,8 @@ void ks_code_add(ks_code self, int len, ksb* data) {
 
     // write new data
     memcpy(&self->bc[idx], data, len);
+
+
 }
 
 // add a constant to the v_const list
@@ -366,7 +368,7 @@ static KS_TFUNC(code, str) {
 static KS_TFUNC(code, free) {
     ks_code self;
     if (!ks_getargs(n_args, args, "self:*", &self, ks_T_code)) return NULL;
-    
+
     // free member variables
     KS_DECREF(self->v_const);
     ks_free(self->bc);

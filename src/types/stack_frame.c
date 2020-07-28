@@ -21,6 +21,8 @@ ks_stack_frame ks_stack_frame_new(ks_obj func) {
         self->code = ((ks_kfunc)func)->code;
     }
 
+    if (self->code) KS_INCREF(self->code);
+
     self->locals = NULL;
     self->pc = NULL;
 

@@ -21,20 +21,240 @@
 // global singletons
 static struct ks_str_s KS_STR_CHARS[KS_STR_CHAR_MAX];
 
-/* Unicode Helper Functions */
 
-// return the length (in characters) of a NUL-terminated UTF-8 string
-static ks_ssize_t my_utf8_len(const char* x) {
+/* Raw Unicode Functions */
 
-    ks_ssize_t len = 0;
+
+// Calculate the length (in unicode characters, defined via the number of sequences decoded) of a string
+//   of (valid) UTF8. A negative return value indicates a unicode error was thrown
+// NOTE: If `len_b<0`, then `src` is assumed to be NUL-terminated
+ks_ssize_t ks_text_utf8_len_c(const char* src, ks_size_t len_b) {
+    if (len_b == 0) return 0;
+    else if (len_b < 0) len_b = strlen(src); // default to NUL-terminated
+
+    // iterator
+    const char* x = src;
+
+    // length in characters
+    ks_ssize_t len_c = 0;
+
     while (*x) {
         // count actual ending blocks
-        if (((*x) & 0xC0) != 0x80) len++;
+        if (((*x) & 0xC0) != 0x80) len_c++;
         x++;
     }
 
-    return len;
+    return len_c;
 }
+
+// check whether it is a valid continuation byte (return negative if not), or return relevant bits
+static ks_unich to_cont(ks_unich c) {
+    if ((c & 0xC0) == 0x80) {
+        // valid, return lower bytes
+        return c & 0x3F;
+    } else {
+        // bad continuation byte
+        return KS_UNICH_WASERR;
+    }
+}
+
+
+// Transcode 'len_c' characters of utf8 text (located in 'src'), into utf32 (located in 'dest')
+// NOTE: it is assumed that there is enough space in both arrays; `dest` should have been allocated for
+//   at least `sizeof(ks_unich) * len_c`, and those are exactly the bytes that will be filled (no NULL-terminator) is given
+// NOTE: Returns the number of bytes decoded in utf8, or a negative number to indicate an error
+ks_ssize_t ks_text_utf8_to_utf32(const char* src, ks_unich* dest, ks_ssize_t len_c) {
+
+    // iterators
+    const char* srci = src;
+    ks_unich* desti = dest;
+
+    // temporary variables
+    ks_unich c[4];
+
+    // current character
+    ks_ssize_t cur_c = 0;
+
+    while (cur_c < len_c) {
+        // decode single character
+        c[0] = srci[0];
+
+        // check first few bits
+        if ((c[0] & 0x80) == 0) {
+
+            // if it was a valid 7-bit ASCII byte (i.e. no continuation), just yield that character
+            *desti = c[0];
+
+            // 1 byte
+            srci += 1;
+        } else if ((c[0] & 0xE0) == 0xC0) {
+            
+            // decode bytes, 1 cont.
+            c[1] = to_cont(srci[1]);
+
+            // read another continuation byte, and combine them
+            if (c[1] < 0) return c[1];
+
+            ks_unich r = ((c[0] & 0x1F) << 6) | c[1];
+            if (r >= 128) {
+                *desti = r;
+            } else {
+                return KS_UNICH_WASERR;
+            }
+
+            // 2 bytes read
+            srci += 2;
+
+
+        } else if ((c[0] & 0xF0) == 0xE0) {
+
+            // decode bytes, 2 cont.
+            c[1] = to_cont(srci[1]), c[2] = to_cont(srci[2]);
+            if (c[1] < 0) return c[1];
+            if (c[2] < 0) return c[2];
+
+            ks_unich r = ((c[0] & 0x0F) << 12) | (c[1] << 6) | c[2];
+            if (r >= 2048 && (r < 55296 || r > 57343)) {
+                *desti = r;
+            } else {
+                return KS_UNICH_WASERR;
+            }
+
+            // 3 bytes read
+            srci += 3;
+
+        } else if ((c[0] & 0xF8) == 0xF0) {
+            // we need to read 3 continuation bytes, and combine them
+            c[1] = to_cont(srci[1]), c[2] = to_cont(srci[2]), c[3] = to_cont(srci[3]);
+            if (c[1] < 0) return c[1];
+            if (c[2] < 0) return c[2];
+            if (c[3] < 0) return c[3];
+
+
+            ks_unich r = ((c[0] & 0x07) << 18) | (c[1] << 12) | (c[2] << 6) | c[3];
+            if (r >= 65536 && r <= 1114111) {
+                *desti = r;
+            } else {
+                return KS_UNICH_WASERR;
+            }
+
+            // 4 bytes read
+            srci += 4;
+        }
+
+        // advance to next destination
+        desti++;
+        cur_c++;
+
+    }
+
+    // return number of bytes
+    return (ks_ssize_t)(srci - src);
+}
+
+// Transcode 'len_c' characters of utf32 text (located in 'src'), into utf8 (located in 'dest')
+// NOTE: it is assumed that there is enough space in both arrays; `dest` should have been allocated for
+//   at least `sizeof(ks_unich) * len_c` (unless something is known about the input; but this is not recommended in general)
+// NOTE: Returns the number of bytes decoded in utf8 (so, always >= len_c), or a negative number to indicate an error
+// A NUL-terminator is NOT added
+ks_ssize_t ks_text_utf32_to_utf8(const ks_unich* src, char* dest, ks_ssize_t len_c) {
+
+    // iterators
+    const ks_unich* srci = src;
+    char* desti = dest;
+
+    // current character
+    ks_ssize_t cur_c = 0;
+
+    while (cur_c < len_c) {
+
+        // get current character
+        ks_unich chr = *srci;
+
+        // check range
+        if (chr < 0 || chr > 0x10FFFFULL) {
+            return KS_UNICH_WASERR;
+            //return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Expected between 0 and 11141111, but got '%z'", (ks_size_t)chr);
+        }
+
+        // temporary bytes for UTF8 encoding
+        char utf8d[4];
+
+        if (chr < 0) {
+            // invalid
+            return KS_UNICH_WASERR;
+            //return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
+        } else if (chr <= 0x007F) {
+
+            // assumed to be ascii, so just copy the first byte
+            desti[0] = chr;
+
+            // single byte
+            desti++;
+
+        } else if (chr <= 0x07FF) {
+            // calculate both bytes (0x80, 0xC0 are the beginning of continuation bytes)
+            // current bytes are like:
+            // 0000 0XXX XXYY YYYY
+            // And we need to turn it into a 2 byte sequence:
+            // 110X XXXX 10YY YYYY
+
+            // first byte
+            desti[0] = 0xC0 | ((chr >> 6) & 0x1F);
+
+            // second byte
+            desti[1] = 0x80 | ((chr >> 0) & 0x3F);
+
+            // 2 bytes
+            desti += 2;
+
+        } else if (chr <= 0xFFFF) {
+
+            // calculate both bytes (0x80, 0xC0 are the beginning of continuation bytes)
+            // current bytes are like:
+            // ZZZZ ZXXX XXYY YYYY
+            // And we need to turn it into a 3 byte sequence:
+            // 1110 ZZZZ 110X XXXX 10YY YYYY
+
+            // first byte starts with the most
+            desti[0] = 0xE0 | ((chr >> 12) & 0x0F);
+            desti[1] = 0x80 | ((chr >>  6) & 0x3F);
+            desti[2] = 0x80 | ((chr >>  0) & 0x3F);
+
+            // 3 bytes
+            desti += 3;
+
+        } else if (chr <= 0x10FFFF) {
+
+            // calculate both bytes (0x80, 0xC0 are the beginning of continuation bytes)
+            // current bytes are like:
+            // 0WWW ZZZZ ZXXX XXYY YYYY
+            // And we need to turn it into a 4 byte sequence:
+            // 1111 0WWW 1110 ZZZZ 110X XXXX 10YY YYYY
+
+            desti[0] = 0xF0 | ((chr >> 18) & 0x07);
+            desti[1] = 0x80 | ((chr >> 12) & 0x3F);
+            desti[2] = 0x80 | ((chr >>  6) & 0x3F);
+            desti[3] = 0x80 | ((chr >>  0) & 0x3F);
+
+            // 4 bytes
+            desti += 4;
+
+        } else {
+            return KS_UNICH_WASERR;
+            //return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
+        }
+
+        // advance to next source
+        srci++;
+        cur_c++;
+
+    }
+
+    return (ks_ssize_t)(desti - dest);
+
+}
+
 
 
 /* C-style string iteration */
@@ -83,10 +303,6 @@ static ks_unich my_getcont(struct ks_str_citer* cit) {
 // Get next complete unicode character from a given string
 ks_unich ks_str_citer_next(struct ks_str_citer* cit) {
 
-    // all individual bytes of the character (NOTE: these are 'unich''s, but will only be the first byte)
-    // also, the result
-    ks_unich c[4], r = 0;
-
     // ensure we are still in range
     if (cit->cchi >= cit->self->len_c) {
         cit->err = KS_UTF8_ERR_OUTOFBOUNDS;
@@ -99,52 +315,39 @@ ks_unich ks_str_citer_next(struct ks_str_citer* cit) {
     // calculate whether it is 'done'
     cit->done = cit->cchi >= cit->self->len_c;
 
-    // get the first byte
-    c[0] = my_getbyte(cit);
+    // current character
+    ks_unich r;
 
-    // check first few bits
-    if ((c[0] & 0x80) == 0) {
-        // if it was a valid 7-bit ASCII byte (i.e. no continuation), just return the one character
-        return c[0];
-    } else if ((c[0] & 0xE0) == 0xC0) {
-        // read another continuation byte, and combine them
-        c[1] = my_getcont(cit);
-        if (c[1] >= 0) {
-            r = ((c[0] & 0x1F) << 6) | c[1];
-            if (r >= 128) {
-                return r;
-            }
-        }
-    } else if ((c[0] & 0xF0) == 0xE0) {
+    ks_ssize_t sz = ks_text_utf8_to_utf32(cit->self->chr + cit->cbyi, &r, 1);
 
-        // we need to read 2 continuation bytes, and combine them
-        c[1] = my_getcont(cit);
-        c[2] = my_getcont(cit);
-
-        if ((c[1] | c[2]) >= 0) {
-            r = ((c[0] & 0x0F) << 12) | (c[1] << 6) | c[2];
-            if (r >= 2048 && (r < 55296 || r > 57343)) {
-                return r;
-            }
-        }
-
-    } else if ((c[0] & 0xF8) == 0xF0) {
-        // we need to read 3 continuation bytes, and combine them
-        c[1] = my_getcont(cit);
-        c[2] = my_getcont(cit);
-        c[3] = my_getcont(cit);
-
-        if ((c[1] | c[2] | c[3]) >= 0) {
-            r = ((c[0] & 0x07) << 18) | (c[1] << 12) | (c[2] << 6) | c[3];
-            if (r >= 65536 && r <= 1114111) {
-                return r;
-            }
-        }
+    if (sz < 0) {
+        // TODO: add more specific errors
+        cit->err = KS_UTF8_ERR_OUTOFBOUNDS;
+        return KS_UNICH_WASERR;
+    } else {
+        // advance pointer
+        cit->cbyi += sz;
+        // return decoded value
+        return r;
     }
+}
 
-    // TODO: add more specific errors
-    cit->err = KS_UTF8_ERR_OUTOFBOUNDS;
-    return KS_UNICH_WASERR;
+// peek at current character, but don't change state
+ks_unich ks_str_citer_peek(struct ks_str_citer* cit) {
+    // current character
+    ks_unich r;
+
+    ks_ssize_t sz = ks_text_utf8_to_utf32(cit->self->chr + cit->cbyi, &r, 1);
+
+    if (sz < 0) {
+        // TODO: add more specific errors
+        cit->err = KS_UTF8_ERR_OUTOFBOUNDS;
+        return KS_UNICH_WASERR;
+    } else {
+        // don't advance pointer
+        // return decoded value
+        return r;
+    }
 }
 
 // Seek to a given position, return success
@@ -227,69 +430,20 @@ ks_unich ks_str_ord(ks_str str) {
 // Returns a string of length 1 from a given unicode character (NOT encoded in UTF8; decoded as a single value)
 // NOTE: Returns new reference, or NULL if an error was thrown
 ks_str ks_str_chr(ks_unich chr) {
-    if (chr < 0 || chr > 0x10FFFFULL) {
-        return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Expected between 0 and 11141111, but got '%z'", (ks_size_t)chr);
-    }
+    
+    // encoded bytes
+    char utf8[4];
 
-    // temporary bytes for UTF8 encoding
-    char utf8d[4];
+    // get size & try to encode single byte
+    ks_ssize_t sz = ks_text_utf32_to_utf8(&chr, &utf8[0], 1);
 
-    if (chr < 0) {
-        // invalid
-        return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
-    } else if (chr <= 0x007F) {
-        // single point of data
-        // assumed to be ascii, so just copy the first byte
-        utf8d[0] = chr;
-        return ks_str_utf8(utf8d, 1);
-    } else if (chr <= 0x07FF) {
-        // calculate both bytes (0x80, 0xC0 are the beginning of continuation bytes)
-        // current bytes are like:
-        // 0000 0XXX XXYY YYYY
-        // And we need to turn it into a 2 byte sequence:
-        // 110X XXXX 10YY YYYY
 
-        // first byte
-        utf8d[0] = 0xC0 | ((chr >> 6) & 0x1F);
-
-        // second byte
-        utf8d[1] = 0x80 | ((chr >> 0) & 0x3F);
-
-        return ks_str_utf8(utf8d, 2);
-    } else if (chr <= 0xFFFF) {
-
-        // calculate both bytes (0x80, 0xC0 are the beginning of continuation bytes)
-        // current bytes are like:
-        // ZZZZ ZXXX XXYY YYYY
-        // And we need to turn it into a 3 byte sequence:
-        // 1110 ZZZZ 110X XXXX 10YY YYYY
-
-        // first byte starts with the most
-        utf8d[0] = 0xE0 | ((chr >> 12) & 0x0F);
-        utf8d[1] = 0x80 | ((chr >>  6) & 0x3F);
-        utf8d[2] = 0x80 | ((chr >>  0) & 0x3F);
-
-        return ks_str_utf8(utf8d, 3);
-
-    } else if (chr <= 0x10FFFF) {
-
-        // calculate both bytes (0x80, 0xC0 are the beginning of continuation bytes)
-        // current bytes are like:
-        // 0WWW ZZZZ ZXXX XXYY YYYY
-        // And we need to turn it into a 4 byte sequence:
-        // 1111 0WWW 1110 ZZZZ 110X XXXX 10YY YYYY
-
-        utf8d[0] = 0xF0 | ((chr >> 18) & 0x07);
-        utf8d[1] = 0x80 | ((chr >> 12) & 0x3F);
-        utf8d[2] = 0x80 | ((chr >>  6) & 0x3F);
-        utf8d[3] = 0x80 | ((chr >>  0) & 0x3F);
-
-        return ks_str_utf8(utf8d, 4);
-
+    if (sz < 0) {
+        return (ks_str)ks_throw(ks_T_ArgError, "Error while decoding unicode for chr: %p", (intptr_t)chr);
     } else {
-        return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
+        // return new string
+        return ks_str_utf8(utf8, sz);
     }
-
 }
 
 
@@ -320,7 +474,7 @@ ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b) {
         self->v_hash = ks_hash_bytes(self->chr, self->len_b);
 
         // now, calculate characters via reading the UTF-8
-        self->len_c = my_utf8_len(self->chr);
+        self->len_c = ks_text_utf8_len_c(self->chr, self->len_b);
 
         if (self->len_b != self->len_c) {
             // non-ascii data
@@ -348,7 +502,6 @@ ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b) {
                         ks_warn("ks", "While calculating offsets for UTF8 string '%s', ks_str_citer_next() gave an error!", self->chr);
                     }
                 }
-
             }
 
 
@@ -639,20 +792,17 @@ static KS_TFUNC(str, unidata) {
     // get information
     const struct ks_unich_info* info = ks_unich_info_get(ks_str_citer_next((struct ks_str_citer[]){ ks_str_citer_make(self) }));
 
-
     // get requested property
     if (!key || ks_str_eq_c(key, "all", 3)) {
         return (ks_obj)ks_dict_new_c(KS_KEYVALS(
             {"name",               (ks_obj)ks_str_new(info->name)},
             {"category",           (ks_obj)ks_str_new(info->cat_gen)},
             {"can_com_class",      (ks_obj)ks_str_new(info->can_com_class)},
-            {"bidi_class",         (ks_obj)ks_str_new(info->bidi_class)},
+            {"bidi_class",         (ks_obj)ks_int_new(info->bidi_class)},
 
-            {"lower",              info->case_lower ? (ks_obj)ks_str_chr(info->case_lower) : KSO_NONE},
-            {"upper",              info->case_upper ? (ks_obj)ks_str_chr(info->case_upper) : KSO_NONE},
-            {"title",              info->case_title ? (ks_obj)ks_str_chr(info->case_title) : KSO_NONE},
-
-
+            {"lower",              info->case_lower ? (ks_obj)ks_str_chr(info->case_lower) : KS_NEWREF(self)},
+            {"upper",              info->case_upper ? (ks_obj)ks_str_chr(info->case_upper) : KS_NEWREF(self)},
+            {"title",              info->case_title ? (ks_obj)ks_str_chr(info->case_title) : KS_NEWREF(self)},
         ));
     } else if (ks_str_eq_c(key, "name", 4)) {
         return (ks_obj)ks_str_new(info->name);
