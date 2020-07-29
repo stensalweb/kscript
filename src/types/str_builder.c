@@ -364,7 +364,7 @@ ks_str ks_str_builder_get(ks_str_builder self) {
 // str_builder.__free__(self) -> free obj
 static KS_TFUNC(str_builder, free) {
     ks_str_builder self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_str_builder)) return false;
+    KS_GETARGS("self:*", &self, ks_T_str_builder)
 
     ks_free(self->data);
 

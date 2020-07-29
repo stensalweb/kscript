@@ -21,14 +21,3 @@ func sqr(x) {
 deriv = Δ(sqr)
 
 print (sqr(3), deriv(3))
-
-
-😀 = 23
-
-print (😀 + 4)
-
-
-x = "😀"
-
-print (len(x, 'chars'), len(x, 'bytes'))
-

@@ -2609,7 +2609,7 @@ ks_ast ks_parser_file(ks_parser self) {
 
 static KS_TFUNC(parser, free) {
     ks_parser self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_parser)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_parser)
 
     KS_DECREF(self->src);
     KS_DECREF(self->src_name);

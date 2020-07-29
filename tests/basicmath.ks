@@ -4,7 +4,6 @@
 
 @author: Cade Brown <brown.cade@gmail.com>
 """
-
 # some basic properties
 assert 0 == 0
 assert 1 == 1

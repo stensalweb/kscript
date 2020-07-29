@@ -20,7 +20,7 @@ ks_float ks_float_new(double val) {
 // float.__str__(self) - to string
 static KS_TFUNC(float, str) {
     ks_float self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_float)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_float)
 
 
     // print it out
@@ -38,7 +38,7 @@ static KS_TFUNC(float, str) {
 // float.__free__(self) - free object
 static KS_TFUNC(float, free) {
     ks_float self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_float)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_float)
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);

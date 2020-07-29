@@ -9,7 +9,7 @@
 // Enum.__free__(self) - free string
 static KS_TFUNC(Enum, free) {
     ks_Enum self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_Enum)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_Enum)
 
     KS_DECREF(self->name);
     KS_DECREF(self->enum_val);

@@ -56,7 +56,7 @@ ks_tuple ks_tuple_new_n(int len, ks_obj* elems) {
 // tuple.__free__(self) - free object
 static KS_TFUNC(tuple, free) {
     ks_tuple self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_tuple)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_tuple)
 
     ks_size_t i;
 

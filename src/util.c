@@ -181,14 +181,10 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         memcpy(&new_args[1], args, n_args * sizeof(*new_args));
 
         // actually perform call
-        ks_obj ret = ks_obj_call(mfc->func, new_n_args, new_args);
+        ret = ks_obj_call(mfc->func, new_n_args, new_args);
 
         // free tmp args
         ks_free(new_args);
-
-        // return result (which may be NULL)
-        return ret;
-
 
     } else if (func->type == ks_T_code) {
 

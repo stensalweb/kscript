@@ -61,7 +61,7 @@ ks_cfunc
 static KS_FUNC(print) {
     int n_extra;
     ks_obj* extra;
-    if (!ks_getargs(n_args, args, "*args", &n_extra, &extra)) return false;
+    KS_GETARGS("*args", &n_extra, &extra)
 
     ks_str_builder sb = ks_str_builder_new();
 
@@ -91,7 +91,7 @@ static KS_FUNC(print) {
 // iter(obj) -> turn into iterable
 static KS_FUNC(iter) {
     ks_obj obj;
-    if (!ks_getargs(n_args, args, "obj", &obj)) return NULL;
+    KS_GETARGS("obj", &obj)
 
     if (obj->type->__next__ != NULL) {
         // already is iterable; just return it
@@ -107,7 +107,7 @@ static KS_FUNC(iter) {
 // next(obj) -> return next object for an iterable
 static KS_FUNC(next) {
     ks_obj obj;
-    if (!ks_getargs(n_args, args, "obj", &obj)) return NULL;
+    KS_GETARGS("obj", &obj)
 
     if (obj->type->__next__ != NULL) {
         // create an iterable and return it
@@ -123,7 +123,7 @@ static KS_FUNC(len) {
     ks_obj obj;
     int n_extra;
     ks_obj* extra;
-    if (!ks_getargs(n_args, args, "obj *args", &obj, &n_extra, &extra)) return NULL;
+    KS_GETARGS("obj *args", &obj, &n_extra, &extra)
 
     if (obj->type->__len__ != NULL) {
         return ks_obj_call(obj->type->__len__, n_args, args);
@@ -135,7 +135,7 @@ static KS_FUNC(len) {
 // repr(obj) -> calculate represnetation
 static KS_FUNC(repr) {
     ks_obj obj;
-    if (!ks_getargs(n_args, args, "obj", &obj)) return NULL;
+    KS_GETARGS("obj", &obj)
 
     if (obj->type->__repr__ != NULL) {
         return ks_obj_call(obj->type->__repr__, 1, &obj);
@@ -148,7 +148,7 @@ static KS_FUNC(repr) {
 // typeof(obj) -> get type of object
 static KS_FUNC(typeof) {
     ks_obj obj;
-    if (!ks_getargs(n_args, args, "obj", &obj)) return NULL;
+    KS_GETARGS("obj", &obj)
 
     return KS_NEWREF(obj->type);
 }
@@ -159,7 +159,7 @@ static KS_FUNC(typeof) {
 // getattr(obj, key) -> set attribute
 static KS_FUNC(getattr) {
     ks_obj obj, key;
-    if (!ks_getargs(n_args, args, "obj key", &obj, &key)) return NULL;
+    KS_GETARGS("obj key", &obj, &key)
 
     if (obj->type->__getattr__ != NULL) {
         // it has a getattr
@@ -184,13 +184,14 @@ static KS_FUNC(getattr) {
         }
     }
 
-    KS_THROW_METH_ERR(obj, "__getattr__");
+    KS_THROW_ATTR_ERR(obj, key);
+    //KS_THROW_METH_ERR(obj, "__getattr__");
 }
 
 // setattr(obj, key, val) -> set subscript of item
 static KS_FUNC(setattr) {
     ks_obj obj, key, val;
-    if (!ks_getargs(n_args, args, "obj key val", &obj, &key, &val)) return NULL;
+    KS_GETARGS("obj key val", &obj, &key, &val)
 
     if (obj->type->__setattr__ != NULL) {
         // it has a setattr
@@ -208,7 +209,7 @@ static KS_FUNC(getitem) {
     ks_obj obj;
     int n_extra;
     ks_obj* extra = NULL;
-    if (!ks_getargs(n_args, args, "obj *args", &obj, &n_extra, &extra)) return NULL;
+    KS_GETARGS("obj *args", &obj, &n_extra, &extra)
 
     if (obj->type->__getitem__ != NULL) {
 
@@ -227,7 +228,7 @@ static KS_FUNC(setitem) {
     ks_obj obj;
     int n_extra;
     ks_obj* extra = NULL;
-    if (!ks_getargs(n_args, args, "obj *args", &obj, &n_extra, &extra)) return NULL;
+    KS_GETARGS("obj *args", &obj, &n_extra, &extra)
 
     if (obj->type->__setitem__ != NULL) {
         // it has a getitem
@@ -242,7 +243,7 @@ static KS_FUNC(setitem) {
 // chr(ord) - convert ordinal to (single character) string
 static KS_FUNC(chr) {
     int64_t ord;
-    if (!ks_getargs(n_args, args, "ord:i64", &ord)) return NULL;
+    KS_GETARGS("ord:i64", &ord)
 
     ks_unich to_unich = ord;
     if (to_unich != ord) {
@@ -255,7 +256,7 @@ static KS_FUNC(chr) {
 // ord(chr) - convert ordinal to (single character) string
 static KS_FUNC(ord) {
     ks_str chr;
-    if (!ks_getargs(n_args, args, "chr:*", &chr, ks_T_str)) return NULL;
+    KS_GETARGS("chr:*", &chr, ks_T_str)
     ks_unich r = ks_str_ord(chr);
 
 
@@ -270,8 +271,7 @@ static KS_FUNC(ord) {
 #define T_KS_FUNC_BOP(_name, _str, _fname, _spec)             \
 static KS_FUNC(_name) {                                       \
     ks_obj L, R;                                              \
-    if (!ks_getargs(n_args, args, "L R", &L, &R))             \
-        { return NULL; }                                      \
+    KS_GETARGS("L R", &L, &R)                                 \
     { _spec; }                                                \
     if (L->type->_fname != NULL) {                            \
         ks_obj ret = NULL;                                    \
@@ -315,8 +315,7 @@ T_KS_FUNC_BOP(ne, "!=", __ne__, { if (L == R && (L->type->flags & KS_TYPE_FLAGS_
 #define T_KS_FUNC_UOP(_name, _str, _fname)                  \
 static KS_FUNC(_name) {                                     \
     ks_obj V;                                               \
-    if (!ks_getargs(n_args, args, "V", &V))                 \
-        { return NULL; }                                    \
+    KS_GETARGS("V", &V)                                     \
     if (V->type->_fname != NULL)                            \
         return ks_obj_call(V->type->_fname, 1, &V);         \
     KS_THROW_UOP_ERR(_str, V); return NULL;                 \
@@ -335,7 +334,7 @@ T_KS_FUNC_UOP(sqig, "~", __sqig__)
 // exec_file(fname) - run and execute the given file
 static KS_FUNC(exec_file) {
     ks_str fname;
-    if (!ks_getargs(n_args, args, "fname:*", &fname, ks_T_str)) return NULL;
+    KS_GETARGS("fname:*", &fname, ks_T_str)
 
     // 1. Read the entire file
     ks_str src_code = ks_readfile(fname->chr, "r");
@@ -389,7 +388,7 @@ static KS_FUNC(exec_file) {
 // exec_expr(expr) - run and execute the given expression
 static KS_FUNC(exec_expr) {
     ks_str expr;
-    if (!ks_getargs(n_args, args, "expr:*", &expr, ks_T_str)) return NULL;
+    KS_GETARGS("expr:*", &expr, ks_T_str)
 
     // get a source name for it
     ks_str src_name = ks_fmt_c("-e %R", expr);

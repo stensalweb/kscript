@@ -1,0 +1,39 @@
+{
+    "name": "kscript",
+    "displayName": "kscript",
+    "description": "kscript Language Support",
+    "version": "0.1.2",
+    "repository": "https://github.com/ChemicalDevelopment/kscript",
+    "publisher": "chemdev",
+    "engines": {
+        "vscode": "^1.5.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Language Packs"
+    ],
+    "icon": "logo.png",
+    "contributes": {
+        "languages": [
+            {
+                "id": "kscript",
+                "aliases": [
+                    "kscript",
+                    "kscript file"
+                ],
+                "extensions": [
+                    ".ks",
+                    ".kscript"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "kscript",
+                "scopeName": "source.kscript",
+                "path": "./syntaxes/kscript.tmLanguage.json"
+            }
+        ]
+    }
+}

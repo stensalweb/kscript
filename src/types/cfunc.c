@@ -45,7 +45,7 @@ ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig) {
 // cfunc.__free__(self) -> free obj
 static KS_TFUNC(cfunc, free) {
     ks_cfunc self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_cfunc)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_cfunc)
 
     KS_DECREF(self->name_hr);
     KS_DECREF(self->sig_hr);

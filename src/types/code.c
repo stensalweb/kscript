@@ -161,7 +161,7 @@ void ksca_store_attr_c(ks_code self, char* name) {
 // code.__str__(self) -> generate a string for the bytecode
 static KS_TFUNC(code, str) {
     ks_code self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_code)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_code)
 
 
     
@@ -367,7 +367,7 @@ static KS_TFUNC(code, str) {
 // code.__free__(self) -> free a bytecode object
 static KS_TFUNC(code, free) {
     ks_code self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_code)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_code)
 
     // free member variables
     KS_DECREF(self->v_const);

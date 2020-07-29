@@ -378,14 +378,16 @@ bool ks_str_citer_seek(struct ks_str_citer* cit, ks_ssize_t idx) {
 
         return true;
     } else {
-        // TODO: use `cit->self->offs` to quickly seek and amortize the cost associated with seeking
-
         // offset index and remainder
-        ks_ssize_t offi = idx / KS_STR_OFF_EVERY;
-        ks_ssize_t offe = idx % KS_STR_OFF_EVERY;
+
 
         // the naive distance to travel (in characters)
         ks_ssize_t naive_dist = idx - cit->cchi;
+
+        #if KS_STR_OFF_EVERY
+
+        ks_ssize_t offi = idx / KS_STR_OFF_EVERY;
+        ks_ssize_t offe = idx % KS_STR_OFF_EVERY;
 
         if (!cit->self->offs || (naive_dist > 0 && naive_dist < offe)) {
             // it's more efficient to just probe from the current position, so do nothing
@@ -396,6 +398,7 @@ bool ks_str_citer_seek(struct ks_str_citer* cit, ks_ssize_t idx) {
             cit->cbyi = cit->self->offs[offi];
 
         }
+        #endif /* KS_STR_OFF_EVERY */
 
         // we need to seek forward
         while (cit->cchi < idx) {
@@ -476,9 +479,12 @@ ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b) {
         // now, calculate characters via reading the UTF-8
         self->len_c = ks_text_utf8_len_c(self->chr, self->len_b);
 
+
+        // calculate byte offsets of every-so-often characters, if enabled
+        #if KS_STR_OFF_EVERY
         if (self->len_b != self->len_c) {
             // non-ascii data
-
+            
             // calculate offsets
             int n_offs = self->len_c / KS_STR_OFF_EVERY + 1;
             self->offs = ks_malloc(n_offs * sizeof(*self->offs));
@@ -511,6 +517,7 @@ ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b) {
             self->offs = NULL;
         
         }
+        #endif /* KS_STR_OFF_EVERY */
 
         return self;
     }
@@ -525,8 +532,8 @@ ks_str ks_str_new_c(const char* cstr, ssize_t len) {
 // compare strings, comparing memory
 int ks_str_cmp(ks_str A, ks_str B) {
     /**/ if (A == B) return 0;
-    else if (A->len_b != B->len_b) return A->len_b - B->len_b;
-    else return memcmp(A->chr, B->chr, A->len_b);
+    //else if (A->len_c != B->len_c) return A->len_c - B->len_c;
+    else return memcmp(A->chr, B->chr, A->len_b > B->len_b ? B->len_b : A->len_b);
 }
 
 // get whether two strings equal each other
@@ -626,7 +633,7 @@ ks_str ks_str_substr(ks_str self, ks_ssize_t start, ks_ssize_t len_c) {
 // str.__free__(self) - free obj
 static KS_TFUNC(str, free) {
     ks_str self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_str)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_str)
 
     if (self >= &KS_STR_CHARS[0] && self <= &KS_STR_CHARS[KS_STR_CHAR_MAX]) {
         // global singleton
@@ -644,7 +651,7 @@ static KS_TFUNC(str, free) {
 // str.__repr__(self) - get repr
 static KS_TFUNC(str, repr) {
     ks_str self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_str)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_str)
 
     ks_str esc_self = ks_str_escape(self);
     ks_str ret = ks_fmt_c("'%S'", esc_self);
@@ -655,7 +662,7 @@ static KS_TFUNC(str, repr) {
 // str.__len__(self, mode='chars') - get string length
 static KS_TFUNC(str, len) {
     ks_str self, mode = NULL;
-    if (!ks_getargs(n_args, args, "self:* ?mode:*", &self, ks_T_str, &mode, ks_T_str)) return NULL;
+    KS_GETARGS("self:* ?mode:*", &self, ks_T_str, &mode, ks_T_str)
 
     if (!mode || ks_str_eq_c(mode, "c", 1) || ks_str_eq_c(mode, "chars", 5)) {
         // length in characters (default)
@@ -673,7 +680,7 @@ static KS_TFUNC(str, len) {
 static KS_TFUNC(str, getitem) {
     ks_str self;
     ks_obj idx;
-    if (!ks_getargs(n_args, args, "self:* idx", &self, ks_T_str, &idx)) return NULL;
+    KS_GETARGS("self:* idx", &self, ks_T_str, &idx)
 
     if (ks_num_is_integral(idx)) {
         int64_t idx64;
@@ -691,7 +698,7 @@ static KS_TFUNC(str, getitem) {
 
 static KS_TFUNC(str, lt) {
     ks_obj L, R;
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;
+    KS_GETARGS("L R", &L, &R)
 
     if (L->type == ks_T_str && R->type == ks_T_str) {
         return (ks_obj)KSO_BOOL(ks_str_cmp((ks_str)L, (ks_str)R) < 0);
@@ -702,7 +709,7 @@ static KS_TFUNC(str, lt) {
 
 static KS_TFUNC(str, gt) {
     ks_obj L, R;
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;
+    KS_GETARGS("L R", &L, &R)
 
     if (L->type == ks_T_str && R->type == ks_T_str) {
         return (ks_obj)KSO_BOOL(ks_str_cmp((ks_str)L, (ks_str)R) > 0);
@@ -713,7 +720,7 @@ static KS_TFUNC(str, gt) {
 
 static KS_TFUNC(str, le) {
     ks_obj L, R;
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;
+    KS_GETARGS("L R", &L, &R)
 
     if (L->type == ks_T_str && R->type == ks_T_str) {
         return (ks_obj)KSO_BOOL(ks_str_cmp((ks_str)L, (ks_str)R) <= 0);
@@ -724,7 +731,7 @@ static KS_TFUNC(str, le) {
 
 static KS_TFUNC(str, ge) {
     ks_obj L, R;
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;
+    KS_GETARGS("L R", &L, &R)
 
     if (L->type == ks_T_str && R->type == ks_T_str) {
         return (ks_obj)KSO_BOOL(ks_str_cmp((ks_str)L, (ks_str)R) >= 0);
@@ -735,7 +742,7 @@ static KS_TFUNC(str, ge) {
 
 static KS_TFUNC(str, eq) {
     ks_obj L, R;
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;
+    KS_GETARGS("L R", &L, &R)
 
     if (L->type == ks_T_str && R->type == ks_T_str) {
         return (ks_obj)KSO_BOOL(ks_str_eq((ks_str)L, (ks_str)R));
@@ -747,13 +754,27 @@ static KS_TFUNC(str, eq) {
 
 static KS_TFUNC(str, ne) {
     ks_obj L, R;
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;
+    KS_GETARGS("L R", &L, &R)
 
     if (L->type == ks_T_str && R->type == ks_T_str) {
         return (ks_obj)KSO_BOOL(!ks_str_eq((ks_str)L, (ks_str)R));
     }
 
     KS_THROW_BOP_ERR("!=", L, R);
+}
+
+static KS_TFUNC(str, cmp) {
+    ks_obj L, R;
+    KS_GETARGS("L R", &L, &R)
+
+    if (L->type == ks_T_str && R->type == ks_T_str) {
+        int sc = ks_str_cmp((ks_str)L, (ks_str)R);
+        sc = sc > 0 ? 1 : sc;
+        sc = sc < 0 ? -1 : sc;
+        return (ks_obj)ks_int_new(sc);
+    }
+
+    KS_THROW_BOP_ERR("<=>", L, R);
 }
 
 /* string-specific functions */
@@ -763,7 +784,7 @@ static KS_TFUNC(str, ne) {
 static KS_TFUNC(str, substr) {
     ks_str self;
     int64_t start, len;
-    if (!ks_getargs(n_args, args, "self:* start:i64 ?len:i64", &self, ks_T_str, &start, &len)) return NULL;
+    KS_GETARGS("self:* start:i64 ?len:i64", &self, ks_T_str, &start, &len)
 
     // default
     if (n_args < 3) len = self->len_c;
@@ -786,7 +807,7 @@ static KS_TFUNC(str, substr) {
 // str.unidata(self, key='all') - get unicode data (only works on lenghts of string 1)
 static KS_TFUNC(str, unidata) {
     ks_str self, key = NULL;
-    if (!ks_getargs(n_args, args, "self:* ?key:*", &self, ks_T_str, &key, ks_T_str)) return NULL;
+    KS_GETARGS("self:* ?key:*", &self, ks_T_str, &key, ks_T_str)
     if (self->len_c != 1) return ks_throw(ks_T_ArgError, "unidata() only takes strings of length 1 (len was %z)", self->len_c);
 
     // get information
@@ -816,7 +837,6 @@ static KS_TFUNC(str, unidata) {
 
 /* iterator type */
 
-
 // ks_str_iter - type describing a string iterator
 typedef struct {
     KS_OBJ_BASE
@@ -832,7 +852,7 @@ KS_TYPE_DECLFWD(ks_T_str_iter);
 // str_iter.__free__(self) - free obj
 static KS_TFUNC(str_iter, free) {
     ks_str_iter self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_str_iter)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_str_iter)
 
     // remove reference to string
     KS_DECREF(self->cit.self);
@@ -846,7 +866,7 @@ static KS_TFUNC(str_iter, free) {
 // str_iter.__next__(self) - return next character
 static KS_TFUNC(str_iter, next) {
     ks_str_iter self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_str_iter)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_str_iter)
     
     // check if the iterator is done
     if (self->cit.done) return ks_throw(ks_T_OutOfIterError, "");
@@ -863,7 +883,7 @@ static KS_TFUNC(str_iter, next) {
 // str.__iter__(self) - return iterator
 static KS_TFUNC(str, iter) {
     ks_str self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_str)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_str)
 
     ks_str_iter ret = KS_ALLOC_OBJ(ks_str_iter);
     KS_INIT_OBJ(ret, ks_T_str_iter);
@@ -904,12 +924,13 @@ void ks_init_T_str() {
         {"__len__",                (ks_obj)ks_cfunc_new_c(str_len_, "str.__len__(self, mode='chars')")},
         {"__getitem__",            (ks_obj)ks_cfunc_new_c(str_getitem_, "str.__getitem__(self, idx)")},
 
-        {"__lt__",                 (ks_obj)ks_cfunc_new_c(str_lt_, "str.__lt__(self)")},
-        {"__gt__",                 (ks_obj)ks_cfunc_new_c(str_gt_, "str.__gt__(self)")},
-        {"__le__",                 (ks_obj)ks_cfunc_new_c(str_le_, "str.__le__(self)")},
-        {"__ge__",                 (ks_obj)ks_cfunc_new_c(str_ge_, "str.__ge__(self)")},
-        {"__eq__",                 (ks_obj)ks_cfunc_new_c(str_eq_, "str.__eq__(self)")},
-        {"__ne__",                 (ks_obj)ks_cfunc_new_c(str_ne_, "str.__ne__(self)")},
+        {"__cmp__",                (ks_obj)ks_cfunc_new_c(str_cmp_, "str.__cmp__(L, R)")},
+        {"__lt__",                 (ks_obj)ks_cfunc_new_c(str_lt_, "str.__lt__(L, R)")},
+        {"__gt__",                 (ks_obj)ks_cfunc_new_c(str_gt_, "str.__gt__(L, R)")},
+        {"__le__",                 (ks_obj)ks_cfunc_new_c(str_le_, "str.__le__(L, R)")},
+        {"__ge__",                 (ks_obj)ks_cfunc_new_c(str_ge_, "str.__ge__(L, R)")},
+        {"__eq__",                 (ks_obj)ks_cfunc_new_c(str_eq_, "str.__eq__(L, R)")},
+        {"__ne__",                 (ks_obj)ks_cfunc_new_c(str_ne_, "str.__ne__(L, R)")},
 
         {"substr",                 (ks_obj)ks_cfunc_new_c(str_substr_, "str.substr(self, start, len=none)")},
 

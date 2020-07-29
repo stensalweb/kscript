@@ -11,14 +11,13 @@ x = {
     "last": "Brown",
 }
 
-
 assert x['first'] == 'Cade'
 assert len(x) == 2
 
 assert x.keys()[0] == 'first'
 assert x['last'] < x['first']
 
-assert sort(x.keys()) == x.keys()
-assert sort(x.vals()) != x.vals()
-assert x.keys() != x.vals()
+#assert sort(x.keys()) == x.keys()
+#assert sort(x.vals()) != x.vals()
+#assert x.keys() != x.vals()
 

@@ -74,7 +74,7 @@ void ks_kfunc_addpar(ks_kfunc self, ks_str name, ks_obj defa) {
 // kfunc.__free__(self) -> free a kfunc
 static KS_TFUNC(kfunc, free) {
     ks_kfunc self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_kfunc)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_kfunc)
 
     int i;
     for (i = 0; i < self->n_param; ++i) {

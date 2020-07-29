@@ -25,7 +25,7 @@ ks_Error ks_Error_new(ks_type errtype, ks_str what) {
 // Error.__str__(self) -> to string
 static KS_TFUNC(Error, str) {
     ks_Error self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_Error)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_Error)
 
     return KS_NEWREF(self->what);
 }
@@ -33,7 +33,7 @@ static KS_TFUNC(Error, str) {
 // Error.__free__(self) -> free object
 static KS_TFUNC(Error, free) {
     ks_Error self = NULL;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_Error)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_Error)
 
     KS_DECREF(self->attr);
 

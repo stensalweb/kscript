@@ -106,6 +106,10 @@ extern "C" {
 #define KS_REFS_INF 0x10FFFFFFFFULL
 
 
+
+// Special macro to get arguments for internal functions
+#define KS_GETARGS(...) { if (!ks_getargs(n_args, args, __VA_ARGS__)) return NULL; }
+
 /* C typedefs */
 
 // define size types
@@ -279,11 +283,6 @@ struct ks_type_s {
 
 
 
-// number of characters per entry in the 'offs' array; the main purpose here is
-//   to amortize some costly operators (such as getting the index of the 'i'th codepoint),
-//   see more in `types/str.c`
-#define KS_STR_OFF_EVERY   256
-
 struct ks_str_s {
     KS_OBJ_BASE
 
@@ -297,22 +296,48 @@ struct ks_str_s {
     // NOTE: For ASCII-data, len_c==len_b
     ks_size_t len_c;
 
+    // number of characters per entry in the 'offs' array; the main purpose here is
+    //   to amortize some costly operators (such as getting the index of the 'i'th codepoint),
+    //   see more in `types/str.c`
+    // IF ENABLED:
+    //   * Every string takes up `sizeof(ks_size_t*)` more bytes
+    //   * Strings which are not ASCII (i.e. most unicode strings) will take up an additional `sizeof(ks_size_t) * (len_c / KS_STR_OFF_EVERY)` bytes
+    //   * String indexing (worst case) is O(1), doing at maximum `4 * KS_STR_OFF_EVERY` byte reads (4 comes from max length of character encoded in UTF8)
+    //       to seek to a given position
+    // IF DISABLED:
+    //   * ASCII strings (i.e. most common) still have the same optimizations, and will save `sizeof(ks_size_t*)` per string
+    //   * String indexing (worst case) is O(N), which means, technically, doing a really naive loop like `for i in range(len(st)) { x =  }
+    // NOTE: define to '0' to disable this feature and accept suboptimal searching on large strings which use any
+    //   unicode
+    #ifndef KS_STR_OFF_EVERY
+    #define KS_STR_OFF_EVERY   64
+    //#define KS_STR_OFF_EVERY    0
+    #endif /* KS_STR_OFF_EVERY */
+
+    #if KS_STR_OFF_EVERY
+
     // array of character offsets into the 'chr' array
     // NOTE: will be 'NULL' if len_b==len_c; in that case, the 'i'th offset is just 'i'
     // Otherwise, it holds `len_c/KS_STR_OFF_EVERY` values, where `offs[i]` is the byte-offset into `chr` of the `i * KS_STR_OFF_EVERY`'th character
     //   in unicode
+    // This is mainly used to amortize the cost of string indexing. Without a set of offsets
     ks_size_t* offs;
+
+    #endif /* KS_STR_OFF_EVERY */
 
     // the actual array of characters. In memory, ks_str's are allocated so that taking `->chr` just gives the address of
     // the start of the NUL-terminated part of the string. The [SZ] is to make sure that sizeof(ks_str) will allow
-    // for enough room for 5 bytes (this is useful for the internal constants for single-length strings),
+    // for enough room for 2 bytes (this is useful for the internal constants for single-length strings),
     // and so new strings can be created with: `malloc(sizeof(*ks_str) + len_b)`
+    // Every 'character' is a code point from the Universal Character Set (UCS), but we do not use UTF32 or anything; everything
+    //   is utf8 internally
     char chr[2];
 
 };
 
-
 // Get whether a string is ascii-only data. This is true if the length of the UTF8-data is the same as bytes (i.e. every character is a single byte)
+// If this condition is true, characters can be indexed on a byte-by-byte basis. This means a lot of operations can be a lot faster (indexing, slicing,
+//   searching AND returning the index at which it is found)
 #define KS_STR_ISASCII(_str) ((_str)->len_b == (_str)->len_c)
 
 
@@ -1694,10 +1719,62 @@ KS_API ks_obj ks_ithrow(const char* file, const char* func, int line, ks_type er
 #define KS_THROW_TYPE_ERR(_obj, _totype) { ks_throw(ks_T_TypeError, "'%T' object could not be converted to %S", _obj, _totype); return NULL; }
 
 // throw an item key error
-#define KS_THROW_KEY_ERR(_obj, _key) { ks_throw(ks_T_KeyError, "'%T' object did not contain the key %S", _obj, _key); return NULL; }
+#define KS_THROW_KEY_ERR(_obj, _key) { ks_throw(ks_T_KeyError, "'%T' object did not contain the key '%S'", _obj, _key); return NULL; }
+
+// throw an item index error
+#define KS_THROW_INDEX_ERR(_obj, _key) { ks_throw(ks_T_KeyError, "'%T' object given invalid index: '%S'", _obj, _key); return NULL; }
+
 
 // throw an item attribute error
 #define KS_THROW_ATTR_ERR(_obj, _key) { ks_throw(ks_T_AttrError, "'%T' object did not contain the attribute '%S'", _obj, _key); return NULL; }
+
+
+// struct ks_citer - C iterable structure, used for iterating over iterables in C
+// See source in `citer.c`
+// 
+// Usage:
+// struct ks_citer cit = ks_citer_make(my_obj);
+// ks_obj ob = NULL;
+// while (ob = ks_citer_next(&cit)) {
+//   { // do stuff with ob ... }
+//   // destroy reference from iterator
+//   KS_DECREF(ob);
+// }
+// // handle error thrown 
+// if (cit.threw) return NULL;
+// // clean it up
+// ks_citer_done(&cit);
+// 
+struct ks_citer {
+    // the original object created with
+    ks_obj obj;
+
+    // the iterable object over which we will be iterating
+    // NOTE: may be == obj, if `obj.__next__` exists
+    ks_obj iter_obj;
+
+    // variable telling whether the iterator is done processing values
+    bool done;
+
+    // whether or not the C-iterator has thrown an error that you need to return from
+    bool threwErr;
+
+};
+
+
+// Create a new C iterator for object
+// NOTE: Make sure to use `ks_citer_done(&result)` after you are done with the object
+KS_API struct ks_citer ks_citer_make(ks_obj obj);
+
+// Do the next C-iterator
+// NOTE: NULL just indicates end-of-iterator, not neccessarily an error
+KS_API ks_obj ks_citer_next(struct ks_citer* cit);
+
+// Declare we are done with the C iterator; free all resources and turn `cit` INVALID for further use
+KS_API void ks_citer_done(struct ks_citer* cit);
+
+
+
 
 
 // If there was an uncaught object on `th->exc`, print out the stack trace and quit
@@ -2227,7 +2304,7 @@ KS_API ks_slice ks_slice_new(ks_obj start, ks_obj stop, ks_obj step);
 
 // Calculate C-iteration values
 // To be used like so:
-// if (!ks_slice_getci(slice, array_len, &first, &last, &delta)) return NULL;
+// if (!ks_slice_getci(slice, array_len, &first, &last, &delta)
 // for (i = first; i != last; i += delta) { ... do operation ... }
 // To calculate the number of indexes, you can use `(last - first) / delta`. `delta` is guaranteed to be non-zero
 // NOTE: Returns success, and if false, an error is thrown

@@ -11,7 +11,7 @@
 // ast.__free__(self) - free obj
 static KS_TFUNC(ast, free) {
     ks_ast self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_ast)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_ast)
 
 
     KS_DECREF(self->children);

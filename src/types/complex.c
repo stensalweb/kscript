@@ -20,7 +20,7 @@ ks_complex ks_complex_new(double complex val) {
 // complex.__str__(self) - to string
 static KS_TFUNC(complex, str) {
     ks_complex self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_complex)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_complex)
 
 
     char cstr[260];
@@ -65,7 +65,7 @@ static KS_TFUNC(complex, str) {
 // complex.__free__(self) - free object
 static KS_TFUNC(complex, free) {
     ks_complex self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_complex)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_complex)
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);

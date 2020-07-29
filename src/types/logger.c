@@ -67,7 +67,7 @@ ks_logger ks_logger_get(const char* logname, bool createIfNeeded) {
 // logger.__new__(name) -> get a logger by a given name (creates if it doesn't eixst)
 static KS_TFUNC(logger, new) {
     ks_str name;
-    if (!ks_getargs(n_args, args, "name:*", &name, ks_T_str)) return NULL;
+    KS_GETARGS("name:*", &name, ks_T_str)
 
     return (ks_obj)ks_logger_get(name->chr, true);
 }
@@ -75,7 +75,7 @@ static KS_TFUNC(logger, new) {
 // logger.__free__(self) -> free resources held by a logger
 static KS_TFUNC(logger, free) {
     ks_logger self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_logger)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_logger)
 
     KS_DECREF(self->name);
 

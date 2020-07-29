@@ -213,7 +213,6 @@ ks_obj ks_dict_get_h(ks_dict self, ks_obj key, ks_hash_t hash) {
     ks_size_t bi0 = bi, tries = 0;
 
     do {
-
         // get the entry index (ei), which is an index into self->entries
         int ei = self->buckets[bi];
 
@@ -428,7 +427,7 @@ bool ks_dict_has_c(ks_dict self, char* key) {
 // dict.__free__(self) -> free obj
 static KS_TFUNC(dict, free) {
     ks_dict self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_dict)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_dict)
 
 
     ks_size_t i;
@@ -451,10 +450,10 @@ static KS_TFUNC(dict, free) {
 
 
 
-// dict.__str__(self) -> convert to string
+// dict.__str__(self) - convert to string
 static KS_TFUNC(dict, str) {
     ks_dict self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_dict)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_dict)
 
     // build up a string
     ks_str_builder sb = ks_str_builder_new();
@@ -482,11 +481,26 @@ static KS_TFUNC(dict, str) {
 }
 
 
+// dict.__len__(self) - get length
+static KS_TFUNC(dict, len) {
+    ks_dict self;
+    KS_GETARGS("self:*", &self, ks_T_dict)
+ 
+    // count non-null entries
+    ks_ssize_t i, ct = 0;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].key != NULL) ct++;
+    }
+
+    return (ks_obj)ks_int_new(ct);
+}
+
+
 // dict.__getitem__(self, key) -> get an entry
 static KS_TFUNC(dict, getitem) {
     ks_dict self;
     ks_obj key;
-    if (!ks_getargs(n_args, args, "self:* key", &self, ks_T_dict, &key));
+    KS_GETARGS("self:* key", &self, ks_T_dict, &key)
 
     ks_obj ret = ks_dict_get(self, key);
     if (!ret) {
@@ -500,7 +514,8 @@ static KS_TFUNC(dict, getitem) {
 static KS_TFUNC(dict, setitem) {
     ks_dict self;
     ks_obj key, val;
-    if (!ks_getargs(n_args, args, "self:* key val", &self, ks_T_dict, &key, &val));
+    KS_GETARGS("self:* key val", &self, ks_T_dict, &key, &val)
+
     if (!ks_dict_set(self, key, val)) {
         // shouldn't happen
         KS_THROW_KEY_ERR(self, key);
@@ -509,6 +524,39 @@ static KS_TFUNC(dict, setitem) {
     }
 }
 
+// dict.keys(self) - return list of keys
+static KS_TFUNC(dict, keys) {
+    ks_dict self;
+    KS_GETARGS("self:*", &self, ks_T_dict)
+
+    ks_list ret = ks_list_new(0, NULL);
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].key != NULL) {
+            ks_list_push(ret, self->entries[i].key);
+        }
+    }
+
+    return (ks_obj)ret;
+}
+
+// dict.vals(self) -> return a list of vals
+static KS_TFUNC(dict, vals) {
+    ks_dict self;
+    KS_GETARGS("self:*", &self, ks_T_dict)
+
+    ks_list ret = ks_list_new(0, NULL);
+
+    int i;
+    for (i = 0; i < self->n_entries; ++i) {
+        if (self->entries[i].key != NULL) {
+            ks_list_push(ret, self->entries[i].val);
+        }
+    }
+
+    return (ks_obj)ret;
+}
 
 
 /* export */
@@ -520,8 +568,14 @@ void ks_init_T_dict() {
         {"__free__",               (ks_obj)ks_cfunc_new_c(dict_free_, "dict.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__str__(self)")},
 
+        {"__len__",                (ks_obj)ks_cfunc_new_c(dict_len_, "dict.__len__(self)")},
+
         {"__getitem__",            (ks_obj)ks_cfunc_new_c(dict_getitem_, "dict.__getitem__(self, key)")},
         {"__setitem__",            (ks_obj)ks_cfunc_new_c(dict_setitem_, "dict.__setitem__(self, key, val)")},
+
+        {"keys",                   (ks_obj)ks_cfunc_new_c(dict_keys_, "dict.keys(self)")},
+        {"vals",                   (ks_obj)ks_cfunc_new_c(dict_vals_, "dict.vals(self)")},
+
 
     ));
 

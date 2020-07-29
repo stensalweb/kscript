@@ -15,7 +15,7 @@ ks_bool KS_TRUE = &KS_TRUE_s, KS_FALSE = &KS_FALSE_s;
 // bool.__free__(self) -> free object
 static KS_TFUNC(bool, free) {
     ks_bool self = NULL;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_bool)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_bool)
 
     // reset references
     self->refcnt = KS_REFS_INF;

@@ -71,14 +71,14 @@ void ks_init_funcs();
 
 #define _KST_BOPF(_type, _name) static KS_TFUNC(_type, _name) {  \
     ks_obj L, R;                                                 \
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;   \
+    KS_GETARGS("L R", &L, &R)                                    \
     return ks_num_##_name(L, R);                                 \
 }
 
 
 #define _KST_UOPF(_type, _name) static KS_TFUNC(_type, _name) {  \
     ks_obj V;                                                    \
-    if (!ks_getargs(n_args, args, "V", &V)) return NULL;         \
+    KS_GETARGS("V", &V)                                          \
     return ks_num_##_name(V);                                    \
 }
 
@@ -95,9 +95,9 @@ _KST_BOPF(_type, binand) \
 _KST_BOPF(_type, binxor) \
 static KS_TFUNC(_type, cmp) { \
     ks_obj L, R;                                                 \
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;   \
+    KS_GETARGS("L R", &L, &R)   \
     int res; \
-    if (!ks_num_cmp(args[0], args[1], &res)) return NULL; \
+    if (!ks_num_cmp(args[0], args[1], &res)) return NULL;        \
     return (ks_obj)ks_int_new(res); \
 } \
 _KST_BOPF(_type, lt) \
@@ -106,22 +106,22 @@ _KST_BOPF(_type, le) \
 _KST_BOPF(_type, ge) \
 static KS_TFUNC(_type, eq) { \
     ks_obj L, R;                                                 \
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;   \
-    bool res; \
-    if (!ks_num_eq(L, R, &res)) return NULL; \
+    KS_GETARGS("L R", &L, &R)                                    \
+    bool res;                                                    \
+    if (!ks_num_eq(L, R, &res)) return NULL;                     \
     return KSO_BOOL(res); \
 } \
 static KS_TFUNC(_type, ne) { \
     ks_obj L, R;                                                 \
-    if (!ks_getargs(n_args, args, "L R", &L, &R)) return NULL;   \
+    KS_GETARGS("L R", &L, &R)   \
     bool res; \
-    if (!ks_num_eq(L, R, &res)) return NULL; \
+    if (!ks_num_eq(L, R, &res)) return NULL;                    \
     return KSO_BOOL(!res); \
 } \
 /**/ \
 static KS_TFUNC(_type, pos) { \
     ks_obj V;                                              \
-    if (!ks_getargs(n_args, args, "V", &V)) return NULL;   \
+    KS_GETARGS("V", &V)   \
     return KS_NEWREF(V); \
 } \
 _KST_UOPF(_type, neg) \

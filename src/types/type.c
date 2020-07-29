@@ -294,7 +294,7 @@ bool ks_type_issub(ks_type self, ks_type of) {
 // type.__free__(self) - free obj
 static KS_TFUNC(type, free) {
     ks_type self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_type)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_type)
 
     KS_DECREF(self->attr);
 
@@ -310,7 +310,7 @@ static KS_TFUNC(type, free) {
 static KS_TFUNC(type, getattr) {
     ks_type self;
     ks_str attr;
-    if (!ks_getargs(n_args, args, "self:* attr:*", &self, ks_T_type, &attr, ks_T_str)) return NULL;
+    KS_GETARGS("self:* attr:*", &self, ks_T_type, &attr, ks_T_str)
 
  
     ks_obj ret = ks_type_get(self, attr);
@@ -325,7 +325,7 @@ static KS_TFUNC(type, getattr) {
 // type.__str__(self) - turn to string
 static KS_TFUNC(type, str) {
     ks_type self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_type)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_type)
 
     return KS_NEWREF(self->__name__);
 }

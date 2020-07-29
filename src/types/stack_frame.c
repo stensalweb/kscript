@@ -34,7 +34,7 @@ ks_stack_frame ks_stack_frame_new(ks_obj func) {
 // stack_frame.__str__(self) - convert to a string
 static KS_TFUNC(stack_frame, str) {
     ks_stack_frame self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_stack_frame)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_stack_frame)
 
     if (self->func->type == ks_T_code) {
         // attempt to search for it
@@ -94,7 +94,7 @@ static KS_TFUNC(stack_frame, str) {
 // stack_frame.__free__(self) - free obj
 static KS_TFUNC(stack_frame, free) {
     ks_stack_frame self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_stack_frame)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_stack_frame)
 
     KS_DECREF(self->func);
 

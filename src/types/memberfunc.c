@@ -24,7 +24,7 @@ ks_memberfunc ks_memberfunc_new(ks_obj func, ks_obj member_inst) {
 // memberfunc.__free__(self) -> free obj
 static KS_TFUNC(memberfunc, free) {
     ks_memberfunc self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_memberfunc)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_memberfunc)
 
     KS_DECREF(self->func);
     KS_DECREF(self->member_inst);

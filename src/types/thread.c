@@ -49,7 +49,7 @@ ks_thread ks_thread_get() {
 // thread.__free__(self) -> free object
 static KS_TFUNC(thread, free) {
     ks_thread self = NULL;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_thread)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_thread)
 
 
     KS_DECREF(self->name);

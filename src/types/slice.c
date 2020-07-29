@@ -92,7 +92,7 @@ bool ks_slice_getci(ks_slice self, int64_t len, int64_t* first, int64_t* last, i
 // slice.__free__(self) - free object
 static KS_TFUNC(slice, free) {
     ks_slice self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_slice)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_slice)
 
     KS_DECREF(self->start);
     KS_DECREF(self->stop);

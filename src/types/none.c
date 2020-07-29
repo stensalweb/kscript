@@ -15,7 +15,7 @@ ks_none KS_NONE = &KS_NONE_s;
 // none.__free__(self) -> free object
 static KS_TFUNC(none, free) {
     ks_none self = NULL;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_none)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_none)
 
     // reset references
     self->refcnt = KS_REFS_INF;

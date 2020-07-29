@@ -1,0 +1,7 @@
+
+*.vsix
+
+*.log*
+
+
+!.vscode

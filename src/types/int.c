@@ -300,7 +300,7 @@ static KS_TFUNC(int, new) {
     ks_type typ;
     ks_obj obj;
     int64_t base = 10;
-    if (!ks_getargs(n_args, args, "typ:* obj ?base:i64", &typ, ks_T_type, &obj, &base)) return NULL;
+    KS_GETARGS("typ:* obj ?base:i64", &typ, ks_T_type, &obj, &base)
     if (!ks_type_issub(typ, ks_T_int)) ks_throw(ks_T_InternalError, "Constructor for type '%S' called given typ as '%S' (not a sub-type!)", ks_T_int, typ);
 
     if (n_args >= 3) {
@@ -334,7 +334,7 @@ static KS_TFUNC(int, new) {
 // int.__str__(self) - to string
 static KS_TFUNC(int, str) {
     ks_int self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_int)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_int)
 
 
     int base = 10;
@@ -388,7 +388,7 @@ static KS_TFUNC(int, str) {
 // int.__free__(self) - free string
 static KS_TFUNC(int, free) {
     ks_int self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_int)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_int)
 
     // check for global singletons
     if (self >= &KS_SMALL_INTS[0] && self <= &KS_SMALL_INTS[2 * KS_SMALL_INT_MAX + 1]) {
@@ -412,7 +412,7 @@ static KS_TFUNC(int, free) {
 // int.toRoman(self) - convert to a roman numeral string
 static KS_TFUNC(int, toRoman) {
     ks_int self;
-    if (!ks_getargs(n_args, args, "self:*", &self, ks_T_int)) return NULL;
+    KS_GETARGS("self:*", &self, ks_T_int)
 
 
     // structure of roman numerals (in reverse order!)
@@ -478,7 +478,7 @@ static KS_TFUNC(int, toRoman) {
                 }
 
                 int n_iter = mpz_get_si(tmp);
-                _ROM_ADD(romans[0], tmp);
+                _ROM_ADD(romans[0], n_iter);
             } else {
                 // handle lower ones
 
@@ -519,10 +519,10 @@ static KS_TFUNC(int, toRoman) {
                     crom++;
                 }
 
-                if (!didBreak && val >= romans[N_ROM - 1].val) {
+                if (!didBreak &&  mpz_cmp_ui(val, romans[N_ROM - 1].val) >= 0) {
                     // handle smallest case
                     int thres = romans[N_ROM - 2].val - romans[N_ROM - 1].val;
-                    if (val < thres) {
+                    if (mpz_cmp_ui(val, thres) < 0) {
                         int n_iter = mpz_get_ui(val);
                         _ROM_ADD(romans[N_ROM - 1], n_iter);
                         mpz_set_ui(val, 0);
@@ -635,7 +635,7 @@ static int roman_dig(int romchar) {
 // int.fromRoman(roman_str) - convert from a roman numeral string
 static KS_TFUNC(int, fromRoman) {
     ks_str roman_str;
-    if (!ks_getargs(n_args, args, "roman_str:*", &roman_str, ks_T_str)) return NULL;
+    KS_GETARGS("roman_str:*", &roman_str, ks_T_str)
 
     // structure of roman numerals (in reverse order!)
     static const struct _roman_s {
