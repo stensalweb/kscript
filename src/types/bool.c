@@ -11,7 +11,6 @@ ks_bool KS_TRUE = &KS_TRUE_s, KS_FALSE = &KS_FALSE_s;
 
 
 
-
 // bool.__free__(self) -> free object
 static KS_TFUNC(bool, free) {
     ks_bool self = NULL;
@@ -22,6 +21,8 @@ static KS_TFUNC(bool, free) {
 
     return KSO_NONE;
 }
+
+KST_NUM_OPFS(tbool)
 
 
 /* export */
@@ -37,6 +38,8 @@ void ks_init_T_bool() {
 
     ks_type_init_c(ks_T_bool, "bool", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(bool_free_, "bool.__free__(self)")},
+
+        KST_NUM_OPKVS(tbool)
     ));
 
     ks_T_bool->flags |= KS_TYPE_FLAGS_EQSS;

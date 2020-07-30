@@ -3,12 +3,13 @@
 # Differentiation function
 func Δ(f) {
     eps = 0.00001
-    func df(x) {
+    func Δf(x) {
         ret (f(x + eps) - f(x)) / eps
     }
 
-    ret df
+    ret Δf
 }
+
 
 # Exponentiation function
 # x^2

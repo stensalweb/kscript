@@ -666,7 +666,37 @@ typedef struct {
 
 }* ks_Error;
 
+/* Modules/Importing */
 
+
+// ks_module - type representing a module
+typedef struct {
+    KS_OBJ_BASE
+
+    // atributes of the module
+    ks_dict attr;
+
+}* ks_module;
+
+
+// internal structure used by the library to hold initialization
+//   info
+struct ks_module_cinit {
+
+    // function that, when called, should return the module
+    ks_module (*load_func)();
+
+};
+
+
+
+// Create a new module with a given name
+// NOTE: Returns a new reference, or NULL if an error was thrown
+KS_API ks_module ks_module_new(const char* mname);
+
+// Attempt to import a module with a given name
+// NOTE: Returns a new reference, or NULL if an error was thrown
+KS_API ks_module ks_module_import(const char* mname);
 
 
 /* Logging */
@@ -1453,10 +1483,16 @@ typedef struct {
 ks_stack_frame ks_stack_frame_new(ks_obj func);
 
 
-
-
 // main thread
 extern ks_thread ks_thread_main;
+
+
+// list of paths (i.e. directories) to search when importing modules, files, etc
+// See `init.c` for how this is constructed, but essentially:
+//   * Common places (`/usr/local/kscript` on UNIX-like OSes, sometimes `~/.local/kscript`)
+//   * Any paths specified in the environment variable `KS_PATH`; these are `:` delimited, so
+//       `KS_PATH=/usr/local/kscript:~/mykscriptdir ./my_file.ks` will add the given paths to search
+extern ks_list ks_paths;
 
 
 /* Type Objects */
@@ -1510,6 +1546,8 @@ extern ks_type
     
     ks_T_MathError,
     ks_T_AssertError,
+
+    ks_T_module,
 
     ks_T_thread,
     ks_T_stack_frame
@@ -2489,10 +2527,22 @@ extern ks_cfunc
     ks_F_iter,
     ks_F_next,
 
+    ks_F_truthy,
+
     ks_F_repr,
     ks_F_hash,
     ks_F_len,
     ks_F_typeof,
+
+    ks_F_import,
+
+    ks_F_any,
+    ks_F_all,
+
+    ks_F_sort,
+    ks_F_map,
+    ks_F_sum,
+    ks_F_filter,
 
     ks_F_chr,
     ks_F_ord,

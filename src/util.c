@@ -347,7 +347,6 @@ ks_obj ks_catch(ks_list* frames) {
 }
 // ignore any errors thrown
 void ks_catch_ignore() {
-
     ks_thread th = ks_thread_get();
 
     if (th->exc) {
@@ -364,7 +363,6 @@ void ks_catch_ignore() {
 
 // Throw an object, return NULL (use ks_throw macro)
 ks_obj ks_ithrow(const char* file, const char* func, int line, ks_type errtype, const char* fmt, ...) {
-
     va_list ap;
     va_start(ap, fmt);
     ks_str what = ks_fmt_vc(fmt, ap);

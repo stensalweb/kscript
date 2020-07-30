@@ -540,20 +540,14 @@ ks_str ks_tok_expstr(ks_parser parser, ks_tok tok) {
         // the start of the line
         char* sl = src + lsi;
 
-        //printf("LINE: %.*s\n", ll, src + lsi);
-        /*ks_str_b_add_fmt(&SB, "\n%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
-            ll, sl,
-            tok.col, ' ',
-            tok.len - 1, '~',
-            tok.line + 1, tok.col + 1,
-            tok.parser->src_name
-        );*/
+        // bytes before
+        int nbbefore = (int)(tok.pos - (int)(sl - src));
 
         // now, add additional metadata about the error, including in-source markup
         ks_str_builder_add_fmt(sb, "\n%*s" COL_RED COL_BOLD "%*s" COL_RESET "%*s\n%*c" COL_RED "^%*c" COL_RESET "\n@ Line %i, Col %i, in '%S'",
-            tok.col, sl,
-            tok.len, sl + tok.col,
-            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            nbbefore, sl,
+            tok.len, src + tok.pos,
+            ll - nbbefore - tok.len, src + tok.pos + tok.len,
             tok.col, ' ',
             tok.len - 1, '~',
             tok.line + 1, tok.col + 1,
@@ -610,21 +604,14 @@ ks_str ks_tok_expstr_2(ks_parser parser, ks_tok tok) {
         // the start of the line
         char* sl = src + lsi;
 
-        //printf("LINE: %.*s\n", ll, src + lsi);
-        /*ks_str_b_add_fmt(&SB, "\n%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
-            ll, sl,
-            tok.col, ' ',
-            tok.len - 1, '~',
-            tok.line + 1, tok.col + 1,
-            tok.parser->src_name
-        );*/
-
+        // bytes before
+        int nbbefore = (int)(tok.pos - (int)(sl - src));
 
         // now, add additional metadata about the error, including in-source markup
         ks_str_builder_add_fmt(sb, "\n%.*s" COL_RED COL_BOLD "%.*s" COL_RESET "%.*s\n%*c" COL_RED "^%*c" COL_RESET,
-            tok.col, sl,
-            tok.len, sl + tok.col,
-            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            nbbefore, sl,
+            tok.len, src + tok.pos,
+            ll - nbbefore - tok.len, src + tok.pos + tok.len,
             tok.col, ' ',
             tok.len - 1, '~'
         );

@@ -131,6 +131,7 @@ bool ks_getargs(int n_args, ks_obj* args, const char* fmt, ...) {
                 int64_t res = 0;
                 if (!ks_num_get_int64(cargin, &res)) {
                     // could not convert!
+                    ks_catch_ignore();
                     ks_throw(ks_T_ArgError, "Argument '%s' could not be converted to a 64 bit int!", argname);
                     goto getargs_end;
                 }

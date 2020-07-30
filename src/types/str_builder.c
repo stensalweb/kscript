@@ -158,7 +158,7 @@ bool ks_str_builder_add_repr(ks_str_builder self, ks_obj obj) {
     } else if (obj == KSO_TRUE) {
         ks_str_builder_add(self, "true", 4);
         return true;
-    } else if (obj == KSO_TRUE) {
+    } else if (obj == KSO_FALSE) {
         ks_str_builder_add(self, "false", 5);
         return true;
     } else if (obj->type == ks_T_str) {

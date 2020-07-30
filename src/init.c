@@ -5,6 +5,10 @@
 
 #include "ks-impl.h"
 
+// include the `whereami` function to tell where the binary is located
+#include "whereami.h"
+
+
 // whether or not kscript has been initialized
 static bool hasInit = false;
 
@@ -27,7 +31,11 @@ const ks_version_t* ks_version() {
     return &this_version;
 }
 
-// globals
+
+// list of paths to search through when importing
+ks_list ks_paths = NULL;
+
+// global variables
 ks_dict ks_globals = NULL;
 
 // initialize library
@@ -57,7 +65,6 @@ bool ks_init(int verbose) {
 
     ks_init_T_str_builder();
 
-
     ks_init_T_list();
     ks_init_T_tuple();
     ks_init_T_slice();
@@ -71,9 +78,101 @@ bool ks_init(int verbose) {
     ks_init_T_stack_frame();
     ks_init_T_kfunc();
 
-
     // initialize others
     ks_init_funcs();
+
+
+    // initialize paths
+    ks_paths = ks_list_new(0, NULL);
+
+    // Literal paths; just search through these as written (even though they may be
+    //   relative in nature, they are just string literals)
+    const char* path_lits[] = {
+        ".",
+        NULL,
+    };
+
+    // iterator through paths
+    const char** this_path = &path_lits[0];
+
+    // add literals
+    while (*this_path) {
+        ks_str tmp_path = ks_str_new(*this_path);
+        ks_list_push(ks_paths, (ks_obj)tmp_path);
+        KS_DECREF(tmp_path);
+
+        this_path++;
+    }
+
+
+    // Paths from `$KS_PATH`
+
+    // get the environment variable (if it exists),
+    //   add those paths
+    char* env_ksp = getenv("KS_PATH");
+    if (env_ksp != NULL) {
+        // make a copy of the `KS_PATH` variable,
+        //   since strtok() is destructive
+        int slen = strlen(env_ksp);
+        char* dup_ksp = ks_malloc(slen + 1);
+        strncpy(dup_ksp, env_ksp, slen);
+
+        // iterate through tokens seperated by ':',
+        //   the seperator
+        char* tok = strtok(dup_ksp, ":");
+
+        while (tok != NULL) {
+            // add to paths variable
+            ks_str tmp_path = ks_str_new(tok);
+            ks_list_push(ks_paths, (ks_obj)tmp_path);
+            KS_DECREF(tmp_path);
+
+            // grab next token
+            tok = strtok(NULL, ":");
+        }
+
+        // free temporary, mutated version
+        ks_free(dup_ksp);
+    }
+
+
+    // find out the full path of 'argv[0]'
+    int length = wai_getExecutablePath(NULL, 0, NULL);
+    char* full_path = ks_malloc(length + 1);
+    int dir_length = 0;
+    wai_getExecutablePath(full_path, length, &dir_length);
+    full_path[dir_length] = '\0';
+
+
+    ks_debug("ks", "wai_getExecutablePath: %s", full_path);
+
+    // relative paths 
+    const char* path_rels[] = {
+        "/../lib/ksm",
+        NULL,
+    };
+
+    // buffer for resolving paths
+    char* tmpbuf = NULL;
+
+
+    // loop through relative paths
+    this_path = &path_rels[0];
+    while (*this_path) {
+        int sl = strlen(*this_path);
+        tmpbuf = ks_realloc(tmpbuf, sl + length + 4);
+        snprintf(tmpbuf, sl + length + 4, "%s%s", full_path, *this_path);
+
+        // TODO: replace ../ and symbolic links?
+        ks_str tmp_path = ks_str_new(tmpbuf);
+        ks_list_push(ks_paths, (ks_obj)tmp_path);
+        KS_DECREF(tmp_path);
+
+
+        this_path++;
+    }
+
+    ks_free(tmpbuf);
 
 
     // set up globals
@@ -111,11 +210,21 @@ bool ks_init(int verbose) {
 
         {"typeof",                 KS_NEWREF(ks_F_typeof)},
 
+        {"truthy",                 KS_NEWREF(ks_F_truthy)},
         {"repr",                   KS_NEWREF(ks_F_repr)},
         {"len",                    KS_NEWREF(ks_F_len)},
 
         {"chr",                    KS_NEWREF(ks_F_chr)},
         {"ord",                    KS_NEWREF(ks_F_ord)},
+
+        {"sum",                    KS_NEWREF(ks_F_sum)},
+        {"map",                    KS_NEWREF(ks_F_map)},
+        {"filter",                 KS_NEWREF(ks_F_filter)},
+
+
+        /* Misc. Variables */
+
+        {"__path__",               KS_NEWREF(ks_paths)},
 
     ));
 

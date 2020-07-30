@@ -16,10 +16,22 @@ ks_cfunc
     ks_F_iter = NULL,
     ks_F_next = NULL,
 
+    ks_F_truthy = NULL,
+
     ks_F_repr = NULL,
     ks_F_hash = NULL,
     ks_F_len = NULL,
     ks_F_typeof = NULL,
+
+    ks_F_import = NULL,
+
+    ks_F_any = NULL,
+    ks_F_all = NULL,
+
+    ks_F_sort = NULL,
+    ks_F_map = NULL,
+    ks_F_sum = NULL,
+    ks_F_filter = NULL,
 
     ks_F_chr = NULL,
     ks_F_ord = NULL,
@@ -154,6 +166,21 @@ static KS_FUNC(typeof) {
 }
 
 
+// truthy(obj) - calculate a boolean from an object
+static KS_FUNC(truthy) {
+    ks_obj obj;
+    KS_GETARGS("obj", &obj)
+
+    // check for error
+    int tru = ks_obj_truthy(obj);
+    if (tru < 0) return NULL;
+
+    // return object
+    return KSO_BOOL(tru);
+
+}
+
+
 /* Get/Set Attr/Item */
 
 // getattr(obj, key) -> set attribute
@@ -259,9 +286,158 @@ static KS_FUNC(ord) {
     KS_GETARGS("chr:*", &chr, ks_T_str)
     ks_unich r = ks_str_ord(chr);
 
-
     return r >= 0 ? (ks_obj)ks_int_new(r) : NULL;
 }
+
+
+/* Misc. */
+
+// __import__(name) - import a given module name
+static KS_FUNC(import) {
+    ks_str name;
+    KS_GETARGS("name:*", &name, ks_T_str);
+
+    return (ks_obj)ks_module_import(name->chr);
+}
+
+
+/* Iterables */
+
+
+// sum(objs, initial=none) - compute the sum of objs
+static KS_FUNC(sum) {
+    ks_obj objs, initial = KSO_NONE; 
+    KS_GETARGS("obj ?initial", &objs, &initial);
+
+    // result, if `none` was given, use the first element of the iterator
+    // (or 0)
+    ks_obj res = initial == KSO_NONE ? NULL : KS_NEWREF(initial);
+
+    // iterate through the entire iterable
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob = NULL;
+    while (ob = ks_citer_next(&cit)) {
+        if (!res) {
+            // if !res, that implies that `initial==none` and this is
+            //   the first run; so just use the first as the initial
+            //   value
+            res = ob;
+        } else {
+            // essentially, lfold reduce on the `+` operator
+            ks_obj new_res = ks_F_add->func(2, (ks_obj[]){ res, ob });
+            if (!new_res) cit.threwErr = true;
+
+            // swap out variables
+            KS_DECREF(res);
+            KS_DECREF(ob);
+            res = new_res;
+        }
+    }
+
+    ks_citer_done(&cit);
+
+    // if there was an error, exit out
+    if (cit.threwErr) {
+        if (res) KS_DECREF(res);
+        return NULL;
+    }
+
+    // otherwise, return the result
+    return res ? res : (ks_obj)ks_int_new(0);
+}
+
+
+// map(func, objs) - apply `func` to `objs`
+// TODO: should this be an async object, similar to python, or always produce a list?
+static KS_FUNC(map) {
+    ks_obj func, objs;
+    KS_GETARGS("func objs", &func, &objs);
+
+    // create result list
+    ks_list res = ks_list_new(0, NULL);
+
+    // iterate through the entire iterable
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob = NULL;
+    while (ob = ks_citer_next(&cit)) {
+        // apply the function to this object
+        ks_obj new_ob = ks_obj_call(func, 1, &ob);
+        KS_DECREF(ob);
+        // handle an error
+        if (!new_ob) {
+            cit.threwErr = true;
+            break;
+        }
+
+        // add it to the result
+        ks_list_push(res, new_ob);
+        KS_DECREF(new_ob);
+    }
+
+    ks_citer_done(&cit);
+
+    // if there was an error, exit out
+    if (cit.threwErr) {
+        KS_DECREF(res);
+        return NULL;
+    }
+
+    // otherwise, return the result
+    return (ks_obj)res;
+}
+
+
+// filter(func, objs) - filter `objs` based on `func`, i.e. if `func(obj)` is truthy,
+//   add `obj` to the output
+// TODO: should this be an async object, similar to python, or always produce a list?
+static KS_FUNC(filter) {
+    ks_obj func, objs;
+    KS_GETARGS("func objs", &func, &objs);
+
+    // create result list
+    ks_list res = ks_list_new(0, NULL);
+
+    // iterate through the entire iterable
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob = NULL;
+    while (ob = ks_citer_next(&cit)) {
+        // apply the function to this object
+        ks_obj new_ob = ks_obj_call(func, 1, &ob);
+        // handle an error
+        if (!new_ob) {
+            cit.threwErr = true;
+            KS_DECREF(ob);
+            break;
+        }
+
+        // determine truthiness
+        int tru = ks_obj_truthy(new_ob);
+        KS_DECREF(new_ob);
+
+        // error in determining truthiness
+        if (tru < 0) {
+            cit.threwErr = true;
+            KS_DECREF(ob);
+            break;
+        }
+
+        // add original object
+        if (tru) ks_list_push(res, ob);
+        KS_DECREF(ob);
+    }
+
+    ks_citer_done(&cit);
+
+    // if there was an error, exit out
+    if (cit.threwErr) {
+        KS_DECREF(res);
+        return NULL;
+    }
+
+    // otherwise, return the result
+    return (ks_obj)res;
+}
+
 
 
 /* Operators */
@@ -444,12 +620,18 @@ void ks_init_funcs() {
     ks_F_iter = ks_cfunc_new_c(iter_, "iter(obj)");
     ks_F_next = ks_cfunc_new_c(next_, "next(obj)");
 
+    ks_F_truthy = ks_cfunc_new_c(truthy_, "truthy(obj)");
+
     ks_F_typeof = ks_cfunc_new_c(typeof_, "typeof(obj)");
     ks_F_len = ks_cfunc_new_c(len_, "len(obj)");
     ks_F_repr = ks_cfunc_new_c(repr_, "repr(obj)");
 
     ks_F_chr = ks_cfunc_new_c(chr_, "chr(ord)");
     ks_F_ord = ks_cfunc_new_c(ord_, "ord(chr)");
+
+    ks_F_sum = ks_cfunc_new_c(sum_, "sum(objs, initial=none)");
+    ks_F_map = ks_cfunc_new_c(map_, "map(func, objs)");
+    ks_F_filter = ks_cfunc_new_c(filter_, "filter(func, objs)");
 
     ks_F_getattr = ks_cfunc_new_c(getattr_, "getattr(obj, key)");
     ks_F_setattr = ks_cfunc_new_c(setattr_, "setattr(obj, key, val)");
