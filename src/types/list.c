@@ -24,9 +24,7 @@ ks_list ks_list_new(ks_size_t len, ks_obj* elems) {
         KS_INCREF(elems[i]);
     }
 
-
     return self;
-
 }
 
 // Clear a list out, removing any references
@@ -46,6 +44,30 @@ void ks_list_clear(ks_list self) {
 }
 
 
+// Empty out `objs` (which must be iterable!), and add everything to `self`
+// NOTE: Returns success, or false and throws an error
+bool ks_list_pushall(ks_list self, ks_obj objs) {
+    if (objs->type == ks_T_list) {
+        ks_list_pushn(self, ((ks_list)objs)->len, ((ks_list)objs)->elems);
+        return true;
+    } else if (objs->type == ks_T_tuple) {
+        ks_list_pushn(self, ((ks_tuple)objs)->len, ((ks_tuple)objs)->elems);
+        return true;
+    }
+
+    struct ks_citer cit = ks_citer_make((ks_obj)self);
+    ks_obj ob;
+    while (ob = ks_citer_next(&cit)) {
+        ks_list_push(self, ob);
+        KS_DECREF(ob);
+    }
+
+    ks_citer_done(&cit);
+
+    // return success
+    return !cit.threwErr;
+}
+
 // Pushes 'obj' on to the end of the list
 void ks_list_push(ks_list self, ks_obj obj) {
     int idx = self->len++;
@@ -60,6 +82,27 @@ void ks_list_push(ks_list self, ks_obj obj) {
 
 // Push 'objs' on to the end of the list
 void ks_list_pushn(ks_list self, int n, ks_obj* objs) {
+
+    /* naive
+    ks_ssize_t i;
+    for (i = 0; i < n; ++i) {
+        ks_list_push(self, objs[i]);
+    } */
+
+    // push up to a new start
+    ks_size_t new_start = self->len;
+    self->len += n;
+
+    // ensure enough space is given
+    self->elems = ks_realloc(self->elems, sizeof(*self->elems) * self->len);
+
+    ks_size_t i;
+    for (i = 0; i < n; ++i) {
+        KS_INCREF(objs[i]);
+        self->elems[new_start + i] = objs[i];
+    }
+
+    /*
     // starting index
     int idx = self->len;
     self->len += n;
@@ -68,10 +111,10 @@ void ks_list_pushn(ks_list self, int n, ks_obj* objs) {
 
     ks_size_t i;
     // add new elements
-    for (i = idx; i < self->len; ++i) {
-        self->elems[i] = objs[i - idx];
-        KS_INCREF(self->elems[i]);
-    }
+    for (i = 0; i < n; ++i) {
+        self->elems[i + idx] = objs[i];
+        KS_INCREF(objs[i]);
+    }*/
 
 }
 
@@ -135,6 +178,40 @@ bool ks_list_popun(ks_list self, int n) {
     return true;
 }
 
+// list.__new__(typ, objs) - create new list
+static KS_TFUNC(list, new) {
+    ks_type typ;
+    ks_obj objs;
+    KS_GETARGS("typ:* objs", &typ, ks_T_type, &objs)
+
+    // handle short cases
+    if (objs->type == ks_T_tuple) {
+        return (ks_obj)ks_list_new(((ks_tuple)objs)->len, ((ks_tuple)objs)->elems);
+    } else if (objs->type == ks_T_list) {
+        return (ks_obj)ks_list_new(((ks_list)objs)->len, ((ks_list)objs)->elems);
+    }
+
+    // create new list and populate it
+    ks_list ret = ks_list_new(0, NULL);
+
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob;
+    while (ob = ks_citer_next(&cit)) {
+        ks_list_push(ret, ob);
+        KS_DECREF(ob);
+    }
+
+    ks_citer_done(&cit);
+
+    // check error status
+    if (cit.threwErr) {
+        KS_DECREF(ret);
+        return NULL;
+    } else {
+        return (ks_obj)ret;
+    }
+
+}
 
 
 // list.__free__(self) - free object
@@ -166,7 +243,6 @@ static KS_TFUNC(list, len) {
     return (ks_obj)ks_int_new(self->len);
 }
 
-
 // list.__str__(self) - to string
 static KS_TFUNC(list, str) {
     ks_list self;
@@ -192,8 +268,6 @@ static KS_TFUNC(list, str) {
     return (ks_obj)ret;
 }
 
-
-
 // list.push(self, obj) - push an object
 static KS_TFUNC(list, push) {
     ks_list self;
@@ -214,7 +288,6 @@ static KS_TFUNC(list, pop) {
 
     return ks_list_pop(self);
 }
-
 
 // list.__getitem__(self, idx) - get the item in a list
 static KS_TFUNC(list, getitem) {
@@ -258,8 +331,6 @@ static KS_TFUNC(list, getitem) {
         return ks_throw(ks_T_TypeError, "Expected 'idx' to be an integer, or a slice, but got '%T'", idx);
     }
 }
-
-
 
 // list.__setitem__(self, idx, val) - set items in list
 static KS_TFUNC(list, setitem) {
@@ -353,6 +424,150 @@ static KS_TFUNC(list, setitem) {
     }
 }
 
+// list.__eq__(L, R) - check if all elements are equal
+static KS_TFUNC(list, eq) {
+    ks_obj L, R;
+    KS_GETARGS("L R", &L, &R);
+
+    if (L->type == ks_T_list && R->type == ks_T_list) {
+        
+        ks_list lL = (ks_list)L, lR = (ks_list)R;
+        if (lL->len != lR->len) return KSO_FALSE;
+
+        int i;
+        for (i = 0; i < lL->len; ++i) {
+            ks_obj lreq = ks_F_eq->func(2, (ks_obj[]){ lL->elems[i], lR->elems[i] });
+            if (!lreq) return NULL;
+            int truthy = ks_obj_truthy(lreq);
+            KS_DECREF(lreq);
+            if (truthy < 0) return NULL;
+            if (!truthy) return KSO_FALSE;
+
+        }
+
+        // all were equal
+        return KSO_TRUE;
+
+    }
+
+    KS_THROW_BOP_ERR("==", L, R);
+}
+
+
+// list.__ne__(L, R) - check if any elements differ
+static KS_TFUNC(list, ne) {
+    ks_obj L, R;
+    KS_GETARGS("L R", &L, &R);
+
+    if (L->type == ks_T_list && R->type == ks_T_list) {
+        
+        ks_list lL = (ks_list)L, lR = (ks_list)R;
+        if (lL->len != lR->len) return KSO_TRUE;
+
+        int i;
+        for (i = 0; i < lL->len; ++i) {
+            ks_obj lreq = ks_F_eq->func(2, (ks_obj[]){ lL->elems[i], lR->elems[i] });
+            if (!lreq) return NULL;
+            int truthy = ks_obj_truthy(lreq);
+            KS_DECREF(lreq);
+            if (truthy < 0) return NULL;
+            if (!truthy) return KSO_TRUE;
+
+        }
+
+        // all were equal
+        return KSO_FALSE;
+
+    }
+
+    KS_THROW_BOP_ERR("==", L, R);
+}
+
+// list.__add__(L, R)
+static KS_TFUNC(list, add) {
+    ks_obj L, R;
+    KS_GETARGS("L R", &L, &R);
+
+    if (ks_obj_is_iterable(L) && ks_obj_is_iterable(R)) {
+
+        // result list
+        ks_list res = ks_list_new(0, NULL);
+
+        // try adding them
+        if (!ks_list_pushall(res, L)) {
+            KS_DECREF(res);
+            return NULL;
+        }
+        if (!ks_list_pushall(res, R)) {
+            KS_DECREF(res);
+            return NULL;
+        }
+
+        return (ks_obj)res;
+
+    }
+
+    KS_THROW_BOP_ERR("+", L, R);
+}
+
+// list.__mul__(L, R)
+static KS_TFUNC(list, mul) {
+    ks_obj L, R;
+    KS_GETARGS("L R", &L, &R);
+
+
+    if (ks_obj_is_iterable(L) && ks_num_is_integral(R)) {
+        
+        // get how many times
+        int64_t times;
+        if (!ks_num_get_int64(R, &times)) {
+            return NULL;
+        }
+
+        // result list
+        ks_list res = ks_list_new(0, NULL);
+
+
+        // now, add copies
+        ks_size_t i;
+        for (i = 0; i < times; ++i) {
+            // try adding them
+            if (!ks_list_pushall(res, L)) {
+                KS_DECREF(res);
+                return NULL;
+            }
+        }
+
+        return (ks_obj)res;
+
+    } else if (ks_num_is_integral(L) && ks_num_is_numeric(R)) {
+        
+        // get how many times
+        int64_t times;
+        if (!ks_num_get_int64(L, &times)) {
+            return NULL;
+        }
+
+        // result list
+        ks_list res = ks_list_new(0, NULL);
+
+
+        // now, add copies
+        ks_size_t i;
+        for (i = 0; i < times; ++i) {
+            // try adding them
+            if (!ks_list_pushall(res, R)) {
+                KS_DECREF(res);
+                return NULL;
+            }
+        }
+
+        return (ks_obj)res;
+    }
+
+    KS_THROW_BOP_ERR("*", L, R);
+}
+
 
 
 /* iterator type */
@@ -426,6 +641,7 @@ KS_TYPE_DECLFWD(ks_T_list);
 
 void ks_init_T_list() {
     ks_type_init_c(ks_T_list, "list", ks_T_obj, KS_KEYVALS(
+        {"__new__",               (ks_obj)ks_cfunc_new_c(list_new_, "list.__new__(typ, objs)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(list_free_, "list.__free__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(list_len_, "list.__len__(self)")},
         
@@ -436,6 +652,12 @@ void ks_init_T_list() {
 
         {"__getitem__",            (ks_obj)ks_cfunc_new_c(list_getitem_, "list.__getitem__(self, idx)")},
         {"__setitem__",            (ks_obj)ks_cfunc_new_c(list_setitem_, "list.__setitem__(self, idx, val)")},
+
+        {"__add__",                (ks_obj)ks_cfunc_new_c(list_add_, "list.__add__(L, R)")},
+        {"__mul__",                (ks_obj)ks_cfunc_new_c(list_mul_, "list.__mul__(L, R)")},
+
+        {"__eq__",                 (ks_obj)ks_cfunc_new_c(list_eq_, "list.__eq__(L, R)")},
+        {"__ne__",                 (ks_obj)ks_cfunc_new_c(list_ne_, "list.__ne__(L, R)")},
 
         {"push",                   (ks_obj)ks_cfunc_new_c(list_push_, "list.push(self, obj)")},
         {"pop",                    (ks_obj)ks_cfunc_new_c(list_pop_, "list.pop(self)")},

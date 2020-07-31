@@ -28,8 +28,6 @@ extern "C" {
 #include <dlfcn.h>
 
 
-
-
 /* type initialization functions */
 
 void ks_init_T_obj();
@@ -83,7 +81,7 @@ void ks_init_funcs();
     return ks_num_##_name(V);                                    \
 }
 
-// generate opfuncs
+// generate opfuncs for numerical types
 #define KST_NUM_OPFS(_type) \
 _KST_BOPF(_type, add) \
 _KST_BOPF(_type, sub) \
@@ -126,10 +124,11 @@ static KS_TFUNC(_type, pos) { \
     return KS_NEWREF(V); \
 } \
 _KST_UOPF(_type, neg) \
+_KST_UOPF(_type, abs) \
 
 
 
-// key-values
+// key-values for numerical operator functions
 #define KST_NUM_OPKVS(_type) \
     {"__add__",          (ks_obj)ks_cfunc_new_c(_type##_add##_, #_type ".__add__(L, R)")}, \
     {"__sub__",          (ks_obj)ks_cfunc_new_c(_type##_sub##_, #_type ".__sub__(L, R)")}, \
@@ -149,6 +148,7 @@ _KST_UOPF(_type, neg) \
     {"__ne__",          (ks_obj)ks_cfunc_new_c(_type##_ne##_, #_type ".__ne__(L, R)")}, \
     {"__pos__",          (ks_obj)ks_cfunc_new_c(_type##_pos##_, #_type ".__pos__(V)")}, \
     {"__neg__",          (ks_obj)ks_cfunc_new_c(_type##_neg##_, #_type ".__neg__(V)")}, \
+    {"__abs__",          (ks_obj)ks_cfunc_new_c(_type##_abs##_, #_type ".__abs__(V)")}, \
 
 
 #ifdef __cplusplus

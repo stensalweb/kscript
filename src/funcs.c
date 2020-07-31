@@ -58,6 +58,7 @@ ks_cfunc
 
     ks_F_pos = NULL,
     ks_F_neg = NULL,
+    ks_F_abs = NULL,
     ks_F_sqig = NULL,
 
     ks_F_exec_file = NULL,
@@ -439,6 +440,69 @@ static KS_FUNC(filter) {
 }
 
 
+// any(objs) - compute whether any of objs are true
+static KS_FUNC(any) {
+    ks_obj objs;
+    KS_GETARGS("obj", &objs);
+
+    bool hadAny = false;
+
+    // iterate through the entire iterable
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob = NULL;
+    while (ob = ks_citer_next(&cit)) {
+        // convert to truthiness
+        int tru = ks_obj_truthy(ob);
+        KS_DECREF(ob);
+
+        if (tru < 0) {
+            // there was an error
+            cit.threwErr = true;
+            break;
+        } else if (tru) {
+            // there was a truthy value
+            hadAny = true;
+            break;
+        }
+    }
+
+    ks_citer_done(&cit);
+    return cit.threwErr ? NULL : KSO_BOOL(hadAny);
+}
+
+
+
+// all(objs) - compute whether all of objs are true
+static KS_FUNC(all) {
+    ks_obj objs;
+    KS_GETARGS("obj", &objs);
+
+    bool hadAll = true;
+
+    // iterate through the entire iterable
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob = NULL;
+    while (ob = ks_citer_next(&cit)) {
+        int tru = ks_obj_truthy(ob);
+        KS_DECREF(ob);
+        if (tru < 0) {
+            // there was an error
+            cit.threwErr = true;
+            break;
+        } else if (!tru) {
+            // had one non-truthy
+            cit.done = true;
+            hadAll = false;
+            break;
+        }
+    }
+
+    ks_citer_done(&cit);
+    return cit.threwErr ? NULL : KSO_BOOL(hadAll);
+}
+
+
+
 
 /* Operators */
 
@@ -502,6 +566,16 @@ T_KS_FUNC_UOP(pos, "+", __pos__)
 T_KS_FUNC_UOP(neg, "-", __neg__)
 T_KS_FUNC_UOP(sqig, "~", __sqig__)
 
+// abs(V) - return absolute value of an object
+static KS_FUNC(abs) {
+    ks_obj V;
+    KS_GETARGS("V", &V)
+
+    if (V->type->__abs__ != NULL) return ks_obj_call(V->type->__abs__, 1, &V); 
+
+    KS_THROW_METH_ERR(V, "__abs__");
+
+}
 
 
 
@@ -629,6 +703,10 @@ void ks_init_funcs() {
     ks_F_chr = ks_cfunc_new_c(chr_, "chr(ord)");
     ks_F_ord = ks_cfunc_new_c(ord_, "ord(chr)");
 
+    ks_F_any = ks_cfunc_new_c(any_, "any(objs)");
+    ks_F_all = ks_cfunc_new_c(all_, "all(objs)");
+
+
     ks_F_sum = ks_cfunc_new_c(sum_, "sum(objs, initial=none)");
     ks_F_map = ks_cfunc_new_c(map_, "map(func, objs)");
     ks_F_filter = ks_cfunc_new_c(filter_, "filter(func, objs)");
@@ -660,6 +738,7 @@ void ks_init_funcs() {
 
     ks_F_pos = ks_cfunc_new_c(pos_, "__pos__(V)");
     ks_F_neg = ks_cfunc_new_c(neg_, "__neg__(V)");
+    ks_F_abs = ks_cfunc_new_c(abs_, "abs(V)");
     ks_F_sqig = ks_cfunc_new_c(sqig_, "__sqig__(V)");
 
     ks_F_exec_file = ks_cfunc_new_c(exec_file_, "exec_file(fname)");

@@ -264,10 +264,14 @@ struct ks_type_s {
     ks_obj __call__;
 
 
+
+
+
     // ops
 
-    // +, -, ~ operators (unary)
-    ks_obj __pos__, __neg__, __sqig__;
+
+    // +, -, abs, ~ operators (unary)
+    ks_obj __pos__, __neg__, __abs__, __sqig__;
 
     // +, -, *, /, %, ** operators
     ks_obj __add__, __sub__, __mul__, __div__, __mod__, __pow__;
@@ -2007,6 +2011,12 @@ KS_API ks_list ks_list_new(ks_size_t len, ks_obj* elems);
 // Clear a list out, removing any references
 KS_API void ks_list_clear(ks_list self);
 
+
+// Empty out `objs` (which must be iterable!), and add everything to `self`
+// NOTE: Returns success, or false and throws an error
+KS_API bool ks_list_pushall(ks_list self, ks_obj objs);
+
+
 // Pushes 'obj' on to the end of the list
 KS_API void ks_list_push(ks_list self, ks_obj obj);
 
@@ -2475,6 +2485,8 @@ KS_API ks_obj ks_num_pow(ks_obj L, ks_obj R);
 // Compute -L
 KS_API ks_obj ks_num_neg(ks_obj L);
 
+// Compute abs(L)
+KS_API ks_obj ks_num_abs(ks_obj L);
 
 // Compute L<R
 KS_API ks_obj ks_num_lt(ks_obj L, ks_obj R);
@@ -2569,6 +2581,7 @@ extern ks_cfunc
 
     ks_F_pos,
     ks_F_neg,
+    ks_F_abs,
     ks_F_sqig,
 
     ks_F_exec_file,

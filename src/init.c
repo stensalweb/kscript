@@ -213,9 +213,13 @@ bool ks_init(int verbose) {
         {"truthy",                 KS_NEWREF(ks_F_truthy)},
         {"repr",                   KS_NEWREF(ks_F_repr)},
         {"len",                    KS_NEWREF(ks_F_len)},
+        {"abs",                    KS_NEWREF(ks_F_abs)},
 
         {"chr",                    KS_NEWREF(ks_F_chr)},
         {"ord",                    KS_NEWREF(ks_F_ord)},
+
+        {"any",                    KS_NEWREF(ks_F_any)},
+        {"all",                    KS_NEWREF(ks_F_all)},
 
         {"sum",                    KS_NEWREF(ks_F_sum)},
         {"map",                    KS_NEWREF(ks_F_map)},

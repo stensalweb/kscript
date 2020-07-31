@@ -871,7 +871,6 @@ ks_obj ks_num_pow(ks_obj L, ks_obj R) {
 }
 
 
-
 // compute -L
 ks_obj ks_num_neg(ks_obj L) {
     if (L->type == ks_T_complex) {
@@ -908,6 +907,52 @@ ks_obj ks_num_neg(ks_obj L) {
 
     // default: undefined
     KS_THROW_UOP_ERR("-", L);
+}
+
+
+
+// compute abs(L)
+ks_obj ks_num_abs(ks_obj L) {
+    if (L->type == ks_T_complex) {
+        return (ks_obj)ks_float_new(cabs(((ks_complex)L)->val));
+    } else if (L->type == ks_T_float) {
+        return (ks_obj)ks_float_new(fabs(((ks_float)L)->val));
+    } else if (ks_num_is_integral(L)) {
+
+        // see if it can fit in a 64 bit integer
+        int64_t Lv;
+        bool Lf = ks_num_get_int64(L, &Lv);
+        if (Lf) {
+            return Lv >= 0 ? KS_NEWREF(L) : (ks_obj)ks_int_new(-Lv);
+        }
+
+        // otherwise, declare mpz and set it, then take abs
+        mpz_t Lz;
+        mpz_init(Lz);
+
+        if (
+            !ks_num_get_mpz(L, Lz)
+        ) {
+            // problem converting
+            mpz_clear(Lz);
+            return NULL;
+        }
+
+        // check for positive integer
+        if (mpz_cmp_ui(Lz, 0) >= 0) {
+            mpz_clear(Lz);
+            return KS_NEWREF(Lz);
+        }
+
+        // otherwise, we need to negate it
+        mpz_neg(Lz, Lz);
+        return (ks_obj)ks_int_new_mpz_n(Lz);
+    } else if (L->type->__abs__ != NULL) {
+        return (ks_obj)ks_obj_call(L->type->__abs__, 1, &L);
+    }
+
+    // default: undefined
+    KS_THROW_METH_ERR(L, "__abs__");
 }
 
 

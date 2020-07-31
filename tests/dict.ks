@@ -19,5 +19,5 @@ assert x['last'] < x['first']
 
 #assert sort(x.keys()) == x.keys()
 #assert sort(x.vals()) != x.vals()
-#assert x.keys() != x.vals()
+assert x.keys() != x.vals()
 

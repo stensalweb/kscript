@@ -13,7 +13,6 @@ static KS_TFUNC(ast, free) {
     ks_ast self;
     KS_GETARGS("self:*", &self, ks_T_ast)
 
-
     KS_DECREF(self->children);
 
     KS_UNINIT_OBJ(self);

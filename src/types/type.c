@@ -35,6 +35,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
     CASENULL(__next__)
     CASENULL(__pos__)
     CASENULL(__neg__)
+    CASENULL(__abs__)
     CASENULL(__sqig__)
     CASENULL(__add__)
     CASENULL(__sub__)
@@ -80,6 +81,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
         FROMPAR(__next__)
         FROMPAR(__pos__)
         FROMPAR(__neg__)
+        FROMPAR(__abs__)
         FROMPAR(__sqig__)
         FROMPAR(__add__)
         FROMPAR(__sub__)
@@ -97,8 +99,6 @@ static void my_setallnull(ks_type self, ks_type parent) {
         FROMPAR(__binor__)
         FROMPAR(__binand__)
         FROMPAR(__binxor__)
-
-
 
 
         #undef FROMPAR
@@ -210,6 +210,7 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
         KEYCASE(__next__, ks_obj, ks_T_obj)
         KEYCASE(__pos__, ks_obj, ks_T_obj)
         KEYCASE(__neg__, ks_obj, ks_T_obj)
+        KEYCASE(__abs__, ks_obj, ks_T_obj)
         KEYCASE(__sqig__, ks_obj, ks_T_obj)
         KEYCASE(__add__, ks_obj, ks_T_obj)
         KEYCASE(__sub__, ks_obj, ks_T_obj)

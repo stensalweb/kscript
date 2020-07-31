@@ -744,9 +744,12 @@ void ks_init_T_int() {
 
         {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(int_str_, "int.__repr__(self)")},
+
+
         {"toRoman",                (ks_obj)ks_cfunc_new_c(int_toRoman_, "int.toRoman(self)")},
         {"fromRoman",              (ks_obj)ks_cfunc_new_c(int_fromRoman_, "int.fromRoman(self)")},
 
+        // define operators
         KST_NUM_OPKVS(int)
 
         
