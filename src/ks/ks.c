@@ -203,6 +203,7 @@ int main(int argc, char** argv) {
 
     } else {
         // live session
+        ret = ks_obj_call((ks_obj)ks_F_exec_interactive, 0, NULL);
     }
 
     if (!ret) ks_exit_if_err();

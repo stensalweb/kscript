@@ -4,6 +4,8 @@
 @author: Cade Brown <brown.cade@gmail.com>
 """
 
+print ("test")
+
 x = [1, 2, 3]
 
 # checking length

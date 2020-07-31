@@ -1122,4 +1122,101 @@ ks_obj ks_num_binxor(ks_obj L, ks_obj R) {
 
 
 
+// compute L<<R
+ks_obj ks_num_lshift(ks_obj L, ks_obj R) {
+
+    if (ks_num_is_integral(L) && ks_num_is_integral(R)) {
+
+        // values for left and right
+        int64_t Lv, Rv;
+
+        // get whether either fits
+        bool Lf = ks_num_get_int64(L, &Lv);
+        bool Rf = ks_num_get_int64(R, &Rv);
+
+        if (!Rf) {
+            return ks_throw(ks_T_MathError, "Right-hand side of '<<' must fit in a C-style integer! (got %S)", R);
+        }
+
+        if (Lf && Rf) {
+            if (Rv < 0) return ks_throw(ks_T_MathError, "Right-hand side of '<<' must be >= 0! (got %S)", R);
+
+            // check for overflow
+            int64_t r = Lv << Rv;
+            if (r >> Rv == Lv) return (ks_obj)ks_int_new(r);
+        }
+
+        mpz_t Lz, Vz;
+        mpz_init(Lz);
+        mpz_init(Vz);
+
+        if (
+            !ks_num_get_mpz(L, Lz)
+        ) {
+            // problem converting
+            mpz_clear(Lz);
+            mpz_clear(Vz);
+            KS_THROW_BOP_ERR("<<", L, R);
+        }
+
+        mpz_mul_2exp(Vz, Lz, Rv);
+        mpz_clear(Lz);
+        return (ks_obj)ks_int_new_mpz_n(Vz);
+
+    } else {
+
+    }
+
+    // default: undefined
+    KS_THROW_BOP_ERR("<<", L, R);
+}
+
+
+// compute L>>R
+ks_obj ks_num_rshift(ks_obj L, ks_obj R) {
+
+    if (ks_num_is_integral(L) && ks_num_is_integral(R)) {
+
+        // values for left and right
+        int64_t Lv, Rv;
+
+        // get whether either fits
+        bool Lf = ks_num_get_int64(L, &Lv);
+        bool Rf = ks_num_get_int64(R, &Rv);
+
+        if (!Rf) {
+            return ks_throw(ks_T_MathError, "Right-hand side of '<<' must fit in a C-style integer! (got %S)", R);
+        }
+
+        if (Lf && Rf) {
+            if (Rv < 0) return ks_throw(ks_T_MathError, "Right-hand side of '<<' must be >= 0! (got %S)", R);
+
+            return (ks_obj)ks_int_new(Lv >> Rv);
+        }
+
+        mpz_t Lz, Vz;
+        mpz_init(Lz);
+        mpz_init(Vz);
+
+        if (
+            !ks_num_get_mpz(L, Lz)
+        ) {
+            // problem converting
+            mpz_clear(Lz);
+            mpz_clear(Vz);
+            KS_THROW_BOP_ERR(">>", L, R);
+        }
+
+        mpz_tdiv_q_2exp(Vz, Lz, Rv);
+        mpz_clear(Lz);
+        return (ks_obj)ks_int_new_mpz_n(Vz);
+
+    } else {
+
+    }
+
+    // default: undefined
+    KS_THROW_BOP_ERR(">>", L, R);
+}
+
 

@@ -54,7 +54,7 @@ static KS_TFUNC(stack_frame, str) {
         if (fi >= 0) {
             // set information
             //ks_list_popu(call_stk);
-            ks_str o_str = ks_tok_expstr_2(code_obj->parser, code_obj->meta[fi].tok);
+            ks_str o_str = ks_tok_expstr(code_obj->parser, code_obj->meta[fi].tok);
             ks_str new_str = ks_fmt_c("%S (line %i, col %i): %S", code_obj->name_hr, code_obj->meta[fi].tok.line+1, code_obj->meta[fi].tok.col+1, o_str);
             KS_DECREF(o_str);
 
@@ -78,7 +78,7 @@ static KS_TFUNC(stack_frame, str) {
         if (fi >= 0) {
             // set information
             //ks_list_popu(call_stk);
-            ks_str o_str = ks_tok_expstr_2(code_obj->parser, code_obj->meta[fi].tok);
+            ks_str o_str = ks_tok_expstr(code_obj->parser, code_obj->meta[fi].tok);
             ks_str new_str = ks_fmt_c("%S (line %i, col %i): %S", code_obj->name_hr, code_obj->meta[fi].tok.line+1, code_obj->meta[fi].tok.col+1, o_str);
             KS_DECREF(o_str);
 

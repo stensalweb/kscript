@@ -79,7 +79,19 @@ ks_int ks_int_new_s(char* str, int base) {
         len--;
     }
 
+    if (base == 16 && str[0] == '0' && str[1] == 'x') {
+        str+=2;
+        len-=2;
+    } else if (base == 8 && str[0] == '0' && str[1] == 'o') {
+        str+=2;
+        len-=2;
+    } else if (base == 2 && str[0] == '0' && str[1] == 'b') {
+        str+=2;
+        len-=2;
+    }
+
     int i = 0;
+
 
     // parse out main value
     while (i < len) {
@@ -122,6 +134,109 @@ ks_int ks_int_new_s(char* str, int base) {
     }
 
     return self;
+}
+
+
+// convert roman character to digit
+static int roman_dig(int romchar) {
+    /**/ if (romchar == 'I') return 1;
+    else if (romchar == 'V') return 5;
+    else if (romchar == 'X') return 10;
+    else if (romchar == 'L') return 50;
+    else if (romchar == 'C') return 100;
+    else if (romchar == 'D') return 500;
+    else if (romchar == 'M') return 1000;
+    else {
+        return -1;
+    }
+}
+
+// Create a new integer from a roman-style string
+ks_int ks_int_new_roman(char* rom, int len) {
+
+    // original
+    const char* rom_orig = rom;
+
+    // structure of roman numerals (in reverse order!)
+    static const struct _roman_s {
+        // string of the roman numeral
+        char* str;
+
+        // numeric value
+        int val;
+
+    } romans[] = {
+        {"M",     1000},
+        {"D",     500},
+        {"C",     100},
+        {"L",     50},
+        {"X",     10},
+        {"V",     5},
+        {"I",     1},
+    };
+
+    #define N_ROM ((sizeof(romans) / sizeof(romans[0])))
+
+    // create new integer
+    mpz_t self;
+    mpz_init(self);
+
+    int i = 0;
+
+    // get if negative
+    bool isNeg = *rom == '-';
+    if (isNeg) {
+        rom++;
+        i++;
+    }
+
+    if (*rom == '0' && rom[1] == 'r') {
+        rom++;
+        rom++;
+        i++;
+        i++;
+    }
+
+    while (i < len) {
+
+        int dig = roman_dig(*rom);
+
+        // ensure there wasn't a problem
+        if (dig < 0) {
+            mpz_clear(self);
+            return (ks_int)ks_throw(ks_T_ArgError, "Invalid roman numeral: '%*s', invalid digit '%c'", len, rom_orig, *rom);
+        }
+
+        if ((len - i) > 2) {
+            int digp2 = roman_dig(rom[2]);
+            if (digp2 < 0) {
+                mpz_clear(self);
+                return (ks_int)ks_throw(ks_T_ArgError, "Invalid roman numeral: '%*s', invalid digit '%c'", len, rom_orig, rom[2]);
+            } else if (dig < digp2) {
+                mpz_clear(self);
+                return (ks_int)ks_throw(ks_T_ArgError, "Invalid roman numeral: '%*s', some digits are in invalid order!", len, rom_orig);
+            }
+        }
+
+
+        int digp1 = roman_dig(rom[1]);
+
+        if (dig >= digp1) {
+            mpz_add_ui(self, self, dig);
+        } else {
+            mpz_add_ui(self, self, digp1 - dig);
+            i++;
+            rom++;
+        }
+        
+        rom++;
+        i++;
+    }
+
+    if (isNeg) mpz_neg(self, self);
+
+    ks_int ret = ks_int_new_mpz_n(self);
+    return ret;
 }
 
 
@@ -295,18 +410,32 @@ int ks_int_cmp_c(ks_int L, int64_t R) {
 
 
 
-// int.__new__(typ, obj, base=none) -> convert 'obj' to a int
+// int.__new__(typ, obj, mode=none) -> convert 'obj' to a int
 static KS_TFUNC(int, new) {
     ks_type typ;
     ks_obj obj;
-    int64_t base = 10;
-    KS_GETARGS("typ:* obj ?base:i64", &typ, ks_T_type, &obj, &base)
+    ks_obj mode = KSO_NONE;
+    KS_GETARGS("typ:* obj ?mode", &typ, ks_T_type, &obj, &mode)
     if (!ks_type_issub(typ, ks_T_int)) ks_throw(ks_T_InternalError, "Constructor for type '%S' called given typ as '%S' (not a sub-type!)", ks_T_int, typ);
 
-    if (n_args >= 3) {
+    if (mode != KSO_NONE) {
+        if (obj->type != ks_T_str) return ks_throw(ks_T_ArgError, "When given parameter 'mode', 'obj' must be a string!");
         // a specific base is requested, so it must be a string
-        if (obj->type != ks_T_str) return ks_throw(ks_T_ArgError, "When given parameter 'base', 'obj' must be a string!");
-        if (base < 2 || base > MAX_BASE) return ks_throw(ks_T_ArgError, "Invalid base (%l), expected between 2 and %i", base, (int)MAX_BASE);
+        if (mode->type == ks_T_str) {
+            if (ks_str_eq_c((ks_str)mode, "roman", 5)) {
+                return (ks_obj)ks_int_new_roman(((ks_str)obj)->chr, ((ks_str)obj)->len_b);
+            }
+
+        } else if (ks_num_is_integral(mode)) {
+            int64_t base;
+            if (!ks_num_get_int64(mode, &base)) return NULL;
+
+            return (ks_obj)ks_int_new_s(((ks_str)obj)->chr, base);
+        }
+        //if (base < 2 || base > MAX_BASE) return ks_throw(ks_T_ArgError, "Invalid base (%l), expected between 2 and %i", base, (int)MAX_BASE);
+
+        return ks_throw(ks_T_ArgError, "Unknown mode: %R", mode);
+
     }
 
     if (obj->type == ks_T_int) {
@@ -318,7 +447,7 @@ static KS_TFUNC(int, new) {
     } else if (obj->type == ks_T_complex) {
         return (ks_obj)ks_int_new(round(((ks_complex)obj)->val));
     } else if (obj->type == ks_T_str) {
-        return (ks_obj)ks_int_new_s(((ks_str)obj)->chr, base);
+        return (ks_obj)ks_int_new_s(((ks_str)obj)->chr, 10);
     //} else if (ks_type_issub(obj->type, ks_type_Enum)) {
     //    return (ks_obj)ks_int_new(((ks_Enum)obj)->enum_idx);
     } else if (obj->type->__int__ != NULL) {
@@ -331,23 +460,73 @@ static KS_TFUNC(int, new) {
 }
 
 
-// int.__str__(self) - to string
+// int.__str__(self, mode=10) - to string
 static KS_TFUNC(int, str) {
     ks_int self;
-    KS_GETARGS("self:*", &self, ks_T_int)
+    ks_obj mode = NULL;
+    KS_GETARGS("self:* ?mode", &self, ks_T_int, &mode)
 
-
+    // the base
     int base = 10;
 
-    if (self->isLong) {
+    #define _BASE_ROMAN -2
+
+    if (!mode) {
+        base = 10;
+    } else if (ks_num_is_numeric(mode)) {
+        int64_t v64;
+        if (!ks_num_get_int64(mode, &v64)) {
+            return NULL;
+        }
+        base = v64;
+    } else if (mode->type == ks_T_str && ks_str_eq_c((ks_str)mode, "roman", 5)) {
+        base = _BASE_ROMAN;
+    } else {
+        return ks_throw(ks_T_ArgError, "Unknown mode: %R", mode);
+    }
+
+    if (base == _BASE_ROMAN) {
+        // we need to compute roman
+        ks_str key = ks_str_new("toRoman");
+        ks_obj toRoman = ks_type_get(ks_T_int, key);
+        KS_DECREF(key);
+        if (!toRoman) return NULL;
+
+        ks_obj res = ks_obj_call(toRoman, 1, (ks_obj[]){ (ks_obj)self });
+        KS_DECREF(toRoman);
+        if (!res) return NULL;
+
+
+        ks_str withprefix = ks_fmt_c("0r%S", res);
+        KS_DECREF(res);
+        return (ks_obj)withprefix;
+
+    } else if (base == 10 && !self->isLong) {
+        // simple base 10
+        char tmp[256];
+        int ct = snprintf(tmp, sizeof(tmp) - 1, "%lli", (long long int)self->v64);
+
+        return (ks_obj)ks_str_new_c(tmp, ct);
+
+    } else {
+        // get temporary variable
+        mpz_t tz;
+        if (self->isLong) {
+            *tz = *self->vz;
+        } else {
+            mpz_init(tz);
+            if (!ks_num_get_mpz((ks_obj)self, tz)) {
+                mpz_clear(tz);
+                return NULL;
+            }
+        }
 
         // do mpz to string
-        size_t total_size = 16 + mpz_sizeinbase(self->vz, base);
+        size_t total_size = 16 + mpz_sizeinbase(tz, base);
 
         // temporary buffer
         char* tmp = ks_malloc(total_size);
         int i = 0;
-
 
         // add prefix specifier
         if (base == 10) {
@@ -362,23 +541,18 @@ static KS_TFUNC(int, str) {
             tmp[i++] = '0';
             tmp[i++] = 'b';
         } else {
-            return ks_throw(ks_T_ArgError, "Invalid base '%i' for int->str conversion", base);
+            return ks_throw(ks_T_ArgError, "Invalid base '%i' for 'int' to 'str' conversion", base);
         }
 
-        // use GMP to get string
-        mpz_get_str(&tmp[i], base, self->vz);
+        // use MPZ to convert to string
+        mpz_get_str(&tmp[i], base, tz);
+
+        if (!self->isLong) mpz_clear(tz);
 
         ks_str res = ks_str_new_c(tmp, -1);
         ks_free(tmp);
 
         return (ks_obj)res;
-
-    } else {
-
-        char tmp[256];
-        int ct = snprintf(tmp, sizeof(tmp) - 1, "%lli", (long long int)self->v64);
-
-        return (ks_obj)ks_str_new_c(tmp, ct);
 
     }
 
@@ -617,101 +791,12 @@ static KS_TFUNC(int, toRoman) {
     #undef _ROM_PRE
 }
 
-
-// convert roman character to digit
-static int roman_dig(int romchar) {
-    /**/ if (romchar == 'I') return 1;
-    else if (romchar == 'V') return 5;
-    else if (romchar == 'X') return 10;
-    else if (romchar == 'L') return 50;
-    else if (romchar == 'C') return 100;
-    else if (romchar == 'D') return 500;
-    else if (romchar == 'M') return 1000;
-    else {
-        return -1;
-    }
-}
-
 // int.fromRoman(roman_str) - convert from a roman numeral string
 static KS_TFUNC(int, fromRoman) {
     ks_str roman_str;
     KS_GETARGS("roman_str:*", &roman_str, ks_T_str)
 
-    // structure of roman numerals (in reverse order!)
-    static const struct _roman_s {
-        // string of the roman numeral
-        char* str;
-
-        // numeric value
-        int val;
-
-    } romans[] = {
-        {"M",     1000},
-        {"D",     500},
-        {"C",     100},
-        {"L",     50},
-        {"X",     10},
-        {"V",     5},
-        {"I",     1},
-    };
-
-    #define N_ROM ((sizeof(romans) / sizeof(romans[0])))
-
-    // create new integer
-    mpz_t self;
-    mpz_init(self);
-
-
-    char* rom = roman_str->chr;
-    int i = 0;
-
-    // get if negative
-    bool isNeg = *rom == '-';
-    if (isNeg) {
-        rom++;
-        i++;
-    }
-
-    while (*rom) {
-
-        int dig = roman_dig(*rom);
-
-        // ensure there wasn't a problem
-        if (dig < 0) {
-            mpz_clear(self);
-            return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%S', invalid digit '%c'", roman_str, *rom);
-        }
-
-        if ((roman_str->len_c - i) > 2) {
-            int digp2 = roman_dig(rom[2]);
-            if (digp2 < 0) {
-                mpz_clear(self);
-                return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%S', invalid digit '%c'", roman_str, rom[2]);
-            } else if (dig < digp2) {
-                mpz_clear(self);
-                return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%S', some digits are in invalid order!", roman_str);
-            }
-        }
-
-
-        int digp1 = roman_dig(rom[1]);
-
-        if (dig >= digp1) {
-            mpz_add_ui(self, self, dig);
-        } else {
-            mpz_add_ui(self, self, digp1 - dig);
-            i++;
-            rom++;
-        }
-        
-        rom++;
-        i++;
-    }
-
-    if (isNeg) mpz_neg(self, self);
-
-    ks_int ret = ks_int_new_mpz_n(self);
-    return (ks_obj)ret;
+    return (ks_obj)ks_int_new_roman(roman_str->chr, roman_str->len_c);
 }
 
 
@@ -742,8 +827,8 @@ void ks_init_T_int() {
         {"__new__",                (ks_obj)ks_cfunc_new_c(int_new_, "int.__new__(typ, obj, base=none)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(int_free_, "int.__free__(self)")},
 
-        {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(int_str_, "int.__repr__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self, mode=10)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(int_str_, "int.__repr__(self, mode=10)")},
 
 
         {"toRoman",                (ks_obj)ks_cfunc_new_c(int_toRoman_, "int.toRoman(self)")},

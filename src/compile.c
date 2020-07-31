@@ -31,9 +31,9 @@ static void* code_error(ks_parser parser, struct ks_tok tok, char* fmt, ...) {
 
     ks_str_builder_add_str(sb, (ks_obj)what);
     
-    if (parser != NULL && tok.len >= 0) {
+    if (parser != NULL && tok.len_b >= 0) {
         // we have a valid token
-        int i = tok.pos;
+        int i = tok.pos_b;
         int lineno = tok.line;
         char c;
 
@@ -72,10 +72,10 @@ static void* code_error(ks_parser parser, struct ks_tok tok, char* fmt, ...) {
         // now, add additional metadata about the error, including in-source markup
         ks_str_builder_add_fmt(sb, "\n%.*s" COL_RED COL_BOLD "%.*s" COL_RESET "%.*s\n%*c" COL_RED "^%*c" COL_RESET "\n@ Line %i, Col %i, in '%S'",
             tok.col, sl,
-            tok.len, sl + tok.col,
-            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            tok.len_b, sl + tok.col,
+            ll - tok.col - tok.len_b, sl + tok.col + tok.len_b,
             tok.col, ' ',
-            tok.len - 1, '~',
+            tok.len_b - 1, '~',
             tok.line + 1, tok.col + 1,
             parser->src_name
         );
@@ -307,6 +307,8 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         // throw the value
         ksca_ret(to);
+
+        st->stk_len--;
 
         // add meta data
         ks_code_add_meta(to, self->tok);

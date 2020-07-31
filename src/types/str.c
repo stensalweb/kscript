@@ -173,8 +173,8 @@ ks_ssize_t ks_text_utf32_to_utf8(const ks_unich* src, char* dest, ks_ssize_t len
 
         // check range
         if (chr < 0 || chr > 0x10FFFFULL) {
+            ks_throw(ks_T_ArgError, "Invalid unicode value! Expected between 0 and 11141111, but got '%z'", (ks_size_t)chr);
             return KS_UNICH_WASERR;
-            //return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Expected between 0 and 11141111, but got '%z'", (ks_size_t)chr);
         }
 
         // temporary bytes for UTF8 encoding
@@ -182,8 +182,8 @@ ks_ssize_t ks_text_utf32_to_utf8(const ks_unich* src, char* dest, ks_ssize_t len
 
         if (chr < 0) {
             // invalid
+            ks_throw(ks_T_ArgError, "Invalid unicode value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
             return KS_UNICH_WASERR;
-            //return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
         } else if (chr <= 0x007F) {
 
             // assumed to be ascii, so just copy the first byte
@@ -241,8 +241,8 @@ ks_ssize_t ks_text_utf32_to_utf8(const ks_unich* src, char* dest, ks_ssize_t len
             desti += 4;
 
         } else {
+            ks_throw(ks_T_ArgError, "Invalid unicode value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
             return KS_UNICH_WASERR;
-            //return (ks_str)ks_throw(ks_T_ArgError, "chr() given invalid value! Got '%z', which is not a valid unicode character!", (ks_ssize_t)chr);
         }
 
         // advance to next source
@@ -553,16 +553,21 @@ bool ks_str_eq_c(ks_str A, const char* cstr, ks_ssize_t len) {
 ks_str ks_str_escape(ks_str A) {
     ks_str_builder sb = ks_str_builder_new();
 
-    // generate a string representation
-    int i;
-    for (i = 0; i < A->len_b; ++i) {
-        char c = A->chr[i];
-        /**/ if (c == '\\') ks_str_builder_add(sb, "\\\\", 2);
-        else if (c == '\n') ks_str_builder_add(sb, "\\n", 2);
-        else if (c == '\t') ks_str_builder_add(sb, "\\t", 2);
+    char utf8[5];
+    struct ks_str_citer cit = ks_str_citer_make(A);
+    ks_unich ch;
+    while (!cit.done && (ch = ks_str_citer_next(&cit))) {
+        // escape the given character
+        /**/ if (ch == '\\') ks_str_builder_add(sb, "\\\\", 2);
+        else if (ch == '\n') ks_str_builder_add(sb, "\\n", 2);
+        else if (ch == '\t') ks_str_builder_add(sb, "\\t", 2);
+        else if (ch == '\a') ks_str_builder_add(sb, "\\a", 2);
+        else if (ch == '\b') ks_str_builder_add(sb, "\\b", 2);
+
         else {
-            // just add character
-            ks_str_builder_add(sb, &c, 1);
+            // just convert back to UTF8
+            int sz = ks_text_utf32_to_utf8(&ch, &utf8[0], 1);
+            ks_str_builder_add(sb, utf8, sz);
         }
     }
 
@@ -576,25 +581,78 @@ ks_str ks_str_escape(ks_str A) {
 ks_str ks_str_unescape(ks_str A) {
     // generate a string representation
     ks_str_builder sb = ks_str_builder_new();
+    
+    char hexdigs[16];
+    char utf8[5];
+    struct ks_str_citer cit = ks_str_citer_make(A);
+    ks_unich ch;
+    while (!cit.done && (ch = ks_str_citer_next(&cit))) {
+        if (ch == '\\') {
+            ch = ks_str_citer_next(&cit);
+            /**/ if (ch == '\\') ks_str_builder_add(sb, "\\", 1);
+            else if (ch == 'n') ks_str_builder_add(sb, "\n", 1);
+            else if (ch == 't') ks_str_builder_add(sb, "\t", 1);
+            else if (ch == 'a') ks_str_builder_add(sb, "\a", 1);
+            else if (ch == 'b') ks_str_builder_add(sb, "\b", 1);
+            else if (ch == 'u') {
+                // hex digits time, gather unicode escape code
+                int i;
+                for (i = 0; i < 4; ++i) {
+                    char _c = hexdigs[i] = ks_str_citer_next(&cit);
+                    if (!((_c >= '0' && _c <= '9') || (_c >= 'a' && _c <= 'f') || (_c >= 'A' && _c <= 'F'))) {
+                        // truncated
+                        return (ks_str)ks_throw(ks_T_ArgError, "Invalid unicode sequence (truncated): '\\U%*s'", i, hexdigs);
+                    }
+                }
 
-    int i;
-    for (i = 0; i < A->len_b; ++i) {
-        char c = A->chr[i];
-        /**/ if (c == '\\') {
-            // interpret escape code
-            i++;
-            c = A->chr[i];
-            /**/ if (c == '\\') ks_str_builder_add(sb, "\\", 1);
-            else if (c == 'n') ks_str_builder_add(sb, "\n", 1);
-            else if (c == 't') ks_str_builder_add(sb, "\t", 1);
+                hexdigs[i] = '\0';
+
+                // now, convert to ks_unich
+                ks_unich read_hex = strtol(hexdigs, NULL, 16);
+                int sz = ks_text_utf32_to_utf8(&read_hex, &utf8[0], 1);
+                if (sz < 0) {
+                    KS_DECREF(sb);
+                    return NULL;
+                }
+                ks_str_builder_add(sb, utf8, sz);
+            }
+
+            else if (ch == 'U') {
+                // hex digits time, gather unicode escape code
+                int i;
+                for (i = 0; i < 8; ++i) {
+                    char _c = hexdigs[i] = ks_str_citer_next(&cit);
+                    if (!((_c >= '0' && _c <= '9') || (_c >= 'a' && _c <= 'f') || (_c >= 'A' && _c <= 'F'))) {
+                        // truncated
+                        return (ks_str)ks_throw(ks_T_ArgError, "Invalid unicode sequence (truncated): '\\U%*s'", i, hexdigs);
+                    }
+                }
+
+                hexdigs[i] = '\0';
+
+                // now, convert to ks_unich
+                ks_unich read_hex = strtol(hexdigs, NULL, 16);
+                int sz = ks_text_utf32_to_utf8(&read_hex, &utf8[0], 1);
+                if (sz < 0) {
+                    KS_DECREF(sb);
+                    return NULL;
+                }
+                ks_str_builder_add(sb, utf8, sz);
+            }
+
             else {
                 // unknown escape code
+                KS_DECREF(sb);
+                int sz = ks_text_utf32_to_utf8(&ch, &utf8[0], 1);
+                return (ks_str)ks_throw(ks_T_ArgError, "Invalid escape sequence: '\\%*s'", sz, utf8);
             }
+
+        } else {
+            // just convert back to UTF8
+            int sz = ks_text_utf32_to_utf8(&ch, &utf8[0], 1);
+            ks_str_builder_add(sb, utf8, sz);
         }
-        else {
-            // just add character
-            ks_str_builder_add(sb, &c, 1);
-        }
+
     }
 
     ks_str ret = ks_str_builder_get(sb);
@@ -628,6 +686,23 @@ ks_str ks_str_substr(ks_str self, ks_ssize_t start, ks_ssize_t len_c) {
 
     // TODO: maybe more efficient method for substrings
     return ks_str_utf8(self->chr + start_i, len_b);
+}
+
+// str.__new__(typ, obj, *args)
+static KS_TFUNC(str, new) {
+    ks_type typ;
+    ks_obj obj;
+    int n_extra;
+    ks_obj* extra;    
+    KS_GETARGS("typ:* obj *extra", &typ, ks_T_type, &obj, &n_extra, &extra);
+
+    if (obj->type->__str__ != NULL) {
+        return ks_obj_call(obj->type->__str__, n_args - 1, args + 1);
+    } else if (obj->type->__repr__ != NULL) {
+        return ks_obj_call(obj->type->__repr__, n_args - 1, args + 1);
+    }
+
+    KS_THROW_TYPE_ERR(obj, ks_T_str);
 }
 
 // str.__free__(self) - free obj
@@ -695,6 +770,17 @@ static KS_TFUNC(str, getitem) {
 
 
 /* Operators */
+
+static KS_TFUNC(str, add) {
+    ks_obj L, R;
+    KS_GETARGS("L R", &L, &R)
+
+
+    return (ks_obj)ks_fmt_c("%S%S", L, R);
+
+    KS_THROW_BOP_ERR("+", L, R);
+}
+
 
 static KS_TFUNC(str, lt) {
     ks_obj L, R;
@@ -917,12 +1003,16 @@ void ks_init_T_str() {
     }
 
     ks_type_init_c(ks_T_str, "str", ks_T_obj, KS_KEYVALS(
+        {"__new__",                (ks_obj)ks_cfunc_new_c(str_new_, "str.__new__(typ, obj, *args)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(str_free_, "str.__free__(self)")},
         {"__iter__",               (ks_obj)ks_cfunc_new_c(str_iter_, "str.__iter__(self)")},
 
         {"__repr__",               (ks_obj)ks_cfunc_new_c(str_repr_, "str.__repr__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(str_len_, "str.__len__(self, mode='chars')")},
         {"__getitem__",            (ks_obj)ks_cfunc_new_c(str_getitem_, "str.__getitem__(self, idx)")},
+
+        {"__add__",                (ks_obj)ks_cfunc_new_c(str_add_, "str.__add__(L, R)")},
+
 
         {"__cmp__",                (ks_obj)ks_cfunc_new_c(str_cmp_, "str.__cmp__(L, R)")},
         {"__lt__",                 (ks_obj)ks_cfunc_new_c(str_lt_, "str.__lt__(L, R)")},

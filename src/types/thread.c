@@ -46,6 +46,53 @@ ks_thread ks_thread_get() {
     return ks_thread_main;
 }
 
+// Find out the current filename and line that a thread is executing (in kscript), or return `false`
+//   if nothing was found
+// NOTE: This will never throw an error; it will only return whether it actually found something
+KS_API bool ks_thread_getloc(ks_thread self, ks_str* fname, int* cur_line) {
+
+    int idx = self->frames->len - 1;
+    while (idx >= 0) {
+
+        ks_stack_frame frm = (ks_stack_frame)self->frames->elems[idx];
+        if (frm->type == ks_T_stack_frame) {
+            // valid stack frame
+
+            if (frm->code != NULL) {
+                // valid code object
+
+                ks_code code_obj = frm->code;
+
+                // get current offset into btecode
+                int offset = (int)(frm->pc - code_obj->bc);
+
+                int fi = -1, i;
+                for (i = 0; i < code_obj->meta_n; ++i) {
+                    if (offset <= code_obj->meta[i].bc_n) {
+                        fi = i;
+                        break;
+                    }
+                }
+                if (fi >= 0) {
+                    // set information
+                    *fname = code_obj->parser->file_name;
+                    *cur_line = code_obj->meta[fi].tok.line+1;
+
+                    return true;
+                }
+
+            }
+        }
+
+        idx--;
+
+    }
+
+    // couldn't deduce information
+    return false;
+
+}
+
 // thread.__free__(self) -> free object
 static KS_TFUNC(thread, free) {
     ks_thread self = NULL;

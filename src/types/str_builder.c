@@ -332,6 +332,23 @@ bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
                 goto vfmt_end;
             }
 
+        } else if (c == 'A') {
+            // %A -> add " ".join(objs) to the result
+
+            int ct = va_arg(ap, int);
+            ks_obj* val = va_arg(ap, ks_obj*);
+
+            int i;
+            for (i = 0; i < ct; ++i) {
+                if (i > 0) ks_str_builder_add(self, " ", 1);
+
+                // attempt to add it
+                if (!ks_str_builder_add_str(self, val[i])) {
+                    goto vfmt_end;
+                }
+
+            }
+
         } else {
 
             ks_error("ks", "Unknown format specifier: '%c' in format string '%s'", c, ofmt);

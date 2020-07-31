@@ -235,6 +235,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
         VMED_CASE_START(KSB_PUSH)
             VMED_CONSUME(ksb_i32, op_i32);
 
+
             // push on a constant value indicated by the argument
             ks_list_push(self->stk, code->v_const->elems[op_i32.arg]);
 
@@ -845,6 +846,8 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
     goto RET;
 
     RET: ;
+
+
 
     // rewind stack, just in case
     while (self->stk->len > start_stk_len) {

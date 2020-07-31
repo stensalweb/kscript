@@ -47,6 +47,9 @@ ks_cfunc
     ks_F_binor = NULL,
     ks_F_binxor = NULL,
 
+    ks_F_lshift = NULL,
+    ks_F_rshift = NULL,
+
     ks_F_cmp = NULL,
 
     ks_F_lt = NULL,
@@ -61,6 +64,7 @@ ks_cfunc
     ks_F_abs = NULL,
     ks_F_sqig = NULL,
 
+    ks_F_eval = NULL,
     ks_F_exec_file = NULL,
     ks_F_exec_expr = NULL,
     ks_F_exec_interactive = NULL
@@ -69,6 +73,9 @@ ks_cfunc
 
 
 /* Misc. Kscript Functions */
+
+// number of bytes written to the stdout
+static int64_t _print_numbytes = 0;
 
 // print (*args) -> print arguments
 static KS_FUNC(print) {
@@ -89,6 +96,8 @@ static KS_FUNC(print) {
 
     ks_str toprint = ks_str_builder_get(sb);
     KS_DECREF(sb);
+
+    _print_numbytes += toprint->len_b;
 
     // print out to console
     printf("%s\n", toprint->chr);
@@ -541,6 +550,9 @@ T_KS_FUNC_BOP(binand, "&", __binand__, {})
 T_KS_FUNC_BOP(binor, "|", __binor__, {})
 T_KS_FUNC_BOP(binxor, "^", __binxor__, {})
 
+T_KS_FUNC_BOP(lshift, "<<", __lshift__, {})
+T_KS_FUNC_BOP(rshift, ">>", __rshift__, {})
+
 T_KS_FUNC_BOP(cmp, "<=>", __cmp__, {})
 
 T_KS_FUNC_BOP(lt, "<", __lt__, {})
@@ -561,7 +573,6 @@ static KS_FUNC(_name) {                                     \
     KS_THROW_UOP_ERR(_str, V); return NULL;                 \
 }
 
-
 T_KS_FUNC_UOP(pos, "+", __pos__)
 T_KS_FUNC_UOP(neg, "-", __neg__)
 T_KS_FUNC_UOP(sqig, "~", __sqig__)
@@ -578,8 +589,301 @@ static KS_FUNC(abs) {
 }
 
 
+/* Builtin Execution functions*/
 
-/* Builtin Utilities */
+
+// interpreter variables
+static ks_dict inter_vars = NULL;
+
+// handle exception
+static void interactive_handle_exc() {
+    // handle error
+    ks_list exc_info = NULL;
+    ks_obj exc = ks_catch(&exc_info);
+    assert(exc != NULL && "NULL returned with no exception!");
+
+    // error, so rethrow it and return
+    ks_printf(COL_RED COL_BOLD "%T" COL_RESET ": %S\n", exc, exc);
+
+    // print in reverse order
+    ks_printf("Call Stack:\n");
+    
+    int i;
+    for (i = 0; i < exc_info->len; i++) {
+        ks_printf("%*c#%i: In %S\n", 2, ' ', i, exc_info->elems[i]);
+    }
+    
+    ks_printf("In thread %R @ %p\n", ks_thread_get()->name, ks_thread_get());
+
+    KS_DECREF(exc);
+    KS_DECREF(exc_info);
+}
+
+// runs a single expression from the interactive 
+static void run_interactive_expr(ks_str expr, ks_str src_name) {
+
+    ks_str tmp = ks_str_new("<anon expr>");
+    // 1. construct a parser
+    ks_parser p = ks_parser_new(expr, src_name, tmp);
+    KS_DECREF(tmp);
+    if (!p) {
+        interactive_handle_exc();
+        return;
+    }
+
+    // 2. parse out the entire module (which will also syntax validate)
+    ks_ast prog = ks_parser_file(p);
+    if (!prog) {
+        KS_DECREF(p);
+        interactive_handle_exc();
+        return;
+    }
+
+    // whether ot not to print the result
+    bool doPrint = false;
+    // if this is true, we should only print if nothing else has printed in that time,
+    //   to avoid double printing
+    bool doPrintIffy = false;
+    int64_t start_nbytes = _print_numbytes;
+
+    // get whether its an actual terminal screen
+    bool isTTY = isatty(STDIN_FILENO);
+
+    // now, check if it is a binary operator or a special case,
+    //   in which case 
+    if (isTTY) if ((prog->kind >= KS_AST_BOP__FIRST && prog->kind <= KS_AST_BOP__LAST) ||
+        (prog->kind >= KS_AST_UOP__FIRST && prog->kind <= KS_AST_UOP__LAST) ||
+        prog->kind == KS_AST_ATTR || prog->kind == KS_AST_VAR || prog->kind == KS_AST_CONST ||
+        prog->kind == KS_AST_SUBSCRIPT || prog->kind == KS_AST_CALL || prog->kind == KS_AST_LIST || prog->kind == KS_AST_TUPLE || prog->kind == KS_AST_DICT) {
+            doPrint = true;
+            doPrintIffy = prog->kind == KS_AST_CALL;
+            ks_ast new_prog = ks_ast_new_ret(prog);
+            KS_DECREF(prog);
+            prog = new_prog;
+        }
+
+    // 3. generate a bytecode object reprsenting the module
+    ks_code myc = ks_compile(p, prog);
+    if (!myc) {
+        KS_DECREF(p);    
+        interactive_handle_exc();
+        return;
+    }
+
+    // 4. (optional) attempt to set some metadata for the code, if asked
+    if (myc->meta_n > 0 && myc->parser != NULL) {
+        if (myc->name_hr) KS_DECREF(myc->name_hr);
+        myc->name_hr = ks_fmt_c("%S", myc->parser->src_name);
+    }
+
+    // debug the code it is going to run
+    ks_debug("ks", "CODE: %S", myc);
+
+    // now, call the code object with no arguments, and return the result
+    // If there is an error, it will return NULL, and the thread will call ks_errend(),
+    //   which will print out a stack trace and terminate the program for us
+    ks_obj ret = ks_obj_call2((ks_obj)myc, 0, NULL, inter_vars);
+    if (!ret) {
+        interactive_handle_exc();
+
+    } else {
+        if (doPrint) {
+
+            if (doPrintIffy && _print_numbytes != start_nbytes) {
+                // do nothing
+            } else {
+                ks_printf("%S\n", ret);
+                ks_catch_ignore();
+            }
+        } 
+        // discard error
+        KS_DECREF(ret);
+    }
+
+    KS_DECREF(prog);
+    KS_DECREF(myc);
+
+}
+
+
+// define the prompt
+#ifndef KS_PROMPT
+#define KS_PROMPT " %> "
+#endif
+
+
+// exec_interactive() execute a single interactive shell
+static KS_FUNC(exec_interactive) {
+    KS_GETARGS("")
+
+    size_t alloc_size = 0;
+    int len = 0;
+    char* cur_line = NULL;
+
+    // how many lines have been processed
+    int num_lines = 0;
+
+    #ifndef KS_HAVE_READLINE
+    ks_warn("ks", "Using interactive interpreter, but not compiled with readline!");
+    #endif
+
+    // get whether its an actual terminal screen
+    bool isTTY = isatty(STDIN_FILENO);
+
+    // only use readline if it is a TTY and we are compiled with readline support
+    #ifdef KS_HAVE_READLINE
+    if (isTTY) {
+        ensure_readline();
+
+        // yield GIL
+        ks_GIL_unlock();
+
+        // now, continue to read lines
+        while ((cur_line = readline(PROMPT)) != NULL) {
+
+            ks_GIL_lock();
+
+            num_lines++;
+            // only add non-empty
+            if (cur_line && *cur_line) add_history(cur_line);
+            else continue;
+
+            // now, compile it
+            ks_str src_name = ks_fmt_c("<prompt #%i>", (int)num_lines);
+            ks_str expr = ks_str_new(cur_line);
+
+            run_interactive_expr(expr, src_name);
+            KS_DECREF(expr);
+            KS_DECREF(src_name);
+
+            // free it. readline uses 'malloc', so we must use free
+            free(cur_line);
+
+            ks_GIL_unlock();
+        }
+        
+        ks_GIL_lock();
+
+    } else {
+    // do fallback version
+    
+    #endif
+
+    // yield GIL
+    //ks_GIL_unlock();
+
+    // do readline version
+    if (isTTY) printf("%s", KS_PROMPT);
+
+    while ((len = ks_getline(&cur_line, &alloc_size, stdin)) >= 0) {
+
+        // hold GIL
+        //ks_GIL_lock();
+
+        num_lines++;
+
+        // remove last newline
+        if (cur_line[len] == '\n') cur_line[len] = '\0';
+
+        // short cut out if there is nothing
+        if (len == 0) {
+            printf("%s", KS_PROMPT);
+            continue;
+        }
+
+        // now, compile it
+        ks_str src_name = ks_fmt_c("<interactive prompt #%i>", (int)num_lines);
+        ks_str expr = ks_str_new(cur_line);
+
+        run_interactive_expr(expr, src_name);
+        KS_DECREF(expr);
+        KS_DECREF(src_name);
+
+        if (isTTY) printf("%s", KS_PROMPT);
+
+       // ks_GIL_unlock();
+
+    }
+
+    //ks_GIL_lock();
+
+    // end of the 'else' clause
+    #ifdef KS_HAVE_READLINE
+    }
+    #endif
+
+    return KSO_NONE;
+}
+
+
+// eval(expr) - evaluate `expr`
+static KS_FUNC(eval) {
+    ks_str expr;
+    KS_GETARGS("expr:*", &expr, ks_T_str)
+
+    ks_str fname = ks_str_new("<anon expr>");
+
+    // 2. Parse it
+    ks_parser parser = ks_parser_new(expr, fname, fname);
+    KS_DECREF(fname);
+    if (!parser) {
+        return NULL;
+    }
+
+    //ks_debug("ks", "got parser: %O", parser);
+
+    // 3. Parse out the entire file into an AST (which will do syntax validation as well)
+
+    ks_ast prog = ks_parser_expr(parser, KS_PARSE_NONE);
+    if (!prog) {
+        KS_DECREF(parser);
+        return NULL;
+    }
+
+    if (parser->toki != parser->tok_n - 1) {
+        ks_throw(ks_T_Error, "Expression is too long for eval() (only expressions; not full files are supported)");
+        KS_DECREF(parser);
+        KS_DECREF(prog);
+        return NULL;
+    }
+
+    ks_ast new_prog = ks_ast_new_ret(prog);
+    KS_DECREF(prog);
+    prog = new_prog;
+
+
+    // 4. Compile to bytecode
+    ks_code bcode = ks_compile(parser, prog);
+    if (!bcode) {
+        KS_DECREF(prog);
+        KS_DECREF(parser);
+        return NULL;
+    }
+
+
+    ks_debug("ks", "compiled to: '%S'", bcode);
+
+
+    ks_obj result = ks_obj_call((ks_obj)bcode, 0, NULL);
+
+    KS_DECREF(parser);
+
+    return result;
+
+}
+
+// exec_expr(expr) - run and execute the given expression
+static KS_FUNC(exec_expr) {
+    ks_str expr;
+    KS_GETARGS("expr:*", &expr, ks_T_str)
+
+    // get a source name for it
+    ks_str src_name = ks_fmt_c("-e %R", expr);
+    run_interactive_expr(expr, src_name);
+    KS_DECREF(src_name);
+    return KSO_NONE;
+}
+
 
 // exec_file(fname) - run and execute the given file
 static KS_FUNC(exec_file) {
@@ -593,7 +897,7 @@ static KS_FUNC(exec_file) {
     ks_debug("ks", "read file '%S', got: " COL_DIM "'%S'" COL_RESET "", fname, src_code);
 
     // 2. Parse it
-    ks_parser parser = ks_parser_new(src_code, fname);
+    ks_parser parser = ks_parser_new(src_code, fname, fname);
     if (!parser) {
         KS_DECREF(src_code);
         return NULL;
@@ -635,59 +939,13 @@ static KS_FUNC(exec_file) {
 }
 
 
-// exec_expr(expr) - run and execute the given expression
-static KS_FUNC(exec_expr) {
-    ks_str expr;
-    KS_GETARGS("expr:*", &expr, ks_T_str)
-
-    // get a source name for it
-    ks_str src_name = ks_fmt_c("-e %R", expr);
-
-    // Parse it
-    ks_parser parser = ks_parser_new(expr, src_name);
-    KS_DECREF(src_name);
-    if (!parser) {
-        return NULL;
-    }
-
-    //ks_debug("ks", "got parser: %O", parser);
-
-    // 3. Parse out the entire file into an AST (which will do syntax validation as well)
-
-    ks_ast ast = ks_parser_file(parser);
-    if (!ast) {
-        KS_DECREF(parser);
-        return NULL;
-    }
-
-    // 4. Compile to bytecode
-    ks_code bcode = ks_compile(parser, ast);
-    if (!bcode) {
-        KS_DECREF(ast);
-        KS_DECREF(parser);
-        return NULL;
-    }
-
-    ks_debug("ks", "expr '%S' compiled to: '%S'", expr, bcode);
-
-    ks_obj result = ks_obj_call((ks_obj)bcode, 0, NULL);
-
-    KS_DECREF(ast);
-    KS_DECREF(parser);
-
-    if (result) KS_DECREF(result)
-    else return NULL;
-
-    return KSO_NONE;
-}
-
-
-
 
 
 // export
 
 void ks_init_funcs() {
+    // interpreter variables
+    inter_vars = ks_dict_new(0, NULL);
 
     ks_F_print = ks_cfunc_new_c(print_, "print(*args)");
 
@@ -727,6 +985,10 @@ void ks_init_funcs() {
     ks_F_binor = ks_cfunc_new_c(binor_, "__binor__(L, R)");
     ks_F_binxor = ks_cfunc_new_c(binxor_, "__binxor__(L, R)");
 
+    ks_F_lshift = ks_cfunc_new_c(lshift_, "__lshift__(L, R)");
+    ks_F_rshift = ks_cfunc_new_c(rshift_, "__rshift__(L, R)");
+
+
     ks_F_cmp = ks_cfunc_new_c(cmp_, "__cmp__(L, R)");
 
     ks_F_lt = ks_cfunc_new_c(lt_, "__lt__(L, R)");
@@ -741,8 +1003,12 @@ void ks_init_funcs() {
     ks_F_abs = ks_cfunc_new_c(abs_, "abs(V)");
     ks_F_sqig = ks_cfunc_new_c(sqig_, "__sqig__(V)");
 
-    ks_F_exec_file = ks_cfunc_new_c(exec_file_, "exec_file(fname)");
+    ks_F_eval = ks_cfunc_new_c(eval_, "eval(expr)");
+
+    ks_F_exec_interactive = ks_cfunc_new_c(exec_interactive_, "exec_interactive(fname)");
     ks_F_exec_expr = ks_cfunc_new_c(exec_expr_, "exec_expr(expr)");
+    ks_F_exec_file = ks_cfunc_new_c(exec_file_, "exec_file(fname)");
+
 
 }
 

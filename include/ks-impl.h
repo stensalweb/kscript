@@ -92,6 +92,8 @@ _KST_BOPF(_type, pow) \
 _KST_BOPF(_type, binor) \
 _KST_BOPF(_type, binand) \
 _KST_BOPF(_type, binxor) \
+_KST_BOPF(_type, lshift) \
+_KST_BOPF(_type, rshift) \
 static KS_TFUNC(_type, cmp) { \
     ks_obj L, R;                                                 \
     KS_GETARGS("L R", &L, &R)   \
@@ -139,6 +141,8 @@ _KST_UOPF(_type, abs) \
     {"__binand__",       (ks_obj)ks_cfunc_new_c(_type##_binand##_, #_type ".__binand__(L, R)")}, \
     {"__binor__",        (ks_obj)ks_cfunc_new_c(_type##_binor##_, #_type ".__binor__(L, R)")}, \
     {"__binxor__",       (ks_obj)ks_cfunc_new_c(_type##_binxor##_, #_type ".__binxor__(L, R)")}, \
+    {"__lshift__",       (ks_obj)ks_cfunc_new_c(_type##_lshift##_, #_type ".__lshift__(L, R)")}, \
+    {"__rshift__",       (ks_obj)ks_cfunc_new_c(_type##_rshift##_, #_type ".__rshift__(L, R)")}, \
     {"__cmp__",          (ks_obj)ks_cfunc_new_c(_type##_cmp##_, #_type ".__cmp__(L, R)")}, \
     {"__lt__",          (ks_obj)ks_cfunc_new_c(_type##_lt##_, #_type ".__lt__(L, R)")}, \
     {"__gt__",          (ks_obj)ks_cfunc_new_c(_type##_gt##_, #_type ".__gt__(L, R)")}, \

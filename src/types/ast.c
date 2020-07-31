@@ -5,24 +5,6 @@
 
 #include "ks-impl.h"
 
-
-
-
-// ast.__free__(self) - free obj
-static KS_TFUNC(ast, free) {
-    ks_ast self;
-    KS_GETARGS("self:*", &self, ks_T_ast)
-
-    KS_DECREF(self->children);
-
-    KS_UNINIT_OBJ(self);
-    KS_FREE_OBJ(self);
-
-    return KSO_NONE;
-}
-
-
-
 // construct a new AST representing a constant value
 ks_ast ks_ast_new_const(ks_obj val) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
@@ -313,6 +295,20 @@ ks_ast ks_ast_new_uop(int uop_type, ks_ast V) {
     return self;
 }
 
+
+
+// ast.__free__(self) - free obj
+static KS_TFUNC(ast, free) {
+    ks_ast self;
+    KS_GETARGS("self:*", &self, ks_T_ast)
+
+    KS_DECREF(self->children);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+}
 
 
 

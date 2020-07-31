@@ -102,6 +102,12 @@ void ksca_dict      (ks_code self, int n_items) KSCA_B_I32(KSB_DICT, n_items)
 void ksca_slice     (ks_code self) KSCA_B(KSB_SLICE)
 
 void ksca_call   (ks_code self, int n_items) KSCA_B_I32(KSB_CALL, n_items)
+void ksca_vcall     (ks_code self) KSCA_B(KSB_VCALL);
+
+void ksca_list_add_objs (ks_code self, int n_items) KSCA_B_I32(KSB_LIST_ADD_OBJS, n_items)
+void ksca_list_add_iter (ks_code self) KSCA_B(KSB_LIST_ADD_ITER)
+void ksca_buildstr  (ks_code self, int n_items) KSCA_B_I32(KSB_BUILDSTR, n_items)
+
 void ksca_ret    (ks_code self) KSCA_B(KSB_RET)
 void ksca_throw  (ks_code self) KSCA_B(KSB_THROW)
 void ksca_assert (ks_code self) KSCA_B(KSB_ASSERT)

@@ -14,7 +14,7 @@ static bool tokenize(ks_parser self);
 // Create a new parser from some source code
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-ks_parser ks_parser_new(ks_str src_code, ks_str src_name) {
+ks_parser ks_parser_new(ks_str src_code, ks_str src_name, ks_str file_name) {
     ks_parser self = KS_ALLOC_OBJ(ks_parser);
     KS_INIT_OBJ(self, ks_T_parser);
 
@@ -23,6 +23,8 @@ ks_parser ks_parser_new(ks_str src_code, ks_str src_name) {
     KS_INCREF(src_code);
     self->src_name = src_name;
     KS_INCREF(src_name);
+    self->file_name = file_name;
+    KS_INCREF(file_name);
 
     // start with empty token array
     self->toki = 0;
@@ -53,7 +55,6 @@ typedef struct ks_tok ks_tok;
 // give a syntax error at a given token (returns NULL)
 static void* syntax_error(ks_parser parser, ks_tok tok, char* fmt, ...) {
 
-
     // do string formatting
     va_list ap;
     va_start(ap, fmt);
@@ -64,9 +65,10 @@ static void* syntax_error(ks_parser parser, ks_tok tok, char* fmt, ...) {
 
     ks_str_builder_add_str(sb, (ks_obj)what);
 
-    if (parser != NULL && tok.len >= 0) {
+    if (parser != NULL && tok.len_b >= 0) {
+
         // we have a valid token
-        int i = tok.pos;
+        int i = tok.pos_b;
         int lineno = tok.line;
         char c;
 
@@ -101,22 +103,12 @@ static void* syntax_error(ks_parser parser, ks_tok tok, char* fmt, ...) {
         // the start of the line
         char* sl = src + lsi;
 
-        //printf("LINE: %.*s\n", ll, src + lsi);
-        /*ks_str_builder_add_fmt(&SB, "\n%.*s\n%*c" RED "^%*c" RESET "\n@ Line %i, Col %i, in '%S'",
-            ll, sl,
-            tok.col, ' ',
-            tok.len - 1, '~',
-            tok.line + 1, tok.col + 1,
-            tok.parser->src_name
-        );*/
-
-
         ks_str_builder_add_fmt(sb, "\n%.*s" COL_RED COL_BOLD "%.*s" COL_RESET "%.*s\n%*c" COL_RED "^%*c" COL_RESET "\n@ Line %i, Col %i, in '%S'",
             tok.col, sl,
-            tok.len, sl + tok.col,
-            ll - tok.col - tok.len, sl + tok.col + tok.len,
+            tok.len_b, sl + tok.col,
+            ll - tok.col - tok.len_b, sl + tok.col + tok.len_b,
             tok.col, ' ',
-            tok.len - 1, '~',
+            tok.len_b - 1, '~',
             tok.line + 1, tok.col + 1,
             parser->src_name
         );
@@ -144,6 +136,25 @@ static bool is_white(ks_unich c) {
 static bool is_digit(ks_unich c) {
     return isdigit(c) || ks_unich_info_get(c)->cat_gen == ks_unicat_Nd;
 }
+
+// return whether the character is a hex digit
+static bool is_digit_hex(ks_unich c) {
+    return isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+// return whether the character is an octal digit
+static bool is_digit_oct(ks_unich c) {
+    return (c >= '0' && c <= '7');
+}
+
+// return whether the character is a binary digit
+// TODO: should T and F be accepted for 1 and zero?
+// i.e. `0b11001` == `0bTTFFT`
+static bool is_digit_bin(ks_unich c) {
+    return c == '0' || c == '1';
+}
+
+
 
 // true if the character is a valid start to an identifier
 static bool is_ident_s(ks_unich c) {
@@ -175,9 +186,8 @@ static bool tokenize(ks_parser self) {
         _to = ks_str_citer_next(&_cit); \
     }
     // advance and assign
-    #define ADV(_to) { \
-        _to = ks_str_citer_next(&cit); \
-        ks_unich _ccur = _to; \
+    #define ADV() { \
+        ks_unich _ccur = ks_str_citer_next(&cit); \
         if (_ccur == '\n') { \
             line++; \
             col = 0; \
@@ -189,8 +199,12 @@ static bool tokenize(ks_parser self) {
     // add a token to the parser, using defined local variables
     #define ADDTOK(_toktype) { \
         self->tok = ks_realloc(self->tok, sizeof(*self->tok) * ++self->tok_n); \
-        self->tok[self->tok_n - 1] = (ks_tok){ .type = _toktype, .pos = start_b, .len = cit.cbyi - start_b, .line = start_line, .col = start_col }; \
+        self->tok[self->tok_n - 1] = (ks_tok){ .type = _toktype, .pos_b = start_b, .len_b = cit.cbyi - start_b, .line = start_line, .col = start_col }; \
     }
+
+    // generate a bad token
+    #define BADTOK() (ks_tok){ .type = KS_TOK_NONE, .pos_b = start_b, .len_b = cit.cbyi - start_b, .line = start_line, .col = start_col }
+
 
     ks_unich lc = PEEK();
 
@@ -201,7 +215,7 @@ static bool tokenize(ks_parser self) {
 
         // skip all white space
         while (!cit.done && c != '\n' && is_white(c)) {
-            ADV(c)
+            ADV()
             c = PEEK();
         }
         c = PEEK();
@@ -220,66 +234,207 @@ static bool tokenize(ks_parser self) {
         PEEK2(cp2);
 
         if (is_ident_s(c)) {
-            // parse all valid identifier blocks
-
+            // parse all valid identifier characters
             do {
-                ADV(c);
+                ADV();
                 c = PEEK();
             } while (is_ident_m(c));
             
             ADDTOK(KS_TOK_IDENT);
-        } else if (is_digit(c) || (c == '.' && is_digit(cp2))) {
+        } else if (is_digit(c) || (c == '.' && is_digit(cp2) || c == '0' && (cp2 == 'r' || cp2 == 'x' || cp2 == 'b' || cp2 == 'o'))) {
             // some sort of integer/float/complex constant
             // so, numerical
-            // TODO: check for hex
 
-            // parse out first digits
-            while (c > 0 && is_digit(c)) {
-                ADV(c);
+            if (c == '0' && cp2 == 'x') {
+                // hex constant
+
+                // skip past prefix
+                ADV();
+                ADV();
                 c = PEEK();
-            }
+                
+                // count of actual numerical quantities not counting `0x`, `.` or any prefix/suffix
+                int ct = 0;
 
-            if (c == '.' || c == 'i') {
-                // the number is a floating point number (i.e. either real or complex)
-                // if it has a fractional part, accept that as well
+
+                // read whole number part (may be empty)
+                while (c > 0 && is_digit_hex(c)) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
+                }
+
+                // optionally, accept also a fractional part
                 if (c == '.') {
-                    ADV(c);
-
-                    // parse all digits of the fractional part
-                    while (is_digit(PEEK())) {
-                        ADV(c);
+                    ADV();
+                    c = PEEK();
+                    
+                    // suffix as the same characters as well
+                    while (c > 0 && is_digit_hex(c)) {
+                        ADV();
+                        c = PEEK();
+                        ct++;
                     }
-
                 }
 
-                c = PEEK();
-                // get whether it is an imaginary number (and if so, skip the 'i')
-                bool isImag = c == 'i';
-                if (isImag) ADV(c);
-                c = PEEK();
-
-                if (c > 0 && is_ident_m(c)) {
-                    ks_tok badtok = (ks_tok){ 
-                        .type = KS_TOK_NONE, 
-                        .pos = start_b, .len = cit.cbyi - start_b, 
-                        .line = start_line, .col = start_col 
-                    };
-                    return syntax_error(self, badtok, "Unexpected characters after %s literal", isImag ? "imaginary" : "float");
+                // it is an imaginary literal; skip it
+                if (c == 'i') {
+                    ADV();
+                    c = PEEK();
                 }
 
-                // floating point literal
-                ADDTOK(KS_TOK_FLOAT);
+                if (ct <= 0) return syntax_error(self, BADTOK(), "Invalid binary literal");
+
+
+            } else if (c == '0' && cp2 == 'o') {
+                // octal constant
+
+                // skip past prefix
+                ADV();
+                ADV();
+                c = PEEK();
+                
+                // count of actual numerical quantities not counting `0x`, `.` or any prefix/suffix
+                int ct = 0;
+
+
+                // read whole number part (may be empty)
+                while (c > 0 && is_digit_oct(c)) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
+                }
+
+                // optionally, accept also a fractional part
+                if (c == '.') {
+                    ADV();
+                    c = PEEK();
+                    
+                    // suffix as the same characters as well
+                    while (c > 0 && is_digit_oct(c)) {
+                        ADV();
+                        c = PEEK();
+                        ct++;
+                    }
+                }
+
+                // it is an imaginary literal; skip it
+                if (c == 'i') {
+                    ADV();
+                    c = PEEK();
+                }
+
+                if (ct <= 0) return syntax_error(self, BADTOK(), "Invalid octal literal");
+
+            } else if (c == '0' && cp2 == 'b') {
+                // binary constant
+
+                // skip past prefix
+                ADV();
+                ADV();
+                c = PEEK();
+                
+                // count of actual numerical quantities not counting `0x`, `.` or any prefix/suffix
+                int ct = 0;
+
+
+                // read whole number part (may be empty)
+                while (c > 0 && is_digit_bin(c)) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
+                }
+
+                // optionally, accept also a fractional part
+                if (c == '.') {
+                    ADV();
+                    c = PEEK();
+                    
+                    // suffix as the same characters as well
+                    while (c > 0 && is_digit_bin(c)) {
+                        ADV();
+                        c = PEEK();
+                        ct++;
+                    }
+                }
+
+                // it is an imaginary literal; skip it
+                if (c == 'i') {
+                    ADV();
+                    c = PEEK();
+                }
+
+                if (ct <= 0) return syntax_error(self, BADTOK(), "Invalid binary literal");
+
+            } else if (c == '0' && cp2 == 'r') {
+                // roman constant; special case
+                // NOTE: we don't validate it here, that happens later in the actual compilation
+
+                // skip past prefix
+                ADV();
+                ADV();
+                c = PEEK();
+
+                int ct = 0;
+
+                // check for roman numerals
+                while (c > 0 && (c == 'I' || c == 'V' || c == 'X' || c == 'L' || c == 'C' || c == 'D' || c == 'M')) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
+                }
+
+                // ensure some were given
+                if (ct <= 0) return syntax_error(self, BADTOK(), "Invalid roman numeral literal");
             } else {
-                // the number is only an integer
-                ADDTOK(KS_TOK_INT);
+                // decimal constant
+
+                // count of actual numerical quantities not counting `0x`, `.` or any prefix/suffix
+                int ct = 0;
+
+                // read whole number part (may be empty)
+                while (c > 0 && is_digit(c)) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
+                }
+
+                // optionally, accept also a fractional part
+                if (c == '.') {
+                    ADV();
+                    c = PEEK();
+                    
+                    // suffix as the same characters as well
+                    while (c > 0 && is_digit(c)) {
+                        ADV();
+                        c = PEEK();
+                        ct++;
+                    }
+                }
+
+                // it is an imaginary literal; skip it
+                if (c == 'i') {
+                    ADV();
+                    c = PEEK();
+                }
+
+                if (ct <= 0) return syntax_error(self, BADTOK(), "Invalid decimal literal");
             }
+
+            // add it as a number
+            ADDTOK(KS_TOK_NUMBER);
+
+
         } else if (c == '\'' || c == '"') {
             // we need to parse a string literal
-            ADV(c);
+            // NOTE: right now some of this code assumes the string characters above are ASCII
 
             // get the quote character
             ks_unich quote_c = c;
             char quote_c3[] = {c, c, c};
+
+            ADV();
+            c = PEEK();
 
             // whether or not it is a triple string
             bool isTriple = false;
@@ -288,81 +443,88 @@ static bool tokenize(ks_parser self) {
             if (strncmp(self->src->chr + cit.cbyi, quote_c3, 2) == 0) {
                 // triple quoted
                 isTriple = true;
-                ADV(c);
-                ADV(c);
-            } else {
-                ADV(c);
+                ADV();
+                ADV();
+                c = PEEK();
             }
+            c = PEEK();
 
             // parse through characters until the required ending is found
             while ((isTriple ? strncmp(self->src->chr + cit.cbyi, quote_c3, 3) != 0 : c != quote_c) && (c != '\n' || isTriple)) {
                 if (c == '\\') {
                     // escape code; skip it
-                    ADV(c);
+                    ADV();
                 }
-                ADV(c);
+                ADV();
+                c = PEEK();
             }
-
 
             if (isTriple) {
                 // double check
                 if (strncmp(self->src->chr + cit.cbyi, quote_c3, 3) != 0) {
                     ks_tok badtok = (ks_tok){ 
                         .type = KS_TOK_NONE, 
-                        .pos = start_b, .len = isTriple ? 3 : 1, 
+                        .pos_b = start_b, .len_b = isTriple ? 3 : 1, 
                         .line = start_line, .col = start_col 
                     };
-                    //printf("HERE: '%s'\n", &self->src->chr[i]);
 
                     return syntax_error(self, badtok, "Didn't find ending quote for string literal beginning here");
                 }
                 
                 // skip all 3
-                ADV(c);
-                ADV(c);
-                ADV(c);
+                ADV();
+                ADV();
+                ADV();
+                c = PEEK();
             } else {
                 if (c <= 0 || c != quote_c) {
 
                     ks_tok badtok = (ks_tok){ 
                         .type = KS_TOK_NONE, 
-                        .pos = start_b, .len = isTriple ? 3 : 1, 
+                        .pos_b = start_b, .len_b = isTriple ? 3 : 1, 
                         .line = start_line, .col = start_col 
                     };
 
                     return syntax_error(self, badtok, "Didn't find ending quote for string literal beginning here");
                 }
 
+                ADV();
+                c = PEEK();
             }
 
             // add the token
             ADDTOK(KS_TOK_STR);
+
         } else if (c == '#') {
             // single-line comment, skip to the end of the line
-            ADV(c);
+            ADV();
+            c = PEEK();
 
             // go until a newline
             while (c > 0 && c != '\n') {
-                ADV(c);
+                ADV();
+                c = PEEK();
             }
 
-            ADDTOK(KS_TOK_COMMENT);
-
-            // skip newline
+            // skip newline if there was one
             if (c == '\n') {
-            //    ADV(c);
+                ADV();
+                c = PEEK();
             }
+
+            // just ignore the comment
+
         }
 
         // case for a string literal mapping directly to a type
-        #define CASE_S(_type, _str) else if (strncmp(self->src->chr + cit.cbyi, _str, sizeof(_str) - 1) == 0) { int _i; for (_i = 0; _i < sizeof(_str) - 1; ++_i) { ADV(c); } ADDTOK(_type); }
+        #define CASE_S(_type, _str) else if (strncmp(self->src->chr + cit.cbyi, _str, sizeof(_str) - 1) == 0) { int _i; for (_i = 0; _i < sizeof(_str) - 1; ++_i) { ADV(); } ADDTOK(_type); }
 
         CASE_S(KS_TOK_NEWLINE, "\n")
 
         CASE_S(KS_TOK_DOT, ".")
         CASE_S(KS_TOK_COMMA, ",")
         CASE_S(KS_TOK_COL, ":")
-        CASE_S(KS_TOK_SEMI, ";")
+        CASE_S(KS_TOK_SEMICOL, ";")
 
         CASE_S(KS_TOK_LPAR, "(")
         CASE_S(KS_TOK_RPAR, ")")
@@ -402,7 +564,7 @@ static bool tokenize(ks_parser self) {
             // construct a dummy character with just 1 char
             ks_tok badtok = (ks_tok){ 
                 .type = KS_TOK_NONE, 
-                .pos = start_b, .len = cit.cbyi - start_b, 
+                .pos_b = start_b, .len_b = cit.cbyi - start_b, 
                 .line = start_line, .col = start_col 
             };
 
@@ -411,13 +573,10 @@ static bool tokenize(ks_parser self) {
             ks_ssize_t sz = ks_text_utf32_to_utf8(&c, utf8, 1);
 
             // give a syntax error
-            syntax_error(self, badtok, "Unexpected Character: '%*s' (%c)", (int)sz, utf8, c);
-            return false;
-            //return ks_throw_fmt(NULL, "Invalid Character: %c", c);
+            return syntax_error(self, badtok, "Unexpected Character: '%*s'", (int)sz, utf8);
         }
 
         #undef CASE_S
-
     }
 
 
@@ -432,7 +591,6 @@ static bool tokenize(ks_parser self) {
     #undef ADV
 
 
-
     if (ks_log_c_level("ks") == KS_LOG_TRACE) {
         // print out all tokens
         int i;
@@ -440,11 +598,10 @@ static bool tokenize(ks_parser self) {
 
 
         for (i = 0; i < self->tok_n; ++i) {
-            ks_trace("ks", "[%*i]: '%*s', typ: %i", 4, i, self->tok[i].len, self->src->chr + self->tok[i].pos, self->tok[i].type);
+            ks_trace("ks", "[%*i]: '%*s', typ: %i", 4, i, self->tok[i].len_b, self->src->chr + self->tok[i].pos_b, self->tok[i].type);
         }
 
     }
-
 
     // success
     return true;
@@ -472,24 +629,24 @@ ks_tok ks_tok_combo(ks_parser parser, ks_tok A, ks_tok B) {
     int new_len;
     if (A.line == B.line) {
         // same line as before, calculate the sum length
-        new_len = _MAX(A.pos+A.len, B.pos+B.len) - _MIN(A.pos, B.pos);
+        new_len = _MAX(A.pos_b+A.len_b, B.pos_b+B.len_b) - _MIN(A.pos_b, B.pos_b);
     } else {
         // use the first line and extend all the way to the '\n'
-        char* npos = strchr(parser->src->chr + this_line.pos, '\n');
-        new_len = npos == NULL ? (parser->src->len_b - this_line.pos) : ((npos - parser->src->chr) - this_line.pos);
+        char* npos = strchr(parser->src->chr + this_line.pos_b, '\n');
+        new_len = npos == NULL ? (parser->src->len_b - this_line.pos_b) : ((npos - parser->src->chr) - this_line.pos_b);
     }
 
     return (ks_tok) {
         .type = KS_TOK_COMBO,
-        .pos = _MIN(A.pos, B.pos), 
-        .len = new_len,
+        .pos_b = _MIN(A.pos_b, B.pos_b), 
+        .len_b = new_len,
         .line = this_line.line, .col = this_line.col
     };
 }
 
 // return whether a given token type is a valid yielding type
 static bool tok_isval(int type) {
-    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_INT || type == KS_TOK_FLOAT || type == KS_TOK_STR || type == KS_TOK_RBRK;
+    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_NUMBER || type == KS_TOK_STR || type == KS_TOK_RBRK;
 }
 
 // return whether a given token type is a valid operator
@@ -503,9 +660,9 @@ ks_str ks_tok_expstr(ks_parser parser, ks_tok tok) {
 
     ks_str_builder sb = ks_str_builder_new();
 
-    if (parser != NULL && tok.len >= 0) {
+    if (parser != NULL && tok.len_b >= 0) {
         // we have a valid token
-        int i = tok.pos;
+        int i = tok.pos_b;
         int lineno = tok.line;
         char c;
 
@@ -541,79 +698,15 @@ ks_str ks_tok_expstr(ks_parser parser, ks_tok tok) {
         char* sl = src + lsi;
 
         // bytes before
-        int nbbefore = (int)(tok.pos - (int)(sl - src));
-
-        // now, add additional metadata about the error, including in-source markup
-        ks_str_builder_add_fmt(sb, "\n%*s" COL_RED COL_BOLD "%*s" COL_RESET "%*s\n%*c" COL_RED "^%*c" COL_RESET "\n@ Line %i, Col %i, in '%S'",
-            nbbefore, sl,
-            tok.len, src + tok.pos,
-            ll - nbbefore - tok.len, src + tok.pos + tok.len,
-            tok.col, ' ',
-            tok.len - 1, '~',
-            tok.line + 1, tok.col + 1,
-            parser->src_name
-        );
-    }
-
-
-    ks_str full_what = ks_str_builder_get(sb);
-    KS_DECREF(sb);
-
-    return full_what;
-}
-
-// generate a string from a token, marked up
-ks_str ks_tok_expstr_2(ks_parser parser, ks_tok tok) {
-
-    ks_str_builder sb = ks_str_builder_new();
-
-    if (parser != NULL && tok.len >= 0) {
-        // we have a valid token
-        int i = tok.pos;
-        int lineno = tok.line;
-        char c;
-
-        char* src = parser->src->chr;
-
-        // rewind to the start of the line
-        while (i >= 0) {
-            c = src[i];
-
-            if (c == '\n') {
-                i++;
-                break;
-            }
-            i--;
-        }
-
-
-        if (i < 0) i++;
-        if (src[i] == '\n') i++;
-
-        // line start index
-        int lsi = i;
-
-        while (c = src[i]) {
-            if (c == '\n') break;
-            i++;
-        }
-
-        // line length
-        int ll = i - lsi;
-
-        // the start of the line
-        char* sl = src + lsi;
-
-        // bytes before
-        int nbbefore = (int)(tok.pos - (int)(sl - src));
+        int nbbefore = (int)(tok.pos_b - (int)(sl - src));
 
         // now, add additional metadata about the error, including in-source markup
         ks_str_builder_add_fmt(sb, "\n%.*s" COL_RED COL_BOLD "%.*s" COL_RESET "%.*s\n%*c" COL_RED "^%*c" COL_RESET,
             nbbefore, sl,
-            tok.len, src + tok.pos,
-            ll - nbbefore - tok.len, src + tok.pos + tok.len,
+            tok.len_b, src + tok.pos_b,
+            ll - nbbefore - tok.len_b, src + tok.pos_b + tok.len_b,
             tok.col, ' ',
-            tok.len - 1, '~'
+            tok.len_b - 1, '~'
         );
     }
 
@@ -624,101 +717,96 @@ ks_str ks_tok_expstr_2(ks_parser parser, ks_tok tok) {
 }
 
 
-// get the value of a constant token
+// retrieve the value of a token
 static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
-    char tmp[256];
+    // value string & length
+    char* vstr = parser->src->chr + tok.pos_b;
+    int len = tok.len_b;
 
-    if (tok.type == KS_TOK_INT) {
-        // parse out an integer (or long)
-        // it is a long constant
-        char* new_tmp = ks_malloc(tok.len + 1);
-        strncpy(new_tmp, parser->src->chr + tok.pos, tok.len);
-        new_tmp[tok.len] = '\0';
+    if (tok.type == KS_TOK_NUMBER) {
+        // parse numeral literal
 
-        ks_int res = ks_int_new_s(new_tmp, 10);
-        ks_free(new_tmp);
-        return (ks_obj)res;
+        // whether or not it has a dot anywhere or a suffix 'i'
+        bool hasDot = false;
+        bool hasi = false;
 
-        /*if (tok.parser->src->chr[tok.pos + tok.len - 1] == 'L') {
-            // it is a long constant
-            char* new_tmp = ks_malloc(tok.len + 1);
-            strncpy(new_tmp, tok.parser->src->chr + tok.pos, tok.len);
-            new_tmp[tok.len - 1] = '\0';
-
-            ks_long res = ks_long_new_str(new_tmp, 10);
-            ks_free(new_tmp);
-            return (ks_obj)res;
-        } else {
-            // normal integer constant
-            strncpy(tmp, tok.parser->src->chr + tok.pos, tok.len);
-            tmp[tok.len] = '\0';
-
-            long long int val = 0;
-
-            // ensure it was parsed
-            if (sscanf(tmp, "%lli", &val) != 1) return syntax_error(tok, "Invalid format for an integer literal");
-            return (ks_obj)ks_int_new(val);
-        }*/
-    } else if (tok.type == KS_TOK_FLOAT) {
-
-        if (parser->src->chr[tok.pos + tok.len - 1] == 'i') {
-            // it is a long constant
-            strncpy(tmp, parser->src->chr + tok.pos, tok.len);
-            tmp[tok.len - 1] = '\0';
-            
-            double val = 0;
-
-            // ensure it was parsed
-            if (sscanf(tmp, "%lf", &val) != 1) return syntax_error(parser, tok, "Invalid format for an complex literal");
-            return (ks_obj)ks_complex_new(I * val);
-
-        } else {
-            // normal integer constant
-            strncpy(tmp, parser->src->chr + tok.pos, tok.len);
-            tmp[tok.len] = '\0';
-
-            double val = 0;
-
-            // ensure it was parsed
-            if (sscanf(tmp, "%lf", &val) != 1) return syntax_error(parser, tok, "Invalid format for an float literal");
-            return (ks_obj)ks_float_new(val);
+        int i;
+        for (i = 0; i < len && !hasDot && !hasi; ++i) {
+            if (vstr[i] == '.') hasDot = true;
+            if (vstr[i] == 'i') hasi = true;
         }
 
-    } else {
-        // should not be called here
-        return syntax_error(parser, tok, "Internal error in tok_getval... This is embarrassing!");
+        // floating pint
+        bool isFloat = hasDot || hasi;
+
+        if (len > 2 && vstr[0] == '0' && !is_digit(vstr[1])) {
+            // try some specialties
+            if (vstr[1] == 'r') {
+                // parse roman out
+                return (ks_obj)ks_int_new_roman(vstr+2, len-2);
+            } else if (vstr[1] == 'x') {
+                // hex string
+                if (isFloat) {
+                    // TODO float
+
+                } else {
+                    char* tmp_str = ks_malloc(len - 1);
+                    memcpy(tmp_str, vstr+2, len - 2);
+                    tmp_str[len - 2] = '\0';
+
+                    ks_int ret = ks_int_new_s(tmp_str, 16);
+                    ks_free(tmp_str);
+                    return (ks_obj)ret;
+                }
+
+            } else if (vstr[1] == 'o') {
+                // octal
+                if (isFloat) {
+                    // TODO float
+
+                } else {
+                    char* tmp_str = ks_malloc(len - 1);
+                    memcpy(tmp_str, vstr+2, len - 2);
+                    tmp_str[len - 2] = '\0';
+
+                    ks_int ret = ks_int_new_s(tmp_str, 8);
+                    ks_free(tmp_str);
+                    return (ks_obj)ret;
+                }
+            } else if (vstr[1] == 'b') {
+                // binary
+                if (isFloat) {
+                    // TODO float
+
+                } else {
+                    char* tmp_str = ks_malloc(len - 1);
+                    memcpy(tmp_str, vstr+2, len - 2);
+                    tmp_str[len - 2] = '\0';
+
+                    ks_int ret = ks_int_new_s(tmp_str, 2);
+                    ks_free(tmp_str);
+                    return (ks_obj)ret;
+                }
+            }
+        } else {
+            // decimal
+            if (isFloat) {
+                // TODO float
+
+            } else {
+                char* tmp_str = ks_malloc(len + 1);
+                memcpy(tmp_str, vstr, len);
+                tmp_str[len] = '\0';
+
+                ks_int ret = ks_int_new_s(tmp_str, 10);
+                ks_free(tmp_str);
+                return (ks_obj)ret;
+            }
+        }
     }
 
-}
-
-
-// generates an integer from the token, assuming it is an integer literal
-static int64_t tok_getint(ks_parser parser, ks_tok tok) {
-
-    if (tok.type != KS_TOK_INT) {
-        ks_warn("ks", "tok_getint() passed a non-integer token (type %i)", tok.type);
-        return 0;
-    }
-    static char tmp[100];
-    int len = tok.len;
-    if (len > 99) len = 99;
-    memcpy(tmp, parser->src->chr + tok.pos, len);
-    tmp[len] = '\0';
-    return atoll(tmp);
-}
-
-// generates a float rom the token, assuming it is an integer literal
-static double tok_getfloat(ks_parser parser, ks_tok tok) {
-    if (tok.type != KS_TOK_FLOAT) {
-        ks_warn("ks", "tok_getfloat() passed a non-float token (type %i)", tok.type);
-        return 0;
-    }
-    static char tmp[100];
-    int len = tok.len;
-    if (len > 99) len = 99;
-    memcpy(tmp, parser->src->chr + tok.pos, len);
-    tmp[len] = '\0';
-    return atof(tmp);
+    // should not be called here
+    return syntax_error(parser, tok, "Internal error in tok_getval... This is embarrassing!");
 }
 
 
@@ -727,16 +815,16 @@ static double tok_getfloat(ks_parser parser, ks_tok tok) {
 // a literal newline, and removes the quotes around it
 static ks_str tok_getstr(ks_parser parser, ks_tok tok) {
     // check if it is a triple quotes
-    if (strncmp(parser->src->chr + tok.pos, "'''", 3) == 0 || strncmp(parser->src->chr + tok.pos, "\"\"\"", 3) == 0) {
+    if (strncmp(parser->src->chr + tok.pos_b, "'''", 3) == 0 || strncmp(parser->src->chr + tok.pos_b, "\"\"\"", 3) == 0) {
         // single quote
-        ks_str inside_quotes = ks_str_new_c(parser->src->chr + tok.pos + 3, tok.len - 6);
+        ks_str inside_quotes = ks_str_new_c(parser->src->chr + tok.pos_b + 3, tok.len_b - 6);
 
         ks_str res = ks_str_unescape(inside_quotes);
         KS_DECREF(inside_quotes);
         return res;
     } else {
         // single quote
-        ks_str inside_quotes = ks_str_new_c(parser->src->chr + tok.pos + 1, tok.len - 2);
+        ks_str inside_quotes = ks_str_new_c(parser->src->chr + tok.pos_b + 1, tok.len_b - 2);
 
         ks_str res = ks_str_unescape(inside_quotes);
         KS_DECREF(inside_quotes);
@@ -748,7 +836,7 @@ static ks_str tok_getstr(ks_parser parser, ks_tok tok) {
 
 // yield whether a token equals a string constant too
 // NOTE: Assumes the parser is named 'self'
-#define TOK_EQ(_tok, _str) (_tok.len == (sizeof(_str) - 1) && (0 == strncmp(self->src->chr + _tok.pos, _str, (sizeof(_str) - 1))))
+#define TOK_EQ(_tok, _str) (_tok.len_b == (sizeof(_str) - 1) && (0 == strncmp(self->src->chr + _tok.pos_b, _str, (sizeof(_str) - 1))))
 
 // Get a boolean expression telling whether the parser is in a valid parsing state
 // (i.e. has not run out of bounds)
@@ -766,7 +854,7 @@ static ks_str tok_getstr(ks_parser parser, ks_tok tok) {
 // Use this macro to skip tokens that are irrelevant to expressions
 // NOTE: Assumes the parser is named 'self'
 #define SKIP_IRR_E() {  \
-    while (VALID() && (CTOK().type == KS_TOK_COMMENT)) { \
+    while (VALID() && (false)) { \
         ADV_1(); \
     } \
 }
@@ -775,7 +863,7 @@ static ks_str tok_getstr(ks_parser parser, ks_tok tok) {
 // NOTE: Assumes the parser is named 'self'
 #define SKIP_IRR_S() {  \
     ks_tok _ctok; \
-    while (VALID() && ((_ctok = CTOK()).type == KS_TOK_COMMENT || _ctok.type == KS_TOK_SEMI || _ctok.type == KS_TOK_NEWLINE)) { \
+    while (VALID() && ((_ctok = CTOK()).type == KS_TOK_SEMICOL || _ctok.type == KS_TOK_NEWLINE)) { \
         ADV_1(); \
     } \
 }
@@ -796,7 +884,8 @@ static bool tok_iskw(ks_parser self, ks_tok tok) {
         TOK_EQ(tok, "while") || TOK_EQ(tok, "func") || 
         TOK_EQ(tok, "for") || 
         TOK_EQ(tok, "try") || TOK_EQ(tok, "catch") || TOK_EQ(tok, "throw") ||
-        TOK_EQ(tok, "true") || TOK_EQ(tok, "false")
+        TOK_EQ(tok, "true") || TOK_EQ(tok, "false") ||
+        TOK_EQ(tok, "ret")
     ;
 }
 
@@ -1034,6 +1123,7 @@ static syop
     syb_mul = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MUL), syb_div = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_DIV),
     syb_mod = SYBOP(SYP_MULDIV, SYA_BOP_LEFT, KS_AST_BOP_MOD), syb_pow = SYBOP(SYP_POW, SYA_BOP_RIGHT, KS_AST_BOP_POW),
     syb_binor = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_BINOR), syb_binand = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_BINAND), syb_binxor = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_BINXOR),
+    syb_lshift = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_LSHIFT), syb_rshift = SYBOP(SYP_BITWISE, SYA_BOP_LEFT, KS_AST_BOP_RSHIFT),
     syb_cmp = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_CMP),
 
     syb_lt = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LT), syb_le = SYBOP(SYP_CMP, SYA_BOP_LEFT, KS_AST_BOP_LE), 
@@ -1053,7 +1143,6 @@ static syop
     syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG),
     syu_sqig = SYUOP(SYA_UOP_PRE, KS_AST_UOP_SQIG),
     syu_not = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NOT)
-    
 
 ;
 
@@ -1177,7 +1266,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
 
         // check if we should stop parsing due to being at the end
         if (ctok.type == KS_TOK_EOF || 
-            ctok.type == KS_TOK_SEMI ||
+            ctok.type == KS_TOK_SEMICOL ||
             ((flags & KS_PARSE_INBRK) && ctok.type == KS_TOK_RBRC) ||
             ctok.type == KS_TOK_COL
 
@@ -1200,33 +1289,17 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
             }
         }
 
-        if (ctok.type == KS_TOK_INT) {
+        if (ctok.type == KS_TOK_NUMBER) {
             // push an integer onto the value stack
             if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(self, ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
 
             // convert token to actual int value
-            ks_int new_int = (ks_int)tok_getval(self, ctok);
-            if (!new_int) goto kppe_err;
+            ks_obj new_val = tok_getval(self, ctok);
+            if (!new_val) goto kppe_err;
 
             // transform it into an AST
-            ks_ast new_ast = ks_ast_new_const((ks_obj)new_int);
-            KS_DECREF(new_int);
-
-            new_ast->tok = ctok;
-
-            // push it on the output stack
-            Spush(Out, new_ast);
-        } else if (ctok.type == KS_TOK_FLOAT) {
-            // push an integer onto the value stack
-            if (tok_isval(ltok.type)) KPPE_ERR(ks_tok_combo(self, ltok, ctok), "Invalid Syntax, 2 value types not expected like this"); 
-
-            // convert token to actual float value
-            ks_float new_float = (ks_float)tok_getval(self, ctok);
-            if (!new_float) goto kppe_err;
-
-            // transform it into an AST
-            ks_ast new_ast = ks_ast_new_const((ks_obj)new_float);
-            KS_DECREF(new_float);
+            ks_ast new_ast = ks_ast_new_const(new_val);
+            KS_DECREF(new_val);
 
             new_ast->tok = ctok;
 
@@ -1264,7 +1337,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
             // TODO: handle keywords
 
             // convert token to actual string value
-            ks_str var_s = ks_str_new_c(self->src->chr + ctok.pos, ctok.len);
+            ks_str var_s = ks_str_new_c(self->src->chr + ctok.pos_b, ctok.len_b);
 
             // transform it into an AST
             ks_ast new_ast = ks_ast_new_var(var_s);
@@ -1291,7 +1364,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
             // take off the last
             ks_ast last = Spop(Out);
             // replace it with its attribute
-            ks_str attr_name_s = ks_str_new_c(self->src->chr + ctok.pos, ctok.len);
+            ks_str attr_name_s = ks_str_new_c(self->src->chr + ctok.pos_b, ctok.len_b);
             ks_ast new_attr = ks_ast_new_attr(last, attr_name_s);
             KS_DECREF(last);
             KS_DECREF(attr_name_s);
@@ -1334,6 +1407,8 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
                     KPE_OPCASE(ctok, "/",  syb_div)
                     KPE_OPCASE(ctok, "%",  syb_mod)
                     KPE_OPCASE(ctok, "**", syb_pow)
+                    KPE_OPCASE(ctok, "<<", syb_lshift)
+                    KPE_OPCASE(ctok, ">>", syb_rshift)
                     KPE_OPCASE(ctok, "<=>",syb_cmp)
                     KPE_OPCASE(ctok, "<",  syb_lt)
                     KPE_OPCASE(ctok, "<=", syb_le)
@@ -1480,15 +1555,12 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
                         }
                     }
 
-
-
                     if (!VALID()) {
                         KS_DECREF(slice_args[0]);
                         KS_DECREF(subs_args);
                         KS_DECREF(obj);
                         KPPE_ERR(CTOK(), "Unexpected end of input");
                     }
-
 
                     // now, find second argument
                     cslarg++;
@@ -1628,6 +1700,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
 
         } else if (ctok.type == KS_TOK_RBRK) {
             n_brks--;
+
 
             // make sure there's been an `[` for this `]`
             if (n_brks < 0) {
@@ -1998,14 +2071,14 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
             goto kpps_err;
         }
 
-        ks_str name = ks_str_new_c(self->src->chr + CTOK().pos, CTOK().len);
+        ks_str name = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
 
         // skip name
         ADV_1();
 
         SKIP_IRR_E();
 
-        if (VALID() && CTOK().type != KS_TOK_NEWLINE && CTOK().type != KS_TOK_SEMI) {
+        if (VALID() && CTOK().type != KS_TOK_NEWLINE && CTOK().type != KS_TOK_SEMICOL) {
             KS_DECREF(name);
             syntax_error(self, CTOK(), "Expected a newline or ';' after import statement");
             goto kpps_err;
@@ -2239,7 +2312,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
             goto kpps_err;
         }
 
-        ks_str ident = ks_str_new_c(self->src->chr + CTOK().pos, CTOK().len);
+        ks_str ident = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
 
         ADV_1();
 
@@ -2362,7 +2435,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
                 ADV_1();
             } else if (CTOK().type == KS_TOK_IDENT) {
                 // otherwise, parse out the name of the error and/or errtype
-                catch_name = ks_str_new_c(self->src->chr + CTOK().pos, CTOK().len);
+                catch_name = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
 
                 ADV_1();
 
@@ -2421,7 +2494,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
         }
 
         // get the name as a variable reference
-        ks_str _name = ks_str_new_c(self->src->chr + CTOK().pos, CTOK().len);
+        ks_str _name = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
         ks_ast name = ks_ast_new_var(_name);
         KS_DECREF(_name);
         name->tok = CTOK();
@@ -2443,7 +2516,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
                 goto kpps_err;
             }
 
-            ks_str par_name = ks_str_new_c(self->src->chr + CTOK().pos, CTOK().len);
+            ks_str par_name = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
             ks_list_push(pars, (ks_obj)par_name);
             KS_DECREF(par_name);
 
@@ -2526,7 +2599,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
         return res;
 
 
-    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_INT || ctok.type == KS_TOK_FLOAT || ctok.type == KS_TOK_OP || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK || ctok.type == KS_TOK_LBRC) {
+    } else if (ctok.type == KS_TOK_IDENT || ctok.type == KS_TOK_NUMBER || ctok.type == KS_TOK_OP || ctok.type == KS_TOK_STR || ctok.type == KS_TOK_LPAR || ctok.type == KS_TOK_LBRK || ctok.type == KS_TOK_LBRC) {
 
         // parse expression
         return ks_parser_expr(self, KS_PARSE_INBRK);
@@ -2590,8 +2663,6 @@ ks_ast ks_parser_file(ks_parser self) {
 
     return NULL;
 }
-
-
 
 
 static KS_TFUNC(parser, free) {

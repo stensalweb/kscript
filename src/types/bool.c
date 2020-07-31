@@ -22,6 +22,23 @@ static KS_TFUNC(bool, free) {
     return KSO_NONE;
 }
 
+
+// bool.__str__(self) - to string
+static KS_TFUNC(bool, str) {
+    ks_bool self = NULL;
+    KS_GETARGS("self:*", &self, ks_T_bool)
+
+    static ks_str s_true = NULL, s_false = NULL;
+
+    // 1 time initialization
+    if (!s_true) {
+        s_true = ks_str_new("true");
+        s_false = ks_str_new("false");
+    }
+
+    return (self == KS_TRUE) ? KS_NEWREF(s_true) : KS_NEWREF(s_false);
+}
+
 KST_NUM_OPFS(tbool)
 
 
@@ -38,6 +55,8 @@ void ks_init_T_bool() {
 
     ks_type_init_c(ks_T_bool, "bool", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(bool_free_, "bool.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c(bool_str_, "bool.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(bool_str_, "bool.__repr__(self)")},
 
         KST_NUM_OPKVS(tbool)
     ));

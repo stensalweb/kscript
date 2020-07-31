@@ -279,6 +279,9 @@ struct ks_type_s {
     // <, >, <=, >=, ==, !=, <=> operators
     ks_obj __lt__, __gt__, __le__, __ge__, __eq__, __ne__, __cmp__;
 
+    // <<. >> operators
+    ks_obj __lshift__, __rshift__;
+
     // |, &, ^ operators
     ks_obj __binor__, __binand__, __binxor__;
 
@@ -800,70 +803,109 @@ enum {
     // None/error token type
     KS_TOK_NONE = 0,
 
-    // Represents a combination of multiple tokens of different types
+    // Represents a combination of multiple tokens that may be of different types
     KS_TOK_COMBO,
 
-    // an identifier (i.e. any valid variable name)
+    // a valid identifier (i.e. variable name, function name, etc)
+    // NOTE: this may include unicode characters as well
     KS_TOK_IDENT,
 
-    // an integer numerical literal (i.e. '123', '345', etc)
-    KS_TOK_INT,
 
-    // an floating-point numerical literal (i.e. '123.0', '345.', etc)
-    KS_TOK_FLOAT,
+    /* Value Literals */
 
-    // a string constant, wrapped in quotes (i.e. '"Abc\nDef"')
+    // a numerical literal, which may be an integer, float, complex, etc
+    // Valid 'numbers' are:
+    //  integer:
+    //   [0-9]+
+    //   0x[0-9a-fA-F]+
+    //   0b[0-1]+
+    //   0o[0-7]+
+    //   0r[IVXLDCM]+ 
+    //     NOTE: roman numeral literals also are checked for correctness
+    //       (i.e. it is not just a regex check)
+    //  floating point
+    //   [0-9]+\.[0-9]*i? | [0-9]*+\.[0-9]+i?
+    //   0x[0-9a-fA-F]+\.[0-9a-fA-F]*i? | 0x[0-9a-fA-F]*+\.[0-9a-fA-F]+i?
+    // NOTE: Complex numbers (`a+bi`) are not a single constant, but include the `+` operation
+    //   when parsed
+    KS_TOK_NUMBER,
+
+    // a string literal, which can be single quote delimited, or triple quote delimeted
+    // Valid strings are (NOTE: regex doesn't work for multi-line and some escape sequences):
+    //   "..."
+    //   '...'
+    //   """..."""
+    //   '''...'''
+    // Strings may include the following escape sequences:
+    //   '\\' - a literal backslash `\`
+    //   '\'' - a literal single quote: `'`
+    //   '\"' - a literal double quote: `"`
+    //   '\a' - ASCII: `BEL` (bell)
+    //   '\b' - ASCII: `BS` (backspace)
+    //   '\f' - ASCII: `FF` (formfeed)
+    //   '\n' - ASCII: `LF` (linefeed)
+    //   '\r' - ASCII: `CR` (carriage return)
+    //   '\t' - ASCII: `TAB` (tab)
+    //   '\v' - ASCII: `VT` (vertical tab)
+    //   '\x$$' - A literal byte with the value `$$` (given in hex). Two characters are required
+    //   '\u$$$$' - Unicode codepoint with 16bit value `$$$$`. Four characters are required
+    //   '\U$$$$$$$$' - Unicode codepoint with 32bit value `$$$$$$$$`. 8 characters are required
+    //   '\N{$}' - Unicode codepoint with a given name `$`, i.e. '\N{LATIN CAPITAL LETTER A}' == 'a'
     KS_TOK_STR,
 
-    // a comment token, which typically starts with '#' and goes until the end
-    //   of the line
-    KS_TOK_COMMENT,
+    /* Control Sequences */
 
-    // a newline token, i.e. 
-    //
+    // Represents a new line break
+    // NOTE: `\r\n` and `\n` and other combinations will all be treated as a single new line
     KS_TOK_NEWLINE,
 
-    // an operator, i.e. '+', '-', '==', etc
-    KS_TOK_OP,
-
-    // End-Of-File token, always the last token for a given file
+    // Represents the end of file, has length zero
+    // This is mainly included as an implementation detail so internal code can always check `tokens[i + 1]` without
+    //   worrying about indexing past the end of the array of tokens
     KS_TOK_EOF,
+
+
+    /* Character Sequences (or singles) */
+
+    // literal '.'
+    KS_TOK_DOT,
+
+    // literal ','
+    KS_TOK_COMMA,
     
+    // literal ':'
+    KS_TOK_COL,
 
-    /** GRAMMAR CHARACTERS **/
+    // literal ';'
+    KS_TOK_SEMICOL,
 
-    // a single left parenthesis i.e. '('
+    // literal '('
     KS_TOK_LPAR,
-    // a single right parenthesis i.e. ')'
+    // literal ')'
     KS_TOK_RPAR,
 
-    // a single left bracket i.e. '['
+    // literal '['
     KS_TOK_LBRK,
-    // a single right bracket i.e. ']'
+    // literal ']'
     KS_TOK_RBRK,
 
-    // a single left brace i.e. '{'
+    // literal '{'
     KS_TOK_LBRC,
-    // a single right brace i.e. '}'
+    // literal '}'
     KS_TOK_RBRC,
 
-    // a single dot/period i.e. '.'
-    KS_TOK_DOT,
-    // a single comma i.e. ','
-    KS_TOK_COMMA,
-    // a single colon i.e. ':'
-    KS_TOK_COL,
-    // a single colon i.e. ';'
-    KS_TOK_SEMI,
+    // an operator, can be any operator, e.g. '+', '-'
+    // NOTE: length should be checked, and then check
+    //   the source code to see which operator
+    KS_TOK_OP,
 
 };
-
 
 // ks_tok - kscript token from parser
 // These are not full 'objects', because that would require a lot of memory,
 //   objects, and pointers for parsers. Many files have upwards of 10k tokens,
-//   so allocating 10k objects & maintaining reference counts, etc would not
-//   be feasible or as efficient
+//   so allocating 10k objects & maintaining reference counts, etc might slow
+//   down quite a bit
 // Therefore, this structure does not hold a reference to 'parser',
 //   since it is a part of a parser at all times, and the integer members
 //   describe where in the source code the token is found
@@ -872,14 +914,13 @@ struct ks_tok {
     // the type of token, one of the KS_TOK_* enum values
     int type;
 
-    // absolute position & length in the string source code (in bytes)
-    int pos, len;
+    // position & length (in bytes) within the source code
+    int pos_b, len_b;
 
-    // the line & column at which it first appeared (in characters, not bytes!)
+    // the line & column (in characters, not neccesarily bytes!)
     int line, col;
 
 };
-
 
 // ks_parser - an integrated parser which can parse kscript & bytecode to
 //   ASTs & code objects
@@ -892,6 +933,9 @@ typedef struct {
     // the name of the source (human readable)
     ks_str src_name;
 
+    // the file name (printed when using files)
+    ks_str file_name;
+
     // the current token index into the 'tok' array
     int toki;
 
@@ -900,6 +944,7 @@ typedef struct {
 
     // the array of tokens in the source code
     struct ks_tok* tok;
+
 
 }* ks_parser;
 
@@ -916,10 +961,14 @@ enum {
 
     // Represents a list constructor, like [1, 2, 3]
     // elements are in children
+    // NOTE: `.data` (if non-NULL) gives pointer to `children->len` instances of `struct ks_ast_iter_data`
+    //   describing each constructor, if there were any unpacking arguments
     KS_AST_LIST,
 
     // Represents a tuple constructor, like (1, 2, 3)
     // elements are in children
+    // NOTE: `.data` (if non-NULL) gives pointer to `children->len` instances of `struct ks_ast_iter_data`
+    //   describing each constructor, if there were any unpacking arguments
     KS_AST_TUPLE,
 
     // Represents a dictionary constructor, like {"key":"value", ...}
@@ -930,14 +979,15 @@ enum {
     // elements are in children
     KS_AST_SLICE,
 
-
-    // Represents an attribute reference, 'children[0].(children[1])'
+    // Represents an attribute reference, '(children[0]).(children[1])'
     // the value is 'children[0]' (AST), but the attribute is a string, in 'children[1]'
     KS_AST_ATTR,
 
     // Represents a function call, func(*args)
     // func is 'children[0]'
     // args are 'children[1:]'
+    // NOTE: `.data` (if non-NULL) gives pointer to `children->len` instances of `struct ks_ast_iter_data`
+    //   describing each constructor, if there were any unpacking arguments
     KS_AST_CALL,
     
     // represents a subscript call, i.e. obj[*args]
@@ -996,12 +1046,15 @@ enum {
     // 'children[0]' is the function name (cast to ks_str)
     // 'children[1]' is the list of parameter names (cast to ks_list)
     // 'children[3]' is the body of the function, containing the code for the function
+    // NOTE: `.data` holds array of function parameter iteration information, whether they are unpacked or not, etc, indexed by `params`
     KS_AST_FUNC,
 
     // represents a 'for' block, i.e. iterating through some iterable
     // 'children[0]' is the item being iterated through (AST)
     // 'children[1]' is the body to execute on each run (AST)
-    // 'children[2]' is the variable to assign to
+    // 'children[2:-1]' is the variable(s) being assigned to
+    // NOTE: `.data` (if non-NULL) gives pointer to `children->len` instances of `struct ks_ast_iter_data`
+    //   describing each constructor, if there were any unpacking arguments
     KS_AST_FOR,
 
 
@@ -1027,6 +1080,10 @@ enum {
     // binary '^'
     KS_AST_BOP_BINXOR,
 
+    // binary '<<'
+    KS_AST_BOP_LSHIFT,
+    // binary '>>'
+    KS_AST_BOP_RSHIFT,
 
     // binary '<=>'
     KS_AST_BOP_CMP,
@@ -1046,16 +1103,16 @@ enum {
 
     // binary (short circuit) 'or'
     KS_AST_BOP_OR,
-    // binary (short circuit) 'or'
+    // binary (short circuit) 'and'
     KS_AST_BOP_AND,
 
-
     // binary '=' (special case, only assignable things area allowed on the left side)
+    // NOTE: `.data` (if non-NULL) gives pointer to `children->len` instances of `struct ks_ast_iter_data`
+    //   describing each constructor, if there were any unpacking arguments
     KS_AST_BOP_ASSIGN,
 
 
     /** UNARY OPERATORS **/
-
 
     // unary '+'
     KS_AST_UOP_POS,
@@ -1081,6 +1138,14 @@ enum {
 #define KS_AST_UOP__LAST KS_AST_UOP_NOT
 
 
+// extra data for `KS_AST_LIST` and `KS_AST_TUPLE`
+struct ks_ast_iter_data {
+
+    // if true, the argument is requested to unpack (i.e. it is an iterable,
+    //   then all of its elements should be added to the result)
+    bool doUnpack;
+
+};
 
 // ks_ast - an Abstract Syntax Tree, a high-level representation of a program/expression
 typedef struct {
@@ -1096,7 +1161,12 @@ typedef struct {
     // tokens for the AST, representing where it is in the source code
     struct ks_tok tok;
 
+    // extra specific data for the AST (check `struct ks_ast_*_data` types), or NULL
+    //   if there is none
+    void* data;
+
 }* ks_ast;
+
 
 
 /* BYTECODE 
@@ -1164,6 +1234,18 @@ enum {
     // 1:[op] 4:[int num_elems, number of elements to take off the stack]
     KSB_LIST,
 
+    // Add a number of elements to a list under the items on the stack
+    // | list_obj a b c
+    // | list_obj
+    // 1:[op] 4:[int num_elems, number of elements to take off the stack]
+    KSB_LIST_ADD_OBJS,
+
+    // Pop off an iterable object, and add all elements to the object under it (which must be of type list)
+    // | list_obj iter_obj
+    // | list_obj
+    // 1:[op] 
+    KSB_LIST_ADD_ITER,
+
     // Pop off 'num_elems' from the stack, treat them as a bunch of keys & values (interleaved),
     //   and construct a dictionary from them. Then, push the dict back on the stack
     // i.e. {"Cade": "Brown", "Kscript": 2342} should have:
@@ -1172,6 +1254,10 @@ enum {
     // 1:[op] 4:[int num_elems, aka num entries]
     KSB_DICT,
 
+    // Create string from string interpolation
+    // Essentially, pops on `"".join(str(stk[-num_elems:]))`, then pop off `num_elems` objects
+    // 1:[op] 4:[int num_elems]
+    KSB_BUILDSTR,
 
 
     /** -- CONTROL FLOW, these opcodes change the control flow of the program -- **/
@@ -1204,6 +1290,14 @@ enum {
     // 1:[op] 4:[int n_items]
     KSB_CALL,
 
+    // Variable call, not from items on the stack, but from the last item
+    // Stack is expected to be:
+    // | func objs
+    // Where `objs` is a LIST (not any iterable) of the arguments given
+    // This operation is useful for unpacking arguments of variable size
+    // 1:[op]
+    KSB_VCALL,
+
     // Pop off the TOS, and return that as the return value of the currently executing function,
     //   causing the top item of the stack frame to be popped off
     // 1:[op]
@@ -1229,8 +1323,6 @@ enum {
     // Pop off the TOS, and 'assert' it is true, or throw an exception
     // 1:[op]
     KSB_ASSERT,
-
-
 
     // Replace the function on top with a copy (i.e. new, distinct copy)
     // 1:[op]
@@ -1327,6 +1419,11 @@ enum {
     // the '^' operator
     KSB_BOP_BINXOR,
     
+    // the '<<' operator
+    KSB_BOP_LSHIFT,
+    // the '>>' operator
+    KSB_BOP_RSHIFT,
+
     // the '<=>' operator
     KSB_BOP_CMP,
 
@@ -1366,6 +1463,7 @@ typedef struct {
     int32_t arg;
 
 } ksb_i32;
+
 
 // end single byte alignment
 #pragma pack(pop)
@@ -1660,7 +1758,6 @@ KS_API void ks_log_c_set(const char* logname, int level);
 
 
 
-
 // Memory related functions
 
 
@@ -1687,6 +1784,18 @@ KS_API void ks_free(void* ptr);
 // Read an entire file, and return an allocated string buffer
 // NOTE: Returns the string, or NULL and throws an error
 KS_API ks_str ks_readfile(const char* fname, const char* mode);
+
+// Implementation of GNU getline function, reading an entire line from a FILE pointer
+// Always ks_free(line) after done with this function, as this function reallocates buffers
+//   to fit a line
+// 'n' is not the line length, but the internal buffer size
+// Example:
+// char* line = NULL;
+// size_t bufsize = 0;
+// int len = ks_getline(&line, &len, fp);
+// ks_free(line);
+// NOTE: Returns -1 at the end of file
+KS_API int ks_getline(char** lineptr, size_t* n, FILE* fp);
 
 
 // General object manipulation
@@ -1733,6 +1842,7 @@ KS_API ks_obj ks_obj_throw(ks_obj obj);
 
 // Catch an exception (or return NULL if there was none),
 // and set 'frames' to the list of stack frames
+// NOTE: `frames` should point to NULL before the catch!
 KS_API ks_obj ks_catch(ks_list* frames);
 
 // Catch and ignore any object thrown
@@ -1867,6 +1977,10 @@ KS_API ks_int ks_int_new(int64_t val);
 // Create a kscript int from a string in a given base
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_int ks_int_new_s(char* str, int base);
+
+// Create a new integer from a roman-style string
+// TODO: support unicode at all?
+KS_API ks_int ks_int_new_roman(char* romstr, int len);
 
 // Create a new integer from an MPZ
 // NOTE: Returns a new reference
@@ -2126,6 +2240,13 @@ KS_API ks_thread ks_thread_new(const char* name, ks_obj target, int n_args, ks_o
 KS_API ks_thread ks_thread_get();
 
 
+// Find out the current filename and line that a thread is executing (in kscript), or return `false`
+//   if nothing was found
+// NOTE: This will never throw an error; it will only return whether it actually found something
+// NOTE: you are NOT given a reference to `fname`! Don't `KS_DECREF` it! Make a copy or add a reference
+//   if you need to keep it
+KS_API bool ks_thread_getloc(ks_thread self, ks_str* fname, int* cur_line);
+
 
 // controlling how the parser parses
 enum ks_parse_flags {
@@ -2136,13 +2257,14 @@ enum ks_parse_flags {
     KS_PARSE_BLOCK                = 0x01,
 
     // if true, ignore extra ']' at the end of line and return early
-    KS_PARSE_INBRK                = 0x02
+    KS_PARSE_INBRK                = 0x02,
+
 };
 
 // Create a new parser from some source code
 // Or, return NULL if there was an error (and 'throw' the exception)
 // NOTE: Returns a new reference
-KS_API ks_parser ks_parser_new(ks_str src_code, ks_str src_name);
+KS_API ks_parser ks_parser_new(ks_str src_code, ks_str src_name, ks_str file_name);
 
 // Parse out an expression from the parser
 // NOTE: Returns a new reference, or NULL and throw an error
@@ -2158,13 +2280,17 @@ KS_API ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags);
 KS_API ks_ast ks_parser_file(ks_parser self);
 
 
+// Create string for exceptions, detailing where 'tok' is in the parser source code
+KS_API ks_str ks_tok_expstr(ks_parser parser, struct ks_tok tok);
 
+
+/*
 // convert token to a string with mark
 KS_API ks_str ks_tok_expstr(ks_parser parser, struct ks_tok tok);
 
 // convert token to string, just the 2 relevant lines
-KS_API ks_str ks_tok_expstr_2(ks_parser parser, struct ks_tok tok);
-
+KS_API ks_str ks_tok_expstr(ks_parser parser, struct ks_tok tok);
+*/
 
 /* AST (Abstract Syntax Trees) */
 
@@ -2194,8 +2320,6 @@ KS_API ks_ast ks_ast_new_dict(int n_items, ks_ast* items);
 // Create an AST representing a slice constructor
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_slice(ks_ast start, ks_ast stop, ks_ast step);
-
-
 
 
 // Create an AST representing an attribute reference
@@ -2291,15 +2415,20 @@ KS_API void ksca_dup       (ks_code self);
 KS_API void ksca_popu      (ks_code self);
 
 KS_API void ksca_list      (ks_code self, int n_items);
+KS_API void ksca_list_add_objs (ks_code self, int n_items);
+KS_API void ksca_list_add_iter (ks_code self);
+
 KS_API void ksca_tuple     (ks_code self, int n_items);
 KS_API void ksca_dict      (ks_code self, int n_items);
 KS_API void ksca_slice     (ks_code self);
 
+KS_API void ksca_buildstr  (ks_code self, int n_items);
 
 KS_API void ksca_getitem   (ks_code self, int n_items);
 KS_API void ksca_setitem   (ks_code self, int n_items);
 
 KS_API void ksca_call      (ks_code self, int n_items);
+KS_API void ksca_vcall     (ks_code self);
 KS_API void ksca_ret       (ks_code self);
 KS_API void ksca_throw     (ks_code self);
 KS_API void ksca_assert    (ks_code self);
@@ -2497,6 +2626,11 @@ KS_API ks_obj ks_num_gt(ks_obj L, ks_obj R);
 // Compute L>=R
 KS_API ks_obj ks_num_ge(ks_obj L, ks_obj R);
 
+// Compute L<<R
+KS_API ks_obj ks_num_lshift(ks_obj L, ks_obj R);
+// Compute L>>R
+KS_API ks_obj ks_num_rshift(ks_obj L, ks_obj R);
+
 
 // Compute L|R
 KS_API ks_obj ks_num_binor(ks_obj L, ks_obj R);
@@ -2521,7 +2655,10 @@ KS_API ks_obj ks_num_binxor(ks_obj L, ks_obj R);
  *   because this IS this code that generates exceptions, it's okay to safeguard it like this
  * 
  */
-ks_obj ks__exec(ks_thread self, ks_code code);
+KS_API ks_obj ks__exec(ks_thread self, ks_code code);
+
+
+
 
 
 
@@ -2570,6 +2707,9 @@ extern ks_cfunc
     ks_F_binor,
     ks_F_binxor,
 
+    ks_F_lshift,
+    ks_F_rshift,
+
     ks_F_cmp,
 
     ks_F_lt,
@@ -2584,6 +2724,7 @@ extern ks_cfunc
     ks_F_abs,
     ks_F_sqig,
 
+    ks_F_eval,
     ks_F_exec_file,
     ks_F_exec_expr,
     ks_F_exec_interactive

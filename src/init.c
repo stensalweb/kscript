@@ -206,6 +206,8 @@ bool ks_init(int verbose) {
 
         /* Functions */
 
+        {"eval",                   KS_NEWREF(ks_F_eval)},
+        
         {"print",                  KS_NEWREF(ks_F_print)},
 
         {"typeof",                 KS_NEWREF(ks_F_typeof)},
