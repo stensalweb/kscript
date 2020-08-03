@@ -748,7 +748,14 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
                 // hex string
                 if (isFloat) {
                     // TODO float
+                    char* tmp_str = ks_malloc(len + 1);
+                    memcpy(tmp_str, vstr, len);
+                    tmp_str[len] = '\0';
+                    double rv = strtold(tmp_str, NULL);
 
+                    ks_float ret = ks_float_new(rv);
+                    ks_free(tmp_str);
+                    return (ks_obj)ret;
                 } else {
                     char* tmp_str = ks_malloc(len - 1);
                     memcpy(tmp_str, vstr+2, len - 2);
@@ -778,6 +785,7 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
                 if (isFloat) {
                     // TODO float
 
+
                 } else {
                     char* tmp_str = ks_malloc(len - 1);
                     memcpy(tmp_str, vstr+2, len - 2);
@@ -792,6 +800,14 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
             // decimal
             if (isFloat) {
                 // TODO float
+                char* tmp_str = ks_malloc(len + 1);
+                memcpy(tmp_str, vstr, len);
+                tmp_str[len] = '\0';
+                double rv = strtold(tmp_str, NULL);
+
+                ks_float ret = ks_float_new(rv);
+                ks_free(tmp_str);
+                return (ks_obj)ret;
 
             } else {
                 char* tmp_str = ks_malloc(len + 1);

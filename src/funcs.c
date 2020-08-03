@@ -97,7 +97,7 @@ static KS_FUNC(print) {
     ks_str toprint = ks_str_builder_get(sb);
     KS_DECREF(sb);
 
-    _print_numbytes += toprint->len_b;
+    _print_numbytes += toprint->len_b + 1;
 
     // print out to console
     printf("%s\n", toprint->chr);

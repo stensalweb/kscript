@@ -39,6 +39,7 @@ static KS_TFUNC(bool, str) {
     return (self == KS_TRUE) ? KS_NEWREF(s_true) : KS_NEWREF(s_false);
 }
 
+
 KST_NUM_OPFS(tbool)
 
 
