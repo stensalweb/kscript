@@ -253,7 +253,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             VMED_CONSUME(ksb, op);
 
             // pop (unused) off the top of the stack
-            ks_list_popu(self->stk);
+            if (!ks_list_popu(self->stk)) goto EXC;
 
         VMED_CASE_END
 
@@ -291,7 +291,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
 
             // remove args from the stack
             for (i = 0; i < 3; ++i) {
-                ks_list_popu(self->stk);
+                if (!ks_list_popu(self->stk)) goto EXC;
             }
 
             // push on the created slice
@@ -334,6 +334,45 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             // push on the created list
             ks_list_push(self->stk, (ks_obj)new_list);
             KS_DECREF(new_list);
+
+        VMED_CASE_END
+
+
+        VMED_CASE_START(KSB_LIST_ADD_ITER)
+            VMED_CONSUME(ksb, op);
+
+            // double check we have enough
+            VME_CHECK(self->stk->len >= 2 && "'list_add_iter' instruction requires 2 objects on the stack!");
+
+            // get iterable
+            ks_obj iter_obj = ks_list_pop(self->stk);
+
+            ks_list list_obj = (ks_list)self->stk->elems[self->stk->len - 1];
+
+            // try to add them all
+            if (!ks_list_pushall(list_obj, iter_obj)) {
+                KS_DECREF(iter_obj);
+                goto EXC;
+            }
+
+            // done with using it
+            KS_DECREF(iter_obj);
+
+        VMED_CASE_END
+
+        
+        VMED_CASE_START(KSB_LIST_ADD_OBJS)
+            VMED_CONSUME(ksb_i32, op_i32);
+
+            // double check we have enough
+            VME_CHECK(self->stk->len >= op_i32.arg + 1 && "'list' instruction required more arguments than existed!");
+
+            ks_list list_obj = (ks_list)self->stk->elems[self->stk->len - op_i32.arg - 1];
+
+            // transfer to the list object
+            ks_list_pushn(list_obj, op_i32.arg, self->stk->elems - op_i32.arg);
+            ks_list_popun(self->stk, op_i32.arg);
+
 
         VMED_CASE_END
 
@@ -426,6 +465,30 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
 
             // we are finished with the arguments
             for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
+
+        VMED_CASE_END
+
+        VMED_CASE_START(KSB_VCALL)
+            VMED_CONSUME(ksb, op);
+
+
+            // list of arguments
+            ks_list list_args = (ks_list)ks_list_pop(self->stk);
+
+            VME_CHECK(list_args->type == ks_T_list && "list of arguments for vcall must be a list!");
+
+            ks_obj func = ks_list_pop(self->stk);
+
+            
+            // call it
+            ks_obj ret = ks_obj_call(func, list_args->len, list_args->elems);
+            KS_DECREF(func);
+            KS_DECREF(list_args);
+
+            if (!ret) goto EXC;
+            
+            // push the result on the stack where the arguments started
+            ks_list_push(self->stk, ret);
 
         VMED_CASE_END
 
@@ -667,8 +730,16 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             ks_kfunc top = (ks_kfunc)ks_list_pop(self->stk);
 
             assert(top->type == ks_T_kfunc && "'new_func' used on TOS which was not a kfunc!");
-
             ks_kfunc new_top = ks_kfunc_new_copy(top);
+
+            int i;
+            for (i = 0; i < top->n_defa; ++i) {
+                new_top->params[i + top->defa_start_idx].defa = KS_NEWREF(self->stk->elems[self->stk->len - top->n_defa + i]);
+            }
+
+
+            // remove from stack
+            ks_list_popun(self->stk, top->n_defa);
 
             ks_list_push(self->stk, (ks_obj)new_top);
 

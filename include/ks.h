@@ -554,7 +554,7 @@ typedef struct {
 
 
 
-// ks_slice - aslice object, having a start, stop, step
+// ks_slice - a slice object, having a start, stop, step
 typedef struct {
     KS_OBJ_BASE
 
@@ -564,6 +564,13 @@ typedef struct {
 }* ks_slice;
 
 
+// ks_range - a range object, having a start, stop, step
+typedef struct {
+    KS_OBJ_BASE
+
+    ks_int start, stop, step;
+
+}* ks_range;
 
 
 // A bucket will be this value if it is empty
@@ -602,6 +609,16 @@ struct ks_dict_s {
     ks_ssize_t* buckets;
 
 };
+
+
+// ks_namespace - a dictionary, but with attribute references rather than subscripting
+typedef struct {
+    KS_OBJ_BASE
+
+    // attributes dictionary
+    ks_dict attr;
+
+}* ks_namespace;
 
 
 /* Callables */
@@ -1046,7 +1063,8 @@ enum {
     // 'children[0]' is the function name (cast to ks_str)
     // 'children[1]' is the list of parameter names (cast to ks_list)
     // 'children[3]' is the body of the function, containing the code for the function
-    // NOTE: `.data` holds array of function parameter iteration information, whether they are unpacked or not, etc, indexed by `params`
+    // 'children[4]' is the list of values (ASTs) of default parameters
+    // The first such default parameter is given via `ast->dflag` (that is the index of the first, or -1 for no defaults)
     KS_AST_FUNC,
 
     // represents a 'for' block, i.e. iterating through some iterable
@@ -1121,7 +1139,10 @@ enum {
     // unary '~'
     KS_AST_UOP_SQIG,
     // unary '!'
-    KS_AST_UOP_NOT
+    KS_AST_UOP_NOT,
+    // unary '*' (used for starred expressions)
+    KS_AST_UOP_STAR
+
 
 };
 
@@ -1135,7 +1156,7 @@ enum {
 #define KS_AST_UOP__FIRST KS_AST_UOP_POS
 
 // the last AST kind that is a unary operator
-#define KS_AST_UOP__LAST KS_AST_UOP_NOT
+#define KS_AST_UOP__LAST KS_AST_UOP_STAR
 
 
 // extra data for `KS_AST_LIST` and `KS_AST_TUPLE`
@@ -1157,13 +1178,12 @@ typedef struct {
     // the array of children nodes. They are packed differently per kind, so see the definition
     //   for a kind first
     ks_list children;
-
+    
     // tokens for the AST, representing where it is in the source code
     struct ks_tok tok;
 
-    // extra specific data for the AST (check `struct ks_ast_*_data` types), or NULL
-    //   if there is none
-    void* data;
+    // any flags (these are used per AST; see above)
+    int dflag;
 
 }* ks_ast;
 
@@ -1324,7 +1344,8 @@ enum {
     // 1:[op]
     KSB_ASSERT,
 
-    // Replace the function on top with a copy (i.e. new, distinct copy)
+    // Replace the function on top with a copy (i.e. new, distinct copy), which has defaults under it:
+    // | defas... func
     // 1:[op]
     KSB_NEW_FUNC,
 
@@ -1533,7 +1554,6 @@ typedef struct {
     // the number of parameters (positional) that it takes (not including defaults/vararg)
     int n_param;
 
-
     // list of parameters
     struct ks_kfunc_param {
 
@@ -1545,6 +1565,17 @@ typedef struct {
         ks_obj defa;
 
     }* params;
+
+
+    // the index at which defaults start
+    int defa_start_idx;
+
+    // number of defaults
+    int n_defa;
+
+    // defaults to be added
+    ks_ast* defas;
+
 
 
 }* ks_kfunc;
@@ -1615,7 +1646,9 @@ extern ks_type
     ks_T_list,
     ks_T_tuple,
     ks_T_slice,
+    ks_T_range,
     ks_T_dict,
+    ks_T_namespace,
 
     ks_T_parser,
     ks_T_ast,
@@ -2122,6 +2155,11 @@ KS_API ks_str ks_str_builder_get(ks_str_builder self);
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_list ks_list_new(ks_size_t len, ks_obj* elems);
 
+
+// Construct a list from an iterator
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_list ks_list_new_iter(ks_obj iter_obj);
+
 // Clear a list out, removing any references
 KS_API void ks_list_clear(ks_list self);
 
@@ -2129,7 +2167,6 @@ KS_API void ks_list_clear(ks_list self);
 // Empty out `objs` (which must be iterable!), and add everything to `self`
 // NOTE: Returns success, or false and throws an error
 KS_API bool ks_list_pushall(ks_list self, ks_obj objs);
-
 
 // Pushes 'obj' on to the end of the list
 KS_API void ks_list_push(ks_list self, ks_obj obj);
@@ -2166,6 +2203,9 @@ KS_API ks_tuple ks_tuple_new(int len, ks_obj* elems);
 KS_API ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
 
 
+// Create a new kscript namespace from a dictionary
+// NOTE: Returns a new reference
+KS_API ks_namespace ks_namespace_new(ks_dict attr);
 
 // Construct a new dictionary from key, val pairs (elems[0], elems[1] is the first, elems[2*i+0], elems[2*i+1] makes up the i'th pair)
 // NOTE: `len%2==0` is a requirement!
@@ -2258,6 +2298,8 @@ enum ks_parse_flags {
 
     // if true, ignore extra ']' at the end of line and return early
     KS_PARSE_INBRK                = 0x02,
+    // if true, ignore extra ')' at the end of line and return early
+    KS_PARSE_INPAR                = 0x04,
 
 };
 
@@ -2346,7 +2388,6 @@ KS_API ks_ast ks_ast_new_throw(ks_ast expr);
 // Create an AST representing an assertion
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_assert(ks_ast expr);
-
 
 // Create an AST representing a block of code
 // NOTE: Returns a new reference
@@ -2489,6 +2530,12 @@ KS_API bool ks_slice_getci(ks_slice self, int64_t len, int64_t* first, int64_t* 
 
 
 
+// Construct a range with paramaters.
+// NOTE: KSO_NONE should be used for defaults
+// NOTE: Returns a new reference
+KS_API ks_range ks_range_new(ks_int start, ks_int stop, ks_int step);
+
+
 /* GENERIC NUMERICS (i.e. work with all numeric types) */
 
 // Attempt to hash 'self'
@@ -2550,6 +2597,12 @@ KS_API bool ks_num_get_bool(ks_obj self, bool* out);
 //   - complex
 // NOTE: If there was a problem, return false and throw an error
 KS_API bool ks_num_get_int64(ks_obj self, int64_t* out);
+
+
+// Attempt to convert 'self' to an 'int'
+// NOTE: If there was a problem, return false and throw an error
+KS_API ks_int ks_num_get_int(ks_obj self);
+
 
 
 // Attempt to convert 'self' to a mpz_t (which is already initialized)
@@ -2660,8 +2713,6 @@ KS_API ks_obj ks__exec(ks_thread self, ks_code code);
 
 
 
-
-
 /* --- Global/Builtin Functions --- */
 
 // functions, found in `funcs.c`
@@ -2677,6 +2728,7 @@ extern ks_cfunc
     ks_F_next,
 
     ks_F_truthy,
+    ks_F_recurse,
 
     ks_F_repr,
     ks_F_hash,
@@ -2733,6 +2785,16 @@ extern ks_cfunc
 
 // dictionary of globals
 extern ks_dict ks_globals;
+
+
+// TODO: add GIL
+
+
+// Lock the GIL for operation
+KS_API void ks_GIL_lock();
+
+// Unock the GIL for operation
+KS_API void ks_GIL_unlock();
 
 
 

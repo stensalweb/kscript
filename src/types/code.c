@@ -214,6 +214,15 @@ static KS_TFUNC(code, str) {
             ks_str_builder_add_fmt(sb, "list %i", val);
             break;
 
+        case KSB_LIST_ADD_ITER:
+            ks_str_builder_add_fmt(sb, "list_add_iter");
+            break;
+
+        case KSB_LIST_ADD_OBJS:
+            i += 4;
+            ks_str_builder_add_fmt(sb, "list_add_objs %i", val);
+            break;
+
         case KSB_SLICE:
             ks_str_builder_add_fmt(sb, "slice");
             break;
@@ -242,6 +251,9 @@ static KS_TFUNC(code, str) {
         case KSB_CALL:
             i += 4;
             ks_str_builder_add_fmt(sb, "call %i", val);
+            break;
+        case KSB_VCALL:
+            ks_str_builder_add_fmt(sb, "vcall");
             break;
 
         case KSB_RET:

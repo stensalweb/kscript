@@ -122,10 +122,13 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         // let the C-function handle everything for us
         ret = ((ks_cfunc)func)->func(n_args, args);
     } else if (func->type == ks_T_kfunc) {
+
         // now, we need to unpack the kscript function
         // cast it to increase readability
         ks_kfunc kfc = (ks_kfunc)func;
 
+        c_frame->pc = kfc->code->bc;
+        
         // either use the provided locals, or create new ones
         // This reference will be freed when the stack frame is freed
         c_frame->locals = locals ? (ks_dict)KS_NEWREF(locals) : ks_dict_new(0, NULL);
@@ -136,9 +139,11 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         int arg_i = 0, par_i = 0;
         bool keepGoing = true;
 
+        // offset due to vararg
+        int varargdiff = kfc->isVarArg ? 1 : 0;
 
-        while (keepGoing && arg_i < n_args && par_i < kfc->n_param) {
-            
+        while (keepGoing && arg_i < n_args && par_i < kfc->n_param - varargdiff) {
+
             // set current parameter
             ks_dict_set_h(c_frame->locals, (ks_obj)kfc->params[par_i].name, kfc->params[par_i].name->v_hash, args[arg_i]);
 
@@ -146,10 +151,31 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
             par_i++;
         }
 
+        while (keepGoing && par_i < kfc->n_param && kfc->params[par_i].defa != NULL) {
+            // set current parameter
+            ks_dict_set_h(c_frame->locals, (ks_obj)kfc->params[par_i].name, kfc->params[par_i].name->v_hash, kfc->params[par_i].defa);
+
+            par_i++;
+
+        }
+
+        // now, if it is vararg, handle the last one
+        if (kfc->isVarArg) {
+
+            ks_list varargs = ks_list_new(n_args - arg_i, args + arg_i);
+
+            ks_dict_set_h(c_frame->locals, (ks_obj)kfc->params[par_i].name, kfc->params[par_i].name->v_hash, (ks_obj)varargs);
+            KS_DECREF(varargs);
+
+            arg_i = n_args;
+            par_i++;
+        }
+
+
 
         // whether or not there was an error
         bool haderr = false;
-        while (par_i < kfc->n_param) {
+        while (par_i < kfc->n_param && !haderr) {
 
             ks_obj defa = kfc->params[par_i].defa;
 
@@ -161,6 +187,7 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
 
             par_i++;
         }
+
 
         if (!haderr) {
             // actually perform call
@@ -275,7 +302,6 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
     } else {
         ks_throw(ks_T_Error, "'%T' object was not callable!", func);
     }
-
 
     // take off our stack frame
     ks_list_popu(thread->frames);

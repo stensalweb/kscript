@@ -16,6 +16,8 @@ ks_cfunc
     ks_F_iter = NULL,
     ks_F_next = NULL,
 
+    ks_F_recurse = NULL,
+
     ks_F_truthy = NULL,
 
     ks_F_repr = NULL,
@@ -104,6 +106,21 @@ static KS_FUNC(print) {
     KS_DECREF(toprint);
 
     return KSO_NONE;
+}
+
+
+// __recurse__ (*args) - recursively call the current function
+static KS_FUNC(recurse) {
+    int n_extra;
+    ks_obj* extra;
+    KS_GETARGS("*args", &n_extra, &extra)
+
+    ks_thread th = ks_thread_get();
+
+    // since the top frame should be the __recurse__ function, we need the one under that
+    ks_stack_frame targ = (ks_stack_frame)th->frames->elems[th->frames->len - 2];
+
+    return ks_obj_call(targ->func, n_extra, extra);
 }
 
 
@@ -948,6 +965,8 @@ void ks_init_funcs() {
     inter_vars = ks_dict_new(0, NULL);
 
     ks_F_print = ks_cfunc_new_c(print_, "print(*args)");
+    ks_F_recurse = ks_cfunc_new_c(recurse_, "__recurse__(*args)");
+    ks_F_import = ks_cfunc_new_c(import_, "__import__(modname)");
 
     ks_F_iter = ks_cfunc_new_c(iter_, "iter(obj)");
     ks_F_next = ks_cfunc_new_c(next_, "next(obj)");

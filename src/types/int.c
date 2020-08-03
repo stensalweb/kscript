@@ -69,6 +69,9 @@ ks_int ks_int_new_s(char* str, int base) {
     // calculate string length    
     int len = strlen(str);
 
+    // original
+    char* ostr = str;
+
     // try to calculate in a 64 bit integer
     int64_t v64 = 0;
 
@@ -79,25 +82,32 @@ ks_int ks_int_new_s(char* str, int base) {
         len--;
     }
 
-    if (base == 16 && str[0] == '0' && str[1] == 'x') {
+    if (str[0] == '0' && str[1] == 'x') {
+        if (base > 0 && base != 16) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        base = 16;
         str+=2;
         len-=2;
-    } else if (base == 8 && str[0] == '0' && str[1] == 'o') {
+    } else if (str[0] == '0' && str[1] == 'o') {
+        if (base > 0 && base != 8) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        base = 8;
         str+=2;
         len-=2;
-    } else if (base == 2 && str[0] == '0' && str[1] == 'b') {
+    } else if (str[0] == '0' && str[1] == 'b') {
+        if (base > 0 && base != 2) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        base = 2;
         str+=2;
         len-=2;
+    } else {
+        base = 10;
     }
 
     int i = 0;
-
 
     // parse out main value
     while (i < len) {
         int dig = my_getdig(str[i]);
         // check for invalid/out of range digit
-        if (dig < 0 || dig >= base) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, str);
+        if (dig < 0 || dig >= base) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
 
         int64_t old_v64 = v64;
         // calculate new value in 64 bits
@@ -130,7 +140,7 @@ ks_int ks_int_new_s(char* str, int base) {
     if (mpz_set_str(self->vz, str, base) != 0) {
         // there was a problem
         KS_DECREF(self);
-        return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: %s", base, str);
+        return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: %s", base, ostr);
     }
 
     return self;
@@ -404,7 +414,7 @@ int ks_int_cmp_c(ks_int L, int64_t R) {
         }
         #endif
     } else {
-        return L->v64 == 0 ? 0 : (L->v64 > R ? 1 : -1);
+        return L->v64 == R ? 0 : (L->v64 > R ? 1 : -1);
     }
 }
 
@@ -435,7 +445,6 @@ static KS_TFUNC(int, new) {
         //if (base < 2 || base > MAX_BASE) return ks_throw(ks_T_ArgError, "Invalid base (%l), expected between 2 and %i", base, (int)MAX_BASE);
 
         return ks_throw(ks_T_ArgError, "Unknown mode: %R", mode);
-
     }
 
     if (obj->type == ks_T_int) {
@@ -447,7 +456,7 @@ static KS_TFUNC(int, new) {
     } else if (obj->type == ks_T_complex) {
         return (ks_obj)ks_int_new(round(((ks_complex)obj)->val));
     } else if (obj->type == ks_T_str) {
-        return (ks_obj)ks_int_new_s(((ks_str)obj)->chr, 10);
+        return (ks_obj)ks_int_new_s(((ks_str)obj)->chr, 0);
     //} else if (ks_type_issub(obj->type, ks_type_Enum)) {
     //    return (ks_obj)ks_int_new(((ks_Enum)obj)->enum_idx);
     } else if (obj->type->__int__ != NULL) {

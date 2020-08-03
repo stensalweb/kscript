@@ -200,6 +200,30 @@ bool ks_num_get_int64(ks_obj self, int64_t* out) {
     return my_num_get_int64(self, out, 0);
 }
 
+
+// Attempt to convert 'self' to an 'int'
+// NOTE: If there was a problem, return false and throw an error
+ks_int ks_num_get_int(ks_obj self) {
+    if (self->type == ks_T_int) {
+        return (ks_int)KS_NEWREF(self);
+    } else if (self->type == ks_T_bool) {
+        return (ks_int)ks_int_new(self == KSO_TRUE ? 1 : 0);
+    } else if (self->type->__int__ != NULL) {
+        ks_obj tmp = ks_obj_call(self->type->__int__, 1, &self);
+        if (!tmp) {
+            ks_catch_ignore();
+            return false;
+        }
+        ks_int ret = ks_num_get_int(tmp);
+        KS_DECREF(tmp);
+        return ret;
+    }
+
+    KS_THROW_TYPE_ERR(self, ks_T_int);
+}
+
+
+
 // get an MPZ from a given object
 static bool my_num_get_mpz(ks_obj self, mpz_t out, int dep) {
     if (self->type == ks_T_bool) {

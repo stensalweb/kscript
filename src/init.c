@@ -31,12 +31,23 @@ const ks_version_t* ks_version() {
     return &this_version;
 }
 
-
 // list of paths to search through when importing
 ks_list ks_paths = NULL;
 
 // global variables
 ks_dict ks_globals = NULL;
+
+
+
+// Lock the GIL for operation
+void ks_GIL_lock() {
+
+}
+
+// Unock the GIL for operation
+void ks_GIL_unlock() {
+
+}
 
 // initialize library
 bool ks_init(int verbose) {
@@ -68,7 +79,9 @@ bool ks_init(int verbose) {
     ks_init_T_list();
     ks_init_T_tuple();
     ks_init_T_slice();
+    ks_init_T_range();
     ks_init_T_dict();
+    ks_init_T_namespace();
     ks_init_T_cfunc();
     ks_init_T_memberfunc();
     ks_init_T_thread();
@@ -77,6 +90,7 @@ bool ks_init(int verbose) {
     ks_init_T_code();
     ks_init_T_stack_frame();
     ks_init_T_kfunc();
+    ks_init_T_module();
 
     // initialize others
     ks_init_funcs();
@@ -192,7 +206,9 @@ bool ks_init(int verbose) {
         {"list",                   KS_NEWREF(ks_T_list)},
         {"tuple",                  KS_NEWREF(ks_T_tuple)},
         {"slice",                  KS_NEWREF(ks_T_slice)},
+        {"range",                  KS_NEWREF(ks_T_range)},
         {"dict",                   KS_NEWREF(ks_T_dict)},
+        {"namespace",              KS_NEWREF(ks_T_namespace)},
 
         {"type",                   KS_NEWREF(ks_T_type)},
         {"obj",                    KS_NEWREF(ks_T_obj)},
@@ -206,6 +222,8 @@ bool ks_init(int verbose) {
 
         /* Functions */
 
+        {"__import__",             KS_NEWREF(ks_F_import)},
+        {"__recurse__",            KS_NEWREF(ks_F_recurse)},
         {"eval",                   KS_NEWREF(ks_F_eval)},
         
         {"print",                  KS_NEWREF(ks_F_print)},

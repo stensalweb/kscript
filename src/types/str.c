@@ -769,6 +769,53 @@ static KS_TFUNC(str, getitem) {
 
 
 
+/* misc. string utilities */
+
+
+// str.join(self, objs) - join an iterable by a seperator
+static KS_TFUNC(str, join) {
+    ks_str self;
+    ks_obj objs;
+    KS_GETARGS("self:* objs:iter", &self, ks_T_str, &objs);
+
+    // create string builder
+    ks_str_builder sb = ks_str_builder_new();
+
+    // iterate through the objects
+    struct ks_citer cit = ks_citer_make(objs);
+    ks_obj ob;
+    int ct = 0;
+    while (ob = ks_citer_next(&cit)) {
+
+        // add self in between them
+        if (ct > 0) ks_str_builder_add_str(sb, (ks_obj)self);
+
+        // add string representation
+        ks_str_builder_add_str(sb, ob);
+
+        ct++;
+        KS_DECREF(ob);        
+    }
+
+    // done with iterator
+    ks_citer_done(&cit);
+
+    if (cit.threwErr) {
+        // early return
+        KS_DECREF(sb);
+        return NULL;
+    }
+
+    // otherwise, collect the result
+    ks_str ret = ks_str_builder_get(sb);
+    KS_DECREF(sb);
+
+    return (ks_obj)ret;
+
+};
+
+
+
 /* Operators */
 
 static KS_TFUNC(str, add) {
@@ -1013,7 +1060,6 @@ void ks_init_T_str() {
 
         {"__add__",                (ks_obj)ks_cfunc_new_c(str_add_, "str.__add__(L, R)")},
 
-
         {"__cmp__",                (ks_obj)ks_cfunc_new_c(str_cmp_, "str.__cmp__(L, R)")},
         {"__lt__",                 (ks_obj)ks_cfunc_new_c(str_lt_, "str.__lt__(L, R)")},
         {"__gt__",                 (ks_obj)ks_cfunc_new_c(str_gt_, "str.__gt__(L, R)")},
@@ -1022,9 +1068,11 @@ void ks_init_T_str() {
         {"__eq__",                 (ks_obj)ks_cfunc_new_c(str_eq_, "str.__eq__(L, R)")},
         {"__ne__",                 (ks_obj)ks_cfunc_new_c(str_ne_, "str.__ne__(L, R)")},
 
-        {"substr",                 (ks_obj)ks_cfunc_new_c(str_substr_, "str.substr(self, start, len=none)")},
-
         {"unidata",                (ks_obj)ks_cfunc_new_c(str_unidata_, "str.unidata(self, key='all')")},
+
+        {"substr",                 (ks_obj)ks_cfunc_new_c(str_substr_, "str.substr(self, start, len=none)")},
+        {"join",                   (ks_obj)ks_cfunc_new_c(str_join_, "str.join(self, objs)")},
+
 
     ));
 

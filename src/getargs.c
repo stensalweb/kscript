@@ -92,6 +92,7 @@ bool ks_getargs(int n_args, ks_obj* args, const char* fmt, ...) {
             // 'special' argument type, for C-style arguments
             #define _SPEC_NONE   0
             #define _SPEC_I64    1
+            #define _SPEC_ITER   2
             int spec = _SPEC_NONE;
 
             if (*fmt == ':') {
@@ -112,6 +113,9 @@ bool ks_getargs(int n_args, ks_obj* args, const char* fmt, ...) {
                     assert (req_type->type == ks_T_type && "required type with ':*' was not type!");
                 } else if (i == 3 && strncmp(typename, "i64", 3) == 0) {
                     spec = _SPEC_I64;
+                } else if (i == 4 && strncmp(typename, "iter", 4) == 0) {
+                    spec = _SPEC_ITER;
+
                 } else {
                     // for now, error
                     ks_error("ks", "Given incorrect format for ks_getargs: '%s'!", ofmt);
@@ -138,6 +142,15 @@ bool ks_getargs(int n_args, ks_obj* args, const char* fmt, ...) {
 
                 // set current argument
                 *(int64_t*)cargto = res;
+            } else if (spec == _SPEC_ITER) {
+                // chcek whether iterable
+                if (ks_obj_is_iterable(cargin)) {
+                    *cargto = cargin;
+                } else {
+                    ks_throw(ks_T_ArgError, "Expected argument '%s' to be iterable, but was of type '%T'", argname, cargin);
+                    goto getargs_end;
+                }
+
             } else {
                 // err; ignore
             }

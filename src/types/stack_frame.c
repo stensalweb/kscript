@@ -36,6 +36,7 @@ static KS_TFUNC(stack_frame, str) {
     ks_stack_frame self;
     KS_GETARGS("self:*", &self, ks_T_stack_frame)
 
+
     if (self->func->type == ks_T_code) {
         // attempt to search for it
 
@@ -75,6 +76,8 @@ static KS_TFUNC(stack_frame, str) {
                 break;
             }
         }
+
+
         if (fi >= 0) {
             // set information
             //ks_list_popu(call_stk);
@@ -89,7 +92,7 @@ static KS_TFUNC(stack_frame, str) {
         return (ks_obj)ks_fmt_c("%S [cfunc]", ((ks_cfunc)self->func)->sig_hr);
     }
 
-    return (ks_obj)ks_fmt_c("<'stack_frame' type(func): %T obj @ %p>", self->func, self);
+    return (ks_obj)ks_fmt_c("<'stack_frame' : %S>", self->func);
 };
 // stack_frame.__free__(self) - free obj
 static KS_TFUNC(stack_frame, free) {

@@ -365,6 +365,16 @@ ks_obj ks_dict_get(ks_dict self, ks_obj key) {
 
 
 // Set an item in a dictionary
+ks_obj ks_dict_get_c(ks_dict self, char* key) {
+    ks_str key_str = ks_str_new(key);
+    ks_obj ret = ks_dict_get_h(self, (ks_obj)key_str, key_str->v_hash);
+    KS_DECREF(key_str);
+
+    return ret;
+}
+
+
+// Set an item in a dictionary
 bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val) {
     ks_hash_t hash;
     if (!ks_obj_hash(key, &hash)) return false;
@@ -567,6 +577,7 @@ void ks_init_T_dict() {
     ks_type_init_c(ks_T_dict, "dict", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(dict_free_, "dict.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__repr__(self)")},
 
         {"__len__",                (ks_obj)ks_cfunc_new_c(dict_len_, "dict.__len__(self)")},
 

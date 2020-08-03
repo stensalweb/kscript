@@ -27,6 +27,19 @@ ks_list ks_list_new(ks_size_t len, ks_obj* elems) {
     return self;
 }
 
+// Construct a list from an iterator
+// NOTE: Returns new reference, or NULL if an error was thrown
+ks_list ks_list_new_iter(ks_obj iter_obj) {
+    ks_list self = ks_list_new(0, NULL);
+
+    if (!ks_list_pushall(self, iter_obj)) {
+        KS_DECREF(self);
+        return NULL;
+    }
+
+    return self;
+
+}
 // Clear a list out, removing any references
 void ks_list_clear(ks_list self) {
     ks_size_t i;
@@ -55,7 +68,9 @@ bool ks_list_pushall(ks_list self, ks_obj objs) {
         return true;
     }
 
-    struct ks_citer cit = ks_citer_make((ks_obj)self);
+
+
+    struct ks_citer cit = ks_citer_make((ks_obj)objs);
     ks_obj ob;
     while (ob = ks_citer_next(&cit)) {
         ks_list_push(self, ob);

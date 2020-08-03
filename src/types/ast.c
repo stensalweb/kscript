@@ -14,6 +14,7 @@ ks_ast ks_ast_new_const(ks_obj val) {
     self->kind = KS_AST_CONST;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, &val);
+    self->dflag = 0;
 
     return self;
 }
@@ -27,6 +28,7 @@ ks_ast ks_ast_new_var(ks_str name) {
     self->kind = KS_AST_VAR;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&name);
+    self->dflag = 0;
 
     return self;
 }
@@ -41,6 +43,7 @@ ks_ast ks_ast_new_list(int n_items, ks_ast* items) {
     self->kind = KS_AST_LIST;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(n_items, (ks_obj*)items);
+    self->dflag = 0;
 
     return self;
 }
@@ -53,6 +56,7 @@ ks_ast ks_ast_new_slice(ks_ast start, ks_ast stop, ks_ast step) {
     self->kind = KS_AST_SLICE;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(3, (ks_obj[]){ (ks_obj)start, (ks_obj)stop, (ks_obj)step });
+    self->dflag = 0;
 
     return self;
 }
@@ -66,6 +70,7 @@ ks_ast ks_ast_new_tuple(int n_items, ks_ast* items) {
     self->kind = KS_AST_TUPLE;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(n_items, (ks_obj*)items);
+    self->dflag = 0;
 
     return self;
 }
@@ -80,6 +85,7 @@ ks_ast ks_ast_new_dict(int n_items, ks_ast* items) {
     self->kind = KS_AST_DICT;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(n_items, (ks_obj*)items);
+    self->dflag = 0;
 
     return self;
 }
@@ -95,6 +101,7 @@ ks_ast ks_ast_new_attr(ks_ast obj, ks_str attr) {
     self->kind = KS_AST_ATTR;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)obj, (ks_obj)attr });
+    self->dflag = 0;
 
     return self;
 }
@@ -108,6 +115,7 @@ ks_ast ks_ast_new_call(ks_ast func, int n_args, ks_ast* args) {
     self->kind = KS_AST_CALL;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&func);
+    self->dflag = 0;
 
     // push args too
     ks_list_pushn(self->children, n_args, (ks_obj*)args);
@@ -124,6 +132,7 @@ ks_ast ks_ast_new_subscript(ks_ast obj, int n_args, ks_ast* args) {
     self->kind = KS_AST_SUBSCRIPT;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&obj);
+    self->dflag = 0;
 
     // push args too
     ks_list_pushn(self->children, n_args, (ks_obj*)args);
@@ -140,6 +149,7 @@ ks_ast ks_ast_new_ret(ks_ast val) {
     self->kind = KS_AST_RET;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&val);
+    self->dflag = 0;
 
     return self;
 }
@@ -153,6 +163,7 @@ ks_ast ks_ast_new_throw(ks_ast val) {
     self->kind = KS_AST_THROW;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&val);
+    self->dflag = 0;
 
     return self;
 }
@@ -167,6 +178,7 @@ ks_ast ks_ast_new_assert(ks_ast val) {
     self->kind = KS_AST_ASSERT;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&val);
+    self->dflag = 0;
 
     return self;
 }
@@ -180,6 +192,7 @@ ks_ast ks_ast_new_block(int num, ks_ast* elems) {
     self->kind = KS_AST_BLOCK;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(num, (ks_obj*)elems);
+    self->dflag = 0;
 
     return self;
 }
@@ -197,6 +210,7 @@ ks_ast ks_ast_new_if(ks_ast cond, ks_ast if_body, ks_ast else_body) {
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)cond, (ks_obj)if_body });
     if (else_body) ks_list_push(self->children, (ks_obj)else_body);
+    self->dflag = 0;
 
     return self;
 }
@@ -213,6 +227,7 @@ ks_ast ks_ast_new_while(ks_ast cond, ks_ast while_body, ks_ast else_body) {
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)cond, (ks_obj)while_body });
     if (else_body) ks_list_push(self->children, (ks_obj)else_body);
+    self->dflag = 0;
 
     return self;
 }
@@ -233,6 +248,7 @@ ks_ast ks_ast_new_try(ks_ast try_body, ks_ast catch_body, ks_str catch_name) {
         if (catch_name) ks_list_push(self->children, (ks_obj)catch_name);
 
     }
+    self->dflag = 0;
 
     return self;
 }
@@ -247,6 +263,7 @@ ks_ast ks_ast_new_func(ks_str name, ks_list params, ks_ast body) {
     self->kind = KS_AST_FUNC;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(3, (ks_obj[]){ (ks_obj)name, (ks_obj)params, (ks_obj)body });
+    self->dflag = 0;
 
     return self;
 }
@@ -261,6 +278,7 @@ ks_ast ks_ast_new_for(ks_ast iter_obj, ks_ast body, ks_str assign_to) {
     self->kind = KS_AST_FOR;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(3, (ks_obj[]){ (ks_obj)iter_obj, (ks_obj)body, (ks_obj)assign_to });
+    self->dflag = 0;
 
     return self;
 }
@@ -276,6 +294,7 @@ ks_ast ks_ast_new_bop(int bop_type, ks_ast L, ks_ast R) {
     self->kind = bop_type;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(2, (ks_obj[]){ (ks_obj)L, (ks_obj)R });
+    self->dflag = 0;
 
     return self;
 }
@@ -291,10 +310,10 @@ ks_ast ks_ast_new_uop(int uop_type, ks_ast V) {
     self->kind = uop_type;
     self->tok = (struct ks_tok){ -1, -1 };
     self->children = ks_list_new(1, (ks_obj*)&V);
+    self->dflag = 0;
 
     return self;
 }
-
 
 
 // ast.__free__(self) - free obj
@@ -309,7 +328,6 @@ static KS_TFUNC(ast, free) {
 
     return KSO_NONE;
 }
-
 
 
 /* export */

@@ -25,6 +25,7 @@ ks_module ks_module_new(const char* mname) {
 // Do not raise error, just return NULL if not successful
 static ks_module attempt_load(char* cname) {
 
+
     char* ext = strrchr(cname, '.');
 
     if (ext != NULL && strcmp(&ext[1], KS_SHARED_END) == 0) {
@@ -32,15 +33,18 @@ static ks_module attempt_load(char* cname) {
 
         // attempt to load linux shared library
         // now, load it via dlopen
+
         void* handle = dlopen(cname, RTLD_LAZY | RTLD_GLOBAL);    
         if (handle == NULL) {
             ks_debug("ks", "[import] file '%s' failed: dlerror(): %s", cname, dlerror());
             return NULL;
         }
-        
+
+
         struct ks_module_cinit* mod_cinit = (struct ks_module_cinit*)dlsym(handle, "__ks_module_cinit__");
         
         if (mod_cinit != NULL) {
+
             // call the function, and return its result
             ks_module mod = mod_cinit->load_func();
             if (!mod) {
@@ -123,6 +127,53 @@ static KS_TFUNC(module, free) {
 }
 
 
+// module.__str__(self) - to string
+static KS_TFUNC(module, str) {
+    ks_module self;
+    KS_GETARGS("self:*", &self, ks_T_module)
+    
+    ks_str name = (ks_str)ks_dict_get_c(self->attr, "__name__");
+    ks_str ret = ks_fmt_c("<'%T' : %S>", self, name);
+    KS_DECREF(name);
+
+    return (ks_obj)ret;
+}
+
+// module.__getattr__(self, attr) -> get attribute
+static KS_TFUNC(module, getattr) {
+    ks_module self;
+    ks_str attr;
+    KS_GETARGS("self:* attr:*", &self, ks_T_module, &attr, ks_T_str)
+
+    // special case
+    if (*attr->chr == '_' && strncmp(attr->chr, "__dict__", 8) == 0) {
+        return KS_NEWREF(self->attr);
+    }
+
+    ks_obj ret = ks_dict_get_h(self->attr, (ks_obj)attr, attr->v_hash);
+
+    if (!ret) {
+        KS_THROW_ATTR_ERR(self, attr);
+    }
+
+    return ret;
+}
+
+// module.__setattr__(self, attr, val) -> set attribute
+static KS_TFUNC(module, setattr) {
+    ks_module self;
+    ks_str attr;
+    ks_obj val;
+    KS_GETARGS("self:* attr:* val", &self, ks_T_module, &attr, ks_T_str, &val)
+
+    ks_dict_set_h(self->attr, (ks_obj)attr, attr->v_hash, val);
+
+    return KS_NEWREF(val);
+}
+
+
+
+
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_module);
@@ -130,6 +181,10 @@ KS_TYPE_DECLFWD(ks_T_module);
 void ks_init_T_module() {
     ks_type_init_c(ks_T_module, "module", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(module_free_, "module.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c(module_str_, "module.__str__(self)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c(module_getattr_, "module.__getattr__(self, attr)")},
+        {"__setattr__",            (ks_obj)ks_cfunc_new_c(module_setattr_, "module.__setattr__(self, attr, val)")},
     ));
 
+    mod_cache = ks_dict_new(0, NULL);
 }

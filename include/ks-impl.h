@@ -46,7 +46,9 @@ void ks_init_T_str_builder();
 void ks_init_T_list();
 void ks_init_T_tuple();
 void ks_init_T_slice();
+void ks_init_T_range();
 void ks_init_T_dict();
+void ks_init_T_namespace();
 
 void ks_init_T_cfunc();
 void ks_init_T_memberfunc();

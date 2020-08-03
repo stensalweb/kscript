@@ -28,6 +28,10 @@ ks_kfunc ks_kfunc_new(ks_code code, ks_str hr_name) {
     self->n_param = 0;
     self->params = NULL;
 
+    self->n_defa = 0;
+    self->defa_start_idx = -1;
+    self->defas = NULL;
+
     return self;
 }
 
@@ -48,6 +52,10 @@ ks_kfunc ks_kfunc_new_copy(ks_kfunc func) {
 
     self->n_param = 0;
     self->params = NULL;
+
+    self->n_defa = 0;
+    self->defa_start_idx = -1;
+    self->defas = NULL;
 
     int i;
     for (i = 0; i < func->n_param; ++i) {

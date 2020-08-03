@@ -277,6 +277,19 @@ static bool tokenize(ks_parser self) {
                     }
                 }
 
+                // allow for an exponential
+                if (c == 'p') {
+                    ADV();
+                    c = PEEK();
+                }
+
+                // read whole number part (may be empty)
+                while (c > 0 && is_digit(c)) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
+                }
+
                 // it is an imaginary literal; skip it
                 if (c == 'i') {
                     ADV();
@@ -410,6 +423,19 @@ static bool tokenize(ks_parser self) {
                         c = PEEK();
                         ct++;
                     }
+                }
+
+                // allow eEXP
+                if (c == 'e') {
+                    ADV();
+                    c = PEEK();
+                }
+
+                // read  exponent
+                while (c > 0 && is_digit(c)) {
+                    ADV();
+                    c = PEEK();
+                    ct++;
                 }
 
                 // it is an imaginary literal; skip it
@@ -731,7 +757,7 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
         bool hasi = false;
 
         int i;
-        for (i = 0; i < len && !hasDot && !hasi; ++i) {
+        for (i = 0; i < len && (!hasDot || !hasi); ++i) {
             if (vstr[i] == '.') hasDot = true;
             if (vstr[i] == 'i') hasi = true;
         }
@@ -745,6 +771,15 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
                 // parse roman out
                 return (ks_obj)ks_int_new_roman(vstr+2, len-2);
             } else if (vstr[1] == 'x') {
+
+                // allow exponentials
+                bool hasp = false;
+                for (i = 0; i < len && !hasp; ++i) {
+                    if (vstr[i] == 'p') hasp = true;
+                }
+                isFloat = isFloat || hasp;
+
+
                 // hex string
                 if (isFloat) {
                     // TODO float
@@ -771,6 +806,8 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
                 if (isFloat) {
                     // TODO float
 
+                    return syntax_error(parser, tok, "Octal floats are not supported!");
+
                 } else {
                     char* tmp_str = ks_malloc(len - 1);
                     memcpy(tmp_str, vstr+2, len - 2);
@@ -785,6 +822,7 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
                 if (isFloat) {
                     // TODO float
 
+                    return syntax_error(parser, tok, "Binary floats are not supported!");
 
                 } else {
                     char* tmp_str = ks_malloc(len - 1);
@@ -798,6 +836,13 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
             }
         } else {
             // decimal
+            // allow exponentials
+            bool hase = false;
+            for (i = 0; i < len && !hase; ++i) {
+                if (vstr[i] == 'e') hase = true;
+            }
+            isFloat = isFloat || hase;
+
             if (isFloat) {
                 // TODO float
                 char* tmp_str = ks_malloc(len + 1);
@@ -1158,6 +1203,7 @@ static syop
     syu_pos = SYUOP(SYA_UOP_PRE, KS_AST_UOP_POS),
     syu_neg = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NEG),
     syu_sqig = SYUOP(SYA_UOP_PRE, KS_AST_UOP_SQIG),
+    syu_star = SYUOP(SYA_UOP_PRE, KS_AST_UOP_STAR),
     syu_not = SYUOP(SYA_UOP_PRE, KS_AST_UOP_NOT)
 
 ;
@@ -1283,7 +1329,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
         // check if we should stop parsing due to being at the end
         if (ctok.type == KS_TOK_EOF || 
             ctok.type == KS_TOK_SEMICOL ||
-            ((flags & KS_PARSE_INBRK) && ctok.type == KS_TOK_RBRC) ||
+            ctok.type == KS_TOK_RBRC ||
             ctok.type == KS_TOK_COL
 
         ) goto kppe_end;
@@ -1408,6 +1454,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
                 KPE_OPCASE(ctok, "+", syu_pos)
                 KPE_OPCASE(ctok, "-", syu_neg)
                 KPE_OPCASE(ctok, "~", syu_sqig)
+                KPE_OPCASE(ctok, "*", syu_star)
                 KPE_OPCASE(ctok, "!", syu_not)
 
                 KPPE_ERR(ctok, "Unexpected operator");
@@ -1450,6 +1497,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
                 // it was not found
                 KPPE_ERR(ctok, "Unexpected operator");
             }
+
 
             // set the metadata
             used.tok = ctok;
@@ -1750,13 +1798,80 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
             n_pars++;
             
             // add a spacer to the output stack
-            Spush(Out, NULL);
 
             if (tok_isval(ltok.type))  {
                 // if the previous item parsed was a value, then this is a function call
-                Spush(Ops, SYOP(SYT_FUNC, ctok));
+                //Spush(Out, NULL);
+                //Spush(Ops, SYOP(SYT_FUNC, ctok));
+
+
+                // skip '('
+                ADV_1();
+
+
+                ks_list args = ks_list_new(0, NULL);
+
+                while (VALID() && CTOK().type != KS_TOK_RPAR) {
+
+                    ks_tok startok;
+
+                    // vararg expansion (through starred expression)
+                    bool thisIsVararg = false;
+                    if (CTOK().type == KS_TOK_OP && *(self->src->chr + CTOK().pos_b) == '*') {
+                        thisIsVararg = true;
+                        startok = CTOK();
+                        ADV_1();
+                    }
+
+                    // parse an expression
+                    ks_ast this_arg = ks_parser_expr(self, KS_PARSE_INPAR);
+                    if (!this_arg) {
+                        KS_DECREF(this_arg);
+                        goto kppe_err;
+                    }
+
+                    // wrap in starred expression
+                    if (thisIsVararg) {
+                        ks_ast new_arg = ks_ast_new_uop(KS_AST_UOP_STAR, this_arg);
+                        new_arg->tok = ks_tok_combo(self, startok, this_arg->tok);
+                        KS_DECREF(this_arg);
+                        this_arg = new_arg;
+                    }
+
+                    ks_list_push(args, (ks_obj)this_arg);
+                    KS_DECREF(this_arg);
+
+                    // skip comma
+                    if (CTOK().type == KS_TOK_COMMA) {
+                        ADV_1();
+                    }
+                }
+
+                // ensure it ended
+                if (CTOK().type != KS_TOK_RPAR) {
+                    KS_DECREF(args);
+                    KPPE_ERR(ctok, "Invalid syntax; expected a ')' to end the function call started here");
+                }
+
+                // skip ')'
+                n_pars--;
+
+                // get function call
+                ks_ast func = Spop(Out);
+
+                ks_ast fcall = ks_ast_new_call(func, args->len, (ks_ast*)args->elems);
+
+                fcall->tok = ks_tok_combo(self, func->tok, CTOK());
+
+                KS_DECREF(args);
+                KS_DECREF(func);
+
+                Spush(Out, fcall);
+
+
             } else {
                 // otherwise, this is a normal expression group, OR a tuple creation
+                Spush(Out, NULL);
                 // add an operator denoting this
                 Spush(Ops, SYOP(SYT_LPAR, ctok));
             }
@@ -1765,7 +1880,13 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
             n_pars--;
 
             // make sure its balanced
-            if (n_pars < 0) KPPE_ERR(ctok, "Invalid Syntax; extra ')', remove it");
+            if (n_pars < 0) {
+                if (flags & KS_PARSE_INPAR) {
+                    goto kppe_end;
+                } else {
+                    KPPE_ERR(ctok, "Invalid Syntax; extra ')', remove it");
+                }
+            } 
 
             // check and make sure its valid
             if (!(tok_isval(ltok.type) || ltok.type == KS_TOK_COMMA || ltok.type == KS_TOK_LPAR)) KPPE_ERR(ctok, "Invalid Syntax; did not expect ')' here")
@@ -2511,8 +2632,9 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
 
         // get the name as a variable reference
         ks_str _name = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
+
+        // and then also keep an AST
         ks_ast name = ks_ast_new_var(_name);
-        KS_DECREF(_name);
         name->tok = CTOK();
         ADV_1();
 
@@ -2523,12 +2645,46 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
         ADV_1();
 
         ks_list pars = ks_list_new(0, NULL);
+        ks_list defas = ks_list_new(0, NULL);
         SKIP_IRR_E();
+
+        bool isVarArg = false;
+        bool hasDefaults = false;
+
+        // first index of default varaible
+        int firstDefault = -1;
+
+        int ct = 0;
 
         // TODO: allow parsing defaults
         while (CTOK().type != KS_TOK_RPAR) {
+            // error; extra arguments
+            if (isVarArg) {
+                KS_DECREF(pars);
+                KS_DECREF(defas);
+                KS_DECREF(name);
+                KS_DECREF(_name);
+                syntax_error(self, CTOK(), "Given extra arguments after the vararg specifier (it must be the last one)");
+                goto kpps_err;
+            }
+
+            bool thisIsVarArg = false;
+
+            // check for starred parameter
+            if (CTOK().type == KS_TOK_OP && *(self->src->chr + CTOK().pos_b) == '*') {
+                ADV_1();
+                thisIsVarArg = true;
+            }
+
+            // set whether it is vararg
+            isVarArg = isVarArg || thisIsVarArg;
+
             if (CTOK().type != KS_TOK_IDENT) {
-                syntax_error(self, CTOK(), "Unexpected token, expected a parameter name for a function");
+                KS_DECREF(pars);
+                KS_DECREF(defas);
+                KS_DECREF(name);
+                KS_DECREF(_name);
+                syntax_error(self, CTOK(), "Unexpected token, expected a parameter name for the function");
                 goto kpps_err;
             }
 
@@ -2537,23 +2693,63 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
             KS_DECREF(par_name);
 
             ADV_1();
+            
+            // now, check for `=DEFAULT`
+            if (CTOK().type == KS_TOK_OP && *(self->src->chr + CTOK().pos_b) == '=') {
+                // set index
+                if (firstDefault < 0) firstDefault = ct;
+
+                ADV_1();
+
+                // parse default out
+                ks_ast defa = ks_parser_expr(self, KS_PARSE_INPAR);
+                if (!defa) {
+                    KS_DECREF(pars);
+                    KS_DECREF(defas);
+                    KS_DECREF(name);
+                    KS_DECREF(_name);
+                    goto kpps_err;
+                }
+
+                // now, add it to the list too
+                ks_list_push(defas, (ks_obj)defa);
+                KS_DECREF(defa);
+            } else if (firstDefault >= 0) {
+
+                KS_DECREF(pars);
+                KS_DECREF(defas);
+                KS_DECREF(name);
+                KS_DECREF(_name);
+                syntax_error(self, CTOK(), "Given required parameter after a default one is given");
+                goto kpps_err;
+                
+            }
+
 
             // skip comma
             if (CTOK().type == KS_TOK_COMMA) {
                 ADV_1();
             }
 
-
             SKIP_IRR_E();
+            ct++;
         }
 
         if (CTOK().type != KS_TOK_RPAR) {
+            KS_DECREF(pars);
+            KS_DECREF(defas);
+            KS_DECREF(name);
+            KS_DECREF(_name);
             syntax_error(self, CTOK(), "Unexpected token, expected ')' for function params");
             goto kpps_err;
         }
         ADV_1();
 
         if (CTOK().type != KS_TOK_LBRC) {
+            KS_DECREF(pars);
+            KS_DECREF(defas);
+            KS_DECREF(name);
+            KS_DECREF(_name);
             syntax_error(self, CTOK(), "Unexpected token, expected '{' for function body");
             goto kpps_err;
         }
@@ -2561,15 +2757,21 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
         // parse out the '{ BODY }'
         ks_ast body = ks_parser_stmt(self, KS_PARSE_BLOCK);
         if (!body) {
+            KS_DECREF(pars);
+            KS_DECREF(defas);
             KS_DECREF(name);
+            KS_DECREF(_name);
             goto kpps_err;
         }
 
         // genrate the body as its own constant
         ks_code new_code = ks_compile(self, body);
         if (!new_code) {
+            KS_DECREF(pars);
+            KS_DECREF(defas);
             KS_DECREF(body);
             KS_DECREF(name);
+            KS_DECREF(_name);
             goto kpps_err;
         }
 
@@ -2597,12 +2799,28 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
         KS_DECREF(new_code);
         KS_DECREF(_name);
 
+        // set up defaults
+        new_kfunc->n_defa = defas->len;
+        new_kfunc->defa_start_idx = firstDefault;
+
+        if (defas->len > 0) {
+            // actually add copy to it
+            new_kfunc->defas = ks_malloc(sizeof(*new_kfunc->defas) * defas->len);
+
+            for (i = 0; i < new_kfunc->n_defa; ++i) {
+                new_kfunc->defas[i] = (ks_ast)defas->elems[i];
+                KS_INCREF(defas->elems[i]);
+            }            
+        }
+
         // add parameters
         for (i = 0; i < pars->len; ++i) {
             ks_kfunc_addpar(new_kfunc, (ks_str)pars->elems[i], NULL);
         }
         KS_DECREF(pars);
 
+        // set to whether a vararg was given
+        new_kfunc->isVarArg = isVarArg;
         
         // create a new constant reference
         ks_ast new_const = ks_ast_new_const((ks_obj)new_kfunc);

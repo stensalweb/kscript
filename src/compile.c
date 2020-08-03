@@ -133,22 +133,39 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
     } else if (self->kind == KS_AST_CONST) {
 
-        // push on a constant
-        ksca_push(to, self->children->elems[0]);
-
-        // add meta data
-        ks_code_add_meta(to, self->tok);
-
         // add closure
         if (self->children->elems[0]->type == ks_T_kfunc) {
+
+            // get the kfunc
+            ks_kfunc kfc = (ks_kfunc)self->children->elems[0];
+
+            int i;
+            for (i = 0; i < kfc->n_defa; ++i) {
+                // compute defaults
+                if (!ast_emit(kfc->defas[i], st, to)) return false;
+            }
+            // push on a constant
+            ksca_push(to, self->children->elems[0]);
+
             // copy and add closure to the function
             ksca_new_func(to);
             ksca_closure(to);
 
             ks_code_add_meta(to, self->tok);
+
+            st->stk_len += 1 - kfc->n_defa;
+
+        } else {
+
+            // push on a constant
+            ksca_push(to, self->children->elems[0]);
+
+            // add meta data
+            ks_code_add_meta(to, self->tok);
+            st->stk_len++;
+
         }
 
-        st->stk_len++;
 
 
     } else if (self->kind == KS_AST_LIST) {
@@ -270,30 +287,74 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         // ensure the function emitted one 
         assert(start_len + 1 == st->stk_len && "Function node was not emitted correctly!");
 
-        // then, calculate the objects
+        // see if there are any starred expressions
         int i;
-        for (i = 1; i < self->children->len; ++i) {
-            if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+        bool isStar = false;
+        for (i = 1; i < self->children->len && !isStar; ++i) {
+            ks_ast this_ast = (ks_ast)self->children->elems[i];
+            if (this_ast->kind == KS_AST_UOP_STAR) {
+                isStar = true;
+            }
         }
 
-        // ensure correct number of arguments were emitted
-        assert(start_len + self->children->len == st->stk_len && "Function arguments was not emitted correctly!");
+        if (isStar) {
+            // starred expansion
+            // create empty list
+            ksca_list(to, 0);
 
-        // now, call 'n' items
-        ksca_call(to, self->children->len);
+            // since what are typical ones
+            for (i = 1; i < self->children->len; ++i) {
+                ks_ast this_ast = (ks_ast)self->children->elems[i];
+                if (this_ast->kind == KS_AST_UOP_STAR) {
+                    // compute expression
+                    if (!ast_emit((ks_ast)this_ast->children->elems[0], st, to)) return false;
+                    // should be an iterable; add it
+                    ksca_list_add_iter(to);
+                } else {
+                    // otherwise, just add single opbject
+                    // TODO: can be optimized to batch add the objects
+                    if (!ast_emit(this_ast, st, to)) return false;
+                    ksca_list_add_objs(to, 1);
+                }
+            }
 
-        // add meta data
-        ks_code_add_meta(to, self->tok);
 
-        // this will consume this many
-        st->stk_len -= self->children->len;
-        
-        // but push on the result
-        st->stk_len++;
+            // add meta data
+            ks_code_add_meta(to, self->tok);
 
-        // internal error if this is not true
-        assert(st->stk_len == start_len + 1 && "Function output was not emitted correctly!");
+            // vararg call
+            ksca_vcall(to);
 
+            // we should end with a single result
+            st->stk_len = start_len + 1;
+
+        } else {
+            // typical calling
+
+            // then, calculate the objects
+            for (i = 1; i < self->children->len; ++i) {
+                if (!ast_emit((ks_ast)self->children->elems[i], st, to)) return false;
+            }
+
+            // ensure correct number of arguments were emitted
+            assert(start_len + self->children->len == st->stk_len && "Function arguments was not emitted correctly!");
+
+            // now, call 'n' items
+            ksca_call(to, self->children->len);
+
+            // add meta data
+            ks_code_add_meta(to, self->tok);
+
+            // this will consume this many
+            st->stk_len -= self->children->len;
+            
+            // but push on the result
+            st->stk_len++;
+
+            // internal error if this is not true
+            assert(st->stk_len == start_len + 1 && "Function output was not emitted correctly!");
+
+        }
 
     } else if (self->kind == KS_AST_RET) {
 
@@ -509,20 +570,18 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
 
         assert(st->stk_len == start_len + 2 && "Binary operator did not emit 2 operands!");
 
-
         // actually do binary operation, translate
         ksca_bop(to, (self->kind - KS_AST_BOP__FIRST) + KSB_BOP_ADD);
 
         // add meta data
         ks_code_add_meta(to, self->tok);
-        
 
         // both arguments are consumed
         st->stk_len -= 2;
         // one result is poppped back on
         st->stk_len++;
 
-    } else if (KS_AST_UOP__FIRST <= self->kind && self->kind <= KS_AST_UOP__LAST) {
+    } else if (KS_AST_UOP__FIRST <= self->kind && self->kind <= KS_AST_UOP__LAST && self->kind != KS_AST_UOP_STAR) {
         // unary operator
         ks_ast V = (ks_ast)self->children->elems[0];
 
@@ -903,6 +962,9 @@ static bool ast_emit(ks_ast self, em_state* st, ks_code to) {
         ej_p->arg = (int)(after_catch - ej_a);
 
 
+    } else if (self->kind == KS_AST_UOP_STAR) {
+        code_error(to->parser, self->tok, "Wasn't expecting a starred expression here!");
+        return false;
     } else {
         code_error(to->parser, self->tok, "Unknown AST Type! (type:%i)", self->kind);
         return false;
