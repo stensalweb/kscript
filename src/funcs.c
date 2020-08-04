@@ -227,7 +227,7 @@ static KS_FUNC(getattr) {
             // was valid attribute
             if (ks_obj_is_callable(type_attr)) {
                 // create a partial function (i.e. a member function) from the callable attribute
-                ks_memberfunc ret = ks_memberfunc_new(type_attr, obj);
+                ks_pfunc ret = ks_pfunc_new(type_attr, obj);
                 KS_DECREF(type_attr);
 
                 if (ret != NULL) {

@@ -83,23 +83,31 @@ ks_int ks_int_new_s(char* str, int base) {
     }
 
     if (str[0] == '0' && str[1] == 'x') {
-        if (base > 0 && base != 16) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        if (base != 0 && base != 16) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
         base = 16;
         str+=2;
         len-=2;
     } else if (str[0] == '0' && str[1] == 'o') {
-        if (base > 0 && base != 8) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        if (base != 0 && base != 8) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
         base = 8;
         str+=2;
         len-=2;
     } else if (str[0] == '0' && str[1] == 'b') {
-        if (base > 0 && base != 2) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        if (base != 0 && base != 2) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
         base = 2;
         str+=2;
         len-=2;
+    } else if (str[0] == '0' && str[1] == 'r') {
+        if (base != 0 && base != KS_BASE_ROMAN) return (ks_int)ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%s'", base, ostr);
+        base = KS_BASE_ROMAN;
+        str+=2;
+        len-=2;
     } else {
-        base = 10;
+        if (base == 0) base = 10;
     }
+
+    // check for romans
+    if (base == KS_BASE_ROMAN) return ks_int_new_roman(str, base);
 
     int i = 0;
 
@@ -419,6 +427,17 @@ int ks_int_cmp_c(ks_int L, int64_t R) {
 }
 
 
+// Compute and return the hash of an integer
+ks_hash_t ks_int_hash(ks_int self) {
+    if (!self->isLong) return (ks_hash_t)self->v64;
+    else {
+        ks_ssize_t sz = self->vz->_mp_size;
+        if (sz < 0) sz = -sz;
+
+        // hash the bytes
+        return ks_hash_bytes((const uint8_t*)self->vz->_mp_d, sz * sizeof(*self->vz->_mp_d));
+    }
+}
 
 // int.__new__(typ, obj, mode=none) -> convert 'obj' to a int
 static KS_TFUNC(int, new) {
@@ -460,7 +479,7 @@ static KS_TFUNC(int, new) {
     //} else if (ks_type_issub(obj->type, ks_type_Enum)) {
     //    return (ks_obj)ks_int_new(((ks_Enum)obj)->enum_idx);
     } else if (obj->type->__int__ != NULL) {
-        return ks_obj_call(obj->type->__int__, n_args, args);
+        return ks_obj_call(obj->type->__int__, n_args-1, args+1);
     }
 
     // error

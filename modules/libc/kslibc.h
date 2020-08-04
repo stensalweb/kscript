@@ -152,16 +152,16 @@ typedef struct {
 
 
 // declaring the types
-extern ks_type libc_type_void;
-extern ks_type libc_type_char, libc_type_short, libc_type_int, libc_type_long;
-extern ks_type libc_type_uchar, libc_type_ushort, libc_type_uint, libc_type_ulong;
-extern ks_type libc_type_function, libc_type_pointer;
+extern ks_type libc_T_void;
+extern ks_type libc_T_char, libc_T_short, libc_T_int, libc_T_long;
+extern ks_type libc_T_uchar, libc_T_ushort, libc_T_uint, libc_T_ulong;
+extern ks_type libc_T_function, libc_T_pointer;
 
 
 // common pointer types
-extern ks_type libc_type_void_p;
-extern ks_type libc_type_char_p, libc_type_short_p, libc_type_int_p, libc_type_long_p;
-extern ks_type libc_type_uchar_p, libc_type_ushort_p, libc_type_uint_p, libc_type_ulong_p;
+extern ks_type libc_T_void_p;
+extern ks_type libc_T_char_p, libc_T_short_p, libc_T_int_p, libc_T_long_p;
+extern ks_type libc_T_uchar_p, libc_T_ushort_p, libc_T_uint_p, libc_T_ulong_p;
 
 /* template types: */
 

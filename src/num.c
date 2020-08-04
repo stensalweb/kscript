@@ -934,6 +934,43 @@ ks_obj ks_num_neg(ks_obj L) {
 }
 
 
+// compute ~L
+ks_obj ks_num_sqig(ks_obj L) {
+    if (ks_num_is_integral(L)) {
+
+
+
+        // see if it can fit in a 64 bit integer
+        int64_t Lv;
+        bool Lf = ks_num_get_int64(L, &Lv);
+        if (Lf) {
+            return (ks_obj)ks_int_new(~Lv);
+        }
+
+        // otherwise, declare mpz and set it, then negate it
+        mpz_t Lz;
+        mpz_init(Lz);
+
+        if (
+            !ks_num_get_mpz(L, Lz)
+        ) {
+            // problem converting
+            mpz_clear(Lz);
+            KS_THROW_UOP_ERR("~", L);
+        }
+
+        // return 2s complement
+        mpz_ui_sub(Lz, 1, Lz);
+        return (ks_obj)ks_int_new_mpz_n(Lz);
+    } else {
+
+    }
+
+    // default: undefined
+    KS_THROW_UOP_ERR("~", L);
+}
+
+
 
 // compute abs(L)
 ks_obj ks_num_abs(ks_obj L) {

@@ -67,6 +67,24 @@ bool ks_obj_hash(ks_obj obj, ks_hash_t* out) {
     if (obj->type == ks_T_str) {
         *out = ((ks_str)obj)->v_hash;
         return true;
+    } else if (obj->type == ks_T_int) {
+        *out = ks_int_hash((ks_int)obj);
+        return true;
+    } else if (obj->type->__hash__ != NULL) {
+        ks_int val = (ks_int)ks_obj_call(obj->type->__hash__, 1, &obj);
+        if (!val) return NULL;
+
+        if (val->type != ks_T_int) {
+            KS_DECREF(val);
+            return ks_throw(ks_T_ArgError, "Function '%T.__hash__' returned something other than an integer!", obj);
+        }
+
+        ks_hash_t hash = ks_int_hash(val);
+        KS_DECREF(val);
+
+        *out = hash;
+        return true;
+
     } else {
         ks_throw(ks_T_TypeError, "Object of type '%T' could not be hashed!", obj);
         return false;
@@ -193,9 +211,9 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
             // actually perform call
             ret = ks__exec(thread, kfc->code);
         }
-    } else if (func->type == ks_T_memberfunc) {
+    } else if (func->type == ks_T_pfunc) {
         // call `func(self, *args)`
-        ks_memberfunc mfc = (ks_memberfunc)func;
+        ks_pfunc mfc = (ks_pfunc)func;
 
         // allocate new array of argumnets
         int new_n_args = n_args + 1;

@@ -8,36 +8,36 @@
 #include "../kslibc-impl.h"
 
 
-KS_TYPE_DECLFWD(libc_type_void);
+KS_TYPE_DECLFWD(libc_T_void);
 
-KS_TYPE_DECLFWD(libc_type_char);
-KS_TYPE_DECLFWD(libc_type_short);
-KS_TYPE_DECLFWD(libc_type_int);
-KS_TYPE_DECLFWD(libc_type_long);
+KS_TYPE_DECLFWD(libc_T_char);
+KS_TYPE_DECLFWD(libc_T_short);
+KS_TYPE_DECLFWD(libc_T_int);
+KS_TYPE_DECLFWD(libc_T_long);
 
-KS_TYPE_DECLFWD(libc_type_uchar);
-KS_TYPE_DECLFWD(libc_type_ushort);
-KS_TYPE_DECLFWD(libc_type_uint);
-KS_TYPE_DECLFWD(libc_type_ulong);
+KS_TYPE_DECLFWD(libc_T_uchar);
+KS_TYPE_DECLFWD(libc_T_ushort);
+KS_TYPE_DECLFWD(libc_T_uint);
+KS_TYPE_DECLFWD(libc_T_ulong);
 
 
 // templated types
-KS_TYPE_DECLFWD(libc_type_pointer);
-KS_TYPE_DECLFWD(libc_type_function);
+KS_TYPE_DECLFWD(libc_T_pointer);
+KS_TYPE_DECLFWD(libc_T_function);
 
 
 // pointers
-KS_TYPE_DECLFWD(libc_type_void_p);
+KS_TYPE_DECLFWD(libc_T_void_p);
 
-KS_TYPE_DECLFWD(libc_type_char_p);
-KS_TYPE_DECLFWD(libc_type_short_p);
-KS_TYPE_DECLFWD(libc_type_int_p);
-KS_TYPE_DECLFWD(libc_type_long_p);
+KS_TYPE_DECLFWD(libc_T_char_p);
+KS_TYPE_DECLFWD(libc_T_short_p);
+KS_TYPE_DECLFWD(libc_T_int_p);
+KS_TYPE_DECLFWD(libc_T_long_p);
 
-KS_TYPE_DECLFWD(libc_type_uchar_p);
-KS_TYPE_DECLFWD(libc_type_ushort_p);
-KS_TYPE_DECLFWD(libc_type_uint_p);
-KS_TYPE_DECLFWD(libc_type_ulong_p);
+KS_TYPE_DECLFWD(libc_T_uchar_p);
+KS_TYPE_DECLFWD(libc_T_ushort_p);
+KS_TYPE_DECLFWD(libc_T_uint_p);
+KS_TYPE_DECLFWD(libc_T_ulong_p);
 
 
 // forward decl the constructors so they can be wrapped in template construction
@@ -101,15 +101,15 @@ static KS_TFUNC(_type_name, int) { \
 
 
 // template for int types
-T_inttype(libc_char, libc_type_char, char, int8_t)
-T_inttype(libc_short, libc_type_short, short, int16_t)
-T_inttype(libc_int, libc_type_int, int, int32_t)
-T_inttype(libc_long, libc_type_long, long, int64_t)
+T_inttype(libc_char, libc_T_char, char, int8_t)
+T_inttype(libc_short, libc_T_short, short, int16_t)
+T_inttype(libc_int, libc_T_int, int, int32_t)
+T_inttype(libc_long, libc_T_long, long, int64_t)
 
-T_inttype(libc_uchar, libc_type_uchar, uchar, uint8_t)
-T_inttype(libc_ushort, libc_type_ushort, ushort, uint16_t)
-T_inttype(libc_uint, libc_type_uint, uint, uint32_t)
-T_inttype(libc_ulong, libc_type_ulong, ulong, uint64_t)
+T_inttype(libc_uchar, libc_T_uchar, uchar, uint8_t)
+T_inttype(libc_ushort, libc_T_ushort, ushort, uint16_t)
+T_inttype(libc_uint, libc_T_uint, uint, uint32_t)
+T_inttype(libc_ulong, libc_T_ulong, ulong, uint64_t)
 
 
 
@@ -129,11 +129,11 @@ static ffi_type my_ffi_type_funcptr = (ffi_type) {
 
 // convert a kscript type to an FFI type (or, return NULL and throw error if it wasn't)
 static ffi_type* my_get_ffitype(ks_type kstype) {
-    if (kstype == libc_type_void || kstype == ks_type_none) {
+    if (kstype == libc_T_void || kstype == ks_type_none) {
         return &ffi_type_void;
-    } else if (kstype == libc_type_int || kstype == ks_type_int) {
+    } else if (kstype == libc_T_int || kstype == ks_type_int) {
         return &ffi_type_sint;
-    } else if (ks_type_issub(kstype, libc_type_pointer)) {
+    } else if (ks_type_issub(kstype, libc_T_pointer)) {
         return &ffi_type_pointer;
     } else {
         ks_throw_fmt(ks_type_TypeError, "Cannot convert type '%S' into a compatible FFI type", kstype);
@@ -170,7 +170,7 @@ static bool my_to_ffitype(ffi_type* totype, ks_obj obj, void* dest, void** alloc
 
     } else if (totype == &ffi_type_pointer) {
 
-        if (ks_type_issub(obj->type, libc_type_pointer)) {
+        if (ks_type_issub(obj->type, libc_T_pointer)) {
 
             *(void**)dest = ((libc_pointer)obj)->val;
             return true;
@@ -215,9 +215,9 @@ static ks_type my_gettypeof(ks_type ptr_type) {
 }
 
 ks_ssize_t libc_get_size(ks_type of) {
-    if (of == libc_type_int) {
+    if (of == libc_T_int) {
         return sizeof(int);
-    } else if (ks_type_issub(of, libc_type_pointer)) {
+    } else if (ks_type_issub(of, libc_T_pointer)) {
         return sizeof(void*);
     } else {
         ks_throw_fmt(ks_type_TypeError, "libc cannot find the size of type '%S'", of);
@@ -253,7 +253,7 @@ ks_type libc_make_pointer_type(ks_type of) {
         KS_DECREF(ptr_type_name);
 
         // add parent type
-        ks_type_add_parent(ptr_type, libc_type_pointer);
+        ks_type_add_parent(ptr_type, libc_T_pointer);
 
         // set a reference to the base type
         if (!ks_type_set_c(ptr_type, "_base_type", (ks_obj)of)) {
@@ -281,7 +281,7 @@ ks_type libc_make_pointer_type(ks_type of) {
     } else {
         // just assign pointer type
         ptr_type = (ks_type)ret;
-        if (!ks_type_issub(ptr_type, libc_type_pointer)) {
+        if (!ks_type_issub(ptr_type, libc_T_pointer)) {
             ks_throw_fmt(ks_type_InternalError, "Internally, libc's pointer type cache contained non-type object: %S", ret);
             KS_DECREF(ret);
             return NULL;
@@ -331,7 +331,7 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
         KS_DECREF(func_type_name);
 
         // add parent type
-        ks_type_add_parent(func_type, libc_type_function);
+        ks_type_add_parent(func_type, libc_T_function);
 
         // set a reference to the base type
         if (!ks_type_set_c(func_type, "_rtype", (ks_obj)argtypes[0])) {
@@ -404,7 +404,7 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
         #endif
 
         // this object can be unboxed elsewhere
-        ks_obj fp_meta_obj = (ks_obj)libc_make_pointer(libc_type_void_p, (void*)fp_meta);
+        ks_obj fp_meta_obj = (ks_obj)libc_make_pointer(libc_T_void_p, (void*)fp_meta);
         if (!fp_meta_obj) {
             KS_DECREF(ofkey);
             KS_DECREF(func_type);
@@ -436,7 +436,7 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
 
     } else {
         func_type = (ks_type)ret;
-        if (!ks_type_issub(func_type, libc_type_function)) {
+        if (!ks_type_issub(func_type, libc_T_function)) {
             ks_throw_fmt(ks_type_InternalError, "Internally, libc's function type cache contained non-type object: %S", ret);
             KS_DECREF(ret);
             return NULL;
@@ -450,7 +450,7 @@ ks_type libc_make_function_type(int n_args, ks_type* argtypes) {
 
 // create a new pointer
 libc_pointer libc_make_pointer(ks_type ptr_type, void* addr) {
-    if (!ks_type_issub(ptr_type, libc_type_pointer)) return ks_throw_fmt(ks_type_TypeError, "libc_make_pointer given ptr_type that is not a pointer! (given: %S)", ptr_type);
+    if (!ks_type_issub(ptr_type, libc_T_pointer)) return ks_throw_fmt(ks_type_TypeError, "libc_make_pointer given ptr_type that is not a pointer! (given: %S)", ptr_type);
 
     // create a new result
     libc_pointer self = KS_ALLOC_OBJ(libc_pointer);
@@ -463,13 +463,13 @@ libc_pointer libc_make_pointer(ks_type ptr_type, void* addr) {
 
 // Create a function pointer
 libc_function libc_make_function(ks_type func_type, void (*val)()) {
-    if (!ks_type_issub(func_type, libc_type_function)) return ks_throw_fmt(ks_type_TypeError, "libc_make_function given func_type that is not a func! (given: %S)", func_type);
+    if (!ks_type_issub(func_type, libc_T_function)) return ks_throw_fmt(ks_type_TypeError, "libc_make_function given func_type that is not a func! (given: %S)", func_type);
 
     // get meta-data
     libc_pointer fp_meta_obj = (libc_pointer)ks_dict_get_c(func_type->attr, "_fp_meta");
     if (!fp_meta_obj) {
         return ks_throw_fmt(ks_type_InternalError, "libc_make_function given func_type that does not have _fp_meta (given: %S)", func_type);
-    } else if (!ks_type_issub(fp_meta_obj->type, libc_type_pointer)) {
+    } else if (!ks_type_issub(fp_meta_obj->type, libc_T_pointer)) {
         ks_throw_fmt(ks_type_InternalError, "libc_make_function given func_type._fp_meta that is not a pointer (given: %S)", fp_meta_obj);
         KS_DECREF(fp_meta_obj);
         return NULL;
@@ -499,11 +499,11 @@ libc_function libc_make_function(ks_type func_type, void (*val)()) {
 static KS_TFUNC(pointer, new) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_type ptr_type = (ks_type)args[0];
-    if (!ks_type_issub(ptr_type, libc_type_pointer)) return ks_throw_fmt(ks_type_InternalError, "ptr_type was not a pointer type!");
+    if (!ks_type_issub(ptr_type, libc_T_pointer)) return ks_throw_fmt(ks_type_InternalError, "ptr_type was not a pointer type!");
     ks_obj obj = args[1];
 
     int64_t v64;
-    if (ks_type_issub(obj->type, libc_type_pointer)) {
+    if (ks_type_issub(obj->type, libc_T_pointer)) {
         // cast pointer types
         return (ks_obj)libc_make_pointer(ptr_type, ((libc_pointer)obj)->val);
     } else if (ks_num_get_int64(obj, &v64)) {
@@ -518,7 +518,7 @@ static KS_TFUNC(pointer, new) {
 static KS_TFUNC(pointer, free) {
     KS_REQ_N_ARGS(n_args, 1);
     libc_pointer self = (libc_pointer)args[0];
-    KS_REQ_TYPE(self, libc_type_pointer, "self");
+    KS_REQ_TYPE(self, libc_T_pointer, "self");
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
@@ -540,7 +540,7 @@ static KS_TFUNC(pointer, create) {
 static KS_TFUNC(pointer, str) {
     KS_REQ_N_ARGS(n_args, 1);
     libc_pointer self = (libc_pointer)args[0];
-    KS_REQ_TYPE(self, libc_type_pointer, "self");
+    KS_REQ_TYPE(self, libc_T_pointer, "self");
 
     return (ks_obj)ks_fmt_c("(%S)%p", self->type->__name__, self->val);
 }
@@ -549,7 +549,7 @@ static KS_TFUNC(pointer, str) {
 static KS_TFUNC(pointer, bool) {
     KS_REQ_N_ARGS(n_args, 1);
     libc_pointer self = (libc_pointer)args[0];
-    KS_REQ_TYPE(self, libc_type_pointer, "self");
+    KS_REQ_TYPE(self, libc_T_pointer, "self");
 
     return (ks_obj)KSO_BOOL(self->val != NULL);
 }
@@ -558,7 +558,7 @@ static KS_TFUNC(pointer, bool) {
 static KS_TFUNC(pointer, int) {
     KS_REQ_N_ARGS(n_args, 1);
     libc_pointer self = (libc_pointer)args[0];
-    KS_REQ_TYPE(self, libc_type_pointer, "self");
+    KS_REQ_TYPE(self, libc_T_pointer, "self");
 
     return (ks_obj)ks_int_new((intptr_t)self->val);
 }
@@ -568,12 +568,12 @@ static KS_TFUNC(pointer, getitem) {
     KS_REQ_N_ARGS(n_args, 2);
     libc_pointer self;
     int64_t idx;
-    if (!ks_parse_params(n_args, args, "self%* idx%i64", &self, libc_type_pointer, &idx)) return NULL;
+    if (!ks_parse_params(n_args, args, "self%* idx%i64", &self, libc_T_pointer, &idx)) return NULL;
 
     // now, switch based on type
     ks_type typ = my_gettypeof(self->type);
 
-    if (typ == libc_type_int) {
+    if (typ == libc_T_int) {
         int* addr = &((int*)self->val)[idx];
         KS_DECREF(typ);
         return (ks_obj)libc_make_int(0);
@@ -589,13 +589,13 @@ static KS_TFUNC(pointer, setitem) {
     libc_pointer self;
     int64_t idx;
     ks_obj val;
-    if (!ks_parse_params(n_args, args, "self%* idx%i64 val%any", &self, libc_type_pointer, &idx, &val)) return NULL;
+    if (!ks_parse_params(n_args, args, "self%* idx%i64 val%any", &self, libc_T_pointer, &idx, &val)) return NULL;
 
     // now, switch based on type
     ks_type typ = my_gettypeof(self->type);
 
 
-    if (typ == libc_type_int) {
+    if (typ == libc_T_int) {
         int* addr = &((int*)self->val)[idx];
         int64_t val64;
         if (!ks_num_get_int64(val, &val64)) {
@@ -620,17 +620,17 @@ static KS_TFUNC(pointer, setitem) {
 static KS_TFUNC(function, new) {
     KS_REQ_N_ARGS(n_args, 2);
     ks_type func_type = (ks_type)args[0];
-    if (!ks_type_issub(func_type, libc_type_function)) return ks_throw_fmt(ks_type_InternalError, "func_type was not a function type!");
+    if (!ks_type_issub(func_type, libc_T_function)) return ks_throw_fmt(ks_type_InternalError, "func_type was not a function type!");
     ks_obj obj = args[1];
 
-    if (ks_type_issub(obj->type, libc_type_function)) {
+    if (ks_type_issub(obj->type, libc_T_function)) {
         return (ks_obj)libc_make_function(func_type, ((libc_function)obj)->val);
-    } else if (ks_type_issub(obj->type, libc_type_pointer)) {
+    } else if (ks_type_issub(obj->type, libc_T_pointer)) {
         // TODO: perhaps warn if this may cause an error on some platforms?
         return (ks_obj)libc_make_function(func_type, (void(*)())((libc_pointer)obj)->val);
     } else {
         ks_catch_ignore();
-        KS_ERR_CONV(obj, libc_type_function);
+        KS_ERR_CONV(obj, libc_T_function);
     }
 }
 
@@ -638,7 +638,7 @@ static KS_TFUNC(function, new) {
 static KS_TFUNC(function, free) {
     KS_REQ_N_ARGS(n_args, 1);
     libc_function self = (libc_function)args[0];
-    KS_REQ_TYPE(self, libc_type_function, "self");
+    KS_REQ_TYPE(self, libc_T_function, "self");
 
     KS_UNINIT_OBJ(self);
     KS_FREE_OBJ(self);
@@ -650,7 +650,7 @@ static KS_TFUNC(function, free) {
 static KS_TFUNC(function, str) {
     KS_REQ_N_ARGS(n_args, 1);
     libc_function self = (libc_function)args[0];
-    KS_REQ_TYPE(self, libc_type_function, "self");
+    KS_REQ_TYPE(self, libc_T_function, "self");
 
     return (ks_obj)ks_fmt_c("(%S)%p", self->type->__name__, self->val);
 }
@@ -704,7 +704,7 @@ static KS_TFUNC(function, make) {
 static KS_TFUNC(function, call) {
     KS_REQ_N_ARGS_MIN(n_args, 1);
     libc_function self = (libc_function)args[0];
-    KS_REQ_TYPE(self, libc_type_function, "self");
+    KS_REQ_TYPE(self, libc_T_function, "self");
     #ifdef KS_HAVE_FFI
 
     // get meta-data
@@ -782,22 +782,22 @@ void libc_init_types() {
     }
 
 
-    KS_INIT_TYPE_OBJ(libc_type_void, "libc.void");
+    KS_INIT_TYPE_OBJ(libc_T_void, "libc.void");
 
-    KS_INIT_TYPE_OBJ(libc_type_char, "libc.char");
-    KS_INIT_TYPE_OBJ(libc_type_short, "libc.short");
-    KS_INIT_TYPE_OBJ(libc_type_int, "libc.int");
-    KS_INIT_TYPE_OBJ(libc_type_long, "libc.long");
-    KS_INIT_TYPE_OBJ(libc_type_uchar, "libc.uchar");
-    KS_INIT_TYPE_OBJ(libc_type_ushort, "libc.ushort");
-    KS_INIT_TYPE_OBJ(libc_type_uint, "libc.uint");
-    KS_INIT_TYPE_OBJ(libc_type_ulong, "libc.ulong");
+    KS_INIT_TYPE_OBJ(libc_T_char, "libc.char");
+    KS_INIT_TYPE_OBJ(libc_T_short, "libc.short");
+    KS_INIT_TYPE_OBJ(libc_T_int, "libc.int");
+    KS_INIT_TYPE_OBJ(libc_T_long, "libc.long");
+    KS_INIT_TYPE_OBJ(libc_T_uchar, "libc.uchar");
+    KS_INIT_TYPE_OBJ(libc_T_ushort, "libc.ushort");
+    KS_INIT_TYPE_OBJ(libc_T_uint, "libc.uint");
+    KS_INIT_TYPE_OBJ(libc_T_ulong, "libc.ulong");
 
-    KS_INIT_TYPE_OBJ(libc_type_pointer, "libc.pointer");
-    KS_INIT_TYPE_OBJ(libc_type_function, "libc.function");
+    KS_INIT_TYPE_OBJ(libc_T_pointer, "libc.pointer");
+    KS_INIT_TYPE_OBJ(libc_T_function, "libc.function");
 
 
-    ks_type_set_cn(libc_type_void, (ks_dict_ent_c[]){
+    ks_type_set_cn(libc_T_void, (ks_dict_ent_c[]){
 
         {"_ctype_size",    (ks_obj)ks_int_new(0)},
         {"_is_ctype",      KSO_TRUE},
@@ -809,7 +809,7 @@ void libc_init_types() {
 
 
     #define T_setupinttype(_type_name, _ctype) \
-    ks_type_set_cn(PASTE(libc_type, _type_name), (ks_dict_ent_c[]){ \
+    ks_type_set_cn(PASTE(libc_T, _type_name), (ks_dict_ent_c[]){ \
         {"__new__",        (ks_obj)ks_cfunc_new2(PASTE(_type_name, new_), "libc." #_type_name ".__new__(obj)")}, \
         {"__free__",       (ks_obj)ks_cfunc_new2(PASTE(_type_name, free_), "libc." #_type_name ".__free__(obj)")}, \
         {"__str__",        (ks_obj)ks_cfunc_new2(PASTE(_type_name, str_), "libc." #_type_name ".__str__(self)")}, \
@@ -832,7 +832,7 @@ void libc_init_types() {
 
 
 
-    ks_type_set_cn(libc_type_pointer, (ks_dict_ent_c[]){
+    ks_type_set_cn(libc_T_pointer, (ks_dict_ent_c[]){
 
         {"__new__",          (ks_obj)(F_pointer_new = ks_cfunc_new2(pointer_new_, "libc.pointer.__new__(ptr_type, obj)"))},
         {"__free__",        (ks_obj)ks_cfunc_new2(pointer_free_, "libc.pointer.__free__(obj)")},
@@ -853,7 +853,7 @@ void libc_init_types() {
         {NULL, NULL},
     });
 
-    ks_type_set_cn(libc_type_function, (ks_dict_ent_c[]){
+    ks_type_set_cn(libc_T_function, (ks_dict_ent_c[]){
 
         {"__new__",          (ks_obj)(F_function_new = ks_cfunc_new2(function_new_, "libc.function.__new__(func_type, obj)"))},
         {"__free__",         (ks_obj)ks_cfunc_new2(function_free_, "libc.function.__free__(self)")},
@@ -878,17 +878,17 @@ void libc_init_types() {
     function_types = ks_dict_new(0, NULL);
 
     // create common types
-    libc_type_void_p = libc_make_pointer_type(libc_type_void);
+    libc_T_void_p = libc_make_pointer_type(libc_T_void);
 
-    libc_type_char_p = libc_make_pointer_type(libc_type_char);
-    libc_type_short_p = libc_make_pointer_type(libc_type_short);
-    libc_type_int_p = libc_make_pointer_type(libc_type_int);
-    libc_type_long_p = libc_make_pointer_type(libc_type_long);
+    libc_T_char_p = libc_make_pointer_type(libc_T_char);
+    libc_T_short_p = libc_make_pointer_type(libc_T_short);
+    libc_T_int_p = libc_make_pointer_type(libc_T_int);
+    libc_T_long_p = libc_make_pointer_type(libc_T_long);
 
-    libc_type_uchar_p = libc_make_pointer_type(libc_type_uchar);
-    libc_type_ushort_p = libc_make_pointer_type(libc_type_ushort);
-    libc_type_uint_p = libc_make_pointer_type(libc_type_uint);
-    libc_type_ulong_p = libc_make_pointer_type(libc_type_ulong);
+    libc_T_uchar_p = libc_make_pointer_type(libc_T_uchar);
+    libc_T_ushort_p = libc_make_pointer_type(libc_T_ushort);
+    libc_T_uint_p = libc_make_pointer_type(libc_T_uint);
+    libc_T_ulong_p = libc_make_pointer_type(libc_T_ulong);
 
 }
 

@@ -83,7 +83,7 @@ bool ks_init(int verbose) {
     ks_init_T_dict();
     ks_init_T_namespace();
     ks_init_T_cfunc();
-    ks_init_T_memberfunc();
+    ks_init_T_pfunc();
     ks_init_T_thread();
     ks_init_T_parser();
     ks_init_T_ast();
@@ -213,6 +213,9 @@ bool ks_init(int verbose) {
         {"type",                   KS_NEWREF(ks_T_type)},
         {"obj",                    KS_NEWREF(ks_T_obj)},
         {"thread",                 KS_NEWREF(ks_T_thread)},
+
+        {"Enum",                   KS_NEWREF(ks_T_Enum)},
+
 
         /* Errors */
 

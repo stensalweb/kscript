@@ -119,6 +119,10 @@ typedef int64_t ks_ssize_t;
 // a hash type, representing a hash of an object
 typedef uint64_t ks_hash_t;
 
+// max hash value
+#define KS_HASH_MAX ((ks_hash_t)(((ks_hash_t)(1ULL)) << (8 * sizeof(ks_hash_t) - 1)))
+
+
 // a single unicode character (NOT grapheme/etc, but rather a single, decoded value)
 typedef int32_t ks_unich;
 
@@ -517,9 +521,27 @@ typedef struct {
 // end/invalid keyval
 #define KS_KEYVAL_END ((ks_keyval_c){ NULL, NULL })
 
-// array to create an array of `ks_keyval_c`, which can be passed to a constructor expecting a NULL-terminated array
+// macro to create an array of `ks_keyval_c`, which can be passed to a constructor expecting a NULL-terminated array
 #define KS_KEYVALS(...) ((ks_keyval_c[]){ __VA_ARGS__ KS_KEYVAL_END })
 
+
+// ks_enumval_c - special data structure for initializing enums in C
+typedef struct {
+
+    // the name of the enumeration
+    const char* name;
+
+    // the value
+    int64_t val;
+
+} ks_enumval_c;
+
+
+// end of enum values
+#define KS_ENUMVAL_END ((ks_enumval_c){ NULL, 0 })
+
+// macro to create an array of `ks_enumval_c`, which can be passed to constructors
+#define KS_ENUMVALS(...) ((ks_enumval_c[]){ __VA_ARGS__ KS_ENUMVAL_END })
 
 
 
@@ -611,6 +633,40 @@ struct ks_dict_s {
 };
 
 
+// struct ks_dict_citer - C iterator for dictionaries
+// Use like:
+//```
+// struct ks_dict_citer cit = ks_dict_citer_make(dict_obj);
+// ks_obj key, val;
+// ks_hash_t hash;
+// while (ks_dict_citer_next(&cit, &key, &val, &hash)) {
+//   { code ... }
+//   KS_DECREF(key);   
+//   KS_DECREF(val);   
+// }
+//```
+struct ks_dict_citer {
+
+    // the dictionary it is iterating over
+    ks_dict self;
+
+    // current position in the elements list
+    int64_t curpos;
+
+};
+
+
+// Create a new dictionary iterator for C
+// NOTE: No cleanup is neccessary, because no references are made
+KS_API struct ks_dict_citer ks_dict_citer_make(ks_dict dict_obj);
+
+
+// Get the next element, and return whether it was successful (i.e. whether it had another entry)
+// NOTE: No cleanup is neccessary, because no references are made
+KS_API bool ks_dict_citer_next(struct ks_dict_citer* cit, ks_obj* key, ks_obj* val, ks_hash_t* hash);
+
+
+
 // ks_namespace - a dictionary, but with attribute references rather than subscripting
 typedef struct {
     KS_OBJ_BASE
@@ -643,7 +699,7 @@ typedef struct {
 
 
 
-// ks_memberfunc - a wrapper around a function, filling in the first argument as a member instance,
+// ks_pfunc - a wrapper around a function, filling in the first argument as a member instance (or more),
 // when called, it behaves like `func(member_inst, *args)`
 typedef struct {
     KS_OBJ_BASE
@@ -654,7 +710,7 @@ typedef struct {
     // the 0th arg
     ks_obj member_inst;
 
-}* ks_memberfunc;
+}* ks_pfunc;
 
 /* Enums */
 
@@ -673,7 +729,6 @@ typedef struct {
     ks_str name;
 
 }* ks_Enum;
-
 
 
 /* Errors */
@@ -1656,7 +1711,7 @@ extern ks_type
     ks_T_kfunc,
 
     ks_T_cfunc,
-    ks_T_memberfunc,
+    ks_T_pfunc,
 
     ks_T_logger,
 
@@ -2007,7 +2062,29 @@ KS_API bool ks_type_issub(ks_type self, ks_type of);
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_int ks_int_new(int64_t val);
 
-// Create a kscript int from a string in a given base
+
+enum {
+
+    // automatic base, which will look for beginnings such as `0x`, `0b`, `0r`, etc
+    //   but default to base 10 if none are found
+    KS_BASE_AUTO   = 0,
+
+    // binary, i.e. base 2
+    KS_BASE_2      = 2,
+
+    // octal, i.e. base 8
+    KS_BASE_8      = 8,
+
+    // hex, i.e. base 16
+    KS_BASE_16     = 16,
+
+    // roman base, i.e. parsing roman numerals
+    KS_BASE_ROMAN  = -1,
+
+};
+
+
+// Create a kscript int from a string in a given base (check KS_BASE_* enums)
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_int ks_int_new_s(char* str, int base);
 
@@ -2034,6 +2111,8 @@ KS_API int ks_int_cmp(ks_int L, ks_int R);
 // Compare to a C-style integer
 KS_API int ks_int_cmp_c(ks_int L, int64_t R);
 
+// Compute and return the hash of an integer
+KS_API ks_hash_t ks_int_hash(ks_int self);
 
 
 // Construct a new 'float' object
@@ -2264,7 +2343,32 @@ KS_API ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig);
 
 // Construct a new member function with the given function & member instance
 // NOTE: Returns new reference, or NULL if an error was thrown
-KS_API ks_memberfunc ks_memberfunc_new(ks_obj func, ks_obj member_inst);
+KS_API ks_pfunc ks_pfunc_new(ks_obj func, ks_obj member_inst);
+
+
+
+
+// Create a new enumeration type, with given values
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_type ks_Enum_create_c(const char* name, ks_enumval_c* enumvals);
+
+
+// Construct a new enumeration value
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_Enum ks_Enum_new(ks_type enumtype, ks_str val);
+
+// Construct a new enumeration value
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_Enum ks_Enum_new_c(ks_type enumtype, char* cstr);
+
+
+// Construct a new enumeration value
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_Enum ks_Enum_new_i(ks_type enumtype, ks_int val);
+
+// Construct a new enumeration value
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_Enum ks_Enum_new_ic(ks_type enumtype, int64_t val);
 
 
 // Construct a new error of a given type, sets `.what` to the given string
@@ -2666,6 +2770,8 @@ KS_API ks_obj ks_num_pow(ks_obj L, ks_obj R);
 
 // Compute -L
 KS_API ks_obj ks_num_neg(ks_obj L);
+// Compute ~V
+KS_API ks_obj ks_num_sqig(ks_obj V);
 
 // Compute abs(L)
 KS_API ks_obj ks_num_abs(ks_obj L);

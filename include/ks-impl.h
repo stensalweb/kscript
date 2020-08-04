@@ -51,7 +51,7 @@ void ks_init_T_dict();
 void ks_init_T_namespace();
 
 void ks_init_T_cfunc();
-void ks_init_T_memberfunc();
+void ks_init_T_pfunc();
 void ks_init_T_Error();
 void ks_init_T_thread();
 void ks_init_T_logger();
@@ -127,6 +127,7 @@ static KS_TFUNC(_type, pos) { \
     KS_GETARGS("V", &V)   \
     return KS_NEWREF(V); \
 } \
+_KST_UOPF(_type, sqig) \
 _KST_UOPF(_type, neg) \
 _KST_UOPF(_type, abs) \
 
@@ -154,6 +155,7 @@ _KST_UOPF(_type, abs) \
     {"__ne__",          (ks_obj)ks_cfunc_new_c(_type##_ne##_, #_type ".__ne__(L, R)")}, \
     {"__pos__",          (ks_obj)ks_cfunc_new_c(_type##_pos##_, #_type ".__pos__(V)")}, \
     {"__neg__",          (ks_obj)ks_cfunc_new_c(_type##_neg##_, #_type ".__neg__(V)")}, \
+    {"__sqig__",         (ks_obj)ks_cfunc_new_c(_type##_sqig##_, #_type ".__sqig__(V)")}, \
     {"__abs__",          (ks_obj)ks_cfunc_new_c(_type##_abs##_, #_type ".__abs__(V)")}, \
 
 

@@ -56,6 +56,13 @@ static KS_TFUNC(cfunc, free) {
     return KSO_NONE;
 }
 
+// cfunc.__str__(self) -> to string
+static KS_TFUNC(cfunc, str) {
+    ks_cfunc self;
+    KS_GETARGS("self:*", &self, ks_T_cfunc)
+    
+    return (ks_obj)ks_fmt_c("<'%T' : %S>", self, self->sig_hr);
+};
 
 /* export */
 
@@ -64,6 +71,8 @@ KS_TYPE_DECLFWD(ks_T_cfunc);
 void ks_init_T_cfunc() {
     ks_type_init_c(ks_T_cfunc, "cfunc", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(cfunc_free_, "cfunc.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c(cfunc_str_, "cfunc.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(cfunc_str_, "cfunc.__repr__(self)")},
     ));
 
 }

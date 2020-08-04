@@ -24,7 +24,7 @@ static int my_errno = 0;
 
 // libc.errno()
 static KS_TFUNC(libc, errno) {
-    KS_REQ_N_ARGS(n_args, 0);
+    KS_GETARGS("")
 
     return (ks_obj)ks_int_new(my_errno);
 }
@@ -32,9 +32,8 @@ static KS_TFUNC(libc, errno) {
 
 // libc.strerror(errnum)
 static KS_TFUNC(libc, strerror) {
-    KS_REQ_N_ARGS(n_args, 1);
     int64_t errnum;
-    if (!ks_parse_params(n_args, args, "errnum%i64", &errnum)) return NULL;
+    KS_GETARGS("errnum:i64", &errnum)
 
     char* r = strerror(errnum);
     my_errno = errno;
@@ -48,58 +47,34 @@ static KS_TFUNC(libc, strerror) {
 
 // libc.malloc(sz) -> allocates memory
 static KS_TFUNC(libc, malloc) {
-    KS_REQ_N_ARGS(n_args, 1);
     int64_t sz;
-    if (!ks_parse_params(n_args, args, "sz%i64", &sz)) return NULL;
+    KS_GETARGS("sz:i64", &sz)
 
     void* res = malloc(sz);
     my_errno = errno;
 
-    return (ks_obj)libc_make_pointer(libc_type_void_p, res);
+    return (ks_obj)libc_make_pointer(libc_T_void_p, res);
 }
 
 // libc.realloc(ptr, sz) -> re-allocates memory
 static KS_TFUNC(libc, realloc) {
-    KS_REQ_N_ARGS(n_args, 2);
     libc_pointer ptr;
     int64_t sz;
-    if (!ks_parse_params(n_args, args, "ptr%any sz%i64", &ptr, &sz)) return NULL;
-    
-    void* ptr_c = NULL;
-    if (ptr->type == ks_type_none) {
-        // do nothing; assume NULL
-    } else if (ks_type_issub(ptr->type, libc_type_pointer)) {
-        ptr_c = ptr->val;
-    } else {
-        KS_ERR_CONV(ptr, libc_type_pointer);
-    }
+    KS_GETARGS("ptr:* sz:i64", &ptr, libc_T_pointer, &sz)
 
-    void* res = realloc(ptr_c, sz);
+    void* res = realloc(ptr->val, sz);
     my_errno = errno;
 
-    if (res == ptr_c && ks_type_issub(ptr->type, libc_type_pointer)) {
-        return KS_NEWREF(ptr);
-    } else {
-        return (ks_obj)libc_make_pointer(libc_type_void_p, res);
-    }
+    return (ks_obj)libc_make_pointer(libc_T_void_p, res);
 }
 
 // libc.free(ptr, sz) -> frees memory
 static KS_TFUNC(libc, free) {
-    KS_REQ_N_ARGS(n_args, 1);
     libc_pointer ptr;
-    if (!ks_parse_params(n_args, args, "ptr%any", &ptr)) return NULL;
-    
-    if (ptr->type == ks_type_none) {
-        // do nothing; assume NULL
-        my_errno = errno;
-    } else if (ks_type_issub(ptr->type, libc_type_pointer)) {
-        free(ptr->val);
-        my_errno = errno;
+    KS_GETARGS("ptr:*", &ptr, libc_T_pointer)
 
-    } else {
-        KS_ERR_CONV(ptr, libc_type_pointer);
-    }
+    free(ptr->val);
+    my_errno = errno;
 
     return KSO_NONE;
 }
@@ -111,24 +86,22 @@ static KS_TFUNC(libc, free) {
 
 // libc.dlopen(fname, flags=libc.RTLD_LAZY) -> open dynamic library
 static KS_TFUNC(libc, dlopen) {
-    KS_REQ_N_ARGS_RANGE(n_args, 1, 2);
     ks_str fname;
     int64_t flags = RTLD_LAZY;
-    if (!ks_parse_params(n_args, args, "fname%s ?flags%i64", &fname, &flags)) return NULL;
+    KS_GETARGS("fname:* ?flags:i64", &fname, ks_T_str, &flags);
 
     // TODO: add flags
     void* res = dlopen(fname->chr, flags);
     my_errno = errno;
 
-    return (ks_obj)libc_make_pointer(libc_type_void_p, res);
+    return (ks_obj)libc_make_pointer(libc_T_void_p, res);
 }
 
 
 // libc.dlclose(handle) -> close dynamic library
 static KS_TFUNC(libc, dlclose) {
-    KS_REQ_N_ARGS(n_args, 1);
     libc_pointer handle;
-    if (!ks_parse_params(n_args, args, "handle%*", &handle, libc_type_pointer)) return NULL;
+    KS_GETARGS("handle:*", &handle, libc_T_pointer);
 
     // TODO: add flags
     int res = dlclose(handle->val);
@@ -139,7 +112,7 @@ static KS_TFUNC(libc, dlclose) {
 
 // libc.dlerror() -> return error name
 static KS_TFUNC(libc, dlerror) {
-    KS_REQ_N_ARGS(n_args, 0);
+    KS_GETARGS("")
 
     char* r = dlerror();
     my_errno = errno;
@@ -149,16 +122,15 @@ static KS_TFUNC(libc, dlerror) {
 
 // libc.dlsym(handle, symbol) -> locate symbol
 static KS_TFUNC(libc, dlsym) {
-    KS_REQ_N_ARGS(n_args, 2);
     libc_pointer handle;
     ks_str symbol;
-    if (!ks_parse_params(n_args, args, "handle%* symbol%s", &handle, libc_type_pointer, &symbol)) return NULL;
+    KS_GETARGS("handle:* symbol:*", &handle, libc_T_pointer, &symbol, ks_T_str);
 
     // TODO: add flags
     void* res = dlsym(handle->val, symbol->chr);
     my_errno = errno;
 
-    return (ks_obj)libc_make_pointer(libc_type_void_p, res);
+    return (ks_obj)libc_make_pointer(libc_T_void_p, res);
 }
 
 
@@ -166,10 +138,10 @@ static KS_TFUNC(libc, dlsym) {
 
 // libc.sizeof(obj) -> return size
 static KS_TFUNC(libc, size) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_obj obj = args[0];
+    ks_obj obj;
+    KS_GETARGS("obj", &obj);
 
-    ks_ssize_t sz = libc_get_size(obj->type == ks_type_type ? (ks_type)obj : obj->type);
+    ks_ssize_t sz = libc_get_size(obj->type == ks_T_type ? (ks_type)obj : obj->type);
 
     if (sz < 0) return NULL;
     else return (ks_obj)ks_int_new(sz);
@@ -206,37 +178,37 @@ static ks_module get_module() {
         
         /* simple C types */
 
-        {"void",                     (ks_obj)libc_type_void},
+        {"void",                     (ks_obj)libc_T_void},
 
-        {"char",                     (ks_obj)libc_type_char},
-        {"short",                    (ks_obj)libc_type_short},
-        {"int",                      (ks_obj)libc_type_int},
-        {"long",                     (ks_obj)libc_type_long},
+        {"char",                     (ks_obj)libc_T_char},
+        {"short",                    (ks_obj)libc_T_short},
+        {"int",                      (ks_obj)libc_T_int},
+        {"long",                     (ks_obj)libc_T_long},
    
-        {"uchar",                    (ks_obj)libc_type_uchar},
-        {"ushort",                   (ks_obj)libc_type_ushort},
-        {"uint",                     (ks_obj)libc_type_uint},
-        {"ulong",                  (ks_obj)libc_type_ulong},
+        {"uchar",                    (ks_obj)libc_T_uchar},
+        {"ushort",                   (ks_obj)libc_T_ushort},
+        {"uint",                     (ks_obj)libc_T_uint},
+        {"ulong",                  (ks_obj)libc_T_ulong},
 
 
         /* common pointer types */
 
-        {"void_p",                   (ks_obj)libc_type_void_p},
+        {"void_p",                   (ks_obj)libc_T_void_p},
 
-        {"char_p",                   (ks_obj)libc_type_char_p},
-        {"short_p",                  (ks_obj)libc_type_short_p},
-        {"int_p",                    (ks_obj)libc_type_int_p},
-        {"long_p",                   (ks_obj)libc_type_long_p},
+        {"char_p",                   (ks_obj)libc_T_char_p},
+        {"short_p",                  (ks_obj)libc_T_short_p},
+        {"int_p",                    (ks_obj)libc_T_int_p},
+        {"long_p",                   (ks_obj)libc_T_long_p},
 
-        {"uchar_p",                  (ks_obj)libc_type_uchar_p},
-        {"ushort_p",                 (ks_obj)libc_type_ushort_p},
-        {"uint_p",                   (ks_obj)libc_type_uint_p},
-        {"ulong_p",                  (ks_obj)libc_type_ulong_p},
+        {"uchar_p",                  (ks_obj)libc_T_uchar_p},
+        {"ushort_p",                 (ks_obj)libc_T_ushort_p},
+        {"uint_p",                   (ks_obj)libc_T_uint_p},
+        {"ulong_p",                  (ks_obj)libc_T_ulong_p},
 
         /* templates */
 
-        {"pointer",              (ks_obj)libc_type_pointer},
-        {"function",             (ks_obj)libc_type_function},
+        {"pointer",              (ks_obj)libc_T_pointer},
+        {"function",             (ks_obj)libc_T_function},
 
         
         /* misc/extra functions */
@@ -270,7 +242,7 @@ static ks_module get_module() {
         {"dlerror",        (ks_obj)ks_cfunc_new2(libc_dlerror_, "libc.dlerror()")},
 
 
-        {"NULL",           (ks_obj)libc_make_pointer(libc_type_void_p, NULL)},
+        {"NULL",           (ks_obj)libc_make_pointer(libc_T_void_p, NULL)},
 
         {NULL, NULL}
     });

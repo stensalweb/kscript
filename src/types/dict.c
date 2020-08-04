@@ -55,6 +55,41 @@ static int next_prime(int x) {
 }
 
 
+
+// Create a new dictionary iterator for C
+// NOTE: No cleanup is neccessary, because no references are made
+struct ks_dict_citer ks_dict_citer_make(ks_dict dict_obj) {
+    struct ks_dict_citer cit;
+    cit.self = dict_obj;
+    cit.curpos = 0;
+    return cit;
+}
+
+
+// Get the next element, and return whether it was successful (i.e. whether it had another entry)
+// NOTE: No cleanup is neccessary, because no references are made
+bool ks_dict_citer_next(struct ks_dict_citer* cit, ks_obj* key, ks_obj* val, ks_hash_t* hash) {
+
+    // skip removed entries up til the end
+    while (cit->curpos < cit->self->n_entries && cit->self->entries[cit->curpos].key == NULL) {
+        cit->curpos++;
+    }
+
+    // out of range
+    if (cit->curpos >= cit->self->n_entries) return false;
+
+    // now, we have arrived at the next location
+    *key = KS_NEWREF(cit->self->entries[cit->curpos].key);
+    *val = KS_NEWREF(cit->self->entries[cit->curpos].val);
+    if (hash) *hash = cit->self->entries[cit->curpos].hash;
+
+    // advance for next time
+    cit->curpos++;
+    return true;
+}
+
+
+
 // Construct a new dictionary from key, val pairs (elems[0], elems[1] is the first, elems[2*i+0], elems[2*i+1] makes up the i'th pair)
 // NOTE: `len%2==0` is a requirement!
 // NOTE: Returns new reference, or NULL if an error was thrown

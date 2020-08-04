@@ -1796,8 +1796,6 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
 
         } else if (ctok.type == KS_TOK_LPAR) {
             n_pars++;
-            
-            // add a spacer to the output stack
 
             if (tok_isval(ltok.type))  {
                 // if the previous item parsed was a value, then this is a function call
@@ -1807,7 +1805,6 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
 
                 // skip '('
                 ADV_1();
-
 
                 ks_list args = ks_list_new(0, NULL);
 
@@ -1826,7 +1823,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
                     // parse an expression
                     ks_ast this_arg = ks_parser_expr(self, KS_PARSE_INPAR);
                     if (!this_arg) {
-                        KS_DECREF(this_arg);
+                        KS_DECREF(args);
                         goto kppe_err;
                     }
 

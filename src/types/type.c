@@ -313,7 +313,6 @@ static KS_TFUNC(type, getattr) {
     ks_str attr;
     KS_GETARGS("self:* attr:*", &self, ks_T_type, &attr, ks_T_str)
 
- 
     ks_obj ret = ks_type_get(self, attr);
     if (!ret) {
         KS_THROW_ATTR_ERR(self, attr);
