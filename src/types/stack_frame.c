@@ -101,6 +101,7 @@ static KS_TFUNC(stack_frame, free) {
 
     KS_DECREF(self->func);
 
+
     if (self->code != NULL) KS_DECREF(self->code);
     if (self->locals != NULL) KS_DECREF(self->locals);
 

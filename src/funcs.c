@@ -22,6 +22,7 @@ ks_cfunc
 
     ks_F_repr = NULL,
     ks_F_hash = NULL,
+    ks_F_id = NULL,
     ks_F_len = NULL,
     ks_F_typeof = NULL,
 
@@ -156,6 +157,34 @@ static KS_FUNC(next) {
     }
 }
 
+// hash(obj) - calculate hash
+static KS_FUNC(hash) {
+    ks_obj obj;
+    KS_GETARGS("obj", &obj)
+
+    ks_hash_t res;
+    if (!ks_obj_hash(obj, &res)) return NULL;
+
+
+    if ((int64_t)res < 0) {
+        // overflow; correct for this
+        char tmp[256];
+        snprintf(tmp, sizeof(tmp) - 1, "%llx", (long long unsigned int)res);
+
+        return (ks_obj)ks_int_new_s(tmp, 16);
+
+    }
+
+    return (ks_obj)ks_int_new(res);
+}
+
+// id(obj) - return unique identifier
+static KS_FUNC(id) {
+    ks_obj obj;
+    KS_GETARGS("obj", &obj)
+    
+    return (ks_obj)ks_int_new((intptr_t)obj);
+}
 
 // len(obj, *args) -> calculate 'length' of object
 static KS_FUNC(len) {
@@ -567,7 +596,7 @@ T_KS_FUNC_BOP(binand, "&", __binand__, {})
 T_KS_FUNC_BOP(binor, "|", __binor__, {})
 T_KS_FUNC_BOP(binxor, "^", __binxor__, {})
 
-T_KS_FUNC_BOP(lshift, "<<", __lshift__, {})
+T_KS_FUNC_BOP(lshift, "<<", __lshift__, { })
 T_KS_FUNC_BOP(rshift, ">>", __rshift__, {})
 
 T_KS_FUNC_BOP(cmp, "<=>", __cmp__, {})
@@ -605,12 +634,230 @@ static KS_FUNC(abs) {
 
 }
 
+// interpreter variables
+ks_dict ks_inter_vars = NULL;
+
+/* Readline-specific methods */
+
+#ifdef KS_HAVE_READLINE
+
+
+// attempt to tab complete a given match via readline
+// The programming of this section is a bit awkward; but essentially, we iterate through
+//   dictionaries & attributes and suggest them
+// NOTE: see here for more information: http://web.mit.edu/gnu/doc/html/rlman_2.html#SEC36
+static char* match_gen(const char* text, int state) {
+
+    // which dictionaries may we start matching from?
+    static ks_dict match_roots[2];
+
+    // match index, and internal index
+    static int match_i, i;
+
+    // string length
+    static int slen = 0;
+
+    // text.split('.'); elements of that
+    static ks_list text_split = NULL;
+
+    // the root dictionary for this match
+    static ks_dict match_root_dict = NULL;
+
+    // prefix of the output
+    static ks_str text_prefix = NULL;
+
+    // extra bytes for additional characters for completion
+    #define RLM_BUF 16
+
+    if (!state) {
+        // initialize for the first time
+        match_roots[0] = ks_inter_vars;
+        match_roots[1] = ks_globals;
+
+        // return length of string
+        slen = strlen(text);
+        
+        text_split = ks_list_new(0, NULL);
+
+        int j, lj = 0;
+        for (j = 0; j < slen; ++j) {
+            if (text[j] == '.') {
+                // add substring to the text_split var
+                ks_str tmp = ks_str_utf8(text + lj, j - lj);
+
+                ks_list_push(text_split, (ks_obj)tmp);
+
+                KS_DECREF(tmp);
+                lj = j + 1;
+            }
+        }
+
+
+        text_prefix = ks_str_utf8(text, lj);
+
+        ks_str tmp = ks_str_utf8(text + lj, j - lj);
+        ks_list_push(text_split, (ks_obj)tmp);
+        KS_DECREF(tmp);
+
+        //ks_printf("split: %S", text_split);
+
+        // set at beginning
+        match_i = 0;
+        i = 0;
+
+        match_root_dict = NULL;
+
+
+    }
+
+
+    // don't append a space
+    rl_completion_append_character = '\0';
+
+    // while in a valid match root
+    while (match_i < sizeof(match_roots) / sizeof(*match_roots)) {
+
+        if (match_root_dict == NULL) {
+            // find the next to last
+            // the match dictionary
+            ks_dict this_dict = match_roots[match_i];
+
+            // traverse down to the end dictionary
+            int dep = 0;
+
+            // go up until the last one, which is where partial matches will be found
+            while (dep < text_split->len - 1) {
+
+                // attempt to go down one
+                ks_obj this_val = ks_dict_get(this_dict, text_split->elems[dep]);
+                if (!this_val) {
+                    ks_catch_ignore();
+                    break;
+                }
+
+                if (this_val->type == ks_T_module) {
+                    this_dict = ((ks_module)this_val)->attr;
+                } else if (this_val->type == ks_T_namespace) {
+                    this_dict = ((ks_namespace)this_val)->attr;
+                } else if (this_val->type == ks_T_type) {
+                    this_dict = ((ks_type)this_val)->attr;
+                } else {
+                    // use type attributes
+                    this_dict = this_val->type->attr;
+                }
+
+                KS_DECREF(this_val);
+
+                // go down another dict
+                dep++;
+            }
+
+            if (dep != text_split->len - 1) {
+                // skip ahead, didn't match all the way to the end
+                match_i++;
+                match_root_dict = NULL;
+                i = 0;
+                continue;
+            } else {
+                // set to the top most dictionary
+                match_root_dict = this_dict;
+                i = 0;
+            }
+        }
+
+
+        while (i < match_root_dict->n_entries) {
+
+            // current key
+            ks_str this_key = (ks_str)match_root_dict->entries[i].key;
+            ks_obj this_val = match_root_dict->entries[i].val;
+
+            // consume this entry
+            i++;
+
+            if (this_key && this_key->type == ks_T_str) {
+
+                // is a string; good
+                if (text_split->len == 0 || strncmp(this_key->chr, ((ks_str)text_split->elems[text_split->len - 1])->chr, ((ks_str)text_split->elems[text_split->len - 1])->len_b) == 0) {
+
+                    // NOTE: need to use malloc(), since readline frees it
+                    char* new_match = malloc(this_key->len_b + RLM_BUF + slen + 1);
+                    snprintf(new_match, this_key->len_b + RLM_BUF, "%*s%s", (int)this_key->len_b, this_key->chr, ks_obj_is_callable(this_val) ? "(" : "");
+                    //snprintf(new_match, this_key->len_b + RLM_BUF, "%*s%*s%s", (int)text_prefix->len_b, text_prefix->chr, (int)this_key->len_b, this_key->chr, ks_obj_is_callable(this_val) ? "(" : "");
+                    return new_match;
+                }
+            }
+
+        }
+
+
+        // to next match
+        match_root_dict = NULL;
+        match_i++;
+        i = 0;
+    }
+
+    KS_DECREF(text_split);
+    KS_DECREF(text_prefix);
+
+    // no match found
+    return NULL;
+}
+
+// full completion function to return a list of matches
+static char** match_completion(const char *text, int start, int end) {
+    rl_attempted_completion_over = 1;
+    return rl_completion_matches(text, match_gen);
+}
+
+// kscript's 'tab' functionality, to complete from a menu
+int my_tab_func (int count, int key) {
+    //printf("COUNT: %i\n", count);
+    rl_menu_complete(count, key);
+    return count + 1;
+}
+
+// Handle a SIGINT; this causes Ctrl+C to print a warning message
+static void handle_sigint(int signum) {
+    // do nothing
+    #define MSG_SIGINT_RESET "\nUse 'CTRL-D' or 'exit()' to quit the process\n"
+    fwrite(MSG_SIGINT_RESET, 1, sizeof(MSG_SIGINT_RESET) - 1, stdout);
+    rl_on_new_line(); // Regenerate the prompt on a newline
+    rl_replace_line("", 0); // Clear the previous text
+    rl_redisplay();
+
+    // set it for next time
+    signal(SIGINT, handle_sigint);
+}
+
+// ensure readline is enabled & initializaed
+static void ensure_readline() {
+    static bool isInit = false;
+    if (isInit) return;
+
+    // ensured
+
+    // TODO: initialize it
+    // set the tab completion to our own
+    rl_attempted_completion_function = match_completion;
+
+    // disable their signal handling
+    rl_catch_signals = 0;
+    rl_clear_signals();
+   
+    signal(SIGINT, handle_sigint);
+
+    //rl_bind_key('\t', my_tab_func);
+
+    isInit = true;
+}
+
+#endif /* KS_HAVE_READLINE */
+
+
 
 /* Builtin Execution functions*/
 
-
-// interpreter variables
-static ks_dict inter_vars = NULL;
 
 // handle exception
 static void interactive_handle_exc() {
@@ -699,7 +946,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
     // now, call the code object with no arguments, and return the result
     // If there is an error, it will return NULL, and the thread will call ks_errend(),
     //   which will print out a stack trace and terminate the program for us
-    ks_obj ret = ks_obj_call2((ks_obj)myc, 0, NULL, inter_vars);
+    ks_obj ret = ks_obj_call2((ks_obj)myc, 0, NULL, ks_inter_vars);
     if (!ret) {
         interactive_handle_exc();
 
@@ -712,7 +959,7 @@ static void run_interactive_expr(ks_str expr, ks_str src_name) {
                 ks_printf("%S\n", ret);
                 ks_catch_ignore();
             }
-        } 
+        }
         // discard error
         KS_DECREF(ret);
     }
@@ -756,7 +1003,7 @@ static KS_FUNC(exec_interactive) {
         ks_GIL_unlock();
 
         // now, continue to read lines
-        while ((cur_line = readline(PROMPT)) != NULL) {
+        while ((cur_line = readline(KS_PROMPT)) != NULL) {
 
             ks_GIL_lock();
 
@@ -962,7 +1209,7 @@ static KS_FUNC(exec_file) {
 
 void ks_init_funcs() {
     // interpreter variables
-    inter_vars = ks_dict_new(0, NULL);
+    ks_inter_vars = ks_dict_new(0, NULL);
 
     ks_F_print = ks_cfunc_new_c(print_, "print(*args)");
     ks_F_recurse = ks_cfunc_new_c(recurse_, "__recurse__(*args)");
@@ -974,6 +1221,8 @@ void ks_init_funcs() {
     ks_F_truthy = ks_cfunc_new_c(truthy_, "truthy(obj)");
 
     ks_F_typeof = ks_cfunc_new_c(typeof_, "typeof(obj)");
+    ks_F_hash = ks_cfunc_new_c(hash_, "hash(obj)");
+    ks_F_id = ks_cfunc_new_c(id_, "id(obj)");
     ks_F_len = ks_cfunc_new_c(len_, "len(obj)");
     ks_F_repr = ks_cfunc_new_c(repr_, "repr(obj)");
 
@@ -1006,7 +1255,6 @@ void ks_init_funcs() {
 
     ks_F_lshift = ks_cfunc_new_c(lshift_, "__lshift__(L, R)");
     ks_F_rshift = ks_cfunc_new_c(rshift_, "__rshift__(L, R)");
-
 
     ks_F_cmp = ks_cfunc_new_c(cmp_, "__cmp__(L, R)");
 

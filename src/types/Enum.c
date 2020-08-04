@@ -68,7 +68,7 @@ ks_Enum ks_Enum_new(ks_type enumtype, ks_str val) {
     // get it
     ks_Enum ret = (ks_Enum)ks_dict_get(name2num, (ks_obj)val);
 
-    if (!ret) return ks_throw(ks_T_KeyError, "Enumeration '%S' had no member: %R", enumtype, val);
+    if (!ret) return (ks_Enum)ks_throw(ks_T_KeyError, "Enumeration '%S' had no member: %R", enumtype, val);
     return ret;
 }
 
@@ -94,7 +94,7 @@ ks_Enum ks_Enum_new_i(ks_type enumtype, ks_int val) {
     // get it
     ks_Enum ret = (ks_Enum)ks_dict_get(num2name, (ks_obj)val);
 
-    if (!ret) return ks_throw(ks_T_KeyError, "Enumeration '%S' had no member: %R", enumtype, val);
+    if (!ret) return (ks_Enum)ks_throw(ks_T_KeyError, "Enumeration '%S' had no member: %R", enumtype, val);
     return ret;
 }
 

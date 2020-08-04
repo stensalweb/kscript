@@ -117,6 +117,28 @@ static KS_TFUNC(tuple, len) {
 }
 
 
+
+// tuple.__hash__(self) -> return hash
+static KS_TFUNC(tuple, hash) {
+    ks_tuple self;
+    KS_GETARGS("self:*", &self, ks_T_tuple)
+
+    ks_hash_t hash = 0;
+
+    int i;
+    for (i = 0; i < self->len; ++i) {
+        ks_hash_t chash;
+        if (!ks_obj_hash(self->elems[i], &chash)) {
+            return NULL;
+        }
+
+        hash = (hash ^ chash) * KS_HASH_MUL + KS_HASH_ADD;
+    }
+
+    return (ks_obj)ks_int_new(hash);
+}
+
+
 // tuple.__str__(self) - to string
 static KS_TFUNC(tuple, str) {
     ks_tuple self;
@@ -347,6 +369,8 @@ static KS_TFUNC(tuple, iter) {
 }
 
 
+
+
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_tuple);
@@ -356,6 +380,7 @@ void ks_init_T_tuple() {
         {"__new__",                (ks_obj)ks_cfunc_new_c(tuple_new_, "tuple.__new__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(tuple_free_, "tuple.__free__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(tuple_len_, "tuple.__len__(self)")},
+        {"__hash__",               (ks_obj)ks_cfunc_new_c(tuple_hash_, "tuple.__hash__(self)")},
 
         {"__str__",                (ks_obj)ks_cfunc_new_c(tuple_str_, "tuple.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(tuple_str_, "tuple.__repr__(self)")},

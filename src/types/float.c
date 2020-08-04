@@ -66,4 +66,5 @@ void ks_init_T_float() {
 
     ));
 
+    ks_T_float->flags &= ~KS_TYPE_FLAGS_EQSS;
 }

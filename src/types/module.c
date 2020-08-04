@@ -23,8 +23,7 @@ ks_module ks_module_new(const char* mname) {
 
 // attempt to load a single file, without any extra paths
 // Do not raise error, just return NULL if not successful
-static ks_module attempt_load(char* cname) {
-
+static ks_module attempt_load(const char* mname, char* cname) {
 
     char* ext = strrchr(cname, '.');
 
@@ -36,7 +35,21 @@ static ks_module attempt_load(char* cname) {
 
         void* handle = dlopen(cname, RTLD_LAZY | RTLD_GLOBAL);    
         if (handle == NULL) {
-            ks_debug("ks", "[import] file '%s' failed: dlerror(): %s", cname, dlerror());
+            char* dlmsg = dlerror();
+            ks_debug("ks", "[import] file '%s' failed: dlerror(): %s", cname, dlmsg);
+
+            if (dlmsg) {
+                int sl = strlen(dlmsg);
+                static const char spec_msg[] = "undefined symbol";
+                int i;
+                for (i = 0; i < sl - sizeof(spec_msg); ++i) {
+                    if (strncmp(dlmsg + i, spec_msg, sizeof(spec_msg) - 1) == 0) {
+                        ks_throw(ks_T_ImportError, "Failed to import module '%s': %*s (while loading '%s')", mname, sl - i, dlmsg + i, cname);
+                        break;
+                    }
+                }
+            }
+
             return NULL;
         }
 
@@ -88,7 +101,7 @@ ks_module ks_module_import(const char* mname) {
         // current path we are trying
         ks_str ctry = ks_fmt_c("%S/%s/libksm_%s.%s", ks_paths->elems[i], mname, mname, KS_SHARED_END);
 
-        mod = attempt_load(ctry->chr);
+        mod = attempt_load(mname, ctry->chr);
         KS_DECREF(ctry);
 
         if (mod != NULL) goto finish;

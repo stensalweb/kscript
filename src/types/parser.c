@@ -571,6 +571,8 @@ static bool tokenize(ks_parser self) {
         CASE_S(KS_TOK_OP, "<=")
         CASE_S(KS_TOK_OP, ">=")
         
+        CASE_S(KS_TOK_OP, "<<") 
+        CASE_S(KS_TOK_OP, ">>") 
         CASE_S(KS_TOK_OP, "<") 
         CASE_S(KS_TOK_OP, ">") 
         CASE_S(KS_TOK_OP, "==") CASE_S(KS_TOK_OP, "!=")
@@ -751,119 +753,7 @@ static ks_obj tok_getval(ks_parser parser, ks_tok tok) {
 
     if (tok.type == KS_TOK_NUMBER) {
         // parse numeral literal
-
-        // whether or not it has a dot anywhere or a suffix 'i'
-        bool hasDot = false;
-        bool hasi = false;
-
-        int i;
-        for (i = 0; i < len && (!hasDot || !hasi); ++i) {
-            if (vstr[i] == '.') hasDot = true;
-            if (vstr[i] == 'i') hasi = true;
-        }
-
-        // floating pint
-        bool isFloat = hasDot || hasi;
-
-        if (len > 2 && vstr[0] == '0' && !is_digit(vstr[1])) {
-            // try some specialties
-            if (vstr[1] == 'r') {
-                // parse roman out
-                return (ks_obj)ks_int_new_roman(vstr+2, len-2);
-            } else if (vstr[1] == 'x') {
-
-                // allow exponentials
-                bool hasp = false;
-                for (i = 0; i < len && !hasp; ++i) {
-                    if (vstr[i] == 'p') hasp = true;
-                }
-                isFloat = isFloat || hasp;
-
-
-                // hex string
-                if (isFloat) {
-                    // TODO float
-                    char* tmp_str = ks_malloc(len + 1);
-                    memcpy(tmp_str, vstr, len);
-                    tmp_str[len] = '\0';
-                    double rv = strtold(tmp_str, NULL);
-
-                    ks_float ret = ks_float_new(rv);
-                    ks_free(tmp_str);
-                    return (ks_obj)ret;
-                } else {
-                    char* tmp_str = ks_malloc(len - 1);
-                    memcpy(tmp_str, vstr+2, len - 2);
-                    tmp_str[len - 2] = '\0';
-
-                    ks_int ret = ks_int_new_s(tmp_str, 16);
-                    ks_free(tmp_str);
-                    return (ks_obj)ret;
-                }
-
-            } else if (vstr[1] == 'o') {
-                // octal
-                if (isFloat) {
-                    // TODO float
-
-                    return syntax_error(parser, tok, "Octal floats are not supported!");
-
-                } else {
-                    char* tmp_str = ks_malloc(len - 1);
-                    memcpy(tmp_str, vstr+2, len - 2);
-                    tmp_str[len - 2] = '\0';
-
-                    ks_int ret = ks_int_new_s(tmp_str, 8);
-                    ks_free(tmp_str);
-                    return (ks_obj)ret;
-                }
-            } else if (vstr[1] == 'b') {
-                // binary
-                if (isFloat) {
-                    // TODO float
-
-                    return syntax_error(parser, tok, "Binary floats are not supported!");
-
-                } else {
-                    char* tmp_str = ks_malloc(len - 1);
-                    memcpy(tmp_str, vstr+2, len - 2);
-                    tmp_str[len - 2] = '\0';
-
-                    ks_int ret = ks_int_new_s(tmp_str, 2);
-                    ks_free(tmp_str);
-                    return (ks_obj)ret;
-                }
-            }
-        } else {
-            // decimal
-            // allow exponentials
-            bool hase = false;
-            for (i = 0; i < len && !hase; ++i) {
-                if (vstr[i] == 'e') hase = true;
-            }
-            isFloat = isFloat || hase;
-
-            if (isFloat) {
-                // TODO float
-                char* tmp_str = ks_malloc(len + 1);
-                memcpy(tmp_str, vstr, len);
-                tmp_str[len] = '\0';
-                double rv = strtold(tmp_str, NULL);
-
-                ks_float ret = ks_float_new(rv);
-                ks_free(tmp_str);
-                return (ks_obj)ret;
-
-            } else {
-                char* tmp_str = ks_malloc(len + 1);
-                memcpy(tmp_str, vstr, len);
-                tmp_str[len] = '\0';
-
-                ks_int ret = ks_int_new_s(tmp_str, 10);
-                ks_free(tmp_str);
-                return (ks_obj)ret;
-            }
-        }
+        return ks_num_parse(vstr, len, KS_BASE_AUTO);
     }
 
     // should not be called here
@@ -2205,6 +2095,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
             goto kpps_err;
         }
 
+        ks_tok nametok = CTOK();
         ks_str name = ks_str_new_c(self->src->chr + CTOK().pos_b, CTOK().len_b);
 
         // skip name
@@ -2223,14 +2114,19 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
 
         ks_ast funcname_v = ks_ast_new_var(funcname);
         KS_DECREF(funcname);
+        funcname_v->tok = ctok;
         ks_ast name_v = ks_ast_new_var(name);
+        name_v->tok = nametok;
         ks_ast name_c = ks_ast_new_const((ks_obj)name);
+        name_v->tok = nametok;
         KS_DECREF(name);
 
         ks_ast import_res = ks_ast_new_call(funcname_v, 1, &name_c);
+        import_res->tok = ks_tok_combo(self, funcname_v->tok, name_v->tok);
         KS_DECREF(funcname_v);
 
         ks_ast ret = ks_ast_new_bop(KS_AST_BOP_ASSIGN, name_v, import_res);
+        import_res->tok = ks_tok_combo(self, ctok, nametok);
         KS_DECREF(name_v);
         KS_DECREF(import_res);
 
@@ -2499,7 +2395,7 @@ ks_ast ks_parser_stmt(ks_parser self, enum ks_parse_flags flags) {
         KS_DECREF(body);
         KS_DECREF(ident);
 
-        ret->tok = expr->tok;
+        ret->tok = ctok;
 
         return ret;
 

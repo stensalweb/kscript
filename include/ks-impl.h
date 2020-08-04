@@ -56,6 +56,7 @@ void ks_init_T_Error();
 void ks_init_T_thread();
 void ks_init_T_logger();
 void ks_init_T_module();
+void ks_init_T_ios();
 
 void ks_init_T_parser();
 void ks_init_T_ast();

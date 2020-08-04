@@ -21,6 +21,15 @@ ks_Error ks_Error_new(ks_type errtype, ks_str what) {
     return self;
 }
 
+// Error.__new__(typ, what) - create new error
+static KS_TFUNC(Error, new) {
+    ks_type typ;
+    ks_str what;
+    KS_GETARGS("typ:* what:*", &typ, ks_T_type, &what, ks_T_str)
+
+    return (ks_obj)ks_Error_new(typ, what);
+}
+
 
 // Error.__str__(self) -> to string
 static KS_TFUNC(Error, str) {
@@ -71,6 +80,7 @@ void ks_init_T_Error() {
     // initialize singletons
 
     ks_type_init_c(ks_T_Error, "Error", ks_T_obj, KS_KEYVALS(
+        {"__new__",                (ks_obj)ks_cfunc_new_c(Error_new_, "Error.__new__(typ, what)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(Error_str_, "Error.__str__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(Error_free_, "Error.__free__(self)")},
     ));

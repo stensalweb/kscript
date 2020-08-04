@@ -90,5 +90,6 @@ void ks_init_T_complex() {
         KST_NUM_OPKVS(fcomplex)
 
     ));
-
+    
+    ks_T_complex->flags &= ~KS_TYPE_FLAGS_EQSS;
 }

@@ -155,7 +155,31 @@ ks_dict ks_dict_new_c(ks_keyval_c* keyvals) {
 }
 
 
+// merge self <- src
+void ks_dict_merge(ks_dict self, ks_dict src) {
 
+    int i;
+    for (i = 0; i < src->n_entries; ++i) {
+        // ensure it wasn't deleted
+        struct ks_dict_entry* ent = &src->entries[i];
+        if (ent->key != NULL) {
+            // set it in 'self'
+            ks_dict_set_h(self, ent->key, ent->hash, ent->val);
+        }
+    }
+}
+
+
+// Merge in all enumeration members to 'self'
+void ks_dict_merge_enum(ks_dict self, ks_type enumtype) {
+    ks_dict name2num = (ks_dict)ks_dict_get_c(enumtype->attr, "_enum_name2num");
+    assert (name2num && "_enum_name2num did not exist in merging enum!");
+
+    ks_dict_merge(self, name2num);
+    KS_DECREF(name2num);
+
+
+}
 
 // calculate load factor
 double ks_dict_load(ks_dict self) {
@@ -604,6 +628,70 @@ static KS_TFUNC(dict, vals) {
 }
 
 
+/* iterator type */
+
+// ks_dict_iter - list iterable type
+typedef struct {
+    KS_OBJ_BASE
+
+    // C iterator
+    struct ks_dict_citer cit;
+
+
+
+}* ks_dict_iter;
+
+// declare type
+KS_TYPE_DECLFWD(ks_T_dict_iter);
+
+// dict_iter.__free__(self) - free obj
+static KS_TFUNC(dict_iter, free) {
+    ks_dict_iter self;
+    KS_GETARGS("self:*", &self, ks_T_dict_iter)
+
+    // remove reference to string
+    KS_DECREF(self->cit.self);
+
+    KS_UNINIT_OBJ(self);
+    KS_FREE_OBJ(self);
+
+    return KSO_NONE;
+}
+
+// dict_iter.__next__(self) - return next character
+static KS_TFUNC(dict_iter, next) {
+    ks_dict_iter self;
+    KS_GETARGS("self:*", &self, ks_T_dict_iter)
+
+    ks_obj key, val;
+    ks_hash_t hash;
+    if (ks_dict_citer_next(&self->cit, &key, &val, &hash)) {
+        KS_DECREF(val);
+        return key;
+    }
+
+
+    // check if the iterator is done
+    return ks_throw(ks_T_OutOfIterError, "");
+}
+
+// list.__iter__(self) - return iterator
+static KS_TFUNC(dict, iter) {
+    ks_dict self;
+    KS_GETARGS("self:*", &self, ks_T_dict)
+
+    ks_dict_iter ret = KS_ALLOC_OBJ(ks_dict_iter);
+    KS_INIT_OBJ(ret, ks_T_dict_iter);
+
+    ret->cit = ks_dict_citer_make(self);
+    KS_INCREF(self);
+
+    return (ks_obj)ret;
+}
+
+
+
+
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_dict);
@@ -622,7 +710,13 @@ void ks_init_T_dict() {
         {"keys",                   (ks_obj)ks_cfunc_new_c(dict_keys_, "dict.keys(self)")},
         {"vals",                   (ks_obj)ks_cfunc_new_c(dict_vals_, "dict.vals(self)")},
 
+        {"__iter__",               (ks_obj)ks_cfunc_new_c(dict_iter_, "dict.__iter__(self)")},
+
 
     ));
+    ks_type_init_c(ks_T_dict_iter, "dict_iter", ks_T_obj, KS_KEYVALS(
+        {"__free__",               (ks_obj)ks_cfunc_new_c(dict_iter_free_, "dict_iter.__free__(self)")},
 
+        {"__next__",               (ks_obj)ks_cfunc_new_c(dict_iter_next_, "dict_iter.__next__(self)")},
+    ));
 }

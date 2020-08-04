@@ -155,8 +155,7 @@ static ks_module get_module() {
 
     libc_init_types();
 
-
-    ks_type E_rtld = ks_Enum_create_c("RtldFlags", (ks_enum_entry_c[]){
+    ks_type E_rtld = ks_Enum_create_c("RtldFlags", KS_ENUMVALS(
 
         KS_EEF(RTLD_LAZY),
         KS_EEF(RTLD_NOW),
@@ -171,10 +170,10 @@ static ks_module get_module() {
         KS_EEF(RTLD_LOCAL),
         KS_EEF(RTLD_NODELETE),
 
-        {NULL, -1}
-    });
+    ));
+
     
-    ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
+    ks_dict_set_c(mod->attr, KS_KEYVALS(
         
         /* simple C types */
 
@@ -213,7 +212,7 @@ static ks_module get_module() {
         
         /* misc/extra functions */
 
-        {"sizeof",              (ks_obj)ks_cfunc_new2(libc_size_, "libc.sizeof(obj)")},
+        {"sizeof",              (ks_obj)ks_cfunc_new_c(libc_size_, "libc.sizeof(obj)")},
 
 
         /* enums */
@@ -223,31 +222,34 @@ static ks_module get_module() {
 
         /* general */
 
-        {"errno",           (ks_obj)ks_cfunc_new2(libc_errno_, "libc.errno()")},
-        {"strerror",        (ks_obj)ks_cfunc_new2(libc_strerror_, "libc.strerr(errnum)")},
+        {"errno",           (ks_obj)ks_cfunc_new_c(libc_errno_, "libc.errno()")},
+        {"strerror",        (ks_obj)ks_cfunc_new_c(libc_strerror_, "libc.strerr(errnum)")},
 
 
         /* memory routines */
 
-        {"malloc",        (ks_obj)ks_cfunc_new2(libc_malloc_, "libc.malloc(sz)")},
-        {"realloc",       (ks_obj)ks_cfunc_new2(libc_realloc_, "libc.realloc(ptr, sz)")},
-        {"free",          (ks_obj)ks_cfunc_new2(libc_free_, "libc.free(ptr)")},
+        {"malloc",        (ks_obj)ks_cfunc_new_c(libc_malloc_, "libc.malloc(sz)")},
+        {"realloc",       (ks_obj)ks_cfunc_new_c(libc_realloc_, "libc.realloc(ptr, sz)")},
+        {"free",          (ks_obj)ks_cfunc_new_c(libc_free_, "libc.free(ptr)")},
 
 
         /* dynamic linking */
 
-        {"dlopen",         (ks_obj)ks_cfunc_new2(libc_dlopen_, "libc.dlopen(fname, flags=libc.RTLD_LAZY)")},
-        {"dlclose",         (ks_obj)ks_cfunc_new2(libc_dlclose_, "libc.dlclose(handle)")},
-        {"dlsym",          (ks_obj)ks_cfunc_new2(libc_dlsym_, "libc.dlsym(handle, symbol)")},
-        {"dlerror",        (ks_obj)ks_cfunc_new2(libc_dlerror_, "libc.dlerror()")},
+        {"dlopen",         (ks_obj)ks_cfunc_new_c(libc_dlopen_, "libc.dlopen(fname, flags=libc.RTLD_LAZY)")},
+        {"dlclose",         (ks_obj)ks_cfunc_new_c(libc_dlclose_, "libc.dlclose(handle)")},
+        {"dlsym",          (ks_obj)ks_cfunc_new_c(libc_dlsym_, "libc.dlsym(handle, symbol)")},
+        {"dlerror",        (ks_obj)ks_cfunc_new_c(libc_dlerror_, "libc.dlerror()")},
 
 
         {"NULL",           (ks_obj)libc_make_pointer(libc_T_void_p, NULL)},
 
-        {NULL, NULL}
-    });
+    ));
 
-    ks_module_add_enum_members(mod, E_rtld);
+
+    ks_dict_merge_enum(mod->attr, E_rtld);
+
+
+    //ks_module_add_enum_members(mod, E_rtld);
 
     return mod;
 }

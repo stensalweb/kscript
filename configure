@@ -39,7 +39,6 @@ parser.add_argument('--enable-rpath', '--disable-rpath', dest='rpath', action=Ne
 
 parser.add_argument('--with-colors', '--without-colors', dest='with_colors', action=NegateAction, nargs=0, help='Enables/disables color output in the library, binary, and build system', default=True)
 
-"""
 parser.add_argument('--with-gmp', '--without-gmp', dest='with_gmp', action=NegateAction, nargs=0, help='Enables/disables using the GNU MP (GMP) library for multiprecision', default=None)
 parser.add_argument('--with-readline', '--without-readline', dest='with_readline', action=NegateAction, nargs=0, help='Enables/disables using the GNU readline library for command line interpreting', default=None)
 parser.add_argument('--with-curl', '--without-curl', dest='with_curl', action=NegateAction, nargs=0, help='Enables/disables using the CURL library for network operations', default=None)
@@ -47,7 +46,6 @@ parser.add_argument('--with-glfw3', '--without-glfw3', dest='with_glfw3', action
 parser.add_argument('--with-libav', '--without-libav', dest='with_libav', action=NegateAction, nargs=0, help='Enables/disables using the libav (Audio/Video) library for multi-media operations', default=None)
 parser.add_argument('--with-ffi', '--without-ffi', dest='with_ffi', action=NegateAction, nargs=0, help='Enables/disables using the FFI (Foreign Function Interface) library for Cfuncs', default=None)
 parser.add_argument('--with-fftw3', '--without-fftw3', dest='with_fftw3', action=NegateAction, nargs=0, help='Enables/disables using the FFTW3 (Fastest-Fourier-Transform in the West) library for FFT speed up', default=None)
-"""
 
 args = parser.parse_args()
 
@@ -157,6 +155,11 @@ class BuildError(Exception):
         super().__init__(f"{Col.FAIL}FAIL: {Col.BLU}{self.target}{Col.RESET}: {Col.WARN}{self.message}{Col.RESET}")
 
 
+# run a shell command
+def shell(cmd):
+	print (f" $ {cmd}")
+	return os.system(cmd) == 0
+
 
 
 # -*- Config Vars
@@ -186,9 +189,95 @@ try:
 except:
 	pass
 
-# -*- Tests
+# -*- Tests / Libs
 
-# TODO: add detection tests
+
+extlibs = {
+	"gmp": {
+		"CFLAGS":  "",
+		"LDFLAGS": "-lgmp",
+		"header_block": "#include <gmp.h>",
+		"main_block": "mpz_t x; mpz_init(x); mpz_clear(x);",
+	},
+	"readline": {
+		"CFLAGS":  "",
+		"LDFLAGS": "-lreadline",
+		"header_block": "#include <stdio.h>\n#include <readline/readline.h>",
+		"main_block": "rl_bind_key('\\t', rl_insert);",
+	},
+	"libav": {
+		"CFLAGS":  "",
+		"LDFLAGS": "-lavformat -lavutil -lavcodec",
+		"header_block": "#include <libavutil/opt.h>\n#include <libavcodec/avcodec.h>\n#include <libavformat/avformat.h>",
+		"main_block": "AVFormatContext* format_ctx = avformat_alloc_context();",
+	},
+	"ffi": {
+		"CFLAGS":  "",
+		"LDFLAGS": "-lffi",
+		"header_block": "#include <ffi.h>",
+		"main_block": "ffi_cif cif; ffi_type *args[1];",
+	},
+	"fftw3": {
+		"CFLAGS":  "",
+		"LDFLAGS": "-lfftw3",
+		"header_block": "#include <fftw3.h>",
+		"main_block": "fftw_malloc(sizeof(fftw_complex) * 1024);",
+	},
+}
+
+# makefile lines to include
+makedefines = [
+
+]
+
+
+for name, val in extlibs.items():
+	print (f" -- Searching for C library {name}...")
+	print (f" --   Trying with:\n {val}")
+
+	fname = _tmp + "/test.c"
+	fp = open(fname, "w")
+	fp.write(f"""
+
+/* testing library '{name}' */
+
+{val["header_block"]}
+
+int main(int argc, char** argv) {{
+	{val["main_block"]}
+	return 0;
+}}
+	
+""")
+	fp.close()
+
+	haslib = shell(f"{CC} {CFLAGS} {val['CFLAGS']} {fname} {LDFLAGS} {val['LDFLAGS']} -o {_tmp}/a.out") and shell(f"{_tmp}/a.out")
+
+	if not haslib:
+		print (f"{Col.WARN} --   Not found: {Col.BLU}{name}!{Col.RESET}")
+
+		makedefines += [
+			f"{name}_CFLAGS   := ",
+			f"{name}_LIB      := ",
+		]
+
+	else:
+		# add to variables
+		# remove definitions
+		#cflag = " ".join(filter(lambda arg: not arg.startswith("-D"), cflag.split(" ")))
+
+		makedefines += [
+			f"{name}_CFLAGS   := {val['CFLAGS']}",
+			f"{name}_LIB      := {val['LDFLAGS']}",
+		]
+
+		defs += [
+			f"KS_HAVE_{name.upper()}"
+		]
+
+		print (f"{Col.GRN} --   Found: {Col.BLU}{name}!{Col.RESET}")
+
+
 
 # -*- Generate Files
 
@@ -398,8 +487,19 @@ def gen_module(module):
 
 	# dependency modules
     c_deps    = cfp['Module']['DEPS'].split()
+    c_libdeps = cfp['Module']['LIBDEPS'].split()
     c_files   = cfp['Compile']['FILES'].split()
     c_headers = cfp['Compile']['HEADERS'].split()
+
+    c_CFLAGS = ""
+    c_LDFLAGS = ""
+
+    for libdep in c_libdeps:
+        if f"KS_HAVE_{libdep.upper()}" in defs:
+            c_CFLAGS += extlibs[libdep]["CFLAGS"]
+            c_LDFLAGS += extlibs[libdep]["LDFLAGS"]
+        else:
+            raise BuildError(module, f"Attempting to build this module, but do not have required libdep: {libdep}")
 
 	# object files
     gen_o = []
@@ -433,7 +533,7 @@ def gen_module(module):
 # compilation rule for one target
 $(_tmp)/{module}/%.o: {module}/%.c $({name}_H) $(ks_H)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS){' ' + cfp['Compile']['CFLAGS'] if cfp['Compile']['CFLAGS'] else ''} -I./include -I{module} -DKS_BUILD {"".join(f"-I./modules/{dep}" for dep in c_deps)} $< -fPIC -c -o $@
+	$(CC) $(CFLAGS){' ' + cfp['Compile']['CFLAGS'] if cfp['Compile']['CFLAGS'] else ''} {c_CFLAGS} -I./include -I{module} -DKS_BUILD {"".join(f"-I./modules/{dep}" for dep in c_deps)} $< -fPIC -c -o $@
 
 # rule to copy headers
 lib/ksm/{name}/%.h: {module}/%.h
@@ -445,7 +545,7 @@ lib/ksm/{name}/%.h: {module}/%.h
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) {cfp['Compile']['LDFLAGS']} -L./lib -Wl,-rpath,'$$ORIGIN' \\
 		$({name}_O) \\
-		{cfp['Compile']['LIBS']} -lks -shared -o $@
+		{c_LDFLAGS} {cfp['Compile']['LIBS']} -lks -shared -o $@
 	@#$(STRIP) $@ $(STRIP_OPTS)
 	{MAKE_SUCC}
 

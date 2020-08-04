@@ -27,6 +27,12 @@ extern "C" {
 
 #include <complex.h>
 
+// The READLINE library is used for the active interpreter
+#ifdef KS_HAVE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
 
 // include either the full version of GMP or the miniature version for
 //   integer types
@@ -35,6 +41,12 @@ extern "C" {
 #else
 #include <ks-mini-gmp.h>
 #endif
+
+
+
+// for signal handling
+#include <signal.h>
+
 
 
 /* --- Macros --- */
@@ -121,6 +133,13 @@ typedef uint64_t ks_hash_t;
 
 // max hash value
 #define KS_HASH_MAX ((ks_hash_t)(((ks_hash_t)(1ULL)) << (8 * sizeof(ks_hash_t) - 1)))
+
+// adder (useful for combining sequences)
+#define KS_HASH_ADD ((ks_hash_t)3628273133ULL)
+
+// multiplier (useful for combining sequences)
+#define KS_HASH_MUL ((ks_hash_t)3367900313ULL)
+
 
 
 // a single unicode character (NOT grapheme/etc, but rather a single, decoded value)
@@ -543,6 +562,10 @@ typedef struct {
 // macro to create an array of `ks_enumval_c`, which can be passed to constructors
 #define KS_ENUMVALS(...) ((ks_enumval_c[]){ __VA_ARGS__ KS_ENUMVAL_END })
 
+
+// Create an enum entry for an actual C-declared enum
+#define KS_ENUM_ENTRY_FILL(_enum) ((ks_enumval_c){ #_enum, (int64_t)(_enum) })
+#define KS_EEF KS_ENUM_ENTRY_FILL
 
 
 // Container Types
@@ -1671,6 +1694,99 @@ typedef struct {
 ks_stack_frame ks_stack_frame_new(ks_obj func);
 
 
+
+
+/* I/O 
+ *
+ * All the IO functionality in kscript is tailored such that everything can be done
+ *   agnostically to any OS
+ * 
+ * 
+ */
+typedef struct {
+    KS_OBJ_BASE
+
+    // the mode in which the iostream was opened in, typically 'r', 'w', etc
+    ks_str mode;
+
+    // whether or not the file is currently open;
+    // if not, then members such as `_FILEp` may be NULL
+    bool isOpen;
+
+    // whether or not the ios is extern (if extern, we don't free any resources or anything on close)
+    bool isExtern;
+
+    // the name of the file, which is either the path that was used to open it,
+    //   or something enclosed in brackets like `<internal buffer>`
+    // Never NULL
+    ks_str name;
+
+
+
+
+    // TODO: support different OS-specific stuff here
+
+    // the underlying file pointer
+    FILE* _fp;
+
+}* ks_ios;
+
+
+// Create a blank 'iostream', with no target
+// NOTE: Use `ks_ios_open()` to actually get a target
+// NOTE: Returns a new reference
+KS_API ks_ios ks_ios_new();
+
+// Open 'self' to the given file and mode
+// NOTE: Returns success, or false and throws an error
+KS_API bool ks_ios_open(ks_ios self, ks_str fname, ks_str mode);
+
+// Open 'self' as an extern 
+// NOTE: `fname` is not used for opening any files! It is only used as a decoration
+//   if it is NULL, then one is generated
+// NOTE: `mode` should simply describe the mode _fp was opened in
+// NOTE: Returns success, or false and throws an error
+KS_API bool ks_ios_extern_FILE(ks_ios self, ks_str fname, ks_str mode, FILE* _fp);
+
+
+// Close 'self' (or, if already closed, do nothing)
+// NOTE: will never throw an error; all errors are ignored
+KS_API void ks_ios_close(ks_ios self);
+
+// Return the current position (in bytes) in 'self', or -1 and throw an error
+KS_API ks_ssize_t ks_ios_tell(ks_ios self);
+
+// Return the size (in bytes) of the entire stream, or -1 and throw an error
+KS_API ks_ssize_t ks_ios_size(ks_ios self);
+
+
+
+enum {
+
+    // Set position in absolute bytes
+    KS_IOS_SEEK_SET    = 1,
+
+    // Set position relative to current position
+    KS_IOS_SEEK_CUR    = 2,
+
+    // Set position relative to the end of the stream
+    KS_IOS_SEEK_END    = 3,
+
+};
+
+
+// Attempt to seek `self` to given position, in mode `seekmode` (see KS_IOS_SEEK_* enum definitions)
+// NOTE: everything is in bytes here
+KS_API bool ks_ios_seek(ks_ios self, ks_ssize_t pos_b, int seekmode);
+
+// Read a given number of bytes from the iostream and put them into `dest`
+// NOTE: Returns number of bytes actually read (accounting for truncation), or -1 and throw an error
+KS_API ks_ssize_t ks_ios_readb(ks_ios self, ks_ssize_t len_b, void* dest);
+
+
+
+
+
 // main thread
 extern ks_thread ks_thread_main;
 
@@ -1714,6 +1830,7 @@ extern ks_type
     ks_T_pfunc,
 
     ks_T_logger,
+    ks_T_ios,
 
     ks_T_Enum,
 
@@ -1758,6 +1875,9 @@ static inline ks_obj ks_newref(ks_obj obj) {
 
 // Initializes, kscript, returns whether it was successful or not
 KS_API bool ks_init(int verbose);
+
+// Finalize the library
+KS_API void ks_finalize();
 
 // Type to hold a kscript version
 typedef struct {
@@ -1937,7 +2057,7 @@ KS_API ks_obj ks_catch(ks_list* frames);
 KS_API void ks_catch_ignore();
 
 // Throw an object, return NULL (use ks_throw macro)
-KS_API ks_obj ks_ithrow(const char* file, const char* func, int line, ks_type errtype, const char* fmt, ...);
+KS_API void* ks_ithrow(const char* file, const char* func, int line, ks_type errtype, const char* fmt, ...);
 
 // throw an error type, i.e.
 // ks_throw(ks_T_Error, "My format: %i", 34);
@@ -2078,19 +2198,19 @@ enum {
     // hex, i.e. base 16
     KS_BASE_16     = 16,
 
+
+    // decimal, i.e. base 10
+    KS_BASE_10     = 10,
+
     // roman base, i.e. parsing roman numerals
     KS_BASE_ROMAN  = -1,
 
 };
 
-
 // Create a kscript int from a string in a given base (check KS_BASE_* enums)
+// If `base==KS_BASE_AUTO==0`, then if a prefix is given, that base is used (i.e. 0x, 0r, 0o, 0b). Otherwise, base 10 is assumed
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_int ks_int_new_s(char* str, int base);
-
-// Create a new integer from a roman-style string
-// TODO: support unicode at all?
-KS_API ks_int ks_int_new_roman(char* romstr, int len);
 
 // Create a new integer from an MPZ
 // NOTE: Returns a new reference
@@ -2298,6 +2418,12 @@ KS_API ks_dict ks_dict_new_c(ks_keyval_c* keyvals);
 // Return the load factor for a given dictionary, between 0.0 and 1.0
 KS_API double ks_dict_load(ks_dict self);
 
+// Merge in entries of 'src' into self, replacing any entries in 'self' that existed
+KS_API void ks_dict_merge(ks_dict self, ks_dict src);
+
+// Merge in all enumeration members to 'self'
+KS_API void ks_dict_merge_enum(ks_dict self, ks_type enumtype);
+
 // Set `self[key] = val`
 // Variants that include `_h`, which require that hash(key) is precomputed
 // Variants that include `_c`, take a NUL-terminated C-string as the key
@@ -2449,18 +2575,16 @@ KS_API ks_ast ks_ast_new_const(ks_obj val);
 // Type should always be string
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_var(ks_str name);
+// Create an AST representing a tuple constructor
+// NOTE: Returns a new reference
+KS_API ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
 
 // Create an AST representing a list constructor
 // NOTE: Returns a new reference
 KS_API ks_ast ks_ast_new_list(int n_items, ks_ast* items);
 
 // Create an AST representing a list constructor
-// NOTE: Returns a new reference
-KS_API ks_ast ks_ast_new_tuple(int n_items, ks_ast* items);
-
-
-// Create an AST representing a dictionary constructor (n_items should be even, and have (key, val) interleaved)
-// NOTE: Returns a new reference
+// NOTE: Returns a new referenceks_num
 KS_API ks_ast ks_ast_new_dict(int n_items, ks_ast* items);
 
 // Create an AST representing a slice constructor
@@ -2641,6 +2765,12 @@ KS_API ks_range ks_range_new(ks_int start, ks_int stop, ks_int step);
 
 
 /* GENERIC NUMERICS (i.e. work with all numeric types) */
+
+
+// Parse `len` bytes of str as a numeric type in base `base`
+// If `base==KS_BASE_AUTO`, then autodetect the base, or use 10 as a default
+// NOTE: Returns new reference, or NULL if there was an error (and throw it)
+KS_API ks_obj ks_num_parse(const char* str, int len, int base);
 
 // Attempt to hash 'self'
 // Supported types:
@@ -2838,6 +2968,7 @@ extern ks_cfunc
 
     ks_F_repr,
     ks_F_hash,
+    ks_F_id,
     ks_F_len,
     ks_F_typeof,
 
@@ -2892,6 +3023,8 @@ extern ks_cfunc
 // dictionary of globals
 extern ks_dict ks_globals;
 
+// interpreter variables
+extern ks_dict ks_inter_vars;
 
 // TODO: add GIL
 

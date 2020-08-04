@@ -53,8 +53,6 @@ func fib(i) {
     #ret fib(i - 1) + fib(i - 2)
 }
 
-print (fib(10))
-
 
 
 

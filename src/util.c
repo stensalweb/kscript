@@ -190,7 +190,6 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         }
 
 
-
         // whether or not there was an error
         bool haderr = false;
         while (par_i < kfc->n_param && !haderr) {
@@ -243,6 +242,7 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
             c_frame->locals = locals ? (ks_dict)KS_NEWREF(locals) : ks_dict_new(0, NULL);
 
             ret = ks__exec(thread, cf);
+
         } else {
             // error; 
             ks_throw(ks_T_Error, "There were arguments provided to call a bytecode object, but 0 is the correct number!");
@@ -309,13 +309,27 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
                     KS_DECREF(ret->type);
                     ret->type = ftyp;
                 }
-
             }
 
         } else {
             ks_throw(ks_T_Error, "'%T' object was not callable! (expected there to be `%S.__new__()`, but there was none!)", func, func);
         }
 
+    } else if (func->type->__call__ != NULL) {
+
+
+
+        // call type(func).__call__(func, *args)
+        int new_n_args = n_args + 1;
+        ks_obj* new_args = ks_malloc(sizeof(*new_args) * new_n_args);
+
+        new_args[0] = func;
+        memcpy(&new_args[1], args, n_args * sizeof(*new_args));
+
+        // perform call
+        ret = ks_obj_call(func->type->__call__, new_n_args, new_args);
+
+        ks_free(new_args);
 
     } else {
         ks_throw(ks_T_Error, "'%T' object was not callable!", func);
@@ -406,7 +420,7 @@ void ks_catch_ignore() {
 }
 
 // Throw an object, return NULL (use ks_throw macro)
-ks_obj ks_ithrow(const char* file, const char* func, int line, ks_type errtype, const char* fmt, ...) {
+void* ks_ithrow(const char* file, const char* func, int line, ks_type errtype, const char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     ks_str what = ks_fmt_vc(fmt, ap);

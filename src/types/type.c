@@ -21,6 +21,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
     CASENULL(__free__)
     CASENULL(__bool__)
     CASENULL(__int__)
+    CASENULL(__call__)
     CASENULL(__float__)
     CASENULL(__str__)
     CASENULL(__blob__)
@@ -50,6 +51,8 @@ static void my_setallnull(ks_type self, ks_type parent) {
     CASENULL(__eq__)
     CASENULL(__ne__)
     CASENULL(__cmp__)
+    CASENULL(__lshift__)
+    CASENULL(__rshift__)
     CASENULL(__binor__)
     CASENULL(__binand__)
     CASENULL(__binxor__)
@@ -59,7 +62,6 @@ static void my_setallnull(ks_type self, ks_type parent) {
     if (parent != NULL) {
         #define FROMPAR(_name) self->_name = parent->_name;
 
-
         FROMPAR(flags)
 
         FROMPAR(__new__)
@@ -68,6 +70,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
         FROMPAR(__bool__)
         FROMPAR(__int__)
         FROMPAR(__float__)
+        FROMPAR(__call__)
         FROMPAR(__str__)
         FROMPAR(__blob__)
         FROMPAR(__getattr__)
@@ -96,6 +99,8 @@ static void my_setallnull(ks_type self, ks_type parent) {
         FROMPAR(__eq__)
         FROMPAR(__ne__)
         FROMPAR(__cmp__)
+        FROMPAR(__lshift__)
+        FROMPAR(__rshift__)
         FROMPAR(__binor__)
         FROMPAR(__binand__)
         FROMPAR(__binxor__)
@@ -198,6 +203,7 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
         KEYCASE(__int__, ks_obj, ks_T_obj)
         KEYCASE(__float__, ks_obj, ks_T_obj)
         KEYCASE(__str__, ks_obj, ks_T_obj)
+        KEYCASE(__call__, ks_obj, ks_T_obj)
         KEYCASE(__blob__, ks_obj, ks_T_obj)
         KEYCASE(__getattr__, ks_obj, ks_T_obj)
         KEYCASE(__setattr__, ks_obj, ks_T_obj)
@@ -225,6 +231,8 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
         KEYCASE(__eq__, ks_obj, ks_T_obj)
         KEYCASE(__ne__, ks_obj, ks_T_obj)
         KEYCASE(__cmp__, ks_obj, ks_T_obj)
+        KEYCASE(__lshift__, ks_obj, ks_T_obj)
+        KEYCASE(__rshift__, ks_obj, ks_T_obj)
         KEYCASE(__binor__, ks_obj, ks_T_obj)
         KEYCASE(__binand__, ks_obj, ks_T_obj)
         KEYCASE(__binxor__, ks_obj, ks_T_obj)
@@ -330,6 +338,15 @@ static KS_TFUNC(type, str) {
     return KS_NEWREF(self->__name__);
 }
 
+// type.__hash__(self) - turn to hash
+static KS_TFUNC(type, hash) {
+    ks_type self;
+    KS_GETARGS("self:*", &self, ks_T_type)
+
+    return (ks_obj)ks_int_new((intptr_t)self);
+};
+
+
 
 /* export */
 
@@ -340,11 +357,13 @@ void ks_init_T_type() {
         {"__free__",               (ks_obj)ks_cfunc_new_c(type_free_, "type.__free__(self)")},
 
         {"__str__",                (ks_obj)ks_cfunc_new_c(type_str_, "type.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c(type_str_, "type.__repr__(self)")},
+        {"__hash__",               (ks_obj)ks_cfunc_new_c(type_hash_, "type.__hash__(self)")},
+
+
         {"__getattr__",            (ks_obj)ks_cfunc_new_c(type_getattr_, "type.__getattr__(self, attr)")},
 
     ));
 
-
-    ks_T_type->flags |= KS_TYPE_FLAGS_EQSS;
 
 }

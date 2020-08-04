@@ -462,6 +462,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             
             // push the result on the stack where the arguments started
             ks_list_push(self->stk, ret);
+            KS_DECREF(ret);
 
             // we are finished with the arguments
             for (i = 0; i < op_i32.arg; ++i) KS_DECREF(args[i]);
@@ -489,6 +490,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             
             // push the result on the stack where the arguments started
             ks_list_push(self->stk, ret);
+            KS_DECREF(ret);
 
         VMED_CASE_END
 
@@ -851,6 +853,9 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
         T_BOP_CASE(KSB_BOP_BINXOR, "^", ks_F_binxor, {});
 
         T_BOP_CASE(KSB_BOP_CMP, "<=>", ks_F_cmp, {});
+
+        T_BOP_CASE(KSB_BOP_LSHIFT, "<<", ks_F_lshift, {});
+        T_BOP_CASE(KSB_BOP_RSHIFT, ">>", ks_F_rshift, {});
 
         T_BOP_CASE(KSB_BOP_LT, "<", ks_F_lt, {});
         T_BOP_CASE(KSB_BOP_LE, "<=", ks_F_le, {});

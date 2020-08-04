@@ -7,6 +7,261 @@
 
 #include "ks-impl.h"
 
+// convert roman character to its integer value
+static int roman_val(ks_unich romchar) {
+    /**/ if (romchar == 'I') return 1;
+    else if (romchar == 'V') return 5;
+    else if (romchar == 'X') return 10;
+    else if (romchar == 'L') return 50;
+    else if (romchar == 'C') return 100;
+    else if (romchar == 'D') return 500;
+    else if (romchar == 'M') return 1000;
+    else {
+        return -1;
+    }
+}
+
+
+// Return the digit value (irrespective of base), or -1 if there was a problem
+static int my_getdig(char c) {
+    if (isdigit(c)) {
+        return c - '0';
+    } else if (c >= 'a' && c <= 'z') {
+        return (c - 'a') + 10;
+    } else if (c >= 'A' && c <= 'Z') {
+        return (c - 'A') + 10;
+    } else {
+        // errro: invalid digit
+        return -1;
+    }
+}
+
+
+// Parse `len` bytes of str as a numeric type in base `base`
+// If `base==KS_BASE_AUTO`, then autodetect the base, or use 10 as a default
+// NOTE: Returns new reference, or NULL if there was an error (and throw it)
+ks_obj ks_num_parse(const char* str, int len, int base) {
+    if (len < 0) len = strlen(str);
+
+    // original
+    int olen = len;
+    const char* ostr = str;
+
+    // parse out sign
+    bool isNeg = *str == '-';
+    if (isNeg || *str == '+') {
+        str++;
+        len--;
+    }
+
+    if (base == KS_BASE_AUTO) {
+        // auto detect base
+        if (len > 2 && str[0] == '0') {
+            // check for `0x`, etc prefixes
+            char c = str[1];
+            bool hasPrefix = true;
+            /**/ if (c == 'x') base = KS_BASE_16;
+            else if (c == 'o') base = KS_BASE_8;
+            else if (c == 'b') base = KS_BASE_2;
+            else if (c == 'r') base = KS_BASE_ROMAN;
+            else {
+                // unknown; but don't give error, it could just begin with 0s
+                hasPrefix = false;
+            }
+
+            // take off prefix from parsing string
+            if (hasPrefix) {
+                str += 2;
+                len -= 2;
+            }
+        }
+
+        // assume base 10 if none is given via prefix
+        if (base == KS_BASE_AUTO) base = KS_BASE_10;
+    } else if (len > 2 && str[0] == '0') {
+
+        char c = str[1];
+        bool hasPrefix = false;
+        /**/ if (c == 'x' && base == KS_BASE_16) hasPrefix = true;
+        else if (c == 'o' && base == KS_BASE_8) hasPrefix = true;
+        else if (c == 'b' && base == KS_BASE_2) hasPrefix = true;
+        else if (c == 'r' && base == KS_BASE_ROMAN) hasPrefix = true;
+
+        if (hasPrefix) {
+            str += 2;
+            len -= 2;
+        }
+
+    }
+    
+
+    // loop vars
+    int i;
+
+    // whether it contains '.', 'i', 
+    bool hasDot = false, hasi = false;
+    for (i = 0; i < len && (!hasDot || !hasi); ++i) {
+        if (str[i] == '.') hasDot = true;
+        if (str[i] == 'i') hasi = true;
+    }
+
+    // whether or not it is a floating point value
+    bool isFloat = hasDot || hasi;
+
+    // check for exponent in different bases
+    if (base == KS_BASE_10) {
+        for (i = 0; i < len && !isFloat; ++i) {
+            if (str[i] == 'e') isFloat = true;
+        }
+    } else if (base == KS_BASE_16) {
+        for (i = 0; i < len && !isFloat; ++i) {
+            if (str[i] == 'p') isFloat = true;
+        }
+    }
+
+    // handle different bases
+    if (base == KS_BASE_ROMAN) {
+        // should never be a floating point number
+        if (isFloat) return ks_throw(ks_T_ArgError, "Invalid syntax for a roman numeral: %*s", olen, ostr);
+
+        // TODO: should we accept bars over Ms or some similar syntax, for example 10000 -> X_, where every 'X_' becomes X * M**(count('_'))
+
+        // structure of roman numerals (in reverse order!)
+        static const struct _roman_s {
+            // string of the roman numeral
+            char c;
+
+            // numeric value
+            int val;
+
+        } romans[] = {
+            {'M',     1000},
+            {'D',     500},
+            {'C',     100},
+            {'L',     50},
+            {'X',     10},
+            {'V',     5},
+            {'I',     1},
+        };
+
+        // number of roman characters
+        static const int romans_n = sizeof(romans) / sizeof(*romans);
+
+        // create new integer
+        mpz_t self;
+        mpz_init(self);
+
+        i = 0;
+        // extract extra starting positions
+        while (i < len) {
+            // convert to value & ensure it was valid
+            int dig = roman_val(str[i]);
+            if (dig < 0) {
+                mpz_clear(self);
+                return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%*s', invalid digit '%c'", len, ostr, str[i]);
+            }
+
+            if (i < len - 2) {
+                // check 2 characters ahead
+                int digp2 = roman_val(str[i+2]);
+                if (digp2 < 0) {
+                    mpz_clear(self);
+                    return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%*s', invalid digit '%c'", olen, ostr, str[i+2]);
+                } else if (dig < digp2) {
+                    mpz_clear(self);
+                    return ks_throw(ks_T_ArgError, "Invalid roman numeral: '%*s', digits are in an invalid order", olen, ostr);
+                }
+            }
+
+
+            // check for next character
+            int digp1 = roman_val(str[i+1]);
+
+            if (dig >= digp1) {
+                mpz_add_ui(self, self, dig);
+            } else {
+                // add difference
+                mpz_add_ui(self, self, digp1 - dig);
+                // we comsume both here
+                i++;
+            }
+
+            // advance to next character
+            i++;
+        }
+
+        // return value
+        if (isNeg) mpz_neg(self, self);
+        return (ks_obj)ks_int_new_mpz_n(self);
+    } else if (isFloat) {
+        // numerical base; floating point
+
+        // check for invalids
+        if (base == 2 || base == 8) {
+            return ks_throw(ks_T_ArgError, "Invalid float number: Only base 10 and 16 floats are supported, not %i", olen, ostr, base);
+        }
+        
+        // convert to literal
+        char* tmp_str = ks_malloc(olen + 1);
+        memcpy(tmp_str, ostr, olen);
+        tmp_str[olen] = '\0';
+
+        char* endptr = NULL;
+        double rv = strtold(tmp_str, &endptr);
+
+        if (!endptr || endptr != tmp_str + olen) {
+            return ks_throw(ks_T_ArgError, "Invalid float number: '%*s'", olen, ostr);
+        }
+
+        return (ks_obj)ks_float_new(rv);
+
+    } else {
+        // numerical base; integer
+        int64_t v64 = 0;
+
+        i = 0;
+        // parse out main value
+        while (i < len) {
+            int dig = my_getdig(str[i]);
+            // check for invalid/out of range digit
+            if (dig < 0 || dig >= base) return ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%*s'", base, olen, ostr);
+
+            int64_t old_v64 = v64;
+            // calculate new value in 64 bits
+            v64 = base * v64 + dig;
+
+            if (v64 < old_v64) {
+                // overflow
+                goto do_mpz_str;
+            }
+            i++;
+        }
+
+        // we construct via v64 methods
+        return (ks_obj)ks_int_new(isNeg ? -v64 : v64);
+
+        do_mpz_str:;
+
+        // create MPZ
+        mpz_t self;
+        mpz_init(self);
+
+        // convert to literal
+        char* tmp_str = ks_malloc(len + 1);
+        memcpy(tmp_str, str, len);
+        tmp_str[len] = '\0';
+
+        // set from string
+        if (mpz_set_str(self, tmp_str, base) < 0) {
+            mpz_clear(self);
+            return ks_throw(ks_T_ArgError, "Invalid format for base %i integer: '%*s'", base, olen, ostr);
+        }
+        if (isNeg) mpz_neg(self, self);
+        return (ks_obj)ks_int_new_mpz_n(self);
+    
+    }
+}
+
 // get hash of number
 bool ks_num_hash(ks_obj self, ks_hash_t* out) {
     if (self->type == ks_T_bool) {
@@ -938,8 +1193,6 @@ ks_obj ks_num_neg(ks_obj L) {
 ks_obj ks_num_sqig(ks_obj L) {
     if (ks_num_is_integral(L)) {
 
-
-
         // see if it can fit in a 64 bit integer
         int64_t Lv;
         bool Lf = ks_num_get_int64(L, &Lv);
@@ -1198,14 +1451,8 @@ ks_obj ks_num_lshift(ks_obj L, ks_obj R) {
         if (!Rf) {
             return ks_throw(ks_T_MathError, "Right-hand side of '<<' must fit in a C-style integer! (got %S)", R);
         }
-
-        if (Lf && Rf) {
-            if (Rv < 0) return ks_throw(ks_T_MathError, "Right-hand side of '<<' must be >= 0! (got %S)", R);
-
-            // check for overflow
-            int64_t r = Lv << Rv;
-            if (r >> Rv == Lv) return (ks_obj)ks_int_new(r);
-        }
+        
+        if (Rv < 0) return ks_throw(ks_T_MathError, "Right-hand side of '<<' must be >= 0! (got %S)", R);
 
         mpz_t Lz, Vz;
         mpz_init(Lz);
@@ -1248,12 +1495,7 @@ ks_obj ks_num_rshift(ks_obj L, ks_obj R) {
         if (!Rf) {
             return ks_throw(ks_T_MathError, "Right-hand side of '<<' must fit in a C-style integer! (got %S)", R);
         }
-
-        if (Lf && Rf) {
-            if (Rv < 0) return ks_throw(ks_T_MathError, "Right-hand side of '<<' must be >= 0! (got %S)", R);
-
-            return (ks_obj)ks_int_new(Lv >> Rv);
-        }
+        if (Rv < 0) return ks_throw(ks_T_MathError, "Right-hand side of '<<' must be >= 0! (got %S)", R);
 
         mpz_t Lz, Vz;
         mpz_init(Lz);

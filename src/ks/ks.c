@@ -209,6 +209,8 @@ int main(int argc, char** argv) {
     if (!ret) ks_exit_if_err();
     KS_DECREF(ret);
 
+    ks_finalize();
+
     // return success
     return 0;
 }

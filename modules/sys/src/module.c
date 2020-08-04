@@ -16,16 +16,20 @@
 #include <sys/utsname.h>
 
 
+// sys.refs(obj) - return references to obj
+static KS_TFUNC(sys, refs) {
+    ks_obj obj;
+    KS_GETARGS("obj", &obj);
 
-/* sys.system(cmd) -> result
- *
- * Run a command, and return whether it was successfull
- *
- */
+    return (ks_obj)ks_int_new(obj->refcnt);
+}
+
+
+
+// sys.shell(cmd) - result
 static KS_TFUNC(sys, shell) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_str cmd = (ks_str)args[0];
-    KS_REQ_TYPE(cmd, ks_type_str, "cmd");
+    ks_str cmd;
+    KS_GETARGS("cmd:*", &cmd, ks_T_str)
 
     // unlock the GIL, so other threads may go while it is running
     ks_GIL_unlock();
@@ -48,35 +52,33 @@ static ks_module get_module() {
     struct utsname unameData;
 
     if (uname(&unameData) != 0) {
-        return ks_throw_fmt(ks_type_Error, "uname() function failed!");
+        return ks_throw(ks_T_Error, "uname() function failed!");
     }
 
     ks_module mod = ks_module_new(MODULE_NAME);
 
-    ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
+    ks_dict_set_c(mod->attr, KS_KEYVALS(
         /* constants */
         {"platform",     (ks_obj)ks_fmt_c("%s", unameData.sysname)},
 
-        {"uname", (ks_obj)ks_dict_new_cn((ks_dict_ent_c[]){
+        {"uname", (ks_obj)ks_dict_new_c(KS_KEYVALS(
             {"name",        (ks_obj)ks_str_new(unameData.sysname) },
             {"arch",        (ks_obj)ks_str_new(unameData.machine) },
             {"version",     (ks_obj)ks_str_new(unameData.version) },
             {"release",     (ks_obj)ks_str_new(unameData.release) },
             {"node",        (ks_obj)ks_str_new(unameData.nodename) },
-            {NULL, NULL}
-        })},
+        ))},
 
         /* functions */
-        {"shell",           (ks_obj)ks_cfunc_new2(sys_shell_, "sys.shell(cmd)")},
+        {"refs",            (ks_obj)ks_cfunc_new_c(sys_refs_, "sys.refs(obj)")},
+        {"shell",           (ks_obj)ks_cfunc_new_c(sys_shell_, "sys.shell(cmd)")},
         
         /* wrappers */
-        {"stdin",          (ks_obj)ks_iostream_new_extern(stdin, "r")},
+        /*{"stdin",          (ks_obj)ks_iostream_new_extern(stdin, "r")},
         {"stdout",         (ks_obj)ks_iostream_new_extern(stdout, "w")},
         {"stderr",         (ks_obj)ks_iostream_new_extern(stderr, "w")},
-
-
-        {NULL, NULL}
-    });
+        */
+    ));
 
     return mod;
 }

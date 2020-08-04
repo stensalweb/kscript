@@ -91,10 +91,10 @@ bool ks_init(int verbose) {
     ks_init_T_stack_frame();
     ks_init_T_kfunc();
     ks_init_T_module();
+    ks_init_T_ios();
 
     // initialize others
     ks_init_funcs();
-
 
     // initialize paths
     ks_paths = ks_list_new(0, NULL);
@@ -213,6 +213,7 @@ bool ks_init(int verbose) {
         {"type",                   KS_NEWREF(ks_T_type)},
         {"obj",                    KS_NEWREF(ks_T_obj)},
         {"thread",                 KS_NEWREF(ks_T_thread)},
+        {"ios",                    KS_NEWREF(ks_T_ios)},
 
         {"Enum",                   KS_NEWREF(ks_T_Enum)},
 
@@ -235,6 +236,8 @@ bool ks_init(int verbose) {
 
         {"truthy",                 KS_NEWREF(ks_F_truthy)},
         {"repr",                   KS_NEWREF(ks_F_repr)},
+        {"hash",                   KS_NEWREF(ks_F_hash)},
+        {"id",                     KS_NEWREF(ks_F_id)},
         {"len",                    KS_NEWREF(ks_F_len)},
         {"abs",                    KS_NEWREF(ks_F_abs)},
 
@@ -258,5 +261,12 @@ bool ks_init(int verbose) {
 
     // success
     return hasInit = true;
+}
+
+
+// finalize the library
+void ks_finalize() {
+
+
 }
 
