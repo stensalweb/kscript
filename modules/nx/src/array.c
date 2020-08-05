@@ -41,6 +41,7 @@ nx_array nx_array_new(nxar_t nxar) {
     // copy the given data
     memcpy(self->dim, nxar.dim, sizeof(*self->dim) * self->rank);
 
+
     // last dimension is immediate stride
     self->stride[self->rank - 1] = self->dtype->size;
 
@@ -105,7 +106,9 @@ nx_array nx_array_new(nxar_t nxar) {
 
 
 // recursive internal procedure for filling array from recursive iterators
-static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, ks_ssize_t** dims) {
+static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, int dep, int* max_dep, ks_ssize_t** dims) {
+
+    if (dep > *max_dep) *max_dep = dep;
 
     if (cur->type == nx_T_array || cur->type == nx_T_view) {
         ks_throw(ks_T_TodoError, "Need to implement sub-objects in array filling");
@@ -139,6 +142,7 @@ static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, 
                 return false;
             }
         } else {
+
             // set the dimensions
             *dims = ks_realloc(*dims, sizeof(**dims) * (dep + 1));
             (*dims)[dep] = elems->len;
@@ -148,7 +152,7 @@ static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, 
         int i;
         for (i = 0; i < elems->len; ++i) {
             // recursively call more
-            if (!my_array_fill(dtype, resp, elems->elems[i], idx, dep + 1, dims)) {
+            if (!my_array_fill(dtype, resp, elems->elems[i], idx, dep + 1, max_dep, dims)) {
                 return false;
             }
         }
@@ -189,9 +193,13 @@ static bool my_array_fill(nx_dtype dtype, nx_array* resp, ks_obj cur, int* idx, 
 
     }
 
+    if (dep == 0 && !*resp) {
+        // fill in
+        *resp = nx_array_new((nxar_t){ .rank = *max_dep + 1, .dtype = dtype, .dim = *dims, .stride = NULL, .data = NULL });
+    }
+
     return true;
 }
-
 
 
 // create a nx array from an object
@@ -225,8 +233,9 @@ nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
         // result
         nx_array res = NULL;
 
+        int max_dep = 0;
         // attempt to convert & fill it up
-        if (!my_array_fill(dtype, &res, obj, &idx, 0, &dims)) {
+        if (!my_array_fill(dtype, &res, obj, &idx, 0, &max_dep, &dims)) {
             ks_free(dims);
             if (res) KS_DECREF(res);
             return NULL;

@@ -196,6 +196,8 @@ ks_obj ks_num_parse(const char* str, int len, int base) {
     } else if (isFloat) {
         // numerical base; floating point
 
+        bool isComplex = false;
+
         // check for invalids
         if (base == 2 || base == 8) {
             return ks_throw(ks_T_ArgError, "Invalid float number: Only base 10 and 16 floats are supported, not %i", olen, ostr, base);
@@ -209,11 +211,16 @@ ks_obj ks_num_parse(const char* str, int len, int base) {
         char* endptr = NULL;
         double rv = strtold(tmp_str, &endptr);
 
+        if (endptr && *endptr == 'i') {
+            isComplex = true;
+            endptr++;
+        }
+
         if (!endptr || endptr != tmp_str + olen) {
             return ks_throw(ks_T_ArgError, "Invalid float number: '%*s'", olen, ostr);
         }
 
-        return (ks_obj)ks_float_new(rv);
+        return isComplex ? (ks_obj)ks_complex_new(I * rv) : (ks_obj)ks_float_new(rv);
 
     } else {
         // numerical base; integer
@@ -1020,7 +1027,11 @@ ks_obj ks_num_mod(ks_obj L, ks_obj R) {
         }
         if (Rv == 0) return ks_throw(ks_T_MathError, "Modulo by 0");
 
-        return (ks_obj)ks_float_new(fmod(Lv, Rv));
+        double res = fmod(Lv, Rv);
+        if (Rv > 0 && res < 0) res += Rv;
+        else if (Rv < 0 && res > 0) res += Rv;
+
+        return (ks_obj)ks_float_new(res);
     } else if (ks_num_is_integral(L) && ks_num_is_integral(R)) {
 
         // values for left and right
@@ -1035,7 +1046,9 @@ ks_obj ks_num_mod(ks_obj L, ks_obj R) {
         if (Lf && Rf) {
 
             int64_t Vv = Lv % Rv;
-            if (Vv < 0) Vv += Rv;
+            if (Vv < 0 && Rv > 0) Vv += Rv;
+            else if (Vv > 0 && Rv < 0) Vv += Rv;
+
             return (ks_obj)ks_int_new(Vv);
         }
 
@@ -1056,6 +1069,7 @@ ks_obj ks_num_mod(ks_obj L, ks_obj R) {
         }
 
         mpz_mod(Vz, Lz, Rz);
+        if (mpz_cmp_ui(Rz, 0) < 0) mpz_add(Vz, Vz, Rz);
         mpz_clear(Lz);
         mpz_clear(Rz);
         return (ks_obj)ks_int_new_mpz_n(Vz);
