@@ -36,7 +36,7 @@ mm_Stream mm_Stream_new() {
 // open stream
 bool mm_Stream_open(mm_Stream self, char* url) {
     if (self->source_url) {
-        ks_throw_fmt(ks_type_IOError, "Attempted to open '%s' on a stream that is already open!", url);
+        ks_throw(ks_type_IOError, "Attempted to open '%s' on a stream that is already open!", url);
         return false;
     }
 
@@ -44,7 +44,7 @@ bool mm_Stream_open(mm_Stream self, char* url) {
 
     // attempt to open the file
     if (avformat_open_input(&self->format_ctx, url, NULL, NULL) != 0) {
-        ks_throw_fmt(ks_type_IOError, "Could not open file '%s'", url);
+        ks_throw(ks_type_IOError, "Could not open file '%s'", url);
         return false;
     }
 
@@ -65,7 +65,7 @@ bool mm_Stream_open(mm_Stream self, char* url) {
 
         // attempt to open it
         if (avcodec_open2(self->subs[i].codec_ctx, avcodec_find_decoder(self->subs[i].codec_ctx->codec_id), NULL) < 0) {
-            ks_throw_fmt(ks_type_IOError, "Could not open decoder for audio stream (#%i) in file '%s'", i, url);
+            ks_throw(ks_type_IOError, "Could not open decoder for audio stream (#%i) in file '%s'", i, url);
             return false;
         }
 
@@ -180,11 +180,11 @@ static KS_TFUNC(stream, get_info) {
 
     } else {
         if (idx >= self->n_subs) {
-            return ks_throw_fmt(ks_type_ArgError, "Index #%i is out of range for a mm.Stream with %i substreams", idx, self->n_subs);
+            return ks_throw(ks_type_ArgError, "Index #%i is out of range for a mm.Stream with %i substreams", idx, self->n_subs);
         }
         return (ks_obj)my_getinfo(idx, &self->subs[idx]);
 
-        //return ks_throw_fmt(ks_type_ToDoError, "Need to support specific stream infos");
+        //return ks_throw(ks_type_ToDoError, "Need to support specific stream infos");
     }
 
 }
@@ -197,11 +197,11 @@ void mm_init_type_Stream() {
 
     ks_type_set_cn(mm_type_Stream, (ks_dict_ent_c[]){
 
-        {"__new__",     (ks_obj)ks_cfunc_new2(stream_new_, "mm.Stream.__new__(url)")},
-        {"__free__",     (ks_obj)ks_cfunc_new2(stream_free_, "mm.Stream.__free__(self)")},
+        {"__new__",     (ks_obj)ks_cfunc_new_c(stream_new_, "mm.Stream.__new__(url)")},
+        {"__free__",     (ks_obj)ks_cfunc_new_c(stream_free_, "mm.Stream.__free__(self)")},
 
 
-        {"get_info",     (ks_obj)ks_cfunc_new2(stream_get_info_, "mm.Stream.get_info(self, idx=-1)")},
+        {"get_info",     (ks_obj)ks_cfunc_new_c(stream_get_info_, "mm.Stream.get_info(self, idx=-1)")},
 
 
         {NULL, NULL},

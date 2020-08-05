@@ -82,13 +82,13 @@ static ks_obj cvtNum(ks_obj obj, int minTY) {
 
 // throw a type conversion error, _types should be a string representing the requested types
 #define _TY_ERR(_a, _types) { \
-    return ks_throw_fmt(ks_type_TypeError, "Could not convert '%T' object to a valid type: %s", _a, _types); \
+    return ks_throw(ks_type_TypeError, "Could not convert '%T' object to a valid type: %s", _a, _types); \
 }
 
 
 // throw an argument error that some math domain error happened
 static void* arg_error(char* argname, char* expr) {
-    return ks_throw_fmt(ks_type_MathError, "Invalid argument '%s', requirement '%s' failed!", argname, expr);
+    return ks_throw(ks_type_MathError, "Invalid argument '%s', requirement '%s' failed!", argname, expr);
 }
 
 /* now, define our function that runs a given command */
@@ -244,7 +244,7 @@ T_M_F_2fc(pow, pow, cpow,
         a0->type == ks_type_float && a1->type == ks_type_float && 
         ((ks_float)a0)->val < 0 && floor(((ks_float)a1)->val) != ((ks_float)a1)->val
     ) { 
-        return ks_throw_fmt(ks_type_MathError, "Cannot raise negative float to fractional float power (cast one or both to 'complex')"); 
+        return ks_throw(ks_type_MathError, "Cannot raise negative float to fractional float power (cast one or both to 'complex')"); 
     });
 
 // atan2(y, x) -> return the phase given by the coordinate (x, y)
@@ -848,45 +848,45 @@ static ks_module get_module() {
 
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]){
         /* functions */
-        {"floor", (ks_obj)ks_cfunc_new2(m_floor_, "m.floor(val)")},
-        {"ceil", (ks_obj)ks_cfunc_new2(m_ceil_, "m.ceil(val)")},
-        {"round", (ks_obj)ks_cfunc_new2(m_round_, "m.round(val)")},
-        {"abs", (ks_obj)ks_cfunc_new2(m_abs_, "m.abs(val)")},
+        {"floor", (ks_obj)ks_cfunc_new_c(m_floor_, "m.floor(val)")},
+        {"ceil", (ks_obj)ks_cfunc_new_c(m_ceil_, "m.ceil(val)")},
+        {"round", (ks_obj)ks_cfunc_new_c(m_round_, "m.round(val)")},
+        {"abs", (ks_obj)ks_cfunc_new_c(m_abs_, "m.abs(val)")},
 
-        {"sin", (ks_obj)ks_cfunc_new2(m_sin_, "m.sin(rad)")},
-        {"cos", (ks_obj)ks_cfunc_new2(m_cos_, "m.cos(rad)")},
-        {"tan", (ks_obj)ks_cfunc_new2(m_tan_, "m.tan(rad)")},
+        {"sin", (ks_obj)ks_cfunc_new_c(m_sin_, "m.sin(rad)")},
+        {"cos", (ks_obj)ks_cfunc_new_c(m_cos_, "m.cos(rad)")},
+        {"tan", (ks_obj)ks_cfunc_new_c(m_tan_, "m.tan(rad)")},
 
-        {"asin", (ks_obj)ks_cfunc_new2(m_asin_, "m.asin(val)")},
-        {"acos", (ks_obj)ks_cfunc_new2(m_acos_, "m.acos(val)")},
-        {"atan", (ks_obj)ks_cfunc_new2(m_atan_, "m.atan(val)")},
-        {"atan2", (ks_obj)ks_cfunc_new2(m_atan2_, "m.atan2(y, x)")},
+        {"asin", (ks_obj)ks_cfunc_new_c(m_asin_, "m.asin(val)")},
+        {"acos", (ks_obj)ks_cfunc_new_c(m_acos_, "m.acos(val)")},
+        {"atan", (ks_obj)ks_cfunc_new_c(m_atan_, "m.atan(val)")},
+        {"atan2", (ks_obj)ks_cfunc_new_c(m_atan2_, "m.atan2(y, x)")},
 
-        {"sinh", (ks_obj)ks_cfunc_new2(m_sinh_, "m.sinh(rad)")},
-        {"cosh", (ks_obj)ks_cfunc_new2(m_cosh_, "m.cosh(rad)")},
-        {"tanh", (ks_obj)ks_cfunc_new2(m_tanh_, "m.tanh(rad)")},
+        {"sinh", (ks_obj)ks_cfunc_new_c(m_sinh_, "m.sinh(rad)")},
+        {"cosh", (ks_obj)ks_cfunc_new_c(m_cosh_, "m.cosh(rad)")},
+        {"tanh", (ks_obj)ks_cfunc_new_c(m_tanh_, "m.tanh(rad)")},
 
-        {"asinh", (ks_obj)ks_cfunc_new2(m_asinh_, "m.asinh(val)")},
-        {"acosh", (ks_obj)ks_cfunc_new2(m_acosh_, "m.acosh(val)")},
-        {"atanh", (ks_obj)ks_cfunc_new2(m_atanh_, "m.atanh(val)")},
+        {"asinh", (ks_obj)ks_cfunc_new_c(m_asinh_, "m.asinh(val)")},
+        {"acosh", (ks_obj)ks_cfunc_new_c(m_acosh_, "m.acosh(val)")},
+        {"atanh", (ks_obj)ks_cfunc_new_c(m_atanh_, "m.atanh(val)")},
 
-        {"log", (ks_obj)ks_cfunc_new2(m_log_, "m.log(val, base=E)")},
+        {"log", (ks_obj)ks_cfunc_new_c(m_log_, "m.log(val, base=E)")},
 
-        {"sign", (ks_obj)ks_cfunc_new2(m_sign_, "m.sign(val)")},
+        {"sign", (ks_obj)ks_cfunc_new_c(m_sign_, "m.sign(val)")},
 
-        {"rad", (ks_obj)ks_cfunc_new2(m_rad_, "m.rad(degrees)")},
-        {"deg", (ks_obj)ks_cfunc_new2(m_deg_, "m.deg(radians)")},
+        {"rad", (ks_obj)ks_cfunc_new_c(m_rad_, "m.rad(degrees)")},
+        {"deg", (ks_obj)ks_cfunc_new_c(m_deg_, "m.deg(radians)")},
 
-        {"sqrt", (ks_obj)ks_cfunc_new2(m_sqrt_, "m.sqrt(val)")},
-        {"cbrt", (ks_obj)ks_cfunc_new2(m_cbrt_, "m.cbrt(val)")},
-        {"exp", (ks_obj)ks_cfunc_new2(m_exp_, "m.exp(val)")},
-        {"pow", (ks_obj)ks_cfunc_new2(m_pow_, "m.pow(x, y)")},
-        {"hypot", (ks_obj)ks_cfunc_new2(m_hypot_, "m.hypot(x, y)")},
+        {"sqrt", (ks_obj)ks_cfunc_new_c(m_sqrt_, "m.sqrt(val)")},
+        {"cbrt", (ks_obj)ks_cfunc_new_c(m_cbrt_, "m.cbrt(val)")},
+        {"exp", (ks_obj)ks_cfunc_new_c(m_exp_, "m.exp(val)")},
+        {"pow", (ks_obj)ks_cfunc_new_c(m_pow_, "m.pow(x, y)")},
+        {"hypot", (ks_obj)ks_cfunc_new_c(m_hypot_, "m.hypot(x, y)")},
 
-        {"gamma", (ks_obj)ks_cfunc_new2(m_gamma_, "m.gamma(x)")},
-        {"lgamma", (ks_obj)ks_cfunc_new2(m_lgamma_, "m.lgamma(x)")},
+        {"gamma", (ks_obj)ks_cfunc_new_c(m_gamma_, "m.gamma(x)")},
+        {"lgamma", (ks_obj)ks_cfunc_new_c(m_lgamma_, "m.lgamma(x)")},
 
-        {"zeta", (ks_obj)ks_cfunc_new2(m_zeta_, "m.zeta(x)")},
+        {"zeta", (ks_obj)ks_cfunc_new_c(m_zeta_, "m.zeta(x)")},
 
         {NULL, NULL}
     });

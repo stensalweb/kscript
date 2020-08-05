@@ -17,8 +17,6 @@
 #include "../nx-impl.h"
 
 
-// nx.fft.plan type
-KS_TYPE_DECLFWD(nx_type_fft_plan);
 
 // FFT plan cache, keyed on string:
 // fmt("%i:%i:%i:%(%+z,)", (int)plan_type, isInv?1:0, rank, rank, dims)
@@ -34,7 +32,7 @@ static bool _fft_1D(nx_fft_plan plan, double complex* A);
 static bool do_shfl_btrv(nx_size_t N, double complex* A) {
     // check if power of 2
     if (N & (N - 1)) {
-        ks_throw_fmt(ks_type_SizeError, "Internally, `do_shfl_btrv` was called with non-power-of-two `N` (%z)", N);
+        ks_throw(ks_T_SizeError, "Internally, `do_shfl_btrv` was called with non-power-of-two `N` (%z)", N);
         return false;
     }
 
@@ -66,7 +64,7 @@ static bool do_shfl_btrv(nx_size_t N, double complex* A) {
 static bool _fft_1D_BFLY(nx_fft_plan plan, double complex* A) {
 
     if (plan->ptype != NX_FFT_PLAN_1D_BFLY) {
-        ks_throw_fmt(ks_type_InternalError, "`_fft_1D_BFLY` was called with `plan->ptype != NX_FFT_PLAN_1D_BFLY`");
+        ks_throw(ks_T_InternalError, "`_fft_1D_BFLY` was called with `plan->ptype != NX_FFT_PLAN_1D_BFLY`");
         return false;
     }
 
@@ -75,7 +73,7 @@ static bool _fft_1D_BFLY(nx_fft_plan plan, double complex* A) {
 
     // ensure it is a power of two
     if (N & (N - 1)) {
-        ks_throw_fmt(ks_type_SizeError, "`_fft_1D_BFLY` had a plan with a non-power-of-two `N`");
+        ks_throw(ks_T_SizeError, "`_fft_1D_BFLY` had a plan with a non-power-of-two `N`");
         return false;
     }
 
@@ -132,7 +130,7 @@ static bool _fft_1D_BFLY(nx_fft_plan plan, double complex* A) {
 // Since M ~= 3*N:
 static bool _fft_1D_BLUE(nx_fft_plan plan, double complex* A) {
     if (plan->ptype != NX_FFT_PLAN_1D_BLUE) {
-        ks_throw_fmt(ks_type_InternalError, "`_fft_1D_BLUE` was called with `plan->ptype != NX_FFT_PLAN_1D_BLUE`");
+        ks_throw(ks_T_InternalError, "`_fft_1D_BLUE` was called with `plan->ptype != NX_FFT_PLAN_1D_BLUE`");
         return false;
     }
 
@@ -213,7 +211,7 @@ static bool _fft_1D(nx_fft_plan plan, double complex* A) {
     } else if (plan->ptype == NX_FFT_PLAN_1D_BLUE) {
         return _fft_1D_BLUE(plan, A);
     } else {
-        ks_throw_fmt(ks_type_InternalError, "`_fft_1D` given plan->ptype==%i, which is unknown", plan->ptype);
+        ks_throw(ks_T_InternalError, "`_fft_1D` given plan->ptype==%i, which is unknown", plan->ptype);
         return false;
     }
 }
@@ -249,7 +247,7 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
     nx_fft_plan cache_val = (nx_fft_plan)ks_dict_get_h(fft_plan_cache, (ks_obj)cache_key, cache_key->v_hash);
     if (!cache_val) {
         ks_catch_ignore();
-    } else if (cache_val->type != nx_type_fft_plan) {
+    } else if (cache_val->type != nx_T_fft_plan) {
         KS_DECREF(cache_val);
     } else {
         return cache_val;
@@ -260,7 +258,7 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
 
         // prefer FFT if the type is not specified
         nx_fft_plan self = KS_ALLOC_OBJ(nx_fft_plan);
-        KS_INIT_OBJ(self, nx_type_fft_plan);
+        KS_INIT_OBJ(self, nx_T_fft_plan);
         self->ptype = plan_type;
 
         self->isInv = isInv;
@@ -301,7 +299,7 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
         if (!self->fftw3_nd.plan) {
             KS_DECREF(self);
             KS_DECREF(cache_key);
-            return ks_throw_fmt(ks_type_InternalError, "`fft_plan_many_dft()` failed; could not create FFTW3 plan");
+            return ks_throw(ks_T_InternalError, "`fft_plan_many_dft()` failed; could not create FFTW3 plan");
         }
 
 
@@ -321,12 +319,12 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
         #else
 
         KS_DECREF(cache_key);
-        return ks_throw_fmt(ks_type_InternalError, "FFT plan type NX_FFT_PLAN_ND_FFTW3 requested, but was not compiled with FFTW3");
+        return ks_throw(ks_T_InternalError, "FFT plan type NX_FFT_PLAN_ND_FFTW3 requested, but was not compiled with FFTW3");
 
         #endif
     } else if (plan_type == NX_FFT_PLAN_ND_DEFAULT) {
         nx_fft_plan self = KS_ALLOC_OBJ(nx_fft_plan);
-        KS_INIT_OBJ(self, nx_type_fft_plan);
+        KS_INIT_OBJ(self, nx_T_fft_plan);
         self->ptype = plan_type;
 
         self->isInv = isInv;
@@ -358,7 +356,7 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
 
         if (rank != 1) {
             KS_DECREF(cache_key);
-            return ks_throw_fmt(ks_type_SizeError, "FFT plan type NX_FFT_PLAN_1D_BFLY requested, but rank (%i) was not 1", rank);
+            return ks_throw(ks_T_SizeError, "FFT plan type NX_FFT_PLAN_1D_BFLY requested, but rank (%i) was not 1", rank);
         }
 
         // N = transform length
@@ -367,11 +365,11 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
         // N is a power of 2, so set up Cooley-Tukey/Butterfly plan
         if ((N & (N - 1)) != 0) {
             KS_DECREF(cache_key);
-            return ks_throw_fmt(ks_type_SizeError, "FFT plan type NX_FFT_PLAN_1D_BFLY requested, but size N (%z) was not a power of 2", N);
+            return ks_throw(ks_T_SizeError, "FFT plan type NX_FFT_PLAN_1D_BFLY requested, but size N (%z) was not a power of 2", N);
         }
 
         nx_fft_plan self = KS_ALLOC_OBJ(nx_fft_plan);
-        KS_INIT_OBJ(self, nx_type_fft_plan);
+        KS_INIT_OBJ(self, nx_T_fft_plan);
         self->ptype = plan_type;
 
         self->isInv = isInv;
@@ -398,14 +396,14 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
     } else if (plan_type == NX_FFT_PLAN_1D_BLUE) {
         if (rank != 1) {
             KS_DECREF(cache_key);
-            return ks_throw_fmt(ks_type_SizeError, "FFT plan type NX_FFT_PLAN_1D_BLUE requested, but rank (%i) was not 1", rank);
+            return ks_throw(ks_T_SizeError, "FFT plan type NX_FFT_PLAN_1D_BLUE requested, but rank (%i) was not 1", rank);
         }
 
         // N = transform length
         nx_size_t N = dim[0];
 
         nx_fft_plan self = KS_ALLOC_OBJ(nx_fft_plan);
-        KS_INIT_OBJ(self, nx_type_fft_plan);
+        KS_INIT_OBJ(self, nx_T_fft_plan);
         self->ptype = plan_type;
 
         self->isInv = isInv;
@@ -439,7 +437,7 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
             // out of index
             if (M > SIZE_MAX / 2) {
                 KS_DECREF(self);
-                return ks_throw_fmt(ks_type_InternalError, "`nx_fft_plan_create` got N=%z, which was too large", N);
+                return ks_throw(ks_T_InternalError, "`nx_fft_plan_create` got N=%z, which was too large", N);
             }
 
             // next power of 2
@@ -465,7 +463,7 @@ nx_fft_plan nx_fft_plan_create(enum nx_fft_plan_type plan_type, int rank, nx_siz
         return self;
     } else {
         KS_DECREF(cache_key);
-        return ks_throw_fmt(ks_type_InternalError, "Could not create plan given plan_type==%i", (int)plan_type);
+        return ks_throw(ks_T_InternalError, "Could not create plan given plan_type==%i", (int)plan_type);
     }
 
 }
@@ -574,7 +572,7 @@ static bool my_fft_loop_fftw3(int loop_N, nx_size_t* loop_dim, nx_size_t* idx, v
     struct my_fft_data_fftw3* data = (struct my_fft_data_fftw3*)_user_data;
 
     if (data->plan->ptype != NX_FFT_PLAN_ND_FFTW3) {
-        ks_throw_fmt(ks_type_InternalError, "`my_fft_loop_fftw3()` got data->plan->ptype != NX_FFT_PLAN_ND_FFTW3");
+        ks_throw(ks_T_InternalError, "`my_fft_loop_fftw3()` got data->plan->ptype != NX_FFT_PLAN_ND_FFTW3");
         return false;
     }
 
@@ -639,13 +637,13 @@ bool nx_fft_plan_do(nx_fft_plan plan, nxar_t A, nxar_t B, int* axes) {
     int i;
 
     if (A.rank != B.rank) {
-        ks_throw_fmt(ks_type_SizeError, "While doing FFT, A.rank != B.rank (%i != %i)", A.rank, B.rank);
+        ks_throw(ks_T_SizeError, "While doing FFT, A.rank != B.rank (%i != %i)", A.rank, B.rank);
         return false;
     }
 
     for (i = 0; i < A.rank; ++i) {
         if (A.dim[i] != B.dim[i]) {
-            ks_throw_fmt(ks_type_SizeError, "While doing FFT, shape mismatch, A.shape != B.shape ((%+z,) != (%+z,))", A.rank, A.dim, B.rank, B.dim);
+            ks_throw(ks_T_SizeError, "While doing FFT, shape mismatch, A.shape != B.shape ((%+z,) != (%+z,))", A.rank, A.dim, B.rank, B.dim);
             return false;
         }
     }
@@ -654,11 +652,11 @@ bool nx_fft_plan_do(nx_fft_plan plan, nxar_t A, nxar_t B, int* axes) {
         int axis = ((axes[i] % A.rank) + A.rank) % A.rank;
 
         if (A.dim[axis] != plan->dim[i]) {
-            ks_throw_fmt(ks_type_SizeError, "Dimension mismatch between FFT plan, and axes; (A.dim[axes[%i]] == A.dim[%i] == %z) != (plan->dim[%i] == %z)", i, axis, A.dim[axis], i, plan->dim[i]);
+            ks_throw(ks_T_SizeError, "Dimension mismatch between FFT plan, and axes; (A.dim[axes[%i]] == A.dim[%i] == %z) != (plan->dim[%i] == %z)", i, axis, A.dim[axis], i, plan->dim[i]);
             return false;
         }
         if (B.dim[axis] != plan->dim[i]) {
-            ks_throw_fmt(ks_type_SizeError, "Dimension mismatch between FFT plan, and axes; (B.dim[axes[%i]] == B.dim[%i] == %z) != (plan->dim[%i] == %z)", i, axis, B.dim[axis], i, plan->dim[i]);
+            ks_throw(ks_T_SizeError, "Dimension mismatch between FFT plan, and axes; (B.dim[axes[%i]] == B.dim[%i] == %z) != (plan->dim[%i] == %z)", i, axis, B.dim[axis], i, plan->dim[i]);
             return false;
         }
     }
@@ -760,7 +758,7 @@ bool nx_fft_plan_do(nx_fft_plan plan, nxar_t A, nxar_t B, int* axes) {
 
         #else
 
-        ks_throw_fmt(ks_type_InternalError, "nx_fft_plan_t had ptype==NX_FFT_PLAN_ND_FFTW3, but it was not compiled with FFTW3 support!");
+        ks_throw(ks_type_InternalError, "nx_fft_plan_t had ptype==NX_FFT_PLAN_ND_FFTW3, but it was not compiled with FFTW3 support!");
         return false;
         #endif
 
@@ -847,9 +845,8 @@ bool nx_fft_plan_do(nx_fft_plan plan, nxar_t A, nxar_t B, int* axes) {
 
 // plan.__free__(self)
 static KS_TFUNC(plan, free) {
-    KS_REQ_N_ARGS(n_args, 1);
     nx_fft_plan self;
-    if (!ks_parse_params(n_args, args, "self%*", &self, nx_type_fft_plan)) return NULL;
+    KS_GETARGS("self:*", &self, nx_T_fft_plan)
 
     if (self->ptype == NX_FFT_PLAN_ND_FFTW3) {
         #ifdef KS_HAVE_FFTW3
@@ -883,10 +880,9 @@ static KS_TFUNC(plan, free) {
 
 // plan.__str__(self)
 static KS_TFUNC(plan, str) {
-    KS_REQ_N_ARGS(n_args, 1);
     nx_fft_plan self;
-    if (!ks_parse_params(n_args, args, "self%*", &self, nx_type_fft_plan)) return NULL;
-
+    KS_GETARGS("self:*", &self, nx_T_fft_plan)
+    
     enum nx_fft_plan_type pt = self->ptype;
 
     return (ks_obj)ks_fmt_c("nx.fft.Plan(rank=%i, dim=(%+z), ptype='%s')", self->rank, self->rank, self->dim, 
@@ -901,22 +897,22 @@ static KS_TFUNC(plan, str) {
 }
 
 
-// initialize the type
-void nx_type_fft_plan_init() {
+// nx.fft.plan type
+KS_TYPE_DECLFWD(nx_T_fft_plan);
 
-    KS_INIT_TYPE_OBJ(nx_type_fft_plan, "nx.fft.Plan");
+// initialize the type
+void nx_T_init_fft_plan() {
 
     fft_plan_cache = ks_dict_new(0, NULL);
 
-    ks_type_set_cn(nx_type_fft_plan, (ks_dict_ent_c[]) {
+    ks_type_init_c(nx_T_fft_plan, "nx.fft.Plan", ks_T_obj, KS_KEYVALS(
 
-        {"__free__", (ks_obj)ks_cfunc_new2(plan_free_, "nx.array.__free__(self)")},
-        {"__str__", (ks_obj)ks_cfunc_new2(plan_str_, "nx.array.__str__(self)")},
-        {"__repr__", (ks_obj)ks_cfunc_new2(plan_str_, "nx.array.__repr__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new_c(plan_free_, "nx.array.__free__(self)")},
+        {"__str__", (ks_obj)ks_cfunc_new_c(plan_str_, "nx.array.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new_c(plan_str_, "nx.array.__repr__(self)")},
 
         {"_plan_cache", (ks_obj)fft_plan_cache},
 
-        {NULL, NULL}
-    });
+    ));
 }
 

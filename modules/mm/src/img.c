@@ -98,7 +98,7 @@ static bool my_encode(AVCodecContext* codec_ctx, AVFrame* frame, AVPacket* packe
 
     // send frame to the encoder
     if ((avst = avcodec_send_frame(codec_ctx, frame)) < 0) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_send_frame()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+        ks_throw(ks_type_InternalError, "`avcodec_send_frame()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
         return false;
     }
 
@@ -107,7 +107,7 @@ static bool my_encode(AVCodecContext* codec_ctx, AVFrame* frame, AVPacket* packe
         if (avst == AVERROR(EAGAIN) || avst == AVERROR_EOF)
             return true;
         else if (avst < 0) {
-            ks_throw_fmt(ks_type_InternalError, "`avcodec_receive_packet()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+            ks_throw(ks_type_InternalError, "`avcodec_receive_packet()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
             return false;
         }
 
@@ -161,28 +161,28 @@ nx_array mm_read_image(char* fname, enum mm_flags flags) {
 
     // find image 2D input format
     if (!(iformat = av_find_input_format("image2"))) {
-        ks_throw_fmt(ks_type_InternalError, "Failed to find input format 'image2'");
+        ks_throw(ks_type_InternalError, "Failed to find input format 'image2'");
         goto end_read_image;
     }
 
     // open the input format
     if ((avst = avformat_open_input(&format_ctx, fname, iformat, NULL)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to open image file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
+        ks_throw(ks_type_IOError, "Failed to open image file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
         goto end_read_image;
     }
 
     // attempt to find stream information about the file
     if ((avst = avformat_find_stream_info(format_ctx, NULL)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to find stream info for file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
+        ks_throw(ks_type_IOError, "Failed to find stream info for file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
         goto end_read_image;
     }
 
     // and locate the best video stream
     if ((st_i = av_find_best_stream(format_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to find a video stream file '%s': %s (code: %i)", fname, av_err2str(st_i), st_i);
+        ks_throw(ks_type_IOError, "Failed to find a video stream file '%s': %s (code: %i)", fname, av_err2str(st_i), st_i);
         goto end_read_image;
     } else if (!codec) {
-        ks_throw_fmt(ks_type_IOError, "Failed to find a valid codec for stream #%i in file '%s': %s (code: %i)", fname, st_i, av_err2str(st_i), st_i);
+        ks_throw(ks_type_IOError, "Failed to find a valid codec for stream #%i in file '%s': %s (code: %i)", fname, st_i, av_err2str(st_i), st_i);
         goto end_read_image;
     }
 
@@ -194,24 +194,24 @@ nx_array mm_read_image(char* fname, enum mm_flags flags) {
 
     // allocate structures
 	if (!(codec_ctx = avcodec_alloc_context3(NULL))) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_alloc_context()` failed");
+        ks_throw(ks_type_InternalError, "`avcodec_alloc_context()` failed");
         goto end_read_image;
     }
 
     // now, transfer to context
     if ((avst = avcodec_parameters_to_context(codec_ctx, codec_par)) < 0) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_parameters_to_context()` failed: %s (code %i)", av_err2str(avst), avst);
+        ks_throw(ks_type_InternalError, "`avcodec_parameters_to_context()` failed: %s (code %i)", av_err2str(avst), avst);
         goto end_read_image;
     }
 
     // allocate data buffres
     if (!(frame = av_frame_alloc())) {
-        ks_throw_fmt(ks_type_InternalError, "`av_frame_alloc()` failed");
+        ks_throw(ks_type_InternalError, "`av_frame_alloc()` failed");
         goto end_read_image;
     }
 
     if (!(packet = av_packet_alloc())) {
-        ks_throw_fmt(ks_type_InternalError, "Failed to `av_packet_alloc()`");
+        ks_throw(ks_type_InternalError, "Failed to `av_packet_alloc()`");
         goto end_read_image;
     }
 
@@ -223,25 +223,25 @@ nx_array mm_read_image(char* fname, enum mm_flags flags) {
 
     // open it
     if ((avst = avcodec_open2(codec_ctx, codec, &opt)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to find codec for file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
+        ks_throw(ks_type_IOError, "Failed to find codec for file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
         goto end_read_image;
     }
 
     // read a frame (still encoded) into packet
     if ((avst = av_read_frame(format_ctx, packet)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to find read frame from file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
+        ks_throw(ks_type_IOError, "Failed to find read frame from file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
         goto end_read_image;
     }
 
     // now, send the packet to the decoder
     if ((avst = avcodec_send_packet(codec_ctx, packet)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to send packet to decoder in file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
+        ks_throw(ks_type_IOError, "Failed to send packet to decoder in file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
         goto end_read_image;
     }
 
     // and receive it as a decoded frame
     if ((avst = avcodec_receive_frame(codec_ctx, frame)) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Failed to receive frame to decoder in file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
+        ks_throw(ks_type_IOError, "Failed to receive frame to decoder in file '%s': %s (code: %i)", fname, av_err2str(avst), avst);
         goto end_read_image;
     }
 
@@ -452,7 +452,7 @@ nx_array mm_read_image(char* fname, enum mm_flags flags) {
 
     #else
 
-    return ks_throw_fmt(ks_type_InternalError, "`mm` was compiled without libav, so you can't read images");
+    return ks_throw(ks_type_InternalError, "`mm` was compiled without libav, so you can't read images");
 
     #endif
 }
@@ -470,7 +470,7 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
     //   https://libav.org/documentation/doxygen/master/encode__video_8c_source.html
     // check everything
     if (img.rank != 3) {
-        ks_throw_fmt(ks_type_ToDoError, "Only rank-3 tensors can be converted to images right now: (h, w, d)");
+        ks_throw(ks_type_ToDoError, "Only rank-3 tensors can be converted to images right now: (h, w, d)");
         return false;
     }
 
@@ -478,7 +478,7 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
     char* _ext = strrchr(fname, '.');
 
     if (!_ext) {
-        ks_throw_fmt(ks_type_ArgError, "Can't determine file output format for file name '%s'", fname);
+        ks_throw(ks_type_ArgError, "Can't determine file output format for file name '%s'", fname);
         return false;
     }
 
@@ -520,7 +520,7 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
     #undef _EQE
 
     if (codec_id < 0) {
-        ks_throw_fmt(ks_type_ArgError, "Can't determine file output format for file name '%s' (unknown extension: '%s')", fname, _ext);
+        ks_throw(ks_type_ArgError, "Can't determine file output format for file name '%s' (unknown extension: '%s')", fname, _ext);
         return false;
     }
 
@@ -558,22 +558,22 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
     bool rst = false;
 
 	if (!(codec = avcodec_find_encoder(codec_id))) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_find_encoder()` failed");
+        ks_throw(ks_type_InternalError, "`avcodec_find_encoder()` failed");
         goto end_write_image;
     }
 
 	if (!(codec_ctx = avcodec_alloc_context3(NULL))) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_alloc_context()` failed");
+        ks_throw(ks_type_InternalError, "`avcodec_alloc_context()` failed");
         goto end_write_image;
     }
 
     if (!(frame = av_frame_alloc())) {
-        ks_throw_fmt(ks_type_InternalError, "Failed to `av_frame_alloc()`");
+        ks_throw(ks_type_InternalError, "Failed to `av_frame_alloc()`");
         goto end_write_image;
     }
 
     if (!(packet = av_packet_alloc())) {
-        ks_throw_fmt(ks_type_InternalError, "Failed to `av_packet_alloc()`");
+        ks_throw(ks_type_InternalError, "Failed to `av_packet_alloc()`");
         goto end_write_image;
     }
 
@@ -600,7 +600,7 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
 
     // open encoder
 	if (avst = avcodec_open2(codec_ctx, codec, NULL)) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_open()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+        ks_throw(ks_type_InternalError, "`avcodec_open()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
         goto end_write_image;
     }
 
@@ -613,7 +613,7 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
 
     fp = fopen(fname, "wb");
     if (!fp) {
-        ks_throw_fmt(ks_type_IOError, "Could not open file '%s': ", fname, strerror(errno));
+        ks_throw(ks_type_IOError, "Could not open file '%s': ", fname, strerror(errno));
         goto end_write_image;
     }
 
@@ -623,12 +623,12 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
     frame->height = h;
 
     if ((avst = av_frame_get_buffer(frame, 64)) < 0) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_frame_get_buffer()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+        ks_throw(ks_type_InternalError, "`avcodec_frame_get_buffer()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
         goto end_write_image;
     }
 
     if ((avst = av_frame_make_writable(frame)) < 0) {
-        ks_throw_fmt(ks_type_InternalError, "`aav_frame_make_writable()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+        ks_throw(ks_type_InternalError, "`aav_frame_make_writable()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
         goto end_write_image;
     }
 
@@ -751,7 +751,7 @@ bool mm_write_image(char* fname, nxar_t img, enum mm_flags flags) {
 
     } else {
         // we need to convert what we have to it
-        ks_throw_fmt(ks_type_ToDoError, "Need to implement swscale for other formats");
+        ks_throw(ks_type_ToDoError, "Need to implement swscale for other formats");
 
         goto end_write_image;
     }
@@ -770,7 +770,7 @@ end_write_image:
 
     #else
 
-    return ks_throw_fmt(ks_type_InternalError, "`mm` was compiled without libav, so you can't write images");
+    return ks_throw(ks_type_InternalError, "`mm` was compiled without libav, so you can't write images");
 
     #endif
 

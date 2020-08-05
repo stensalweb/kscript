@@ -6,7 +6,7 @@
 #include "../nx-impl.h"
 
 // forward declaring
-KS_TYPE_DECLFWD(nx_type_dtype);
+KS_TYPE_DECLFWD(nx_T_dtype);
 
 // dtypes
 nx_dtype
@@ -33,14 +33,14 @@ static ks_dict dtype_cache = NULL;
 
 nx_dtype nx_dtype_make_int(char* name, int bits, bool isSigned) {
     if (bits % 8 != 0) {
-        return ks_throw_fmt(ks_type_ArgError, "`CINT` dtype must have bits%%8==0");
+        return ks_throw(ks_T_ArgError, "`CINT` dtype must have bits%%8==0");
     }
 
     ks_str sname = ks_str_new(name);
     ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sname, sname->v_hash);
 
     if (ret) {
-        if (ret->type == nx_type_dtype) {
+        if (ret->type == nx_T_dtype) {
             KS_DECREF(sname);
             return (nx_dtype)ret;
         } else {
@@ -49,7 +49,7 @@ nx_dtype nx_dtype_make_int(char* name, int bits, bool isSigned) {
     }
 
     nx_dtype self = KS_ALLOC_OBJ(nx_dtype);
-    KS_INIT_OBJ(self, nx_type_dtype);
+    KS_INIT_OBJ(self, nx_T_dtype);
     
     self->name = sname;
 
@@ -67,14 +67,14 @@ nx_dtype nx_dtype_make_int(char* name, int bits, bool isSigned) {
 // NOTE: Returns a new reference
 nx_dtype nx_dtype_make_fp(char* name, int bits) {
     if (bits != 32 && bits != 64) {
-        return ks_throw_fmt(ks_type_ArgError, "`CFLOAT` dtype must have bits in (32, 64)");
+        return ks_throw(ks_T_ArgError, "`CFLOAT` dtype must have bits in (32, 64)");
     }
 
     ks_str sname = ks_str_new(name);
     ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sname, sname->v_hash);
 
     if (ret) {
-        if (ret->type == nx_type_dtype) {
+        if (ret->type == nx_T_dtype) {
             KS_DECREF(sname);
             return (nx_dtype)ret;
         } else {
@@ -83,7 +83,7 @@ nx_dtype nx_dtype_make_fp(char* name, int bits) {
     }
 
     nx_dtype self = KS_ALLOC_OBJ(nx_dtype);
-    KS_INIT_OBJ(self, nx_type_dtype);
+    KS_INIT_OBJ(self, nx_T_dtype);
     
     self->name = sname;
 
@@ -99,7 +99,7 @@ nx_dtype nx_dtype_make_fp(char* name, int bits) {
 // NOTE: Returns a new reference
 nx_dtype nx_dtype_make_cplx(char* name, int bits) {
     if (bits != 32 && bits != 64) {
-        return ks_throw_fmt(ks_type_ArgError, "`CCOMPLEX` dtype must have bits in (32, 64)");
+        return ks_throw(ks_T_ArgError, "`CCOMPLEX` dtype must have bits in (32, 64)");
     }
 
 
@@ -107,7 +107,7 @@ nx_dtype nx_dtype_make_cplx(char* name, int bits) {
     ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sname, sname->v_hash);
 
     if (ret) {
-        if (ret->type == nx_type_dtype) {
+        if (ret->type == nx_T_dtype) {
             KS_DECREF(sname);
             return (nx_dtype)ret;
         } else {
@@ -116,7 +116,7 @@ nx_dtype nx_dtype_make_cplx(char* name, int bits) {
     }
 
     nx_dtype self = KS_ALLOC_OBJ(nx_dtype);
-    KS_INIT_OBJ(self, nx_type_dtype);
+    KS_INIT_OBJ(self, nx_T_dtype);
     
     self->name = sname;
 
@@ -129,30 +129,30 @@ nx_dtype nx_dtype_make_cplx(char* name, int bits) {
 }
 
 
-// dtype.__new__(obj)
+// dtype.__new__(typ, obj)
 static KS_TFUNC(dtype, new) {
-    KS_REQ_N_ARGS(n_args, 1);
-    ks_obj obj = args[0];
+    ks_type typ;
+    ks_obj obj;
+    KS_GETARGS("typ:* obj", &typ, ks_T_type, &obj);
 
-    if (obj->type == ks_type_str) {
+    if (obj->type == ks_T_str) {
         ks_str sobj = (ks_str)obj;
         ks_obj ret = ks_dict_get_h(dtype_cache, (ks_obj)sobj, sobj->v_hash);
         if (!ret) {
-            return ks_throw_fmt(ks_type_KeyError, "Unknown dtype: %S", args[0]);
+            return ks_throw(ks_T_KeyError, "Unknown dtype: %S", args[0]);
         }
         return ret;
 
     } else {
-        return ks_throw_fmt(ks_type_TypeError, "Could not create dtype from object '%S'", obj);
+        return ks_throw(ks_T_TypeError, "Could not create dtype from object '%S'", obj);
     }
 }
 
 
 // dtype.__free__(self)
 static KS_TFUNC(dtype, free) {
-    KS_REQ_N_ARGS(n_args, 1);
-    nx_dtype self = (nx_dtype)args[0];
-    KS_REQ_TYPE(self, nx_type_dtype, "self");
+    nx_dtype self;
+    KS_GETARGS("self:*", &self, nx_T_dtype);
 
     KS_DECREF(self->name);
 
@@ -165,29 +165,25 @@ static KS_TFUNC(dtype, free) {
 
 // dtype.__str__(self)
 static KS_TFUNC(dtype, str) {
-    nx_dtype self = (nx_dtype)args[0];
-    KS_REQ_TYPE(self, nx_type_dtype, "self");
+    nx_dtype self;
+    KS_GETARGS("self:*", &self, nx_T_dtype);
 
     return KS_NEWREF(self->name);
 }
 
-void nx_type_dtype_init() {
-    KS_INIT_TYPE_OBJ(nx_type_dtype, "nx.dtype");
-
+void nx_T_init_dtype() {
     // create cache
     dtype_cache = ks_dict_new(0, NULL);
-    ks_type_set_cn(nx_type_dtype, (ks_dict_ent_c[]) {
+    ks_type_init_c(nx_T_dtype, "nx.dtype", ks_T_obj, KS_KEYVALS(
 
-        {"__new__", (ks_obj)ks_cfunc_new2(dtype_new_, "nx.dtype.__new__(obj)")},
-        {"__free__", (ks_obj)ks_cfunc_new2(dtype_free_, "nx.dtype.__free__(self)")},
+        {"__new__", (ks_obj)ks_cfunc_new_c(dtype_new_, "nx.dtype.__new__(typ, obj)")},
+        {"__free__", (ks_obj)ks_cfunc_new_c(dtype_free_, "nx.dtype.__free__(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new2(dtype_str_, "nx.dtype.__str__(self)")},
-        {"__repr__", (ks_obj)ks_cfunc_new2(dtype_str_, "nx.dtype.__repr__(self)")},
+        {"__str__", (ks_obj)ks_cfunc_new_c(dtype_str_, "nx.dtype.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new_c(dtype_str_, "nx.dtype.__repr__(self)")},
 
         {"_dtype_cache", (ks_obj)dtype_cache},
-
-        {NULL, NULL}
-    });
+    ));
 
 
     nx_dtype_sint8 = nx_dtype_make_int("sint8", 8, true);

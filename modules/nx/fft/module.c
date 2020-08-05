@@ -11,10 +11,9 @@
 
 // nx.fft.fftN(A, axes=none, B=none)
 static KS_TFUNC(fft, fftN) {
-    KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
     ks_obj a_axes = NULL;
-    ks_obj aA, aB = KSO_NONE;
-    if (!ks_parse_params(n_args, args, "A%any ?axes%any ?B%any", &aA, &a_axes, &aB)) return NULL;
+    ks_obj aA , aB = KSO_NONE;
+    KS_GETARGS("A ?axes ?B", &aA, &a_axes, &aB);
 
     int i;
     nxar_t Ar, Br;
@@ -45,7 +44,7 @@ static KS_TFUNC(fft, fftN) {
         for (i = 0; i < fft_rank; ++i) axes[i] = i;
 
     } else {
-        ks_list l_axes = ks_list_from_iterable(a_axes);
+        ks_list l_axes = ks_list_new_iter(a_axes);
         if (!l_axes) {
             KS_DECREF(dels);
             return NULL;
@@ -126,10 +125,9 @@ static KS_TFUNC(fft, fftN) {
 
 // nx.fft.ifftN(A, axes=none, B=none)
 static KS_TFUNC(fft, ifftN) {
-    KS_REQ_N_ARGS_RANGE(n_args, 1, 3);
     ks_obj a_axes = NULL;
-    ks_obj aA, aB = KSO_NONE;
-    if (!ks_parse_params(n_args, args, "A%any ?axes%any ?B%any", &aA, &a_axes, &aB)) return NULL;
+    ks_obj aA , aB = KSO_NONE;
+    KS_GETARGS("A ?axes ?B", &aA, &a_axes, &aB);
 
     int i;
     nxar_t Ar, Br;
@@ -160,7 +158,7 @@ static KS_TFUNC(fft, ifftN) {
         for (i = 0; i < fft_rank; ++i) axes[i] = i;
 
     } else {
-        ks_list l_axes = ks_list_from_iterable(a_axes);
+        ks_list l_axes = ks_list_new_iter(a_axes);
         if (!l_axes) {
             KS_DECREF(dels);
             return NULL;
@@ -245,27 +243,24 @@ void nx_mod_add_fft(ks_module nxmod) {
 
     ks_module submod = ks_module_new("nx." SUBMOD);
 
-    nx_type_fft_plan_init();
+    nx_T_init_fft_plan();
 
-    ks_dict_set_cn(submod->attr, (ks_dict_ent_c[]){
+    ks_dict_set_c(submod->attr, KS_KEYVALS(
 
-        {"Plan",        (ks_obj)nx_type_fft_plan},
+        {"Plan",        (ks_obj)nx_T_fft_plan},
 
-        {"fftN",        (ks_obj)ks_cfunc_new2(fft_fftN_, "nx.fft.fftN(A, axes=none, B=none)")},
-        {"ifftN",        (ks_obj)ks_cfunc_new2(fft_ifftN_, "nx.fft.fftN(A, axes=none, B=none)")},
-        //{"ifft2d",       (ks_obj)ks_cfunc_new2(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
-
-
-        {NULL, NULL}
-    });
+        {"fftN",        (ks_obj)ks_cfunc_new_c(fft_fftN_, "nx.fft.fftN(A, axes=none, B=none)")},
+        {"ifftN",        (ks_obj)ks_cfunc_new_c(fft_ifftN_, "nx.fft.fftN(A, axes=none, B=none)")},
+        //{"ifft2d",       (ks_obj)ks_cfunc_new_c(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
 
 
-    ks_dict_set_cn(nxmod->attr, (ks_dict_ent_c[]){
+    ));
+
+    ks_dict_set_c(nxmod->attr, KS_KEYVALS(
 
         {SUBMOD,        (ks_obj)submod},
 
-        {NULL, NULL}
-    });
+    ));
 
 }
 

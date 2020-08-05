@@ -39,7 +39,7 @@ static bool my_setfrom_pi(enum AVSampleFormat smp_fmt, void** samples, int len, 
         break;
 
     default:
-        ks_throw_fmt(ks_type_ToDoError, "Haven't handled AvSampleFormat==%i", (int)smp_fmt);
+        ks_throw(ks_type_ToDoError, "Haven't handled AvSampleFormat==%i", (int)smp_fmt);
         return false;
         break;
     }
@@ -66,7 +66,7 @@ bool decode_audio_file(const char* fname, double** data, int* size, int* channel
 
     // attempt to open the file
     if (avformat_open_input(&format_ctx, fname, NULL, NULL) != 0) {
-        ks_throw_fmt(ks_type_IOError, "Could not open file '%s'", fname);
+        ks_throw(ks_type_IOError, "Could not open file '%s'", fname);
         goto cleanup;
     }
         
@@ -93,7 +93,7 @@ bool decode_audio_file(const char* fname, double** data, int* size, int* channel
     }
 
     if (A_st_i < 0) {
-        ks_throw_fmt(ks_type_IOError, "Could not find audio stream in file '%s'", fname);
+        ks_throw(ks_type_IOError, "Could not find audio stream in file '%s'", fname);
         goto cleanup;
     }
 
@@ -103,14 +103,14 @@ bool decode_audio_file(const char* fname, double** data, int* size, int* channel
     // find & open codec
     AVCodecContext* A_codec = A_stream->codec;
     if (avcodec_open2(A_codec, avcodec_find_decoder(A_codec->codec_id), NULL) < 0) {
-        ks_throw_fmt(ks_type_IOError, "Could not open decoder for audio stream (#%i) in file '%s'", A_st_i, fname);
+        ks_throw(ks_type_IOError, "Could not open decoder for audio stream (#%i) in file '%s'", A_st_i, fname);
         goto cleanup;
     }
 
     // prepare to read data
     frame = av_frame_alloc();
 	if (!frame) {
-        ks_throw_fmt(ks_type_InternalError, "Failed to call `av_frame_alloc()`");
+        ks_throw(ks_type_InternalError, "Failed to call `av_frame_alloc()`");
         goto cleanup;
 	}
  
@@ -243,7 +243,7 @@ static ks_module get_module() {
     ks_module mod_nx = ks_module_import("nx");
     if (!mod_nx) {
         ks_catch_ignore();
-        return ks_throw_fmt(ks_type_InternalError, "`mm` module requires the `nx` library, but it could not be found!");
+        return ks_throw(ks_type_InternalError, "`mm` module requires the `nx` library, but it could not be found!");
     } else {
         KS_DECREF(mod_nx);
     }
@@ -267,10 +267,10 @@ static ks_module get_module() {
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
         {"MediaType",        (ks_obj)mm_Enum_MediaType},
 
-        {"read_file",        (ks_obj)ks_cfunc_new2(mm_read_file_,  "mm.read_file(fname)")},
-        {"read_audio",       (ks_obj)ks_cfunc_new2(mm_read_audio_, "mm.read_audio(fname)")},
-        {"read_image",       (ks_obj)ks_cfunc_new2(mm_read_image_, "mm.read_image(fname)")},
-        {"write_image",       (ks_obj)ks_cfunc_new2(mm_write_image_, "mm.write_image(img, fname)")},
+        {"read_file",        (ks_obj)ks_cfunc_new_c(mm_read_file_,  "mm.read_file(fname)")},
+        {"read_audio",       (ks_obj)ks_cfunc_new_c(mm_read_audio_, "mm.read_audio(fname)")},
+        {"read_image",       (ks_obj)ks_cfunc_new_c(mm_read_image_, "mm.read_image(fname)")},
+        {"write_image",       (ks_obj)ks_cfunc_new_c(mm_write_image_, "mm.write_image(img, fname)")},
 
         {"Stream",           (ks_obj)mm_type_Stream},
 

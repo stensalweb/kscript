@@ -15,19 +15,16 @@ void nx_mod_add_la(ks_module nxmod) {
 
     ks_module submod = ks_module_new("nx." SUBMOD);
 
-    ks_dict_set_cn(submod->attr, (ks_dict_ent_c[]){
+    ks_dict_set_c(submod->attr, KS_KEYVALS(
+
+    ));
 
 
-        {NULL, NULL}
-    });
-
-
-    ks_dict_set_cn(nxmod->attr, (ks_dict_ent_c[]){
+    ks_dict_set_c(nxmod->attr, KS_KEYVALS(
 
         {SUBMOD,        (ks_obj)submod},
 
-        {NULL, NULL}
-    });
+    ));
 
 }
 

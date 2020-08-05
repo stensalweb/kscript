@@ -11,13 +11,13 @@
 
 bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd) {
 
-    if (obj->type == nx_type_array) {
+    if (obj->type == nx_T_array) {
         *nxar = NXAR_ARRAY((nx_array)obj);
         return true;
-    } else if (obj->type == nx_type_view) {
+    } else if (obj->type == nx_T_view) {
         *nxar = NXAR_VIEW((nx_view)obj);
         return true;
-    } else if (ks_num_is_numeric(obj) || ks_is_iterable(obj)) {
+    } else if (ks_num_is_numeric(obj) || ks_obj_is_iterable(obj)) {
         // convert to object
         nx_array new_arr = nx_array_from_obj(obj, NX_DTYPE_KIND_NONE);
         if (!new_arr) return false;
@@ -26,7 +26,7 @@ bool nx_get_nxar(ks_obj obj, nxar_t* nxar, ks_list refadd) {
         ks_list_push(refadd, (ks_obj)new_arr);
         return true;
     } else {
-        ks_throw_fmt(ks_type_TypeError, "Cannot create nxar_t from type '%T'", obj);
+        ks_throw(ks_T_TypeError, "Cannot create nxar_t from type '%T'", obj);
         return false;
     }
 }
@@ -93,7 +93,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
                     //stride[ri] = self->stride[i];
 
                     //ri++;
-                } else if (idxs[i]->type == ks_type_slice) {
+                } else if (idxs[i]->type == ks_T_slice) {
                     // add dimension from slice argument
                     ks_slice arg_slice = (ks_slice)idxs[i];
 
@@ -117,7 +117,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
                         ks_free(dim);
                         ks_free(stride);
 
-                        return ks_throw_fmt(ks_type_ToDoError, "Need to determine what to return if size is 0 in a dimension");
+                        return ks_throw(ks_T_TodoError, "Need to determine what to return if size is 0 in a dimension");
                     }
 
                     // there will be this many
@@ -135,7 +135,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
                     ks_free(idxis);
                     ks_free(dim);
                     ks_free(stride);
-                    return ks_throw_fmt(ks_type_TypeError, "Expected all indices to be either 'int' or 'slice', but got '%T'", idxs[i]);
+                    return ks_throw(ks_T_TypeError, "Expected all indices to be either 'int' or 'slice', but got '%T'", idxs[i]);
 
                 }
             }
@@ -167,7 +167,7 @@ ks_obj nx_nxar_getitem(nxar_t nxar, int N, ks_obj* idxs) {
         }
 
     } else {
-        return ks_throw_fmt(ks_type_KeyError, "nx.array[...] expected %i indices (for %iD array), but only got %i", nxar.rank, nxar.rank, N);
+        return ks_throw(ks_T_KeyError, "nx.array[...] expected %i indices (for %iD array), but only got %i", nxar.rank, nxar.rank, N);
     }
 
 }
@@ -241,7 +241,7 @@ bool nx_nxar_setitem(nxar_t nxar, int N, ks_obj* idxs, ks_obj obj) {
                     //stride[ri] = self->stride[i];
 
                     //ri++;
-                } else if (idxs[i]->type == ks_type_slice) {
+                } else if (idxs[i]->type == ks_T_slice) {
                     // add dimension from slice argument
                     ks_slice arg_slice = (ks_slice)idxs[i];
 
@@ -265,7 +265,7 @@ bool nx_nxar_setitem(nxar_t nxar, int N, ks_obj* idxs, ks_obj obj) {
                         ks_free(dim);
                         ks_free(stride);
 
-                        return ks_throw_fmt(ks_type_ToDoError, "Need to determine what to return if size is 0 in a dimension");
+                        return ks_throw(ks_T_TodoError, "Need to determine what to return if size is 0 in a dimension");
                     }
 
                     // there will be this many
@@ -283,7 +283,7 @@ bool nx_nxar_setitem(nxar_t nxar, int N, ks_obj* idxs, ks_obj obj) {
                     ks_free(idxis);
                     ks_free(dim);
                     ks_free(stride);
-                    return ks_throw_fmt(ks_type_TypeError, "Expected all indices to be either 'int' or 'slice', but got '%T'", idxs[i]);
+                    return ks_throw(ks_T_TypeError, "Expected all indices to be either 'int' or 'slice', but got '%T'", idxs[i]);
 
                 }
             }
@@ -338,7 +338,7 @@ bool nx_nxar_setitem(nxar_t nxar, int N, ks_obj* idxs, ks_obj obj) {
         }
 
     } else {
-        ks_throw_fmt(ks_type_KeyError, "nx.array[...]=val expected %i indices (for %iD array), but only got %i", nxar.rank, nxar.rank, N);
+        ks_throw(ks_T_KeyError, "nx.array[...]=val expected %i indices (for %iD array), but only got %i", nxar.rank, nxar.rank, N);
         return false;
     }
 

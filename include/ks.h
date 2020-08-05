@@ -142,6 +142,16 @@ typedef uint64_t ks_hash_t;
 
 
 
+/* Math/Numeric Constants */
+
+// PI, (circle constant)
+#define KS_M_PI    3.141592653589793238462643383279502884197169399375105820974944592307816406286
+
+// E, (euler's number)
+#define KS_M_E     2.718281828459045235360287471352662497757247093699959574966967627724076630353
+
+
+
 // a single unicode character (NOT grapheme/etc, but rather a single, decoded value)
 typedef int32_t ks_unich;
 
@@ -2400,6 +2410,12 @@ KS_API ks_tuple ks_tuple_new(int len, ks_obj* elems);
 // NOTE: This variant does not create references to the objects!, so don't call DECREF on 'elems'
 // NOTE: Returns a new reference
 KS_API ks_tuple ks_tuple_new_n(int len, ks_obj* elems);
+
+
+// Build a tuple from C-style variables
+// For example, `ks_build_tuple("%i %f", 2, 3.0)` returns (2, 3.0)
+// NOTE: Returns a new reference, or NULL if there was an error thrown
+KS_API ks_tuple ks_build_tuple(const char* fmt, ...);
 
 
 // Create a new kscript namespace from a dictionary

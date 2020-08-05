@@ -69,17 +69,16 @@ bool nx_can_bcast(int Nin, int* N, nx_size_t** dims) {
                     continue;
                 } else {
                     // something else happened, and the shapes are not broadcastable
-                    ks_str_b SB;
-                    ks_str_b_init(&SB);
+                    ks_str_builder sb = ks_str_builder_new();
 
                     for (i = 0; i < Nin; ++i) {
-                        if (i > 0) ks_str_b_add_c(&SB, ", ");
-                        ks_str_b_add_fmt(&SB, "(%+z)", N[i], dims[i]);
+                        if (i > 0) ks_str_builder_add(sb, ", ", 2);
+                        ks_str_builder_add_fmt(sb, "(%+z,)", N[i], dims[i]);
                     }
 
-                    ks_str rstr = ks_str_b_get(&SB);
-                    ks_str_b_free(&SB);
-                    ks_throw_fmt(ks_type_SizeError, "Shapes %S were not broadcastable!", rstr);
+                    ks_str rstr = ks_str_builder_get(sb);
+                    KS_DECREF(sb);
+                    ks_throw(ks_T_SizeError, "Shapes %S were not broadcastable!", rstr);
                     KS_DECREF(rstr);
                     return false;
                 }
@@ -108,7 +107,7 @@ bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size_t* R_d
     for (i = 1; i < Nin; ++i) if (N[i] > max_N) max_N = N[i];
 
     if (max_N != R_N) {
-        ks_throw_fmt(ks_type_SizeError, "nx_compute_broadcast given R_N != max(N) (%i != %i)!", max_N, R_N);
+        ks_throw(ks_T_SizeError, "nx_compute_broadcast given R_N != max(N) (%i != %i)!", max_N, R_N);
         return false;
     }
 
@@ -155,28 +154,27 @@ bool nx_compute_bcast(int Nin, int* N, nx_size_t** dims, int R_N, nx_size_t* R_d
                     continue;
                 } else {
                     // something else happened, and the shapes are not broadcastable
-                    ks_str_b SB;
-                    ks_str_b_init(&SB);
+                    ks_str_builder sb = ks_str_builder_new();
 
                     for (i = 0; i < Nin; ++i) {
-                        if (i > 0) ks_str_b_add_c(&SB, ", ");
-                        ks_str_b_add_fmt(&SB, "(%+z)", N[i], dims[i]);
+                        if (i > 0) ks_str_builder_add(sb, ", ", 2);
+                        ks_str_builder_add_fmt(sb, "(%+z,)", N[i], dims[i]);
                     }
 
-                    ks_str rstr = ks_str_b_get(&SB);
-                    ks_str_b_free(&SB);
-                    ks_throw_fmt(ks_type_SizeError, "Shapes %S were not broadcastable!", rstr);
+                    ks_str rstr = ks_str_builder_get(sb);
+                    KS_DECREF(sb);
+                    ks_throw(ks_T_SizeError, "Shapes %S were not broadcastable!", rstr);
                     KS_DECREF(rstr);
                     return false;
                 }
             }
         } 
 
-        // set the result dimension to the required size (or 1, if none was set)
-        R_dims[R_N + ni] = req_size < 0 ? 1 : req_size;
-
         // if there were no indices checked, every single one must be out of range, so return
         if (!hadDim) break;
+
+        // set the result dimension to the required size (or 1, if none was set)
+        R_dims[R_N + ni] = req_size < 0 ? 1 : req_size;
 
         // otherwise, continue moving back to the left to check more
         ni--;

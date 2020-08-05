@@ -172,7 +172,7 @@ struct nx_fft_plan_s {
 };
 
 // nx.fft.plan type
-extern ks_type nx_type_fft_plan;
+extern ks_type nx_T_fft_plan;
 
 
 // Create an N-d FFT plan (of a given rank, and dimensions), of type 'plan_type'

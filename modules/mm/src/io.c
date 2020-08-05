@@ -42,7 +42,7 @@ static bool my_setfrom_pix_fmt(int pix_fmt, void* pix, int w, int h, int linesz,
     #endif
 
     default:
-        ks_throw_fmt(ks_type_ToDoError, "Haven't handled AVPixelFormat==%i", (int)pix_fmt);
+        ks_throw(ks_type_ToDoError, "Haven't handled AVPixelFormat==%i", (int)pix_fmt);
         return false;
         break;
     }
@@ -89,7 +89,7 @@ static bool my_decode(AVCodecContext *codec_ctx, AVFrame *frame, AVPacket *packe
     int avst;
 
     if ((avst = avcodec_send_packet(codec_ctx, packet)) < 0) {
-        ks_throw_fmt(ks_type_InternalError, "`avcodec_send_packet()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+        ks_throw(ks_type_InternalError, "`avcodec_send_packet()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
         return false;
     }
 
@@ -98,7 +98,7 @@ static bool my_decode(AVCodecContext *codec_ctx, AVFrame *frame, AVPacket *packe
         if (avst == AVERROR(EAGAIN) || avst == AVERROR_EOF) {
             return true;
         } else if (avst < 0) {
-            ks_throw_fmt(ks_type_InternalError, "`avcodec_recieve_frame()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
+            ks_throw(ks_type_InternalError, "`avcodec_recieve_frame()` failed (code: %i, reason: %s)", avst, av_err2str(avst));
             return false;
         }
 

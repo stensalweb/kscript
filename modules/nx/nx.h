@@ -29,11 +29,10 @@
 #include <stdint.h>
 
 
-#ifdef KS_HAVE_FFTW3
-
 // include FFTW3, which is more efficient at FFT computations
+// We include fallback methods, but FFTW3 is very fast
+#ifdef KS_HAVE_FFTW3
 #include <fftw3.h>
-
 #endif
 
 
@@ -52,11 +51,13 @@ enum nx_dtype_kind {
     // C-type integer
     NX_DTYPE_KIND_CINT      = 1,
 
-    // float/double
+    // float/double (IEEE format)
     NX_DTYPE_KIND_CFLOAT    = 2,
 
     // float complexd/double complex
     NX_DTYPE_KIND_CCOMPLEX  = 3,
+
+    // TODO add structs
 
 };
 
@@ -74,7 +75,6 @@ typedef struct {
     // what kind of datatype is it?
     enum nx_dtype_kind kind;
 
-
     union {
 
         // if kind==NX_DTYPE_INT, describes the integer
@@ -87,13 +87,13 @@ typedef struct {
 
     };
 
-
 }* nx_dtype;
 
 
 // nxar_t - minimal array designation, which means that any other valid type (nx.array, nx.view, C pointers)
 //   should be expressible as this. Therefore, functions that take this can support any of the above
 // Use the macros `NXAR_*` to create `nxar_t` from other objects
+// NOTE: nxar's don't hold references to their objects
 typedef struct {
     
     // pointer to the start of the data
@@ -193,14 +193,13 @@ typedef struct {
 }* nx_view;
 
 // declaring the types
-extern ks_type nx_type_array, nx_type_view;
+extern ks_type nx_T_array, nx_T_view;
 
 // enumeration of the dtypes
-extern ks_type nx_type_dtype;
+extern ks_type nx_T_dtype;
 
 
-
-// dtypes
+// dtypes (builtin)
 extern nx_dtype
     nx_dtype_sint8,
     nx_dtype_uint8,

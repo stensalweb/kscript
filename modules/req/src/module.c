@@ -221,7 +221,7 @@ static KS_TFUNC(req, GET) {
     if (result_code  != CURLE_OK) {
         ks_str_b_free(strb);
         ks_free(strb);
-        return ks_throw_fmt(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
+        return ks_throw(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
     }
 
     // get result text, free the temp resources
@@ -287,7 +287,7 @@ static KS_TFUNC(req, POST) {
     if (result_code  != CURLE_OK) {
         ks_str_b_free(strb);
         ks_free(strb);
-        return ks_throw_fmt(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
+        return ks_throw(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
     }
 
     // get result text, free the temp resources
@@ -360,7 +360,7 @@ static KS_TFUNC(req, download) {
     // handle an error if one occured
     if (result_code  != CURLE_OK) {
         KS_DECREF(dest);
-        if (!ks_thread_get()->exc) return ks_throw_fmt(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
+        if (!ks_thread_get()->exc) return ks_throw(ks_type_IOError, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result_code));
         else return NULL;
     }
 
@@ -396,7 +396,7 @@ static ks_module get_module() {
     curl_lib = curl_easy_init();
 
     if (!curl_lib) {
-        return ks_throw_fmt(ks_type_Error, "Error initializing libCURL!");
+        return ks_throw(ks_type_Error, "Error initializing libCURL!");
     }
 
 
@@ -405,19 +405,19 @@ static ks_module get_module() {
     KS_INIT_TYPE_OBJ(req_type_Result, "req.Result");
 
     ks_type_set_cn(req_type_Result, (ks_dict_ent_c[]){
-        //{"__new__",        (ks_obj)ks_cfunc_new2(array_new_, "nx.array.__new__(elems, dtype=None)")},
-        {"__free__",        (ks_obj)ks_cfunc_new2(Result_free_, "req.Result.__free__(self)")},
+        //{"__new__",        (ks_obj)ks_cfunc_new_c(array_new_, "nx.array.__new__(elems, dtype=None)")},
+        {"__free__",        (ks_obj)ks_cfunc_new_c(Result_free_, "req.Result.__free__(self)")},
 
-        {"__repr__",       (ks_obj)ks_cfunc_new2(Result_str_, "req.Result.__repr__(self)")},
-        {"__str__",        (ks_obj)ks_cfunc_new2(Result_str_, "req.Result.__str__(self)")},
+        {"__repr__",       (ks_obj)ks_cfunc_new_c(Result_str_, "req.Result.__repr__(self)")},
+        {"__str__",        (ks_obj)ks_cfunc_new_c(Result_str_, "req.Result.__str__(self)")},
 
-        {"__getattr__",    (ks_obj)ks_cfunc_new2(Result_getattr_, "req.Result.__getattr__(self, attr)")},
+        {"__getattr__",    (ks_obj)ks_cfunc_new_c(Result_getattr_, "req.Result.__getattr__(self, attr)")},
 
         /*
-        {"__getitem__",    (ks_obj)ks_cfunc_new2(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
-        {"__setitem__",    (ks_obj)ks_cfunc_new2(array_setitem_, "nx.array.__setitem__(self, *idxs)")},
+        {"__getitem__",    (ks_obj)ks_cfunc_new_c(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
+        {"__setitem__",    (ks_obj)ks_cfunc_new_c(array_setitem_, "nx.array.__setitem__(self, *idxs)")},
 
-        {"shape",          (ks_obj)ks_cfunc_new2(array_shape_, "nx.array.shape(self)")},*/
+        {"shape",          (ks_obj)ks_cfunc_new_c(array_shape_, "nx.array.shape(self)")},*/
 
         {NULL, NULL},
     });
@@ -426,9 +426,9 @@ static ks_module get_module() {
         /* constants */
         {"Result",     (ks_obj)req_type_Result},
 
-        {"GET",        (ks_obj)ks_cfunc_new2(req_GET_, "req.GET(url, data=none)")},
-        {"POST",       (ks_obj)ks_cfunc_new2(req_POST_, "req.POST(url, data=none)")},
-        {"download",   (ks_obj)ks_cfunc_new2(req_download_, "req.download(url, dest, data=none)")},
+        {"GET",        (ks_obj)ks_cfunc_new_c(req_GET_, "req.GET(url, data=none)")},
+        {"POST",       (ks_obj)ks_cfunc_new_c(req_POST_, "req.POST(url, data=none)")},
+        {"download",   (ks_obj)ks_cfunc_new_c(req_download_, "req.download(url, dest, data=none)")},
 
         {NULL, NULL}
     });

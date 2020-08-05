@@ -43,7 +43,7 @@ static bool nx_cast_to(ks_obj obj, nx_dtype dtype, void* to) {
     // cast-to error
     #define CTER() { \
         ks_catch_ignore(); \
-        ks_throw_fmt(ks_type_TypeError, "Could not cast '%T' object to nx type '%S'", obj, dtype); \
+        ks_throw(ks_T_TypeError, "Could not cast '%T' object to nx type '%S'", obj, dtype); \
         return false; \
     }
 
@@ -93,7 +93,7 @@ static bool nx_cast_to(ks_obj obj, nx_dtype dtype, void* to) {
 
     } else {
         // indicates error
-        ks_throw_fmt(ks_type_TypeError, "Could not cast '%T' object to nx type '%S'", obj, dtype);
+        ks_throw(ks_T_TypeError, "Could not cast '%T' object to nx type '%S'", obj, dtype);
         return false;
     }
     return true;
@@ -134,7 +134,7 @@ static ks_obj nx_cast_from(nx_dtype dtype, void* from) {
         return (ks_obj)ks_complex_new(*(double complex*)from);
 
     } else {
-        return ks_throw_fmt(ks_type_InternalError, "Did not handle dtype=%S", dtype);
+        return ks_throw(ks_T_InternalError, "Did not handle dtype=%S", dtype);
     }
 }
 
@@ -156,10 +156,10 @@ static void nx_memset_block(void* dest, void* data, nx_size_t size, nx_size_t st
 
 /** INTERNAL ROUTINES FOR INITIALIZATION **/
 
-void nx_type_dtype_init();
-void nx_type_array_init();
-void nx_type_view_init();
-void nx_type_fft_plan_init();
+void nx_T_init_dtype();
+void nx_T_init_array();
+void nx_T_init_view();
+void nx_T_init_fft_plan();
 
 // adding submodules
 void nx_mod_add_fft(ks_module nxmod);

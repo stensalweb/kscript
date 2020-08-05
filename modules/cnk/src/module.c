@@ -235,13 +235,13 @@ static KS_TFUNC(Context, new) {
     #if defined(CNK_USE_XLIB)
 
     if (!(self->x.display = XOpenDisplay(NULL))) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to open X display");
+        return ks_throw(ks_type_InternalError, "Failed to open X display");
     }
 
     int glx_major, glx_minor;
 
     if (!glXQueryVersion(self->x.display, &glx_major, &glx_minor)) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to query OpenGL version");
+        return ks_throw(ks_type_InternalError, "Failed to query OpenGL version");
     }
 
     ks_debug("ks", "[X11]: Queried OpenGL version %i.%i\n", glx_major, glx_minor);
@@ -267,7 +267,7 @@ static KS_TFUNC(Context, new) {
     GLXFBConfig *fbc;
     fbc = glXChooseFBConfig(self->x.display, DefaultScreen(self->x.display), attr, &fb_count);
     if (!fbc) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to retrieve framebuffer config from X");
+        return ks_throw(ks_type_InternalError, "Failed to retrieve framebuffer config from X");
     }
 
     // pick the configuration with the most samples/pixel
@@ -307,7 +307,7 @@ static KS_TFUNC(Context, new) {
     );
 
     if (!self->x.window) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to create window in X");
+        return ks_throw(ks_type_InternalError, "Failed to create window in X");
     }
     
     XFree(self->x.vis);
@@ -362,7 +362,7 @@ static KS_TFUNC(Context, new) {
     XSync(self->x.display, False);
     XSetErrorHandler(old_handler);
     if (hadErr || !self->x.glCTX) {
-        return ks_throw_fmt(ks_type_InternalError, "Failed to create an OpenGL context in X");
+        return ks_throw(ks_type_InternalError, "Failed to create an OpenGL context in X");
     }
 
     // make it the current context
@@ -508,7 +508,7 @@ static KS_TFUNC(Context, setattr) {
         ks_list val_list = ks_list_from_iterable(val);
         if (val_list->len != 2) {
             KS_DECREF(val_list);
-            return ks_throw_fmt(ks_type_ArgError, "Attribute 'size' must be an iterable of size 2, containing the integers '(width, height)'");
+            return ks_throw(ks_type_ArgError, "Attribute 'size' must be an iterable of size 2, containing the integers '(width, height)'");
         }
 
 
@@ -519,7 +519,7 @@ static KS_TFUNC(Context, setattr) {
         for (i = 0; i < 2; ++i) {
             if (!ks_num_get_int64(val_list->elems[i], &sizes[i])) {
                 KS_DECREF(val_list);
-                return ks_throw_fmt(ks_type_ArgError, "Attribute 'size' must be an iterable of size 2, containing the integers '(width, height)'");
+                return ks_throw(ks_type_ArgError, "Attribute 'size' must be an iterable of size 2, containing the integers '(width, height)'");
             }
         }
 
@@ -961,7 +961,7 @@ static KS_TFUNC(iter_Context, next) {
 
         // tell whether we should keep going
         keepGoing = truthy != 0;
-        if (!keepGoing) return ks_throw_fmt(ks_type_OutOfIterError, "");
+        if (!keepGoing) return ks_throw(ks_type_OutOfIterError, "");
     }
 
 
@@ -974,7 +974,7 @@ static KS_TFUNC(iter_Context, next) {
 
     // tell whether we should keep going
     keepGoing = truthy != 0;
-    if (!keepGoing) return ks_throw_fmt(ks_type_OutOfIterError, "");
+    if (!keepGoing) return ks_throw(ks_type_OutOfIterError, "");
 
     // return the frame count
     return (ks_obj)ks_int_new(self->frame_n++);
@@ -1023,9 +1023,9 @@ static ks_module get_module() {
     // Initialize OpenGL extension wrangler
     if (stat = gl3wInit()) {
         if (stat == GL3W_ERROR_LIBRARY_OPEN) {
-            return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!, reason: GL3W_ERROR_LIBRARY_OPEN)");
+            return ks_throw(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!, reason: GL3W_ERROR_LIBRARY_OPEN)");
         } else {
-            //return ks_throw_fmt(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!)");
+            //return ks_throw(ks_type_InternalError, "Could not initialize gl3w! (gl3wInit() failed!)");
         }
     }
 
@@ -1043,7 +1043,7 @@ static ks_module get_module() {
     }
 
     // ensure a valid OpenGL has been found
-    if (_GLvers[0] < 0) return ks_throw_fmt(ks_type_Error, "Failed to initialize OpenGL");
+    if (_GLvers[0] < 0) return ks_throw(ks_type_Error, "Failed to initialize OpenGL");
 
     /* GLFW */
 
@@ -1052,7 +1052,7 @@ static ks_module get_module() {
 
     // initialize GLFW
     if (!glfwInit()) {
-        return ks_throw_fmt(ks_type_Error, "Failed to initialize GLFW");
+        return ks_throw(ks_type_Error, "Failed to initialize GLFW");
     }
     ks_debug("ks", "Setting GLFW Window Hints......");
 
@@ -1082,36 +1082,36 @@ static ks_module get_module() {
 
     // create Context type
     if (!ks_type_set_cn(cNk_type_Context, (ks_dict_ent_c[]){
-        {"__new__",       (ks_obj)ks_cfunc_new2(Context_new_, "Context.__new__()")},
-        {"__free__",      (ks_obj)ks_cfunc_new2(Context_free_, "Context.__free__(self)")},
+        {"__new__",       (ks_obj)ks_cfunc_new_c(Context_new_, "Context.__new__()")},
+        {"__free__",      (ks_obj)ks_cfunc_new_c(Context_free_, "Context.__free__(self)")},
 
-        {"__getattr__",   (ks_obj)ks_cfunc_new2(Context_getattr_, "Context.__getattr__(self, attr)")},
-        {"__setattr__",   (ks_obj)ks_cfunc_new2(Context_setattr_, "Context.__setattr__(self, attr, val)")},
+        {"__getattr__",   (ks_obj)ks_cfunc_new_c(Context_getattr_, "Context.__getattr__(self, attr)")},
+        {"__setattr__",   (ks_obj)ks_cfunc_new_c(Context_setattr_, "Context.__setattr__(self, attr, val)")},
 
-        {"__iter__",      (ks_obj)ks_cfunc_new2(Context_iter_, "Context.__iter__(self)")},
+        {"__iter__",      (ks_obj)ks_cfunc_new_c(Context_iter_, "Context.__iter__(self)")},
 
-        {"frame_start",   (ks_obj)ks_cfunc_new2(Context_frame_start_, "Context.frame_start(self)")},
-        {"frame_end",     (ks_obj)ks_cfunc_new2(Context_frame_end_, "Context.frame_end(self)")},
+        {"frame_start",   (ks_obj)ks_cfunc_new_c(Context_frame_start_, "Context.frame_start(self)")},
+        {"frame_end",     (ks_obj)ks_cfunc_new_c(Context_frame_end_, "Context.frame_end(self)")},
 
         /* direct C API bindings */
 
-        {"begin",                    (ks_obj)ks_cfunc_new2(Context_begin_, "Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE)")},
-        {"end",                      (ks_obj)ks_cfunc_new2(Context_end_, "Context.end(self)")},
+        {"begin",                    (ks_obj)ks_cfunc_new_c(Context_begin_, "Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE)")},
+        {"end",                      (ks_obj)ks_cfunc_new_c(Context_end_, "Context.end(self)")},
 
 
-        {"layout_set_min_height",    (ks_obj)ks_cfunc_new2(Context_layout_set_min_row_height_,   "Context.layout_set_min_row_height(self, height)")},
-        {"layout_reset_min_height",  (ks_obj)ks_cfunc_new2(Context_layout_reset_min_row_height_, "Context.layout_reset_min_row_height(self)")},
+        {"layout_set_min_height",    (ks_obj)ks_cfunc_new_c(Context_layout_set_min_row_height_,   "Context.layout_set_min_row_height(self, height)")},
+        {"layout_reset_min_height",  (ks_obj)ks_cfunc_new_c(Context_layout_reset_min_row_height_, "Context.layout_reset_min_row_height(self)")},
 
-        {"layout_widget_bounds",     (ks_obj)ks_cfunc_new2(Context_layout_widget_bounds_,        "Context.layout_widget_bounds(self)")},
+        {"layout_widget_bounds",     (ks_obj)ks_cfunc_new_c(Context_layout_widget_bounds_,        "Context.layout_widget_bounds(self)")},
 
-        {"layout_ratio_from_pixel",  (ks_obj)ks_cfunc_new2(Context_layout_ratio_from_pixel_,     "Context.layout_ratio_from_pixel(self, pixel_width)")},
+        {"layout_ratio_from_pixel",  (ks_obj)ks_cfunc_new_c(Context_layout_ratio_from_pixel_,     "Context.layout_ratio_from_pixel(self, pixel_width)")},
 
-        {"layout_row_dynamic",       (ks_obj)ks_cfunc_new2(Context_layout_row_dynamic_,          "Context.layout_row_dynamic(self, height, cols=1)")},
-        {"layout_row_static",        (ks_obj)ks_cfunc_new2(Context_layout_row_static_,           "Context.layout_row_static(self, height, item_width, cols=1)")},
+        {"layout_row_dynamic",       (ks_obj)ks_cfunc_new_c(Context_layout_row_dynamic_,          "Context.layout_row_dynamic(self, height, cols=1)")},
+        {"layout_row_static",        (ks_obj)ks_cfunc_new_c(Context_layout_row_static_,           "Context.layout_row_static(self, height, item_width, cols=1)")},
 
-        {"edit_string",              (ks_obj)ks_cfunc_new2(Context_edit_string_,        "Context.edit_string(self, edit_type, cur_str, max_len)")},
+        {"edit_string",              (ks_obj)ks_cfunc_new_c(Context_edit_string_,        "Context.edit_string(self, edit_type, cur_str, max_len)")},
 
-        {"button_label",                 (ks_obj)ks_cfunc_new2(Context_button_label_, "Context.button_label(self, label)")},
+        {"button_label",                 (ks_obj)ks_cfunc_new_c(Context_button_label_, "Context.button_label(self, label)")},
 
 
         {NULL, NULL},
@@ -1124,9 +1124,9 @@ static ks_module get_module() {
 
     // create Context type
     if (!ks_type_set_cn(cNk_type_iter_Context, (ks_dict_ent_c[]){
-        {"__free__",      (ks_obj)ks_cfunc_new2(iter_Context_free_, "iter_Context.__free__(self)")},
+        {"__free__",      (ks_obj)ks_cfunc_new_c(iter_Context_free_, "iter_Context.__free__(self)")},
 
-        {"__next__",         (ks_obj)ks_cfunc_new2(iter_Context_next_, "iter_Context.__next__(self)")},
+        {"__next__",         (ks_obj)ks_cfunc_new_c(iter_Context_next_, "iter_Context.__next__(self)")},
 
         {NULL, NULL},
     })) {

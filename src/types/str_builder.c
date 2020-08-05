@@ -266,9 +266,33 @@ bool ks_str_builder_add_vfmt(ks_str_builder self, const char* fmt, va_list ap) {
 
         } else if (c == 'z') {
             // %z -> base 10 integer, from a 'ks_size_t'
-            ks_size_t val = va_arg(ap, ks_size_t);
 
-            add_i64(self, ksfmt, val);
+            bool doMult = strchr(field, '+') != NULL;
+
+            if (doMult) {
+
+                int num = va_arg(ap, int);
+                ks_ssize_t* vals = va_arg(ap, ks_ssize_t*);
+                ksfmt.hasPlus = false;
+
+                int i;
+                for (i = 0; i < num; ++i) {
+                    if (i != 0) {
+                        ks_str_builder_add(self, ",", 1);
+                    }
+
+                    add_i64(self, ksfmt, vals[i]);
+                }
+
+            } else {
+
+                ks_size_t val = va_arg(ap, ks_size_t);
+
+                add_i64(self, ksfmt, val);
+
+            }
+
+
 
         } else if (c == 'p') {
             // %i -> base 10 integer, from C 'int'
