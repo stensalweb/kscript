@@ -129,12 +129,12 @@ static void* syntax_error(ks_parser parser, ks_tok tok, char* fmt, ...) {
 
 // true if the character is whitespace
 static bool is_white(ks_unich c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || ks_unich_info_get(c)->cat_gen == ks_unicat_Zs;
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || ks_uni_get_info(c)->cat_gen == ks_unicat_Zs;
 }
 
 // return whether the character is a digit
 static bool is_digit(ks_unich c) {
-    return isdigit(c) || ks_unich_info_get(c)->cat_gen == ks_unicat_Nd;
+    return isdigit(c) || ks_uni_get_info(c)->cat_gen == ks_unicat_Nd;
 }
 
 // return whether the character is a hex digit
@@ -158,7 +158,7 @@ static bool is_digit_bin(ks_unich c) {
 
 // true if the character is a valid start to an identifier
 static bool is_ident_s(ks_unich c) {
-    return c == '_' || ks_uni_isalpha(c) || ks_unich_info_get(c)->cat_gen == ks_unicat_So;
+    return c == '_' || ks_uni_isalpha(c) || ks_uni_get_info(c)->cat_gen == ks_unicat_So;
 }
 
 // true if the character is a valid middle part of an identifier

@@ -638,6 +638,48 @@ ks_str ks_str_unescape(ks_str A) {
                     return NULL;
                 }
                 ks_str_builder_add(sb, utf8, sz);
+
+            } else if (ch == 'N') {
+                // read a full unicode string name
+
+
+                ks_unich next = ks_str_citer_next(&cit);
+                if (next != '[') {
+                    KS_DECREF(sb);
+                    return (ks_str)ks_throw(ks_T_ArgError, "Invalid escape sequence: \\N expects '[' after it");
+                }
+
+
+                // current byte position
+                int start_pos = cit.cbyi;
+
+                // keep going until ']' is hit
+                while (true) {
+                    next = ks_str_citer_next(&cit);
+                    if (cit.done || next == ']') break;
+
+                }
+
+                if (next != ']') {
+                    KS_DECREF(sb);
+                    return (ks_str)ks_throw(ks_T_ArgError, "Invalid escape sequence: \\N expects ']' to denote the end");
+                }
+
+
+                // now, transform into a chr
+                ks_unich looked = ks_uni_lookup(cit.self->chr + start_pos, cit.cbyi - 1 - start_pos);
+
+                if (looked < 0) {
+                    KS_DECREF(sb);
+                    return (ks_str)ks_throw(ks_T_ArgError, "Invalid unicode name: '%*s'", cit.cbyi - 1 - start_pos, cit.self->chr + start_pos);
+                }
+
+                int sz = ks_text_utf32_to_utf8(&looked, &utf8[0], 1);
+                if (sz < 0) {
+                    KS_DECREF(sb);
+                    return NULL;
+                }
+                ks_str_builder_add(sb, utf8, sz);
             }
 
             else {
@@ -970,15 +1012,15 @@ static KS_TFUNC(str, unidata) {
     if (self->len_c != 1) return ks_throw(ks_T_ArgError, "unidata() only takes strings of length 1 (len was %z)", self->len_c);
 
     // get information
-    const struct ks_unich_info* info = ks_unich_info_get(ks_str_citer_next((struct ks_str_citer[]){ ks_str_citer_make(self) }));
+    const ks_unich_info* info = ks_uni_get_info(ks_str_citer_next((struct ks_str_citer[]){ ks_str_citer_make(self) }));
 
     // get requested property
     if (!key || ks_str_eq_c(key, "all", 3)) {
         return (ks_obj)ks_dict_new_c(KS_KEYVALS(
             {"name",               (ks_obj)ks_str_new(info->name)},
-            {"category",           (ks_obj)ks_str_new(info->cat_gen)},
-            {"can_com_class",      (ks_obj)ks_str_new(info->can_com_class)},
-            {"bidi_class",         (ks_obj)ks_int_new(info->bidi_class)},
+            //{"category",           (ks_obj)ks_str_new(info->cat_gen)},
+            //{"can_com_class",      (ks_obj)ks_str_new(info->can_com_class)},
+            //{"bidi_class",         (ks_obj)ks_int_new(info->bidi_class)},
 
             {"lower",              info->case_lower ? (ks_obj)ks_str_chr(info->case_lower) : KS_NEWREF(self)},
             {"upper",              info->case_upper ? (ks_obj)ks_str_chr(info->case_upper) : KS_NEWREF(self)},

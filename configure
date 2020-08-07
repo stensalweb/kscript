@@ -714,7 +714,7 @@ FORCE:
 # rule to compile a single object file
 $(_tmp)/src/%.o: src/%.c $(all_H)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I./include -DKS_BUILD $< -fPIC -c -o $@
+	$(CC) $(CFLAGS) -I./ -I./include -DKS_BUILD $< -fPIC -c -o $@
 
 # rule to build the shared object file (.so) from all the individual compilations
 # Since `libks_o` contains many files, we use `$^` to mean `all input files together`
