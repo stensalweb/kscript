@@ -11,7 +11,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
     // macro to set NULL
     #define CASENULL(_name) self->_name = NULL;
 
-    self->flags = KS_TYPE_FLAGS_NONE;
+    self->flags = KS_TYPE_FLAGS_EQSS;
 
     CASENULL(__name__)
     CASENULL(__parents__)

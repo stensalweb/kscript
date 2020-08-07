@@ -29,8 +29,6 @@ ks_ios ks_ios_new() {
 
 }
 
-
-
 // Open 'self' to the given file and mode
 // NOTE: Returns success, or false and throws an error
 bool ks_ios_open(ks_ios self, ks_str fname, ks_str mode) {
@@ -208,6 +206,66 @@ ks_ssize_t ks_ios_readb(ks_ios self, ks_ssize_t len_b, void* dest) {
     return byt;
 }
 
+// Read a given number of characters from the iostream and put them into `dest` (encoded as utf8)
+// NOTE: Returns the number of bytes read into 'dest'; note: `dest` may be reallocated via `ks_realloc()`
+// Example:
+// void* dest = NULL;
+// ks_ios_reads(self, 4, &dest);
+// ks_free(dest);
+ks_ssize_t ks_ios_reads(ks_ios self, ks_ssize_t len_c, void** dest, ks_ssize_t* len_c_actual) {
+    if (!self->isOpen) {
+        ks_throw(ks_T_IOError, "Attempted to read from file that wasn't open");
+        return *len_c_actual = -1;
+    }
+    
+    // number of bytes read
+    ks_ssize_t len_b = *len_c_actual = 0;
+
+    // holds single utf8 sequence
+    uint8_t tmp[4];
+
+    // whethe or not to keep going
+    bool keepGoing = true;
+
+    ks_size_t cur_dest_size = 0;
+
+    while (*len_c_actual < len_c && keepGoing) {
+        // read an entire character from the stream
+        // TODO: allow other than utf8
+
+        int i;
+        for (i = 0; i < 4; ++i) {
+            ks_ssize_t read = fread(tmp + i, 1, 1, self->_fp);
+            if (read != 1) {
+                // end of sequence
+                keepGoing = false;
+                break;
+            }
+
+            if (tmp[i] & 0xC0 == 0x80) {
+                // we are done
+                break;
+            }
+        }
+
+        // exit early
+        if (!keepGoing) break;
+
+        // append to destination
+        *dest = ks_realloc(*dest, cur_dest_size + i + 1);
+        memcpy((void*)(((intptr_t)*dest) + cur_dest_size), tmp, i);
+        cur_dest_size += i;
+
+        // inc counters
+        *len_c_actual++;
+        len_b += i;
+    }
+
+    // NUL-terminate it
+    if (*dest) ((char*)*dest)[cur_dest_size] = '\0';
+
+    return len_b;
+}
 
 // ios.__new__(typ, fname, mode="r")
 static KS_TFUNC(ios, new) {
@@ -225,7 +283,6 @@ static KS_TFUNC(ios, new) {
     return (ks_obj)self;
 }
 
-
 // ios.__str__(self)
 static KS_TFUNC(ios, str) {
     ks_ios self;
@@ -233,7 +290,6 @@ static KS_TFUNC(ios, str) {
 
     return (ks_obj)ks_fmt_c("<ios name=%R, mode=%R>", self->name, self->mode);
 }
-
 
 
 // ios.__free__(self) - free obj
@@ -254,6 +310,48 @@ static KS_TFUNC(ios, free) {
 }
 
 
+// ios.close(self) - close the stream
+static KS_TFUNC(ios, close) {
+    ks_ios self;
+    KS_GETARGS("self:*", &self, ks_T_ios)
+
+    ks_ios_close(self);
+
+    return KSO_NONE;
+}
+
+
+// ios.reads(self, numc=none) - read a given number of characters (defaulting to the entire file)
+static KS_TFUNC(ios, reads) {
+    ks_ios self;
+    ks_obj numc = KSO_NONE;
+    KS_GETARGS("self:* ?numc", &self, ks_T_ios, &numc)
+
+    ks_ssize_t len_c = KS_SSIZE_MAX;
+
+    if (numc == KSO_NONE) {
+
+    } else {
+        // extra number of characters
+        int64_t v64;
+        if (!ks_num_get_int64(numc, &v64)) return NULL;
+        len_c = v64;
+    }
+
+    void* dest = NULL;
+    ks_ssize_t len_c_actual = 0;
+    ks_ssize_t len_b = ks_ios_reads(self, len_c, &dest, &len_c_actual);
+    if (len_b < 0) {
+        ks_free(dest);
+        return NULL;
+    } else {
+        ks_str ret = ks_str_utf8((const char*)dest, len_b);
+        ks_free(dest);
+        return (ks_obj)ret;
+    }
+}
+
+
 
 
 
@@ -270,7 +368,9 @@ void ks_init_T_ios() {
         {"__free__",               (ks_obj)ks_cfunc_new_c(ios_free_, "ios.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(ios_str_, "ios.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(ios_str_, "ios.__repr__(self)")},
-        
+
+        {"reads",                  (ks_obj)ks_cfunc_new_c(ios_reads_, "ios.reads(self, numc=none)")},
+        {"close",                  (ks_obj)ks_cfunc_new_c(ios_close_, "ios.close(self)")},
         
     ));
 

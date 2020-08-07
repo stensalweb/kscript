@@ -128,6 +128,12 @@ extern "C" {
 typedef uint64_t ks_size_t;
 typedef int64_t ks_ssize_t;
 
+
+// maximum value in `ks_size_t`
+#define KS_SIZE_MAX (UINT64_MAX)
+
+#define KS_SSIZE_MAX (INT64_MAX)
+
 // a hash type, representing a hash of an object
 typedef uint64_t ks_hash_t;
 
@@ -1792,6 +1798,16 @@ KS_API bool ks_ios_seek(ks_ios self, ks_ssize_t pos_b, int seekmode);
 // Read a given number of bytes from the iostream and put them into `dest`
 // NOTE: Returns number of bytes actually read (accounting for truncation), or -1 and throw an error
 KS_API ks_ssize_t ks_ios_readb(ks_ios self, ks_ssize_t len_b, void* dest);
+
+
+// Read a given number of characters from the iostream and put them into `dest` (encoded as utf8)
+// NOTE: Returns the number of bytes read into 'dest'; note: `dest` may be reallocated via `ks_realloc()`
+// NOTE: if `len_c_actual` is not NULL, it is set to the number of characters read
+// Example:
+// void* dest = NULL;
+// ks_ios_reads(self, 4, &dest);
+// ks_free(dest);
+KS_API ks_ssize_t ks_ios_reads(ks_ios self, ks_ssize_t len_c, void** dest, ks_ssize_t* len_c_actual);
 
 
 

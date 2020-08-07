@@ -934,6 +934,32 @@ static KS_TFUNC(str, substr) {
 }
 
 
+/* 'check' functions that return true or false */
+
+
+// str.startswith(self, val) - return whether or not the string starts with another one
+static KS_TFUNC(str, startswith) {
+    ks_str self, val;
+    KS_GETARGS("self:* val:*", &self, ks_T_str, &val, ks_T_str)
+
+    if (val->len_b > self->len_b) return KSO_FALSE;
+    else if (val->len_b == 0) return KSO_TRUE;
+    else return KSO_BOOL(memcmp(self->chr, val->chr, val->len_b) == 0);
+}
+
+// str.endswith(self, val) - return whether or not the string ends with another one
+static KS_TFUNC(str, endswith) {
+    ks_str self, val;
+    KS_GETARGS("self:* val:*", &self, ks_T_str, &val, ks_T_str)
+
+    if (val->len_b > self->len_b) return KSO_FALSE;
+    else if (val->len_b == 0) return KSO_TRUE;
+    else return KSO_BOOL(memcmp(self->chr + self->len_b - val->len_b, val->chr, val->len_b) == 0);
+}
+
+
+
+
 
 /* unicode data */
 
@@ -1069,6 +1095,9 @@ void ks_init_T_str() {
         {"__ne__",                 (ks_obj)ks_cfunc_new_c(str_ne_, "str.__ne__(L, R)")},
 
         {"unidata",                (ks_obj)ks_cfunc_new_c(str_unidata_, "str.unidata(self, key='all')")},
+
+        {"startswith",             (ks_obj)ks_cfunc_new_c(str_startswith_, "str.startswith(self, val)")},
+        {"endswith",             (ks_obj)ks_cfunc_new_c(str_endswith_, "str.endswith(self, val)")},
 
         {"substr",                 (ks_obj)ks_cfunc_new_c(str_substr_, "str.substr(self, start, len=none)")},
         {"join",                   (ks_obj)ks_cfunc_new_c(str_join_, "str.join(self, objs)")},

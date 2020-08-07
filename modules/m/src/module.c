@@ -304,13 +304,26 @@ static KS_TFUNC(m, frexp) {
 }
 
 
-
-
 /* Custom Functions Implemented */
 
 
+// generated in `my_gz.c`
+double my_zeta(double x);
+double complex my_czeta(double complex x);
+double my_gamma(double x);
+double complex my_cgamma(double complex x);
+double my_lgamma(double x);
+double complex my_clgamma(double complex x);
 
 
+// m.zeta(x) - compute the Riemann Zeta evaluated at 'x'
+_MT_FC(zeta, "x", my_zeta, my_czeta, { });
+
+// m.gamma(x) - compute the Gammaevaluated at 'x'
+_MT_FC(gamma, "x", my_gamma, my_cgamma, { });
+
+// m.lgamma(x) - compute the logarithm of the gamma function
+_MT_FC(lgamma, "x", my_lgamma, my_clgamma, { });
 
 
 
@@ -363,6 +376,10 @@ static ks_module get_module() {
         {"erfc",                   (ks_obj)ks_cfunc_new_c(m_erfc_, "m.erfc(x)")},
 
 
+        {"zeta",                   (ks_obj)ks_cfunc_new_c(m_zeta_, "m.zeta(x)")},
+        {"gamma",                  (ks_obj)ks_cfunc_new_c(m_gamma_, "m.gamma(x)")},
+
+        {"lgamma",                 (ks_obj)ks_cfunc_new_c(m_lgamma_, "m.lgamma(x)")},
 
 
 /*
@@ -372,10 +389,7 @@ static ks_module get_module() {
 
 
 
-        {"gamma",                  (ks_obj)ks_cfunc_new_c(m_gamma_, "m.gamma(x)")},
-        {"lgamma",                 (ks_obj)ks_cfunc_new_c(m_lgamma_, "m.lgamma(x)")},
 
-        {"zeta",                   (ks_obj)ks_cfunc_new_c(m_zeta_, "m.zeta(x)")},
         
         */
 

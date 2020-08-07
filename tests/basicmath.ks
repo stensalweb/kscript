@@ -57,7 +57,6 @@ try {
 
 assert hadErr
 
-
 assert int(true) == 1
 assert int(false) != int(true)
 

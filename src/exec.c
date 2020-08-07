@@ -246,7 +246,6 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
 
             // duplicate the top of stack
             ks_list_push(self->stk, self->stk->elems[self->stk->len - 1]);
-
         VMED_CASE_END
 
         VMED_CASE_START(KSB_POPU)
@@ -454,9 +453,8 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             if (args[0]->type == ks_T_kfunc) {
 
             }
-            
-            ks_obj ret = ks_obj_call(args[0], op_i32.arg - 1, &args[1]);
 
+            ks_obj ret = ks_obj_call(args[0], op_i32.arg - 1, &args[1]);
             if (!ret) goto EXC;
 
             
@@ -691,11 +689,15 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
 
             ks_obj obj = ks_list_pop(self->stk);
 
+
             ks_obj val = ks_F_getattr->func(2, (ks_obj[]){ obj, (ks_obj)attr });
             if (!val) goto EXC;
 
             ks_list_push(self->stk, val);
+            KS_DECREF(val);
             KS_DECREF(obj);
+
+
 
         VMED_CASE_END
 
