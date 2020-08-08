@@ -35,11 +35,10 @@ nx_view nx_view_new(ks_obj ref, nxar_t nxar) {
 }
 
 
-// nx.view.__new__(typ, obj)
+// nx.view.__new__(obj)
 static KS_TFUNC(view, new) {
-    ks_type typ;
     ks_obj obj;
-    KS_GETARGS("typ:* obj", &typ, ks_T_type, &obj);
+    KS_GETARGS("obj", &obj);
 
     if (obj->type == nx_T_view) {
         return KS_NEWREF(obj);
@@ -155,7 +154,7 @@ void nx_T_init_view() {
 
     ks_type_init_c(nx_T_view, "nx.view", ks_T_obj, KS_KEYVALS(
 
-        {"__new__",           (ks_obj)ks_cfunc_new_c(view_new_, "nx.view.__new__(typ, obj)")},
+        {"__new__",           (ks_obj)ks_cfunc_new_c(view_new_, "nx.view.__new__(obj)")},
         {"__free__",           (ks_obj)ks_cfunc_new_c(view_free_, "nx.view.__free__(self)")},
         {"__str__",           (ks_obj)ks_cfunc_new_c(view_str_, "nx.view.__str__(self)")},
 

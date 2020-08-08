@@ -7,6 +7,8 @@ Usage:
 
 $ ./tools/gen_unicode.py
 
+See the generated header file for the API
+
 @author: Cade Brown <brown.cade@gmail.com>
 """
 
@@ -28,6 +30,7 @@ from gmpy2 import mpfr, const_pi, exp, sqrt, log, log10
 parser = argparse.ArgumentParser(formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=40))
 
 parser.add_argument('--prefix', help='Prefix to the C style functions to generate (include the "_"!)', default="ks_")
+parser.add_argument('--decl-prefix', help='Prefix to the C style functions to generate (include the "_"!)', default="KS_API")
 parser.add_argument('--output', help='Output files (C source, C header)', default=["src/ks-unicode.c", "include/ks-unicode.h"], nargs=2)
 
 args = parser.parse_args()
@@ -212,6 +215,8 @@ max_name_len = 0
 # list of (hash, name, name_len, cp) tuples for generating the hash table
 ht_kvs = []
 
+
+
 # TODO: are others neccessary?
 for line in UnicodeData_src.splitlines():
     # check here: https://www.unicode.org/reports/tr44/#UnicodeData.txt
@@ -231,11 +236,11 @@ for line in UnicodeData_src.splitlines():
     assert cur_cp >= idx
 
     if idx < cur_cp:
-        unicode_c += "    " + "_CP_NONE, " * (cur_cp - idx)
+        #unicode_c += "    " + "_CP_NONE, " * (cur_cp - idx)
         idx = cur_cp
 
     while idx < cur_cp:
-        unicode_c += "    _CP_NONE,"
+        #unicode_c += "    _CP_NONE,"
         idx += 1
 
     # keep track of maximum length
@@ -249,6 +254,7 @@ for line in UnicodeData_src.splitlines():
     unicode_c += f"    ({prefix}unich_info) {{ .cp = 0x{fields[0]}, .name = \"{fields[1]}\", .cat_gen = ks_unicat_{fields[2]}, .cat_com = ks_unicat_{fields[2]}, .cat_bidi = {fields[3]}, .case_upper = {tocase(fields[0], fields[12])}, .case_lower = {tocase(fields[0], fields[13])}, .case_title = {tocase(fields[0], fields[14])},    }},\n"
     idx += 1
 
+# what load factor should the dictionary have?
 load_fac = 0.3
 
 ht_N = int(len(ht_kvs) // load_fac)
@@ -257,12 +263,11 @@ unicode_c += f"""
 }};
 
 
-
 // size of hash table (in elements)
 static const int {prefix}ht_N = {ht_N};
 
 // hash table values
-static const struct _ht_t {{
+static const struct {{
 
     // hash(name)
     unsigned long long hash;
@@ -270,15 +275,13 @@ static const struct _ht_t {{
     // the name
     const char* name;
 
-    // len(name)
-    int name_len;
-
     // the codepoint it maps to
     {prefix}unich cp;
 
 }} {prefix}ht_V[] = {{
 
 """
+
 
 # we need to populate the hash table
 ht_V = [None] * ht_N
@@ -307,9 +310,11 @@ for hte in ht_kvs:
 for V in ht_V:
     # add new hash table entry to C
     if V == None:
-        unicode_c += f"    (struct _ht_t){{ .hash = 0, .name = NULL }},\n"
+        unicode_c += f"    {{ .hash = 0, .name = NULL }},\n"
     else:
-        unicode_c += f"    (struct _ht_t){{ .hash = {V[0]}ULL, .name = \"{V[1]}\", .name_len = {len(V[1])}, .cp = {hex(V[-1])} }},\n"
+        unicode_c += f"    {{ .hash = {V[0]}ULL, .name = \"{V[1]}\", .cp = {hex(V[-1])} }},\n"
+
+
 
 unicode_c += f"""
 }};
@@ -318,11 +323,30 @@ unicode_c += f"""
 
 // get unicode information
 const {prefix}unich_info* {prefix}uni_get_info({prefix}unich chr) {{
-    return &_unich_infos[chr];
+    // binary search
+    // left & right notes
+    ks_unich l = 0, r = sizeof(_unich_infos) / sizeof(*_unich_infos); 
+
+    while (l <= r) {{
+        ks_unich mid = (l + r) / 2;
+        if (_unich_infos[mid].cp < chr) {{
+            l = mid + 1;
+        }} else if (_unich_infos[mid].cp > chr) {{
+            r = mid - 1;
+        }} else {{
+            return &_unich_infos[mid];
+        }}
+
+    }}
+
+    // unsuccessful
+    return NULL;
+    // old way: O(N), but huge memory requirement
+    //return &_unich_infos[chr];
 }}
 
 
-// implementation of the masked djb2 hash function
+// implementation of the masked djb2 hash function (to allow python compatibility)
 static unsigned long long _my_hash(const char* st, int len) {{
     unsigned long long ret = 5381;
 
@@ -364,7 +388,7 @@ static unsigned long long _my_hash(const char* st, int len) {{
         if ({prefix}ht_V[bucket].name == NULL) {{
             // nothing found, it must not be valid
             return {uprefix}UNICH_ERR;
-        }} else if (hash == {prefix}ht_V[bucket].hash && len == {prefix}ht_V[bucket].name_len && strncmp(name, {prefix}ht_V[bucket].name, len) == 0) {{
+        }} else if (hash == {prefix}ht_V[bucket].hash && strncmp(name, {prefix}ht_V[bucket].name, len) == 0) {{
             // found it
             return {prefix}ht_V[bucket].cp;
         }}
@@ -392,6 +416,15 @@ bool {prefix}uni_isalpha({prefix}unich chr) {{
 
 """
 
+
+
+# TODO: include encoding/decoding?
+
+
+unicode_c += f"""
+
+
+"""
 
 
 # write files

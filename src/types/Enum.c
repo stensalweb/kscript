@@ -5,6 +5,8 @@
 
 #include "ks-impl.h"
 
+// forward declare
+static ks_cfunc F_get = NULL;
 
 // make an enum value
 static ks_Enum make_Enum_val(ks_type enumtype, ks_str name, ks_int val) {
@@ -25,9 +27,9 @@ ks_type ks_Enum_create_c(const char* name, ks_enumval_c* enumvals) {
     // create num -> name mappings as well as name -> num mapping
     ks_dict map_num2name = ks_dict_new(0, NULL), map_name2num = ks_dict_new(0, NULL);
 
-
     // initialize the type
     ks_type_init_c(enumtype, name, ks_T_Enum, KS_KEYVALS(
+        {"__new__",                (ks_obj)ks_pfunc_new(F_get, (ks_obj)enumtype)},
 
         {"_enum_num2name",         (ks_obj)map_num2name},
         {"_enum_name2num",         (ks_obj)map_name2num},
@@ -52,6 +54,7 @@ ks_type ks_Enum_create_c(const char* name, ks_enumval_c* enumvals) {
         // advance to next one
         enumvals++;
     }
+
 
     return enumtype;
 
@@ -172,14 +175,14 @@ static KS_TFUNC(Enum, create) {
     return (ks_obj)enumtype;
 }
 
-// Enum.__getitem__(typ, name)
-static KS_TFUNC(Enum, getitem) {
+// Enum.get(typ, name)
+static KS_TFUNC(Enum, get) {
     ks_type typ;
     ks_obj name;
     KS_GETARGS("typ:* name", &typ, ks_T_type, &name)
 
     if (!ks_type_issub(typ, ks_T_Enum)) {
-        return ks_throw(ks_T_TypeError, "Expected argument #0 to `Enum.__getitem__` to be an enumeration type, but got: %S", typ);
+        return ks_throw(ks_T_TypeError, "Expected argument #0 to `Enum.get` to be an enumeration type, but got: %S", typ);
     }
 
     if (name->type == ks_T_str) {
@@ -238,8 +241,6 @@ KS_TYPE_DECLFWD(ks_T_Enum);
 void ks_init_T_Enum() {
     ks_type_init_c(ks_T_Enum, "Enum", ks_T_obj, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(Enum_free_, "Enum.__free__(self)")},
-        {"__new__",                (ks_obj)ks_cfunc_new_c(Enum_getitem_, "Enum.__new__(typ, name)")},
-
         {"__str__",                (ks_obj)ks_cfunc_new_c(Enum_str_, "Enum.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(Enum_str_, "Enum.__repr__(self)")},
 
@@ -250,6 +251,9 @@ void ks_init_T_Enum() {
         KST_NUM_OPKVS(Enum)
 
     ));
+
+    // create function
+    F_get = ks_cfunc_new_c(Enum_get_, "Enum.get(typ, name)");
 
 
 }

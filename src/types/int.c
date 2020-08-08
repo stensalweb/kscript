@@ -229,13 +229,11 @@ ks_hash_t ks_int_hash(ks_int self) {
     }
 }
 
-// int.__new__(typ, obj, mode=none) -> convert 'obj' to a int
+// int.__new__(obj, mode=none) -> convert 'obj' to a int
 static KS_TFUNC(int, new) {
-    ks_type typ;
     ks_obj obj;
     ks_obj mode = KSO_NONE;
-    KS_GETARGS("typ:* obj ?mode", &typ, ks_T_type, &obj, &mode)
-    if (!ks_type_issub(typ, ks_T_int)) ks_throw(ks_T_InternalError, "Constructor for type '%S' called given typ as '%S' (not a sub-type!)", ks_T_int, typ);
+    KS_GETARGS("obj ?mode", &obj, &mode)
 
     if (mode != KSO_NONE) {
         if (obj->type != ks_T_str) return ks_throw(ks_T_ArgError, "When given parameter 'mode', 'obj' must be a string!");
@@ -490,7 +488,6 @@ static KS_TFUNC(int, str) {
         return (ks_obj)res;
 
     }
-
 }
 
 
@@ -539,7 +536,7 @@ void ks_init_T_int() {
     }
     
     ks_type_init_c(ks_T_int, "int", ks_T_obj, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(int_new_, "int.__new__(typ, obj, base=none)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c(int_new_, "int.__new__(obj, base=none)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(int_free_, "int.__free__(self)")},
 
         {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self, base=none)")},

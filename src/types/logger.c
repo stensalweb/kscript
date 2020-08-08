@@ -103,11 +103,10 @@ ks_logger ks_logger_get(const char* logname, bool createIfNeeded) {
 }
 
 
-// logger.__new__(typ, name) -> get a logger by a given name (creates if it doesn't eixst)
+// logger.__new__(name) -> get a logger by a given name (creates if it doesn't eixst)
 static KS_TFUNC(logger, new) {
-    ks_type typ;
     ks_str name;
-    KS_GETARGS("typ:* name:*", &typ, ks_T_type, &name, ks_T_str)
+    KS_GETARGS("name:*", &name, ks_T_str)
 
     return (ks_obj)ks_logger_get(name->chr, true);
 }
@@ -269,7 +268,7 @@ void ks_init_T_logger() {
     ks_all_loggers = ks_dict_new(0, NULL);
 
     ks_type_init_c(ks_T_logger, "logger", ks_T_obj, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(logger_new_, "logger.__new__(typ, name)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c(logger_new_, "logger.__new__(name)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(logger_free_, "logger.__free__(self)")},
 
         {"set",                    (ks_obj)ks_cfunc_new_c(logger_set_, "logger.set(self, level='WARN')")},

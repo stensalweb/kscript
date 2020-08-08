@@ -41,6 +41,7 @@ void ks_init_T_complex();
 void ks_init_T_Enum();
 
 void ks_init_T_str();
+void ks_init_T_bytes();
 void ks_init_T_str_builder();
 
 void ks_init_T_list();

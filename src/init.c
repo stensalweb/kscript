@@ -72,6 +72,7 @@ bool ks_init(int verbose) {
     ks_init_T_float();
     ks_init_T_complex();
     ks_init_T_str();
+    ks_init_T_bytes();
     ks_init_T_Enum();
 
     ks_init_T_str_builder();
@@ -200,6 +201,7 @@ bool ks_init(int verbose) {
         {"complex",                KS_NEWREF(ks_T_complex)},
 
         {"str",                    KS_NEWREF(ks_T_str)},
+        {"bytes",                  KS_NEWREF(ks_T_bytes)},
 
         {"logger",                 KS_NEWREF(ks_T_logger)},
 
@@ -244,6 +246,7 @@ bool ks_init(int verbose) {
         {"chr",                    KS_NEWREF(ks_F_chr)},
         {"ord",                    KS_NEWREF(ks_F_ord)},
 
+        {"issub",                  KS_NEWREF(ks_F_issub)},
         {"any",                    KS_NEWREF(ks_F_any)},
         {"all",                    KS_NEWREF(ks_F_all)},
 

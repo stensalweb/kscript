@@ -115,8 +115,6 @@ Side = enum.create("Side", {
 
 ### float
 
-### rational
-
 ### complex
 
 Squid

@@ -28,6 +28,8 @@ ks_cfunc
 
     ks_F_import = NULL,
 
+    ks_F_issub = NULL,
+
     ks_F_any = NULL,
     ks_F_all = NULL,
 
@@ -492,6 +494,15 @@ static KS_FUNC(filter) {
 
     // otherwise, return the result
     return (ks_obj)res;
+}
+
+
+
+// issub(a, b) - return whether `a` is a sub type of `b`
+static KS_FUNC(issub) {
+    ks_type a, b;
+    KS_GETARGS("a:* b:*", &a, ks_T_type, &b, ks_T_type);
+    return KSO_BOOL(ks_type_issub(a, b));
 }
 
 
@@ -1229,6 +1240,8 @@ void ks_init_funcs() {
     ks_F_chr = ks_cfunc_new_c(chr_, "chr(ord)");
     ks_F_ord = ks_cfunc_new_c(ord_, "ord(chr)");
 
+    ks_F_issub = ks_cfunc_new_c(issub_, "issub(a, b)");
+    
     ks_F_any = ks_cfunc_new_c(any_, "any(objs)");
     ks_F_all = ks_cfunc_new_c(all_, "all(objs)");
 

@@ -267,12 +267,11 @@ ks_ssize_t ks_ios_reads(ks_ios self, ks_ssize_t len_c, void** dest, ks_ssize_t* 
     return len_b;
 }
 
-// ios.__new__(typ, fname, mode="r")
+// ios.__new__(fname, mode="r")
 static KS_TFUNC(ios, new) {
-    ks_type typ;
     ks_str fname;
     ks_str mode;
-    KS_GETARGS("typ:* fname:* mode:*", &typ, ks_T_type, &fname, ks_T_str, &mode, ks_T_str)
+    KS_GETARGS("fname:* mode:*", &fname, ks_T_str, &mode, ks_T_str)
 
     ks_ios self = ks_ios_new();
     if (!ks_ios_open(self, fname, mode)) {

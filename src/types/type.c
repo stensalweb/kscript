@@ -24,7 +24,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
     CASENULL(__call__)
     CASENULL(__float__)
     CASENULL(__str__)
-    CASENULL(__blob__)
+    CASENULL(__bytes__)
     CASENULL(__getattr__)
     CASENULL(__setattr__)
     CASENULL(__getitem__)
@@ -72,7 +72,7 @@ static void my_setallnull(ks_type self, ks_type parent) {
         FROMPAR(__float__)
         FROMPAR(__call__)
         FROMPAR(__str__)
-        FROMPAR(__blob__)
+        FROMPAR(__bytes__)
         FROMPAR(__getattr__)
         FROMPAR(__setattr__)
         FROMPAR(__getitem__)
@@ -204,7 +204,7 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
         KEYCASE(__float__, ks_obj, ks_T_obj)
         KEYCASE(__str__, ks_obj, ks_T_obj)
         KEYCASE(__call__, ks_obj, ks_T_obj)
-        KEYCASE(__blob__, ks_obj, ks_T_obj)
+        KEYCASE(__bytes__, ks_obj, ks_T_obj)
         KEYCASE(__getattr__, ks_obj, ks_T_obj)
         KEYCASE(__setattr__, ks_obj, ks_T_obj)
         KEYCASE(__getitem__, ks_obj, ks_T_obj)
@@ -299,6 +299,14 @@ bool ks_type_issub(ks_type self, ks_type of) {
 }
 
 
+// type.__new__(x) - special case - return the type of self
+static KS_TFUNC(type, new) {
+    ks_obj x;
+    KS_GETARGS("x", &x)
+
+    return KS_NEWREF(x->type);
+}
+
 
 // type.__free__(self) - free obj
 static KS_TFUNC(type, free) {
@@ -354,6 +362,7 @@ KS_TYPE_DECLFWD(ks_T_type);
 
 void ks_init_T_type() {
     ks_type_init_c(ks_T_type, "type", ks_T_obj, KS_KEYVALS(
+        {"__new__",                (ks_obj)ks_cfunc_new_c(type_new_, "type.__new__(x)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(type_free_, "type.__free__(self)")},
 
         {"__str__",                (ks_obj)ks_cfunc_new_c(type_str_, "type.__str__(self)")},

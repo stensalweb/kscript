@@ -193,11 +193,10 @@ bool ks_list_popun(ks_list self, int n) {
     return true;
 }
 
-// list.__new__(typ, objs) - create new list
+// list.__new__(objs) - create new list
 static KS_TFUNC(list, new) {
-    ks_type typ;
     ks_obj objs;
-    KS_GETARGS("typ:* objs", &typ, ks_T_type, &objs)
+    KS_GETARGS("objs", &objs)
 
     // handle short cases
     if (objs->type == ks_T_tuple) {
@@ -656,7 +655,7 @@ KS_TYPE_DECLFWD(ks_T_list);
 
 void ks_init_T_list() {
     ks_type_init_c(ks_T_list, "list", ks_T_obj, KS_KEYVALS(
-        {"__new__",               (ks_obj)ks_cfunc_new_c(list_new_, "list.__new__(typ, objs)")},
+        {"__new__",               (ks_obj)ks_cfunc_new_c(list_new_, "list.__new__(objs)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(list_free_, "list.__free__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(list_len_, "list.__len__(self)")},
         

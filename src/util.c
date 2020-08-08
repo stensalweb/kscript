@@ -258,8 +258,8 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
             if (ftyp->__init__ != NULL) {
 
                 // if we have an __init__, call:
-                // __new__(type)
-                ret = ks_obj_call(ftyp->__new__, 1, (ks_obj[]){ (ks_obj)ftyp });
+                // __new__()
+                ret = ks_obj_call(ftyp->__new__, 0, NULL);
 
                 if (ret != NULL) {
 
@@ -292,16 +292,8 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
 
             } else {
                 // no __init__, just call __new__ like:
-                // __new__(type, *args)
-                int new_n_args = n_args + 1;
-                ks_obj* new_args = ks_malloc(sizeof(*new_args) * new_n_args);
-
-                // now, call:
-                new_args[0] = (ks_obj)ftyp;
-                memcpy(&new_args[1], args, n_args * sizeof(*new_args));
-
-                ret = ks_obj_call(ftyp->__new__, new_n_args, new_args);
-                ks_free(new_args);
+                // __new__(*args)
+                ret = ks_obj_call(ftyp->__new__, n_args, args);
 
                 if (ret != NULL) {
                     // set type
@@ -316,7 +308,6 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
         }
 
     } else if (func->type->__call__ != NULL) {
-
 
 
         // call type(func).__call__(func, *args)

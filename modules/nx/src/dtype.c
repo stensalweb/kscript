@@ -129,11 +129,10 @@ nx_dtype nx_dtype_make_cplx(char* name, int bits) {
 }
 
 
-// dtype.__new__(typ, obj)
+// dtype.__new__(obj)
 static KS_TFUNC(dtype, new) {
-    ks_type typ;
     ks_obj obj;
-    KS_GETARGS("typ:* obj", &typ, ks_T_type, &obj);
+    KS_GETARGS("obj", ks_T_type, &obj);
 
     if (obj->type == ks_T_str) {
         ks_str sobj = (ks_str)obj;
@@ -176,7 +175,7 @@ void nx_T_init_dtype() {
     dtype_cache = ks_dict_new(0, NULL);
     ks_type_init_c(nx_T_dtype, "nx.dtype", ks_T_obj, KS_KEYVALS(
 
-        {"__new__", (ks_obj)ks_cfunc_new_c(dtype_new_, "nx.dtype.__new__(typ, obj)")},
+        {"__new__", (ks_obj)ks_cfunc_new_c(dtype_new_, "nx.dtype.__new__(obj)")},
         {"__free__", (ks_obj)ks_cfunc_new_c(dtype_free_, "nx.dtype.__free__(self)")},
 
         {"__str__", (ks_obj)ks_cfunc_new_c(dtype_str_, "nx.dtype.__str__(self)")},

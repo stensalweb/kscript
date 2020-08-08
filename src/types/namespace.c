@@ -20,11 +20,10 @@ ks_namespace ks_namespace_new(ks_dict attr) {
 
 /* member functions */
 
-// namespace.__new__(typ, attr={}) -> create a new namespace
+// namespace.__new__(attr={}) -> create a new namespace
 static KS_TFUNC(namespace, new) {
-    ks_type typ;
     ks_dict attr = NULL;
-    KS_GETARGS("typ:* ?attr:*", &typ, ks_T_type, &attr, ks_T_dict)
+    KS_GETARGS("?attr:*", &attr, ks_T_dict)
 
     return (ks_obj)ks_namespace_new(attr);
 }
@@ -125,7 +124,7 @@ KS_TYPE_DECLFWD(ks_T_namespace);
 
 void ks_init_T_namespace() {
     ks_type_init_c(ks_T_namespace, "namespace", ks_T_obj, KS_KEYVALS(
-        {"__new__", (ks_obj)ks_cfunc_new_c(namespace_new_, "namespace.__new__(typ, attr={})")},
+        {"__new__", (ks_obj)ks_cfunc_new_c(namespace_new_, "namespace.__new__(attr={})")},
         {"__free__", (ks_obj)ks_cfunc_new_c(namespace_free_, "namespace.__free__(self)")},
 
         {"__str__", (ks_obj)ks_cfunc_new_c(namespace_str_, "namespace.__str__(self)")},

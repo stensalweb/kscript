@@ -281,12 +281,11 @@ nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
 }
 
 
-// array.__new__(typ, obj, dtype=none)
+// array.__new__(obj, dtype=none)
 static KS_TFUNC(array, new) {
-    ks_type typ;
     ks_obj obj;
     nx_dtype dtype = NULL;
-    KS_GETARGS("typ:* obj ?dtype:*", &typ, ks_T_type, &obj, &dtype, nx_T_dtype)
+    KS_GETARGS("obj ?dtype:*", ks_T_type, &obj, &dtype, nx_T_dtype)
 
     // use the creation routine
     return (ks_obj)nx_array_from_obj(obj, dtype);
@@ -414,7 +413,7 @@ KS_TYPE_DECLFWD(nx_T_array);
 void nx_T_init_array() {
     ks_type_init_c(nx_T_array, "nx.array", ks_T_obj, KS_KEYVALS(
 
-        {"__new__",                (ks_obj)ks_cfunc_new_c(array_new_, "nx.array.__new__(typ, obj, dtype=none)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c(array_new_, "nx.array.__new__(obj, dtype=none)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(array_str_, "nx.array.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(array_str_, "nx.array.__repr__(self)")},
 

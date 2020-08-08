@@ -730,13 +730,12 @@ ks_str ks_str_substr(ks_str self, ks_ssize_t start, ks_ssize_t len_c) {
     return ks_str_utf8(self->chr + start_i, len_b);
 }
 
-// str.__new__(typ, obj, *args)
+// str.__new__(obj, *args)
 static KS_TFUNC(str, new) {
-    ks_type typ;
     ks_obj obj;
     int n_extra;
     ks_obj* extra;    
-    KS_GETARGS("typ:* obj *extra", &typ, ks_T_type, &obj, &n_extra, &extra);
+    KS_GETARGS("obj *extra", &obj, &n_extra, &extra);
 
     if (obj->type->__str__ != NULL) {
         return ks_obj_call(obj->type->__str__, n_args - 1, args + 1);
@@ -763,6 +762,14 @@ static KS_TFUNC(str, free) {
     KS_FREE_OBJ(self);
 
     return KSO_NONE;
+}
+
+// str.__bytes__(self) - get utf8 bytes
+static KS_TFUNC(str, bytes) {
+    ks_str self;
+    KS_GETARGS("self:*", &self, ks_T_str)
+
+    return (ks_obj)ks_bytes_new(self->chr, self->len_b);
 }
 
 // str.__repr__(self) - get repr
@@ -1118,10 +1125,11 @@ void ks_init_T_str() {
     }
 
     ks_type_init_c(ks_T_str, "str", ks_T_obj, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(str_new_, "str.__new__(typ, obj, *args)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c(str_new_, "str.__new__(obj, *args)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(str_free_, "str.__free__(self)")},
         {"__iter__",               (ks_obj)ks_cfunc_new_c(str_iter_, "str.__iter__(self)")},
 
+        {"__bytes__",              (ks_obj)ks_cfunc_new_c(str_bytes_, "str.__bytes__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(str_repr_, "str.__repr__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(str_len_, "str.__len__(self, mode='chars')")},
         {"__getitem__",            (ks_obj)ks_cfunc_new_c(str_getitem_, "str.__getitem__(self, idx)")},

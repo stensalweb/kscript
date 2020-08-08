@@ -146,10 +146,9 @@ static struct getarg_arg* my_addarg(getarg_Parser self, int argtype, ks_str name
 // Parser.__new__(program_name, version, desc, authors)
 // Construct a new Parser object
 static KS_TFUNC(Parser, new) {
-    ks_type typ;
     ks_str program_name, version, desc;
     ks_obj authors;
-    KS_GETARGS("typ:* program_name:* version:* desc:* authors:iter", &typ, ks_T_type, &program_name, ks_T_str, &version, ks_T_str, &desc, ks_T_str, &authors);
+    KS_GETARGS("program_name:* version:* desc:* authors:iter", ks_T_type, &program_name, ks_T_str, &version, ks_T_str, &desc, ks_T_str, &authors);
 
     // convert to a list
     ks_list authors_list = ks_list_new_iter(authors);

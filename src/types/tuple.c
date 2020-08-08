@@ -161,11 +161,10 @@ ks_tuple ks_build_tuple(const char* fmt, ...) {
 
 
 
-// tuple.__new__(typ, objs) - create new tuple
+// tuple.__new__(objs) - create new tuple
 static KS_TFUNC(tuple, new) {
-    ks_type typ;
     ks_obj objs;
-    KS_GETARGS("typ:* objs", &typ, ks_T_type, &objs)
+    KS_GETARGS("objs", &objs)
 
     // handle short cases
     if (objs->type == ks_T_tuple) {

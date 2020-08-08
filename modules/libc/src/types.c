@@ -64,9 +64,8 @@ _type PASTE(libc_make, _type_name) (_c_type val) { \
     return self; \
 } \
 static KS_TFUNC(_type_name, new) { \
-    ks_type typ; \
     int64_t obj; \
-    KS_GETARGS("typ:* obj:i64", &typ, ks_T_type, &obj); \
+    KS_GETARGS("obj:i64", &obj); \
     return (ks_obj)PASTE(libc_make, _type_name)(obj); \
 } \
 static KS_TFUNC(_type_name, free) { \
@@ -426,11 +425,12 @@ libc_function libc_make_function(ks_type func_type, void (*val)()) {
 /* libc.pointer */
 
 
-// pointer.__new__(typ, obj) -> convert 'obj' to pointer
+// pointer.__new__(obj) -> convert 'obj' to pointer
 static KS_TFUNC(pointer, new) {
     ks_type typ;
     ks_obj obj;
     KS_GETARGS("typ:* obj", &typ, ks_T_type, &obj)
+    if (!ks_type_issub(typ, libc_T_pointer)) return ks_throw(ks_T_InternalError, "'typ' was not a pointer type!");
 
     int64_t v64;
     if (ks_type_issub(obj->type, libc_T_pointer)) {
@@ -536,7 +536,7 @@ static KS_TFUNC(pointer, setitem) {
 
 /* function */
 
-// function.__new__(typ, obj) -> convert 'obj' to pointer
+// function.__new__(obj) -> convert 'obj' to pointer
 static KS_TFUNC(function, new) {
     ks_type typ;
     ks_obj obj;

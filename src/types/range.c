@@ -20,12 +20,11 @@ ks_range ks_range_new(ks_int start, ks_int stop, ks_int step) {
 }
 
 
-// range.__new__(typ, *args) - create new range
+// range.__new__(*args) - create new range
 static KS_TFUNC(range, new) {
-    ks_type typ;
     int n_extra;
     ks_obj* extra;
-    KS_GETARGS("typ:* *args", &typ, ks_T_type, &n_extra, &extra);
+    KS_GETARGS("*args", &n_extra, &extra);
 
     if (n_extra == 1) {
         // use start=0, stop=extra[0], step=1
@@ -193,7 +192,7 @@ KS_TYPE_DECLFWD(ks_T_range);
 
 void ks_init_T_range() {
     ks_type_init_c(ks_T_range, "range", ks_T_obj, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(range_new_, "range.__new__(typ, *args)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c(range_new_, "range.__new__(*args)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(range_free_, "range.__free__(self)")},
         
         {"__str__",                (ks_obj)ks_cfunc_new_c(range_str_, "range.__str__(self)")},

@@ -21,13 +21,35 @@ ks_Error ks_Error_new(ks_type errtype, ks_str what) {
     return self;
 }
 
-// Error.__new__(typ, what) - create new error
+// Error.__new__() - create new error
 static KS_TFUNC(Error, new) {
-    ks_type typ;
-    ks_str what;
-    KS_GETARGS("typ:* what:*", &typ, ks_T_type, &what, ks_T_str)
+    KS_GETARGS("")
 
-    return (ks_obj)ks_Error_new(typ, what);
+    ks_Error self = KS_ALLOC_OBJ(ks_Error);
+    KS_INIT_OBJ(self, ks_T_Error);
+
+    self->attr = ks_dict_new(0, NULL);
+    self->what = ks_str_new("");
+
+    return (ks_obj)self;
+}
+
+
+// Error.__init__(self, what)
+static KS_TFUNC(Error, init) {
+    ks_Error self;
+    ks_str what;
+    KS_GETARGS("self:* what:*", &self, ks_T_Error, &what, ks_T_str)
+
+
+    ks_dict_set_c(self->attr, KS_KEYVALS(
+        {"what",                   KS_NEWREF(what)},
+    ));
+
+    self->what = what;
+
+    return KSO_NONE;
+
 }
 
 
@@ -80,7 +102,8 @@ void ks_init_T_Error() {
     // initialize singletons
 
     ks_type_init_c(ks_T_Error, "Error", ks_T_obj, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(Error_new_, "Error.__new__(typ, what)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c(Error_new_, "Error.__new__()")},
+        {"__init__",               (ks_obj)ks_cfunc_new_c(Error_init_, "Error.__init__(what)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(Error_str_, "Error.__str__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(Error_free_, "Error.__free__(self)")},
     ));

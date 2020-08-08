@@ -136,10 +136,9 @@ static sock_Socket wrap_Socket(int sockfd, int af_type, int socket_type, bool is
 
 
 
-// Socket.__new__(typ) - return a socket
+// Socket.__new__() - return a socket
 static KS_TFUNC(Socket, new) {
-    ks_type typ;
-    KS_GETARGS("typ:*", &typ, ks_T_type)
+    KS_GETARGS("")
 
     return (ks_obj)make_Socket();
 }
@@ -487,7 +486,7 @@ static ks_module get_module() {
     ks_module mod = ks_module_new(MODULE_NAME);
 
     ks_type_init_c(sock_T_Socket, "sock.Socket", ks_T_obj, KS_KEYVALS(
-        {"__new__",             (ks_obj)ks_cfunc_new_c(Socket_new_, "sock.Socket.__new__(typ)")},
+        {"__new__",             (ks_obj)ks_cfunc_new_c(Socket_new_, "sock.Socket.__new__()")},
         {"__free__",            (ks_obj)ks_cfunc_new_c(Socket_free_, "sock.Socket.__free__(self)")},
 
         {"connect",             (ks_obj)ks_cfunc_new_c(Socket_connect_, "sock.Socket.connect(self, address, port)")},

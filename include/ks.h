@@ -250,23 +250,22 @@ struct ks_type_s {
     // type.__parents__ - list of parent types
     ks_list __parents__;
 
-
-    // type.__new__(type, *args) - construct a new object of a given type. This should normally take 1 argument or more
-    //   and if '__init__' is not NULL, this should be called always with 1, then called __init__ with the resultant
-    //   object and the rest of the arguments
+    // type.__new__(obj, *args) - construct a new object of a given type (like a constructor), this should normally take 1 argument 
+    //   or more, and if `__init__` is not NULL, it should ALWAYS be called with `1`, and then `__init__` is called with the resultant
+    //   object and the rest of the arguments.
     //
     // With immutable types (int, str, float, tuple, etc), the __new__() takes the value(s) to construct the type from,
     //   and there is no __init__ (something that is immutable must be created and initialized with any value in the __new__
     //   function). Therefore, the __new__ constructor takes arguments
     //
-    // However, mutable types (i.e. most types) should have __new__() be callable with 1 argument to simply generate a new
+    // However, mutable types (i.e. most types) should have __new__() be callable with 0 arguments to simply generate a new
     //   type; with 'empty' values, then __init__() is called with arguments
     //
     // For example, when you call 'x = type(a, b, c)', 'type' is first checked if it has an __init__ method:
-    //   * if __init__ is found, the code is effectively: 'tmp = type.__new__(type); type.__init__(tmp, a, b, c)'
+    //   * if __init__ is found, the code is effectively: 'tmp = type.__new__(); tmp.__type__ = type; type.__init__(tmp, a, b, c)'
     //       * the type assignment is required for sub-types that may use their parent type's '__new__()' method, so that
     //           the created value has the correct type
-    //   * if __init__ is not found, the code is effectively: 'x = type.__new__(type, a, b, c);'
+    //   * if __init__ is not found, the code is effectively: 'x = type.__new__(a, b, c);'
     ks_obj __new__, __init__;
 
 
@@ -276,7 +275,7 @@ struct ks_type_s {
 
 
     // type conversion to standard types
-    ks_obj __bool__, __int__, __float__, __str__, __blob__;
+    ks_obj __bool__, __int__, __float__, __str__, __bytes__;
 
 
     // getattr/setattr - custom attribute getters & setters (i.e. `x.a = b`)
@@ -452,6 +451,25 @@ KS_API ks_unich ks_str_citer_peek(struct ks_str_citer* cit);
 
 // 'Seek' in the string to a given index, returning whether it was successful or not
 KS_API bool ks_str_citer_seek(struct ks_str_citer* cit, ks_ssize_t idx);
+
+
+
+// ks_bytes - immutable array of bytes
+typedef struct ks_bytes_s {
+    KS_OBJ_BASE
+
+    // length (in bytes) of the array
+    ks_size_t len_b;
+
+    // hash(byt), precomputed via `ks_hash_bytes()`
+    ks_hash_t v_hash;
+
+    // array of bytes 
+    // NOTE: similar to `ks_str`, since bytes are immutable, the bytes object is allocated as `sizeof(ks_bytes) + len_b - 1`
+    // the [1] is so the global singletons for single bytes are allocated correctly
+    uint8_t byt[1];
+
+}* ks_bytes;
 
 
 // ks_str_builder - string builder, which is a mutable type that can generate strings
@@ -1832,6 +1850,7 @@ extern ks_type
     ks_T_none,
     ks_T_type,
     ks_T_str,
+    ks_T_bytes,
     ks_T_str_builder,
 
     ks_T_bool,
@@ -2102,7 +2121,7 @@ KS_API void* ks_ithrow(const char* file, const char* func, int line, ks_type err
 #define KS_THROW_METH_ERR(_V, _meth) { ks_throw(ks_T_Error, "'%T' object had no '%s' method!", _V, _meth); return NULL; }
 
 // throw a type conversion error
-#define KS_THROW_TYPE_ERR(_obj, _totype) { ks_throw(ks_T_TypeError, "'%T' object could not be converted to %S", _obj, _totype); return NULL; }
+#define KS_THROW_TYPE_ERR(_obj, _totype) { ks_throw(ks_T_TypeError, "'%T' object could not be converted to '%S'", _obj, _totype); return NULL; }
 
 // throw an item key error
 #define KS_THROW_KEY_ERR(_obj, _key) { ks_throw(ks_T_KeyError, "'%T' object did not contain the key '%S'", _obj, _key); return NULL; }
@@ -2301,7 +2320,6 @@ KS_API ks_ssize_t ks_text_utf32_to_utf8(const ks_unich* src, char* dest, ks_ssiz
 // NOTE: if len_b < 0, then it is NUL-terminated, and the length is calculated via `strlen()`
 KS_API ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b);
 
-
 // Construct a new 'str' object, from a C-style string.
 // NOTE: If `len<0`, then `len` is calculated by the C `strlen()` function
 // NOTE: If `cstr==NULL`, then the empty string "" is returned, and `len` is not checked
@@ -2312,7 +2330,6 @@ KS_API ks_str ks_str_new_c(const char* cstr, ks_ssize_t len);
 #define ks_str_new(_cstr) ks_str_new_c(_cstr, -1)
 
 
-
 // Convert a length one string to an ordinal, and return it
 // NOTE: Returns the value, or a negative number indiciating an error was thrown
 KS_API ks_unich ks_str_ord(ks_str str);
@@ -2320,9 +2337,6 @@ KS_API ks_unich ks_str_ord(ks_str str);
 // Returns a string of length 1 from a given unicode character (NOT encoded in UTF8; decoded as a single value)
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_str ks_str_chr(ks_unich chr);
-
-
-
 
 
 // Create a substring of another string, on given character indices
@@ -2347,6 +2361,12 @@ KS_API ks_str ks_str_escape(ks_str A);
 // Undo the string escaping, i.e. replaces '\n' with a newline
 // NOTE: Returns a new reference
 KS_API ks_str ks_str_unescape(ks_str A);
+
+
+
+// Create a new `bytes` object from the given pointer & size
+KS_API ks_bytes ks_bytes_new(const uint8_t* byt, ks_size_t len_b);
+
 
 
 
@@ -3006,6 +3026,8 @@ extern ks_cfunc
 
     ks_F_import,
 
+    ks_F_issub,
+    
     ks_F_any,
     ks_F_all,
 
