@@ -792,9 +792,9 @@ static char* match_gen(const char* text, int state) {
                 if (text_split->len == 0 || strncmp(this_key->chr, ((ks_str)text_split->elems[text_split->len - 1])->chr, ((ks_str)text_split->elems[text_split->len - 1])->len_b) == 0) {
 
                     // NOTE: need to use malloc(), since readline frees it
-                    char* new_match = malloc(this_key->len_b + RLM_BUF + slen + 1);
-                    snprintf(new_match, this_key->len_b + RLM_BUF, "%*s%s", (int)this_key->len_b, this_key->chr, ks_obj_is_callable(this_val) ? "(" : "");
-                    //snprintf(new_match, this_key->len_b + RLM_BUF, "%*s%*s%s", (int)text_prefix->len_b, text_prefix->chr, (int)this_key->len_b, this_key->chr, ks_obj_is_callable(this_val) ? "(" : "");
+                    char* new_match = malloc(text_prefix->len_b + this_key->len_b + RLM_BUF + slen + 1);
+                    //snprintf(new_match, this_key->len_b + RLM_BUF, "%*s%s", (int)this_key->len_b, this_key->chr, ks_obj_is_callable(this_val) ? "(" : "");
+                    snprintf(new_match, this_key->len_b + RLM_BUF, "%*s%*s%s", (int)text_prefix->len_b, text_prefix->chr, (int)this_key->len_b, this_key->chr, ks_obj_is_callable(this_val) ? "(" : "");
                     return new_match;
                 }
             }
