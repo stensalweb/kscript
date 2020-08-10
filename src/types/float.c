@@ -64,7 +64,6 @@ void ks_init_T_float() {
 
         KST_NUM_OPKVS(float)
 
-
     ));
 
     ks_T_float->flags &= ~KS_TYPE_FLAGS_EQSS;

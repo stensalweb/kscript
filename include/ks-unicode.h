@@ -21,7 +21,11 @@ typedef int ks_unich;
 #define KS_UNICH_ERR ((ks_unich)(-1))
 
 
-enum ks_unicat {
+// unicode category
+typedef char ks_unicat;
+
+// of type `ks_unicat`
+enum {
     ks_unicat_Lu = 1,
     ks_unicat_Ll = 2,
     ks_unicat_Lt = 3,
@@ -73,16 +77,13 @@ typedef struct {
     const char* name;
 
     // (2) General category, check `ks_unicat_*` values
-    int cat_gen;
+    ks_unicat cat_gen;
 
     // (3) Canonical combining classes
-    int cat_com;
+    ks_unicat cat_com;
 
     // (4) Bidirectional category
-    int cat_bidi;
-
-    // (5) Character Decomposition Mapping
-    int decomp_map;
+    ks_unicat cat_bidi;
 
     // (12, 13, 14) cases for upper, lower, and title case
     ks_unich case_upper, case_lower, case_title;
