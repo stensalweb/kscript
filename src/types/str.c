@@ -738,9 +738,9 @@ static KS_TFUNC(str, new) {
     KS_GETARGS("obj *extra", &obj, &n_extra, &extra);
 
     if (obj->type->__str__ != NULL) {
-        return ks_obj_call(obj->type->__str__, n_args - 1, args + 1);
+        return ks_obj_call(obj->type->__str__, n_args, args);
     } else if (obj->type->__repr__ != NULL) {
-        return ks_obj_call(obj->type->__repr__, n_args - 1, args + 1);
+        return ks_obj_call(obj->type->__repr__, n_args, args);
     }
 
     KS_THROW_TYPE_ERR(obj, ks_T_str);

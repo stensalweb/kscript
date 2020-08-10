@@ -448,6 +448,7 @@ static KS_TFUNC(int, str) {
     ks_obj mode = NULL;
     KS_GETARGS("self:* ?mode", &self, ks_T_int, &mode)
 
+
     // the base
     int base = 10;
 
