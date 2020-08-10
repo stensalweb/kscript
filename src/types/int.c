@@ -275,8 +275,6 @@ static KS_TFUNC(int, new) {
 }
 
 // int.__fmt__(self, fstr) - format an integer according to a format string
-// ints have the following syntaxes:
-// %[]
 static KS_TFUNC(int, fmt) {
     ks_int self;
     ks_str fstr;
@@ -296,32 +294,31 @@ static KS_TFUNC(int, fmt) {
     bool f_has_0 = false, f_has_neg = false;
 
     // width & precision fields
-    int64_t f_width = 0, f_prec = -1;
+    int f_width = 0, f_prec = -1;
     
     // the type, i.e. `i, d, x`, etc
     char f_typ = 'i';
 
     // temporary char
     char c;
-    
 
     // parse flags
     while ((c = *fstrc) == '+' || c == '-' || c == ' ' || c == '0') {
         if (c == '+' || c == ' ') {
-            if (f_sign != '\0') return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the 'sign' field multiple times");
+            if (f_sign != '\0') return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the 'sign' field multiple times", fstr);
             f_sign = c;
         } else if (c == '-') {
-            if (f_has_neg) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the '-' flag multiple times");
+            if (f_has_neg) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the '-' flag multiple times", fstr);
             f_has_neg = true;
         } else if (c == '0') {
-            if (f_has_0) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the '0' flag multiple times");
+            if (f_has_0) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the '0' flag multiple times", fstr);
             f_has_0 = true;
         }
         fstrc++;
     }
 
     // parse width
-    while (isdigit(c = *fstrc)) {
+    while ((c = *fstrc) && isdigit(c)) {
         f_width = f_width * 10 + (c - '0');
         fstrc++;
     }
@@ -330,7 +327,8 @@ static KS_TFUNC(int, fmt) {
     if (*fstrc == '.') {
         fstrc++;
         f_prec = 0;
-        while (isdigit(c = *fstrc)) {
+        while ((c = *fstrc) && isdigit(c)) {
+
             f_prec = f_prec * 10 + (c - '0');
             fstrc++;
         }
@@ -340,12 +338,11 @@ static KS_TFUNC(int, fmt) {
     if (*fstrc) {
         f_typ = *fstrc++;
         if (!(f_typ == 'i' || f_typ == 'd' || f_typ == 'x')) {
-            if (*fstrc) return ks_throw(ks_T_ArgError, "Invalid format string: %R, unknown type '%c'", f_typ);
+            return ks_throw(ks_T_ArgError, "Invalid format string: %R, unknown type '%c'", fstr, f_typ);
         }
     }
 
-    if (*fstrc) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given extra characters");
-
+    if (*fstrc) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given extra characters", fstr);
 
     // TODO: handle roman here as well
 
@@ -388,7 +385,6 @@ static KS_TFUNC(int, fmt) {
         // we want the absolute value, so invert it (we handle the sign ourself)
         mpz_neg(tz, tz);
     }
-
 
     // total size of the output
     size_t total_size = num_size > f_width ? num_size : f_width;
@@ -439,7 +435,6 @@ static KS_TFUNC(int, fmt) {
 
     return (ks_obj)res;
 }
-
 
 // int.__str__(self, base=none) - to string
 static KS_TFUNC(int, str) {
