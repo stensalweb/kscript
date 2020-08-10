@@ -274,8 +274,8 @@ struct ks_type_s {
     ks_obj __bool__, __int__, __float__, __str__, __bytes__;
 
 
-    // type.__format__(self, fstr) - formats `self` according to `fstr`
-    ks_obj __format__;
+    // type.__fmt__(self, fstr) - formats `self` according to `fstr`
+    ks_obj __fmt__;
 
 
     // getattr/setattr - custom attribute getters & setters (i.e. `x.a = b`)

@@ -372,14 +372,19 @@ static KS_TFUNC(int, fmt) {
     // whether tz >= 0
     bool tz_nz = mpz_cmp_ui(tz, 0) >= 0;
 
+    // sign size
+    int sc = 0;
+
     if (tz_nz) {
         if (f_sign == '+' || f_sign == ' ') {
             // add a negative size in these cases
             num_size++;
+            sc++;
         }
     } else {
         // always a negative sign
         num_size++;
+        sc++;
         // we want the absolute value, so invert it (we handle the sign ourself)
         mpz_neg(tz, tz);
     }
@@ -392,47 +397,41 @@ static KS_TFUNC(int, fmt) {
     char* tmp = ks_malloc(total_size + 1);
     tmp[total_size] = '\0';
 
-    // left v right aligned
-    int i = f_has_neg ? 0 : total_size - num_size;
-
-    if (!f_has_neg) {
-        int j;
-        for (j = 0; j < i; ++j) tmp[j] = f_has_0 ? '0' : ' ';
-    }
-
-    // now, build the string
-    if (tz_nz) {
-        /**/ if (f_sign == '+') tmp[i++] = '+';
-        else if (f_sign == ' ') tmp[i++] = ' ';
-    } else {
-        tmp[i++] = '-';
-    }
-/*
-    // add prefix specifier
-    if (base == 10) {
-        // do nothing
-    } else if (base == 16) {
-        tmp[i++] = '0';
-        tmp[i++] = 'x';
-    } else if (base == 8) {
-        tmp[i++] = '0';
-        tmp[i++] = 'o';
-    } else if (base == 2) {
-        tmp[i++] = '0';
-        tmp[i++] = 'b';
-    } else {
-        return ks_throw(ks_T_ArgError, "Invalid base '%i' for 'int' to 'str' conversion", base);
-    }
-    */
-    // add the 'meats'
-    mpz_get_str(&tmp[i], base, tz);
-
-    if (!self->isLong) mpz_clear(tz);
-
-
     if (f_has_neg) {
+        // left aligned, start at left
+        int i = 0;
+
+        if (tz_nz) {
+            /**/ if (f_sign == '+') tmp[i] = '+';
+            else if (f_sign == ' ') tmp[i] = ' ';
+        } else {
+            tmp[i] = '-';
+        }
+
+        // set to the string
+        mpz_get_str(&tmp[i + sc], base, tz);
+
+        // add extra spaces to fill the gap
+        for (i = num_size; i < total_size; ++i) tmp[i] = ' ';
+
+    } else {
+        // right aligned
+
+        int i;
+        for (i = f_has_0 ? sc : 0; i < total_size - num_size + (f_has_0 ? sc : 0); ++i) tmp[i] = f_has_0 ? '0' : ' ';
+
         i = total_size - num_size;
-        while (i < total_size) tmp[i++] = ' ';
+
+        if (tz_nz) {
+            /**/ if (f_sign == '+') tmp[f_has_0 ? 0 : i] = '+';
+            else if (f_sign == ' ') tmp[f_has_0 ? 0 : i] = ' ';
+        } else {
+            tmp[f_has_0 ? 0 : i] = '-';
+        }
+
+        // set to the string
+        mpz_get_str(&tmp[i + sc], base, tz);
+
     }
 
     ks_str res = ks_str_new_c(tmp, total_size);
