@@ -485,7 +485,7 @@ static ks_module get_module() {
     
     ks_module mod = ks_module_new(MODULE_NAME);
 
-    ks_type_init_c(sock_T_Socket, "sock.Socket", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(sock_T_Socket, "sock.Socket", ks_T_object, KS_KEYVALS(
         {"__new__",             (ks_obj)ks_cfunc_new_c(Socket_new_, "sock.Socket.__new__()")},
         {"__free__",            (ks_obj)ks_cfunc_new_c(Socket_free_, "sock.Socket.__free__(self)")},
 

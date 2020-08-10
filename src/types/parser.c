@@ -674,7 +674,7 @@ ks_tok ks_tok_combo(ks_parser parser, ks_tok A, ks_tok B) {
 
 // return whether a given token type is a valid yielding type
 static bool tok_isval(int type) {
-    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_NUMBER || type == KS_TOK_STR || type == KS_TOK_RBRK;
+    return type == KS_TOK_RPAR || type == KS_TOK_IDENT || type == KS_TOK_NUMBER || type == KS_TOK_STR || type == KS_TOK_RBRK || type == KS_TOK_RBRC;
 }
 
 // return whether a given token type is a valid operator
@@ -2813,7 +2813,7 @@ static KS_TFUNC(parser, free) {
 KS_TYPE_DECLFWD(ks_T_parser);
 
 void ks_init_T_parser() {
-    ks_type_init_c(ks_T_parser, "parser", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_parser, "parser", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(parser_free_, "parser.__free__(self)")},
     ));
 

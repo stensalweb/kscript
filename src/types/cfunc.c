@@ -41,7 +41,6 @@ ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig) {
     return self;
 }
 
-
 // cfunc.__free__(self) -> free obj
 static KS_TFUNC(cfunc, free) {
     ks_cfunc self;
@@ -69,7 +68,7 @@ static KS_TFUNC(cfunc, str) {
 KS_TYPE_DECLFWD(ks_T_cfunc);
 
 void ks_init_T_cfunc() {
-    ks_type_init_c(ks_T_cfunc, "cfunc", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_cfunc, "cfunc", ks_T_func, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(cfunc_free_, "cfunc.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(cfunc_str_, "cfunc.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(cfunc_str_, "cfunc.__repr__(self)")},

@@ -601,7 +601,7 @@ T_KS_FUNC_BOP(sub, "-", __sub__, {})
 T_KS_FUNC_BOP(mul, "*", __mul__, {})
 T_KS_FUNC_BOP(div, "/", __div__, {})
 T_KS_FUNC_BOP(mod, "%", __mod__, {})
-T_KS_FUNC_BOP(pow, "**", __pow__, {})
+T_KS_FUNC_BOP(pow, "**", __pow__, {  })
 
 T_KS_FUNC_BOP(binand, "&", __binand__, {})
 T_KS_FUNC_BOP(binor, "|", __binor__, {})
@@ -1139,7 +1139,18 @@ static KS_FUNC(eval) {
     ks_debug("ks", "compiled to: '%S'", bcode);
 
 
-    ks_obj result = ks_obj_call((ks_obj)bcode, 0, NULL);
+    // current thread
+    ks_thread th = ks_thread_get();
+
+    // local variables
+    ks_dict locals = NULL;
+
+    // attempt to hoist from just under the top of the stack frames
+    if (th->frames->len > 2) locals = ((ks_stack_frame)th->frames->elems[th->frames->len - 2])->locals;
+
+
+
+    ks_obj result = ks_obj_call2((ks_obj)bcode, 0, NULL, locals);
 
     KS_DECREF(parser);
 

@@ -231,18 +231,16 @@ struct ks_type_s {
      */
     uint32_t flags;
 
-
-    /* special case attributes 
+    /* Special case attributes (`__*__`)
      *
      * We keep track of special attributes a type has, such as `__free__`, `__str__`, etc
      *
-     * These do not hold an extra referece; since they are in the dictionary 'attr' anyway,
+     * These do not hold an extra reference; since they are in the dictionary 'attr' anyway,
      *   but can make some internal routines faster since they can skip a dictionary lookup
      * 
      * For this reason, `ks_type_set_c()` should be used instead of accessing the dictionary directly
      * 
      */
-
 
     // type.__name__ - the string name of the type
     ks_str __name__;
@@ -268,14 +266,16 @@ struct ks_type_s {
     //   * if __init__ is not found, the code is effectively: 'x = type.__new__(a, b, c);'
     ks_obj __new__, __init__;
 
-
     // type.__free__(self) - free an object of a given type
     ks_obj __free__;
 
 
-
     // type conversion to standard types
     ks_obj __bool__, __int__, __float__, __str__, __bytes__;
+
+
+    // type.__format__(self, fstr) - formats `self` according to `fstr`
+    ks_obj __format__;
 
 
     // getattr/setattr - custom attribute getters & setters (i.e. `x.a = b`)
@@ -283,7 +283,6 @@ struct ks_type_s {
 
     // getitem/setitem - custom item getting (i.e. `x[a] = b`)
     ks_obj __getitem__, __setitem__;
-
 
 
     // type.__repr__(self) - convert a given object to a (string) representation
@@ -298,15 +297,11 @@ struct ks_type_s {
     ks_obj __iter__, __next__;
 
 
-    // type.__call__(self, *args) - override the calling feature
+    // type.__call__(self, *args) - override the calling feature, this is used to implement callable types
     ks_obj __call__;
 
 
-
-
-
-    // ops
-
+    /* Operator Overloading */
 
     // +, -, abs, ~ operators (unary)
     ks_obj __pos__, __neg__, __abs__, __sqig__;
@@ -317,12 +312,11 @@ struct ks_type_s {
     // <, >, <=, >=, ==, !=, <=> operators
     ks_obj __lt__, __gt__, __le__, __ge__, __eq__, __ne__, __cmp__;
 
-    // <<. >> operators
+    // <<, >> operators
     ks_obj __lshift__, __rshift__;
 
     // |, &, ^ operators
     ks_obj __binor__, __binand__, __binxor__;
-
 
 };
 
@@ -380,7 +374,7 @@ struct ks_str_s {
 
 };
 
-// Get whether a string is ascii-only data. This is true if the length of the UTF8-data is the same as bytes (i.e. every character is a single byte)
+// Determine whether a string is ascii-only data. This is true if the length of the UTF8-data is the same as bytes (i.e. every character is a single byte)
 // If this condition is true, characters can be indexed on a byte-by-byte basis. This means a lot of operations can be a lot faster (indexing, slicing,
 //   searching AND returning the index at which it is found)
 #define KS_STR_ISASCII(_str) ((_str)->len_b == (_str)->len_c)
@@ -519,7 +513,6 @@ extern ks_bool KS_TRUE, KS_FALSE;
 // create a boolean form a C-style conditional
 #define KSO_BOOL(_cond) ((ks_obj)((_cond) ? (KS_TRUE) : (KS_FALSE)))
 
-
 #define KSO_TRUE ((ks_obj)KS_TRUE)
 #define KSO_FALSE ((ks_obj)KS_FALSE)
 
@@ -652,12 +645,6 @@ typedef struct {
 }* ks_range;
 
 
-// A bucket will be this value if it is empty
-#define KS_DICT_BUCKET_EMPTY     -1
-
-// A bucket will be this value if it has been deleted
-#define KS_DICT_BUCKET_DELETED   -2
-
 struct ks_dict_s {
     KS_OBJ_BASE
 
@@ -686,7 +673,6 @@ struct ks_dict_s {
 
     // array of buckets (each bucket is an index into the 'entries' array, or a negative number to signal some special case (see KS_DICT_BUCKET_*))
     ks_ssize_t* buckets;
-
 };
 
 
@@ -698,8 +684,6 @@ struct ks_dict_s {
 // ks_hash_t hash;
 // while (ks_dict_citer_next(&cit, &key, &val, &hash)) {
 //   { code ... }
-//   KS_DECREF(key);   
-//   KS_DECREF(val);   
 // }
 //```
 struct ks_dict_citer {
@@ -717,11 +701,38 @@ struct ks_dict_citer {
 // NOTE: No cleanup is neccessary, because no references are made
 KS_API struct ks_dict_citer ks_dict_citer_make(ks_dict dict_obj);
 
-
 // Get the next element, and return whether it was successful (i.e. whether it had another entry)
 // NOTE: No cleanup is neccessary, because no references are made
 KS_API bool ks_dict_citer_next(struct ks_dict_citer* cit, ks_obj* key, ks_obj* val, ks_hash_t* hash);
 
+
+// ks_set - collection of unique items (no duplicates)
+typedef struct {
+    KS_OBJ_BASE
+
+    // the number of active entries in the dictionary (NOTE: some may have been deleted)
+    ks_size_t n_entries;
+
+    // array of entries; ordered by insertion order
+    struct ks_set_entry {
+
+        // hash(key), stored for efficiency reasons
+        ks_hash_t hash;
+
+        // the key of this entry
+        // A reference is held to this
+        ks_obj key;
+
+    }* entries;
+
+
+    // the number of buckets in the hash table (normally, a prime number)
+    ks_size_t n_buckets;
+
+    // array of buckets (each bucket is an index into the 'entries' array, or a negative number to signal some special case (see KS_DICT_BUCKET_*))
+    ks_ssize_t* buckets;
+
+}* ks_set;
 
 
 // ks_namespace - a dictionary, but with attribute references rather than subscripting
@@ -769,6 +780,7 @@ typedef struct {
 
 }* ks_pfunc;
 
+
 /* Enums */
 
 // ks_Enum - base class for an enumeration
@@ -806,13 +818,22 @@ typedef struct {
 
 
 // ks_module - type representing a module
-typedef struct {
+typedef struct ks_module_s* ks_module;
+
+struct ks_module_s {
     KS_OBJ_BASE
 
     // atributes of the module
     ks_dict attr;
 
-}* ks_module;
+    // the children of the module (i.e. submodules)
+    ks_list children;
+
+    // parent module
+    // NOTE: a reference is not kept to this variable!
+    ks_module parent;
+
+};
 
 
 // internal structure used by the library to hold initialization
@@ -833,6 +854,9 @@ KS_API ks_module ks_module_new(const char* mname);
 // Attempt to import a module with a given name
 // NOTE: Returns a new reference, or NULL if an error was thrown
 KS_API ks_module ks_module_import(const char* mname);
+
+// Set `self`'s parent module to `par`
+KS_API void ks_module_parent(ks_module self, ks_module par);
 
 
 /* Logging */
@@ -1846,7 +1870,7 @@ extern ks_list ks_paths;
 /* Type Objects */
 
 extern ks_type
-    ks_T_obj,
+    ks_T_object,
     ks_T_none,
     ks_T_type,
     ks_T_str,
@@ -1864,6 +1888,7 @@ extern ks_type
     ks_T_slice,
     ks_T_range,
     ks_T_dict,
+    ks_T_set,
     ks_T_namespace,
 
     ks_T_parser,
@@ -1871,6 +1896,7 @@ extern ks_type
     ks_T_code,
     ks_T_kfunc,
 
+    ks_T_func,
     ks_T_cfunc,
     ks_T_pfunc,
 
@@ -1895,6 +1921,7 @@ extern ks_type
     
     ks_T_OpError,
     ks_T_OutOfIterError,
+    ks_T_OutOfMemError,
     
     ks_T_MathError,
     ks_T_AssertError,
@@ -2145,10 +2172,10 @@ KS_API void* ks_ithrow(const char* file, const char* func, int line, ks_type err
 //   // destroy reference from iterator
 //   KS_DECREF(ob);
 // }
-// // handle error thrown 
-// if (cit.threw) return NULL;
 // // clean it up
 // ks_citer_done(&cit);
+// // handle error thrown 
+// if (cit.threw) return NULL;
 // 
 struct ks_citer {
     // the original object created with
@@ -2197,7 +2224,7 @@ KS_API bool ks_getargs(int n_args, ks_obj* args, const char* fmt, ...);
 /* --- Builtins --- */
 
 // Construct a new 'type' object, where `parent` can be any type that it will implement the same binary interface as
-//   (giving NULL and ks_T_obj are equivalent)
+//   (giving NULL and ks_T_object are equivalent)
 // NOTE: Returns new reference, or NULL if an error was thrown
 KS_API ks_type ks_type_new(ks_str name, ks_type parent);
 
@@ -2479,7 +2506,7 @@ KS_API void ks_dict_merge_enum(ks_dict self, ks_type enumtype);
 // Set `self[key] = val`
 // Variants that include `_h`, which require that hash(key) is precomputed
 // Variants that include `_c`, take a NUL-terminated C-string as the key
-// Returns whether it was successful, if `false`, an error is thrown
+// NOTE: Returns whether it was successful, if `false`, something REALLY bad happen
 KS_API bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val);
 KS_API bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val);
 KS_API bool ks_dict_set_c(ks_dict self, ks_keyval_c* keyvals);
@@ -2487,7 +2514,7 @@ KS_API bool ks_dict_set_c(ks_dict self, ks_keyval_c* keyvals);
 // Return the object stored in the dictionary, keyed 'key'
 // Variants that include `_h`, which require that hash(key) is precomputed
 // Variants that include `_c`, take a NUL-terminated C-string as the key
-// NOTE: Returns a new reference, or NULL if there was a problem (if NULL, an error was thrown)
+// NOTE: Returns a new reference, or NULL if there was a problem (but do NOT throw an error)
 KS_API ks_obj ks_dict_get(ks_dict self, ks_obj key);
 KS_API ks_obj ks_dict_get_h(ks_dict self, ks_obj key, ks_hash_t hash);
 KS_API ks_obj ks_dict_get_c(ks_dict self, char* key);
@@ -2503,10 +2530,35 @@ KS_API bool ks_dict_has_c(ks_dict self, char* key);
 // Delete 'key' from the dictionary's entries
 // Variants that include `_h`, which require that hash(key) is precomputed
 // Variants that include `_c`, take a NUL-terminated C-string as the key
-// Returns whether it was successful, if `false`, an error is thrown
+// NOTE: Returns whether it was successful, if `false`, do NOT throw and error
 KS_API bool ks_dict_del(ks_dict self, ks_obj key);
 KS_API bool ks_dict_del_h(ks_dict self, ks_obj key, ks_hash_t hash);
 KS_API bool ks_dict_del_c(ks_dict self, char* key);
+
+// Create a new 'set' with 'len' elements (NOTE: the actual set may have fewer elements, if some compare equal)
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_set ks_set_new(ks_size_t len, ks_obj* elems);
+
+// calculate load factor of a set
+KS_API double ks_set_load(ks_set self);
+
+// Add 'key' to a set
+// NOTE: Returns success, or `false` and throws an error
+KS_API bool ks_set_add(ks_set self, ks_obj key);
+KS_API bool ks_set_add_h(ks_set self, ks_obj key, ks_hash_t hash);
+
+// Remove 'key' from a set
+// NOTE: Returns success, or `false` and throws an error
+KS_API bool ks_set_del(ks_set self, ks_obj key);
+KS_API bool ks_set_del_h(ks_set self, ks_obj key, ks_hash_t hash);
+
+// Check whether `key` is in the given set
+// NOTE: Returns success, or `false`, but NEVER throw an error
+KS_API bool ks_set_has(ks_set self, ks_obj key);
+KS_API bool ks_set_has_h(ks_set self, ks_obj key, ks_hash_t hash);
+
+
+
 
 
 

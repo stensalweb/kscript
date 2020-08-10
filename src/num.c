@@ -676,7 +676,8 @@ bool ks_num_eq(ks_obj L, ks_obj R, bool* out) {
             ks_catch_ignore();
             KS_THROW_BOP_ERR("==", L, R);
         }
-        return KSO_BOOL(Lv == Rv);
+        *out = Lv == Rv;
+        return true;
     } else if (L->type == ks_T_float || R->type == ks_T_float) {
         double Lv, Rv;
         if (
@@ -1105,7 +1106,6 @@ ks_obj ks_num_pow(ks_obj L, ks_obj R) {
         }
         return (ks_obj)ks_float_new(pow(Lv, Rv));
     } else if (ks_num_is_integral(L) && ks_num_is_integral(R)) {
-
 
         int Lsgn, Rsgn;
         if (!ks_num_sgn(L, &Lsgn) || !ks_num_sgn(R, &Rsgn)) {

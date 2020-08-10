@@ -411,7 +411,7 @@ KS_TYPE_DECLFWD(nx_T_array);
 
 
 void nx_T_init_array() {
-    ks_type_init_c(nx_T_array, "nx.array", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(nx_T_array, "nx.array", ks_T_object, KS_KEYVALS(
 
         {"__new__",                (ks_obj)ks_cfunc_new_c(array_new_, "nx.array.__new__(obj, dtype=none)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(array_str_, "nx.array.__str__(self)")},

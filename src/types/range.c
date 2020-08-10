@@ -191,7 +191,7 @@ static KS_TFUNC(range, iter) {
 KS_TYPE_DECLFWD(ks_T_range);
 
 void ks_init_T_range() {
-    ks_type_init_c(ks_T_range, "range", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_range, "range", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(range_new_, "range.__new__(*args)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(range_free_, "range.__free__(self)")},
         
@@ -201,7 +201,7 @@ void ks_init_T_range() {
         {"__iter__",               (ks_obj)ks_cfunc_new_c(range_iter_, "range.__iter__(self)")},
     ));
 
-    ks_type_init_c(ks_T_range_iter, "range_iter", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_range_iter, "range_iter", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(range_iter_free_, "range_iter.__free__(self)")},
 
         {"__next__",               (ks_obj)ks_cfunc_new_c(range_iter_next_, "range_iter.__next__(self)")},

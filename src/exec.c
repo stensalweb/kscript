@@ -848,7 +848,7 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
         T_BOP_CASE(KSB_BOP_MUL, "*", ks_F_mul, {});
         T_BOP_CASE(KSB_BOP_DIV, "/", ks_F_div, {});
         T_BOP_CASE(KSB_BOP_MOD, "%", ks_F_mod, {});
-        T_BOP_CASE(KSB_BOP_POW, "**", ks_F_pow, {});
+        T_BOP_CASE(KSB_BOP_POW, "**", ks_F_pow, { });
 
         T_BOP_CASE(KSB_BOP_BINOR, "|", ks_F_binor, {});
         T_BOP_CASE(KSB_BOP_BINAND, "&", ks_F_binand, {});

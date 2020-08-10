@@ -152,7 +152,7 @@ static KS_TFUNC(view, pow) {
 
 void nx_T_init_view() {
 
-    ks_type_init_c(nx_T_view, "nx.view", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(nx_T_view, "nx.view", ks_T_object, KS_KEYVALS(
 
         {"__new__",           (ks_obj)ks_cfunc_new_c(view_new_, "nx.view.__new__(obj)")},
         {"__free__",           (ks_obj)ks_cfunc_new_c(view_free_, "nx.view.__free__(self)")},

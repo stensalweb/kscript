@@ -123,7 +123,7 @@ static KS_TFUNC(namespace, free) {
 KS_TYPE_DECLFWD(ks_T_namespace);
 
 void ks_init_T_namespace() {
-    ks_type_init_c(ks_T_namespace, "namespace", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_namespace, "namespace", ks_T_object, KS_KEYVALS(
         {"__new__", (ks_obj)ks_cfunc_new_c(namespace_new_, "namespace.__new__(attr={})")},
         {"__free__", (ks_obj)ks_cfunc_new_c(namespace_free_, "namespace.__free__(self)")},
 

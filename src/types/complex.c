@@ -22,7 +22,6 @@ static KS_TFUNC(complex, str) {
     ks_complex self;
     KS_GETARGS("self:*", &self, ks_T_complex)
 
-
     char cstr[260];
     int len = 0;
     if (fabs(creal(self->val)) < 1e-14) {
@@ -83,7 +82,7 @@ KS_TYPE_DECLFWD(ks_T_complex);
 
 void ks_init_T_complex() {
 
-    ks_type_init_c(ks_T_complex, "complex", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_complex, "complex", ks_T_object, KS_KEYVALS(
         {"__str__",                (ks_obj)ks_cfunc_new_c(complex_str_, "complex.__str__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(complex_free_, "complex.__free__(self)")},
 

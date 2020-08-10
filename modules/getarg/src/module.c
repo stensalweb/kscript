@@ -702,7 +702,7 @@ static ks_module get_module() {
     
     ks_module mod = ks_module_new(MODULE_NAME);
 
-    ks_type_init_c(getarg_T_Parser, "getarg.Parser", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(getarg_T_Parser, "getarg.Parser", ks_T_object, KS_KEYVALS(
         {"__new__",         (ks_obj)ks_cfunc_new_c(Parser_new_, "Parser.__new__(program_name, version, desc, authors)")},
         {"__free__",        (ks_obj)ks_cfunc_new_c(Parser_free_, "Parser.__free__(self)")},
 

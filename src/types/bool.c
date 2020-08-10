@@ -5,10 +5,9 @@
 
 #include "ks-impl.h"
 
-
+// singletons
 static struct ks_bool_s KS_TRUE_s, KS_FALSE_s;
 ks_bool KS_TRUE = &KS_TRUE_s, KS_FALSE = &KS_FALSE_s;
-
 
 
 // bool.__free__(self) -> free object
@@ -54,14 +53,11 @@ void ks_init_T_bool() {
     KS_TRUE->val = true;
     KS_FALSE->val = false;
 
-    ks_type_init_c(ks_T_bool, "bool", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_bool, "bool", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(bool_free_, "bool.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(bool_str_, "bool.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(bool_str_, "bool.__repr__(self)")},
 
         KST_NUM_OPKVS(tbool)
     ));
-
-    ks_T_bool->flags |= KS_TYPE_FLAGS_EQSS;
-
 }

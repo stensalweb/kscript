@@ -173,7 +173,7 @@ static KS_TFUNC(dtype, str) {
 void nx_T_init_dtype() {
     // create cache
     dtype_cache = ks_dict_new(0, NULL);
-    ks_type_init_c(nx_T_dtype, "nx.dtype", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(nx_T_dtype, "nx.dtype", ks_T_object, KS_KEYVALS(
 
         {"__new__", (ks_obj)ks_cfunc_new_c(dtype_new_, "nx.dtype.__new__(obj)")},
         {"__free__", (ks_obj)ks_cfunc_new_c(dtype_free_, "nx.dtype.__free__(self)")},

@@ -17,9 +17,18 @@ ks_module ks_module_new(const char* mname) {
         {"__name__", (ks_obj)ks_str_new(mname)},
     ));
 
+    self->parent = NULL;
+    self->children = ks_list_new(0, NULL);
+
     return self;
 }
 
+// set a module's parent
+void ks_module_parent(ks_module self, ks_module par) {
+    if (par != NULL) KS_INCREF(par);
+    if (self->parent != NULL) KS_DECREF(self->parent);
+    self->parent = par;
+}
 
 // attempt to load a single file, without any extra paths
 // Do not raise error, just return NULL if not successful
@@ -192,7 +201,7 @@ static KS_TFUNC(module, setattr) {
 KS_TYPE_DECLFWD(ks_T_module);
 
 void ks_init_T_module() {
-    ks_type_init_c(ks_T_module, "module", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_module, "module", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(module_free_, "module.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(module_str_, "module.__str__(self)")},
         {"__getattr__",            (ks_obj)ks_cfunc_new_c(module_getattr_, "module.__getattr__(self, attr)")},

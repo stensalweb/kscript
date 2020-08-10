@@ -688,12 +688,12 @@ void libc_init_types() {
         ks_warn("ks", "Size of normal pointers & function pointers differs (%i vs %i)", (int)sizeof(void*), (int)sizeof(void (*)()));
     }
 
-    ks_type_init_c(libc_T_void, "libc.void", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(libc_T_void, "libc.void", ks_T_object, KS_KEYVALS(
         {"_ctype_size",    (ks_obj)ks_int_new(0)},
         {"_is_ctype",      KSO_TRUE},
     ));
 
-    ks_type_init_c(libc_T_pointer, "libc.pointer", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(libc_T_pointer, "libc.pointer", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)(F_pointer_new = ks_cfunc_new_c(pointer_new_, "libc.pointer.__new__(ptr_type, obj)"))},
         {"__free__",               (ks_obj)ks_cfunc_new_c(pointer_free_, "libc.pointer.__free__(obj)")},
 
@@ -711,7 +711,7 @@ void libc_init_types() {
         {"_is_ctype",              KSO_TRUE},
 
     ));
-    ks_type_init_c(libc_T_function, "libc.function", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(libc_T_function, "libc.function", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)(F_function_new = ks_cfunc_new_c(function_new_, "libc.function.__new__(func_type, obj)"))},
         {"__free__",               (ks_obj)ks_cfunc_new_c(function_free_, "libc.function.__free__(self)")},
 
@@ -729,7 +729,7 @@ void libc_init_types() {
 
 
     #define T_setupinttype(_type_name, _ctype) \
-    ks_type_init_c(PASTE(libc_T, _type_name), "libc." #_type_name, ks_T_obj, KS_KEYVALS( \
+    ks_type_init_c(PASTE(libc_T, _type_name), "libc." #_type_name, ks_T_object, KS_KEYVALS( \
         {"__new__",        (ks_obj)ks_cfunc_new_c(PASTE(_type_name, new_), "libc." #_type_name ".__new__(obj)")}, \
         {"__free__",       (ks_obj)ks_cfunc_new_c(PASTE(_type_name, free_), "libc." #_type_name ".__free__(obj)")}, \
         {"__str__",        (ks_obj)ks_cfunc_new_c(PASTE(_type_name, str_), "libc." #_type_name ".__str__(self)")}, \

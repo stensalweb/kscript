@@ -30,7 +30,7 @@ extern "C" {
 
 /* type initialization functions */
 
-void ks_init_T_obj();
+void ks_init_T_object();
 void ks_init_T_none();
 void ks_init_T_type();
 
@@ -49,8 +49,10 @@ void ks_init_T_tuple();
 void ks_init_T_slice();
 void ks_init_T_range();
 void ks_init_T_dict();
+void ks_init_T_set();
 void ks_init_T_namespace();
 
+void ks_init_T_func();
 void ks_init_T_cfunc();
 void ks_init_T_pfunc();
 void ks_init_T_Error();

@@ -67,7 +67,7 @@ ks_kfunc ks_kfunc_new_copy(ks_kfunc func) {
 
 
 
-// add a parametyer
+// add a parameter
 void ks_kfunc_addpar(ks_kfunc self, ks_str name, ks_obj defa) {
     int idx = self->n_param++;
     self->params = ks_realloc(self->params, sizeof(*self->params) * self->n_param);
@@ -75,7 +75,6 @@ void ks_kfunc_addpar(ks_kfunc self, ks_str name, ks_obj defa) {
         .name = (ks_str)KS_NEWREF(name),
         .defa = defa,
     };
-
 }
 
 
@@ -102,7 +101,23 @@ static KS_TFUNC(kfunc, free) {
     KS_FREE_OBJ(self);
 
     return KSO_NONE;
-};
+}
+
+
+// kfunc.__getattr__(self, attr) - get a particular attribute
+static KS_TFUNC(kfunc, getattr) {
+    ks_kfunc self;
+    ks_str key;
+    KS_GETARGS("self:* attr:*", &self, ks_T_kfunc, &key, ks_T_str)
+
+
+    if (ks_str_eq_c(key, "_code", 5)) {
+        return KS_NEWREF(self->code);
+    } else {
+        // error, not found
+        KS_THROW_ATTR_ERR(self, key);
+    }
+}
 
 
 
@@ -113,8 +128,9 @@ static KS_TFUNC(kfunc, free) {
 KS_TYPE_DECLFWD(ks_T_kfunc);
 
 void ks_init_T_kfunc() {
-    ks_type_init_c(ks_T_kfunc, "kfunc", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_kfunc, "kfunc", ks_T_func, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(kfunc_free_, "kfunc.__free__(self)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c(kfunc_getattr_, "kfunc.__getattr__(self, attr)")},
     ));
 
 }

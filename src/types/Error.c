@@ -93,6 +93,7 @@ KS_TYPE_DECLFWD(ks_T_ArgError)
 KS_TYPE_DECLFWD(ks_T_SizeError)
 KS_TYPE_DECLFWD(ks_T_OpError)
 KS_TYPE_DECLFWD(ks_T_OutOfIterError)
+KS_TYPE_DECLFWD(ks_T_OutOfMemError)
 KS_TYPE_DECLFWD(ks_T_MathError)
 KS_TYPE_DECLFWD(ks_T_AssertError)
 
@@ -101,7 +102,7 @@ KS_TYPE_DECLFWD(ks_T_AssertError)
 void ks_init_T_Error() {
     // initialize singletons
 
-    ks_type_init_c(ks_T_Error, "Error", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_Error, "Error", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(Error_new_, "Error.__new__()")},
         {"__init__",               (ks_obj)ks_cfunc_new_c(Error_init_, "Error.__init__(what)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(Error_str_, "Error.__str__(self)")},
@@ -123,6 +124,7 @@ void ks_init_T_Error() {
     SUBTYPE(SizeError)
     SUBTYPE(OpError)
     SUBTYPE(OutOfIterError)
+    SUBTYPE(OutOfMemError)
     SUBTYPE(MathError)
     SUBTYPE(AssertError)
 

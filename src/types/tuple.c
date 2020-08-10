@@ -483,7 +483,7 @@ static KS_TFUNC(tuple, iter) {
 KS_TYPE_DECLFWD(ks_T_tuple);
 
 void ks_init_T_tuple() {
-    ks_type_init_c(ks_T_tuple, "tuple", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_tuple, "tuple", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(tuple_new_, "tuple.__new__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(tuple_free_, "tuple.__free__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(tuple_len_, "tuple.__len__(self)")},
@@ -500,7 +500,7 @@ void ks_init_T_tuple() {
         {"__iter__",               (ks_obj)ks_cfunc_new_c(tuple_iter_, "tuple.__iter__(self)")},
 
     ));
-    ks_type_init_c(ks_T_tuple_iter, "tuple_iter", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_tuple_iter, "tuple_iter", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(tuple_iter_free_, "tuple_iter.__free__(self)")},
 
         {"__next__",               (ks_obj)ks_cfunc_new_c(tuple_iter_next_, "tuple_iter.__next__(self)")},

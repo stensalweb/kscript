@@ -32,11 +32,10 @@ ks_bytes ks_bytes_new(const uint8_t* byt, ks_size_t len_b) {
     }
 }
 
-// bytes.__new__(obj)
+// bytes.__new__(obj) - create new bytes object
 static KS_TFUNC(bytes, new) {
     ks_obj obj;
-    KS_GETARGS("obj", ks_T_type, &obj);
-
+    KS_GETARGS("obj", &obj);
 
     if (ks_type_issub(obj->type, ks_T_bytes)) {
         return KS_NEWREF(obj);
@@ -65,7 +64,6 @@ static KS_TFUNC(bytes, free) {
     return KSO_NONE;
 }
 
-
 // bytes.__repr__(self) - get repr
 static KS_TFUNC(bytes, repr) {
     ks_bytes self;
@@ -93,11 +91,10 @@ static KS_TFUNC(bytes, repr) {
 // bytes.__len__(self) - get length
 static KS_TFUNC(bytes, len) {
     ks_bytes self;
-    KS_GETARGS("self:*", &self, ks_T_str)
+    KS_GETARGS("self:*", &self, ks_T_bytes)
 
     return (ks_obj)ks_int_new(self->len_b);
 }
-
 
 
 /* iterator type */
@@ -157,7 +154,6 @@ static KS_TFUNC(bytes, iter) {
 }
 
 
-
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_bytes);
@@ -167,14 +163,11 @@ void ks_init_T_bytes() {
     // initialize global singletons
     int i;
     for (i = 0; i < KS_BYTE_MAX; ++i) {
-
-
         ks_bytes tc = &KS_BYTES[i];
         KS_INIT_OBJ(tc, ks_T_bytes);
         tc->len_b = 1;
         tc->byt[0] = i;
         tc->v_hash = ks_hash_bytes(tc->byt, 1);
-
     }
 
 
@@ -184,9 +177,7 @@ void ks_init_T_bytes() {
     tc->len_b = 0;
     tc->v_hash = ks_hash_bytes(tc->byt, 0);
 
-
-
-    ks_type_init_c(ks_T_bytes, "bytes", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_bytes, "bytes", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(bytes_new_, "bytes.__new__(obj, *args)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(bytes_free_, "bytes.__free__(self)")},
         {"__iter__",               (ks_obj)ks_cfunc_new_c(bytes_iter_, "bytes.__iter__(self)")},
@@ -197,7 +188,7 @@ void ks_init_T_bytes() {
 
     ));
 
-    ks_type_init_c(ks_T_bytes_iter, "bytes_iter", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_bytes_iter, "bytes_iter", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(bytes_iter_free_, "bytes_iter.__free__(self)")},
         {"__next__",               (ks_obj)ks_cfunc_new_c(bytes_iter_next_, "bytes_iter.__next__(self)")},
     ));

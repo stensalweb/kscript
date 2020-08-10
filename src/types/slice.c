@@ -63,17 +63,16 @@ bool ks_slice_getci(ks_slice self, int64_t len, int64_t* first, int64_t* last, i
         *delta = 1;
         *last = *first + *delta; 
         return true;
-    }
-
-
-    if ((step > 0 && *last < *first) || (step < 0 && *last > *first)) {
+    } else if ((step > 0 && *last < *first) || (step < 0 && *last > *first)) {
         // no objects
         *delta = 1;
         *last = *first;
+    } else {
+        // otherwise, just set to step
+        *delta = step;
     }
 
-    // otherwise, just set to step
-    *delta = step;
+
 
     // difference
     int64_t diff = *last - *first;
@@ -110,7 +109,7 @@ static KS_TFUNC(slice, free) {
 KS_TYPE_DECLFWD(ks_T_slice);
 
 void ks_init_T_slice() {
-    ks_type_init_c(ks_T_slice, "slice", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_slice, "slice", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(slice_free_, "slice.__free__(self)")},
     ));
 

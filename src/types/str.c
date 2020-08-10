@@ -1124,7 +1124,7 @@ void ks_init_T_str() {
 
     }
 
-    ks_type_init_c(ks_T_str, "str", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_str, "str", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(str_new_, "str.__new__(obj, *args)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(str_free_, "str.__free__(self)")},
         {"__iter__",               (ks_obj)ks_cfunc_new_c(str_iter_, "str.__iter__(self)")},
@@ -1155,7 +1155,7 @@ void ks_init_T_str() {
 
     ));
 
-    ks_type_init_c(ks_T_str_iter, "str_iter", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_str_iter, "str_iter", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(str_iter_free_, "str_iter.__free__(self)")},
         {"__next__",               (ks_obj)ks_cfunc_new_c(str_iter_next_, "str_iter.__next__(self)")},
     ));

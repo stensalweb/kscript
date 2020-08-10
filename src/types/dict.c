@@ -1,60 +1,19 @@
 /* dict.c - implementation of the dictionary type
  *
+ * Internally, a hash table based approach is used, to ensure:
+ * 
+ *   - O(1) for access, insertion, deletion
+ *
+ *
+ * This implementation is similar to Python's; order is guaranteed to be insertion order
+ *
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
 #include "ks-impl.h"
 
 
-// tuning parameters
-
-// what is the maximum load factor we can tolerate in a dictionary?
-// When a dictionary exceeds this load factor, it is resized
-#define KS_DICT_MAX_LOAD 0.3
-
-// what should the new load factor be when resizing a dictionary?
-// When a dictionary is being resized/rehashed, this is the target load factor
-#define KS_DICT_NEW_LOAD 0.15
-
-// probe offset for index 'i'
-#define KS_DICT_PROBE(i) (i)
-// quadratic probing
-//#define KS_DICT_PROBE(i) ((i)*(i))
-
-// utility functions
-
-
-// return true if 'x' is prime, false otherwise
-// TODO: perhaps use Miller-Rabin tests or the like?
-static bool is_prime(int x) {
-    /**/ if (x < 2) return false;
-    else if (x == 2 || x == 3 || x == 5) return true;
-    else if (x % 2 == 0 || x % 3 == 0 || x % 5 == 0) return false;
-
-    int i = 3;
-    while (i * i <= x) {
-        if (x % i == 0) return false;
-        i += 2;
-    }
-
-    return true;
-}
-
-
-// return the next prime > x
-static int next_prime(int x) {
-
-    int i = x % 2 == 0 ? x + 1 : x + 2;
-
-    // search for primes
-    while (!is_prime(i)) {
-        i += 2;
-    }
-
-    return i;
-}
-
-
+/* C API */
 
 // Create a new dictionary iterator for C
 // NOTE: No cleanup is neccessary, because no references are made
@@ -79,8 +38,8 @@ bool ks_dict_citer_next(struct ks_dict_citer* cit, ks_obj* key, ks_obj* val, ks_
     if (cit->curpos >= cit->self->n_entries) return false;
 
     // now, we have arrived at the next location
-    *key = KS_NEWREF(cit->self->entries[cit->curpos].key);
-    *val = KS_NEWREF(cit->self->entries[cit->curpos].val);
+    *key = cit->self->entries[cit->curpos].key;
+    *val = cit->self->entries[cit->curpos].val;
     if (hash) *hash = cit->self->entries[cit->curpos].hash;
 
     // advance for next time
@@ -89,6 +48,61 @@ bool ks_dict_citer_next(struct ks_dict_citer* cit, ks_obj* key, ks_obj* val, ks_
 }
 
 
+/* Constants */
+
+// A bucket will be this value if it is empty
+#define KS_DICT_BUCKET_EMPTY     (-1)
+
+// A bucket will be this value if it has been deleted
+#define KS_DICT_BUCKET_DELETED   (-2)
+
+
+/* Tuning/Performance parameters */
+
+// what is the maximum load factor we can tolerate in a dictionary?
+// When a dictionary exceeds this load factor, it is resized
+#define KS_DICT_MAX_LOAD 0.3
+
+// what should the new load factor be when resizing a dictionary?
+// When a dictionary is being resized/rehashed, this is the target load factor
+#define KS_DICT_NEW_LOAD 0.15
+
+// probe offset for index 'i'
+#define KS_DICT_PROBE(i) (i)
+// quadratic probing
+//#define KS_DICT_PROBE(i) ((i)*(i))
+
+
+/* Utility Funcs */
+
+// return true if 'x' is prime, false otherwise
+// TODO: perhaps use Miller-Rabin tests or the like for larger numbers?
+static bool is_prime(int x) {
+    /**/ if (x < 2) return false;
+    else if (x == 2 || x == 3 || x == 5) return true;
+    else if (x % 2 == 0 || x % 3 == 0 || x % 5 == 0) return false;
+
+    int i = 3;
+    while (i * i <= x) {
+        if (x % i == 0) return false;
+        i += 2;
+    }
+
+    return true;
+}
+
+// return the next prime > x
+static int next_prime(int x) {
+
+    int i = x % 2 == 0 ? x + 1 : x + 2;
+
+    // search for primes
+    while (!is_prime(i)) {
+        i += 2;
+    }
+
+    return i;
+}
 
 // Construct a new dictionary from key, val pairs (elems[0], elems[1] is the first, elems[2*i+0], elems[2*i+1] makes up the i'th pair)
 // NOTE: `len%2==0` is a requirement!
@@ -112,7 +126,6 @@ ks_dict ks_dict_new(ks_size_t len, ks_obj* elems) {
         // get key/val pair
         ks_obj key = elems[2 * i + 0], val = elems[2 * i + 1];
         ks_dict_set(self, key, val);
-
     }
 
     // return constructed dictionary
@@ -313,8 +326,6 @@ bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
     // keep track of original and how many tries
     ks_size_t bi0 = bi, tries = 0;
 
-    bool found = false;
-
     do {
         // get the entry index (ei), which is an index into self->entries
         int ei = self->buckets[bi];
@@ -333,7 +344,8 @@ bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
             
             // set that entry
             self->entries[ei] = (struct ks_dict_entry){ .hash = hash, .key = key, .val = val };
-
+            
+            // success
             return true;
 
         } else if (ei == KS_DICT_BUCKET_DELETED) {
@@ -345,13 +357,16 @@ bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
                 // the keys are equal, so the dictionary already contains the key
                 // (therefore, the dictionary already holds a reference to an equivalent key)
 
+                // add new reference to what we are setting it to
+                KS_INCREF(val);
+
                 // since we are replacing the value, the previous value must be dereferenced
                 KS_DECREF(self->entries[ei].val);
 
-                // add new reference
-                KS_INCREF(val);
+                // replace the value
                 self->entries[ei].val = val;
                 
+                // success
                 return true;
             }
         }
@@ -362,10 +377,9 @@ bool ks_dict_set_h(ks_dict self, ks_obj key, ks_hash_t hash, ks_obj val) {
 
     } while (bi != bi0);
 
-    assert (found && "could not resize dictionary!");
+    assert (false && "could not set dictionary (this should never happen)!");
 
-    // success
-    return true;
+    return false;
 }
 
 // test whether or not the dictionary has a given key
@@ -410,11 +424,56 @@ bool ks_dict_has_h(ks_dict self, ks_obj key, ks_hash_t hash) {
 }
 
 
-/* derivative methods */
+// delete item from dictionary
+bool ks_dict_del_h(ks_dict self, ks_obj key, ks_hash_t hash) {
+    // bucket index (bi)
+    ks_size_t bi = hash % self->n_buckets;
 
+    // keep track of original and how many tries
+    ks_size_t bi0 = bi, tries = 0;
 
+    do {
+        // get the entry index (ei), which is an index into self->entries
+        int ei = self->buckets[bi];
 
-// Set an item in a dictionary
+        if (ei == KS_DICT_BUCKET_EMPTY) {
+            // we have found an empty bucket before a corresponding entry, so it does not exist
+            // already removed
+            return true;
+
+        } else if (self->entries[ei].hash == hash) {
+            // possible match; the hashes match
+            if (self->entries[ei].key == key || ks_obj_eq(self->entries[ei].key, key)) {
+                // the keys are equal, so the dictionary already contains the key
+
+                // since we are replacing the value, the previous values must be dereferenced
+                KS_DECREF(self->entries[ei].key);
+                KS_DECREF(self->entries[ei].val);
+
+                // set to NULL
+                self->entries[ei].key = self->entries[ei].val = NULL;
+
+                // delete this bucket
+                self->buckets[bi] = KS_DICT_BUCKET_DELETED;
+
+                // success
+                return true;
+            }
+        }
+        tries++;
+
+        // probing function
+        bi = (bi0 + KS_DICT_PROBE(tries)) % self->n_buckets;
+
+    } while (bi != bi0);
+
+    // not found, so no error, nothing to delete
+    return true;
+}
+
+/* Derivative Methods (ease of use) */
+
+// Get an item in a dictionary
 ks_obj ks_dict_get(ks_dict self, ks_obj key) {
     ks_hash_t hash;
     if (!ks_obj_hash(key, &hash)) return false;
@@ -422,8 +481,7 @@ ks_obj ks_dict_get(ks_dict self, ks_obj key) {
     return ks_dict_get_h(self, key, hash);
 }
 
-
-// Set an item in a dictionary
+// Get an item in a dictionary
 ks_obj ks_dict_get_c(ks_dict self, char* key) {
     ks_str key_str = ks_str_new(key);
     ks_obj ret = ks_dict_get_h(self, (ks_obj)key_str, key_str->v_hash);
@@ -431,7 +489,6 @@ ks_obj ks_dict_get_c(ks_dict self, char* key) {
 
     return ret;
 }
-
 
 // Set an item in a dictionary
 bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val) {
@@ -442,7 +499,7 @@ bool ks_dict_set(ks_dict self, ks_obj key, ks_obj val) {
 }
 
 // Set a dictionary from C-style initializers
-// NOTE: Returns new reference, or NULL if an error was thrown
+// NOTE: Returns success, or NULL if an error was thrown
 bool ks_dict_set_c(ks_dict self, ks_keyval_c* keyvals) {
 
     // return status
@@ -474,6 +531,7 @@ bool ks_dict_set_c(ks_dict self, ks_keyval_c* keyvals) {
     return rst;
 }
 
+// Return whether a dictionary has a given key
 bool ks_dict_has(ks_dict self, ks_obj key) {
     // calc hash
     ks_hash_t hash;
@@ -483,6 +541,7 @@ bool ks_dict_has(ks_dict self, ks_obj key) {
     return ks_dict_has_h(self, key, hash);
 }
 
+// Return whether a dictionary has a given key
 bool ks_dict_has_c(ks_dict self, char* key) {
     ks_str key_str = ks_str_new(key);
     bool res = ks_dict_has_h(self, (ks_obj)key_str, key_str->v_hash);
@@ -490,14 +549,31 @@ bool ks_dict_has_c(ks_dict self, char* key) {
     return res;
 }
 
+// Delete given key
+bool ks_dict_del(ks_dict self, ks_obj key) {
+    // calc hash
+    ks_hash_t hash;
+    if (!ks_obj_hash(key, &hash)) {
+        return false;
+    }
+    return ks_dict_del_h(self, key, hash);
+}
+
+// Delete given key
+bool ks_dict_del_c(ks_dict self, char* key) {
+    ks_str key_str = ks_str_new(key);
+    bool res = ks_dict_del_h(self, (ks_obj)key_str, key_str->v_hash);
+    KS_DECREF(key_str);
+    return res;
+}
 
 
+/* Object Methods */
 
 // dict.__free__(self) -> free obj
 static KS_TFUNC(dict, free) {
     ks_dict self;
     KS_GETARGS("self:*", &self, ks_T_dict)
-
 
     ks_size_t i;
 
@@ -517,8 +593,6 @@ static KS_TFUNC(dict, free) {
     return KSO_NONE;
 }
 
-
-
 // dict.__str__(self) - convert to string
 static KS_TFUNC(dict, str) {
     ks_dict self;
@@ -529,18 +603,19 @@ static KS_TFUNC(dict, str) {
 
     ks_str_builder_add(sb, "{", 1);
 
-    int i;
+    int i, ct = 0;
     for (i = 0; i < self->n_entries; ++i) {
         if (self->entries[i].hash != 0) {
-            if (i > 0 && i < self->n_entries) ks_str_builder_add(sb, ", ", 2);
+            if (ct > 0) ks_str_builder_add(sb, ", ", 2);
 
             // add the item
             ks_str_builder_add_repr(sb, self->entries[i].key);
             ks_str_builder_add(sb, ": ", 2);
             ks_str_builder_add_repr(sb, self->entries[i].val);
+
+            ct++;
         }
     }
-
 
     ks_str_builder_add(sb, "}", 1);
     ks_str ret = ks_str_builder_get(sb);
@@ -548,7 +623,6 @@ static KS_TFUNC(dict, str) {
 
     return (ks_obj)ret;
 }
-
 
 // dict.__len__(self) - get length
 static KS_TFUNC(dict, len) {
@@ -563,7 +637,6 @@ static KS_TFUNC(dict, len) {
 
     return (ks_obj)ks_int_new(ct);
 }
-
 
 // dict.__getitem__(self, key) -> get an entry
 static KS_TFUNC(dict, getitem) {
@@ -628,20 +701,17 @@ static KS_TFUNC(dict, vals) {
 }
 
 
-/* iterator type */
+/* Iterator Type */
 
-// ks_dict_iter - list iterable type
+// ks_dict_iter - dictionary iterable type
 typedef struct {
     KS_OBJ_BASE
 
     // C iterator
     struct ks_dict_citer cit;
 
-
-
 }* ks_dict_iter;
 
-// declare type
 KS_TYPE_DECLFWD(ks_T_dict_iter);
 
 // dict_iter.__free__(self) - free obj
@@ -666,16 +736,16 @@ static KS_TFUNC(dict_iter, next) {
     ks_obj key, val;
     ks_hash_t hash;
     if (ks_dict_citer_next(&self->cit, &key, &val, &hash)) {
-        KS_DECREF(val);
+        // return a new reference to the key
+        KS_INCREF(key);
         return key;
     }
-
 
     // check if the iterator is done
     return ks_throw(ks_T_OutOfIterError, "");
 }
 
-// list.__iter__(self) - return iterator
+// dict.__iter__(self) - return iterator
 static KS_TFUNC(dict, iter) {
     ks_dict self;
     KS_GETARGS("self:*", &self, ks_T_dict)
@@ -690,14 +760,12 @@ static KS_TFUNC(dict, iter) {
 }
 
 
-
-
 /* export */
 
 KS_TYPE_DECLFWD(ks_T_dict);
 
 void ks_init_T_dict() {
-    ks_type_init_c(ks_T_dict, "dict", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_dict, "dict", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(dict_free_, "dict.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__repr__(self)")},
@@ -712,9 +780,8 @@ void ks_init_T_dict() {
 
         {"__iter__",               (ks_obj)ks_cfunc_new_c(dict_iter_, "dict.__iter__(self)")},
 
-
     ));
-    ks_type_init_c(ks_T_dict_iter, "dict_iter", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_dict_iter, "dict_iter", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(dict_iter_free_, "dict_iter.__free__(self)")},
 
         {"__next__",               (ks_obj)ks_cfunc_new_c(dict_iter_next_, "dict_iter.__next__(self)")},

@@ -116,7 +116,7 @@ static KS_TFUNC(thread, free) {
 KS_TYPE_DECLFWD(ks_T_thread);
 
 void ks_init_T_thread() {
-    ks_type_init_c(ks_T_thread, "thread", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_thread, "thread", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(thread_free_, "thread.__free__(self)")},
     ));
 

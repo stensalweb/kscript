@@ -267,7 +267,7 @@ void ks_init_T_logger() {
 
     ks_all_loggers = ks_dict_new(0, NULL);
 
-    ks_type_init_c(ks_T_logger, "logger", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_logger, "logger", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(logger_new_, "logger.__new__(name)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(logger_free_, "logger.__free__(self)")},
 

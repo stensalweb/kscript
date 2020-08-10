@@ -6,119 +6,71 @@
 #include "ks-impl.h"
 
 
-// set all defaults to NULL
-static void my_setallnull(ks_type self, ks_type parent) {
-    // macro to set NULL
-    #define CASENULL(_name) self->_name = NULL;
+// set all defaults to the appropriate values
+static void my_setall(ks_type self, ks_type parent) {
 
+    // default the flags
     self->flags = KS_TYPE_FLAGS_EQSS;
 
-    CASENULL(__name__)
-    CASENULL(__parents__)
+    // macro to handle the special case attributes
+    #define SPEC_CASE(_name) self->_name = parent == NULL ? NULL : parent->_name;
 
-    CASENULL(__new__)
-    CASENULL(__init__)
-    CASENULL(__free__)
-    CASENULL(__bool__)
-    CASENULL(__int__)
-    CASENULL(__call__)
-    CASENULL(__float__)
-    CASENULL(__str__)
-    CASENULL(__bytes__)
-    CASENULL(__getattr__)
-    CASENULL(__setattr__)
-    CASENULL(__getitem__)
-    CASENULL(__setitem__)
-    CASENULL(__repr__)
-    CASENULL(__len__)
-    CASENULL(__hash__)
-    CASENULL(__iter__)
-    CASENULL(__next__)
-    CASENULL(__pos__)
-    CASENULL(__neg__)
-    CASENULL(__abs__)
-    CASENULL(__sqig__)
-    CASENULL(__add__)
-    CASENULL(__sub__)
-    CASENULL(__mul__)
-    CASENULL(__div__)
-    CASENULL(__mod__)
-    CASENULL(__pow__)
-    CASENULL(__lt__)
-    CASENULL(__gt__)
-    CASENULL(__le__)
-    CASENULL(__ge__)
-    CASENULL(__eq__)
-    CASENULL(__ne__)
-    CASENULL(__cmp__)
-    CASENULL(__lshift__)
-    CASENULL(__rshift__)
-    CASENULL(__binor__)
-    CASENULL(__binand__)
-    CASENULL(__binxor__)
+    SPEC_CASE(__name__)
+    SPEC_CASE(__parents__)
+    SPEC_CASE(__new__)
+    SPEC_CASE(__init__)
+    SPEC_CASE(__free__)
+    SPEC_CASE(__bool__)
+    SPEC_CASE(__int__)
+    SPEC_CASE(__float__)
+    SPEC_CASE(__str__)
+    SPEC_CASE(__bytes__)
+    SPEC_CASE(__format__)
+    SPEC_CASE(__getattr__)
+    SPEC_CASE(__setattr__)
+    SPEC_CASE(__getitem__)
+    SPEC_CASE(__setitem__)
+    SPEC_CASE(__repr__)
+    SPEC_CASE(__len__)
+    SPEC_CASE(__hash__)
+    SPEC_CASE(__iter__)
+    SPEC_CASE(__next__)
+    SPEC_CASE(__call__)
+    SPEC_CASE(__pos__)
+    SPEC_CASE(__neg__)
+    SPEC_CASE(__abs__)
+    SPEC_CASE(__sqig__)
+    SPEC_CASE(__add__)
+    SPEC_CASE(__sub__)
+    SPEC_CASE(__mul__)
+    SPEC_CASE(__div__)
+    SPEC_CASE(__mod__)
+    SPEC_CASE(__pow__)
+    SPEC_CASE(__lt__)
+    SPEC_CASE(__gt__)
+    SPEC_CASE(__le__)
+    SPEC_CASE(__ge__)
+    SPEC_CASE(__eq__)
+    SPEC_CASE(__ne__)
+    SPEC_CASE(__cmp__)
+    SPEC_CASE(__lshift__)
+    SPEC_CASE(__rshift__)
+    SPEC_CASE(__binor__)
+    SPEC_CASE(__binand__)
+    SPEC_CASE(__binxor__)
 
-    #undef CASENULL
-
-    if (parent != NULL) {
-        #define FROMPAR(_name) self->_name = parent->_name;
-
-        FROMPAR(flags)
-
-        FROMPAR(__new__)
-        FROMPAR(__init__)
-        FROMPAR(__free__)
-        FROMPAR(__bool__)
-        FROMPAR(__int__)
-        FROMPAR(__float__)
-        FROMPAR(__call__)
-        FROMPAR(__str__)
-        FROMPAR(__bytes__)
-        FROMPAR(__getattr__)
-        FROMPAR(__setattr__)
-        FROMPAR(__getitem__)
-        FROMPAR(__setitem__)
-        FROMPAR(__repr__)
-        FROMPAR(__len__)
-        FROMPAR(__hash__)
-        FROMPAR(__iter__)
-        FROMPAR(__next__)
-        FROMPAR(__pos__)
-        FROMPAR(__neg__)
-        FROMPAR(__abs__)
-        FROMPAR(__sqig__)
-        FROMPAR(__add__)
-        FROMPAR(__sub__)
-        FROMPAR(__mul__)
-        FROMPAR(__div__)
-        FROMPAR(__mod__)
-        FROMPAR(__pow__)
-        FROMPAR(__lt__)
-        FROMPAR(__gt__)
-        FROMPAR(__le__)
-        FROMPAR(__ge__)
-        FROMPAR(__eq__)
-        FROMPAR(__ne__)
-        FROMPAR(__cmp__)
-        FROMPAR(__lshift__)
-        FROMPAR(__rshift__)
-        FROMPAR(__binor__)
-        FROMPAR(__binand__)
-        FROMPAR(__binxor__)
-
-
-        #undef FROMPAR
-    }
+    #undef SPEC_CASE
 
 }
 
 // Construct a new 'type' object, where `parent` can be any type that it will implement the same binary interface as
-//   (giving NULL and ks_T_obj are equivalent)
+//   (giving NULL and ks_T_object are equivalent)
 // NOTE: Returns new reference, or NULL if an error was thrown
 ks_type ks_type_new(ks_str name, ks_type parent) {
     ks_type self = KS_ALLOC_OBJ(ks_type);
     KS_INIT_OBJ(self, ks_T_type);
 
-    my_setallnull(self, parent);
+    my_setall(self, parent);
 
     self->attr = ks_dict_new(0, NULL);
     ks_list pars = ks_list_new(1, (ks_obj[]){ (ks_obj)parent });
@@ -133,7 +85,7 @@ void ks_type_init_c(ks_type self, const char* name, ks_type parent, ks_keyval_c*
     // standard initialization
     KS_INIT_OBJ(self, ks_T_type);
 
-    my_setallnull(self, parent);
+    my_setall(self, parent);
 
     // set attributes
     self->attr = ks_dict_new(0, NULL);
@@ -188,7 +140,7 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
 
         // helper macro for given special keys
         #define KEYCASE(_name, _totype, _type) else if ((sizeof(#_name) - 1) == key->len_b && strncmp(#_name, key->chr, sizeof(#_name) - 1) == 0) { \
-            if (!ks_type_issub(val->type, _type)) { printf("BAD TYPE FOR TYPE.ATTR\n"); return false; } \
+            if (!ks_type_issub(val->type, _type)) { ks_throw(ks_T_InternalError, "Set '" #_name "' to a '%T', where it should have been of type '%S'", val->type, _type); return false; } \
             self->_name = (_totype)val; \
         }
         /**/ if (false) {}
@@ -196,46 +148,47 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
         KEYCASE(__name__, ks_str, ks_T_str)
         KEYCASE(__parents__, ks_list, ks_T_list)
 
-        KEYCASE(__new__, ks_obj, ks_T_obj)
-        KEYCASE(__init__, ks_obj, ks_T_obj)
-        KEYCASE(__free__, ks_obj, ks_T_obj)
-        KEYCASE(__bool__, ks_obj, ks_T_obj)
-        KEYCASE(__int__, ks_obj, ks_T_obj)
-        KEYCASE(__float__, ks_obj, ks_T_obj)
-        KEYCASE(__str__, ks_obj, ks_T_obj)
-        KEYCASE(__call__, ks_obj, ks_T_obj)
-        KEYCASE(__bytes__, ks_obj, ks_T_obj)
-        KEYCASE(__getattr__, ks_obj, ks_T_obj)
-        KEYCASE(__setattr__, ks_obj, ks_T_obj)
-        KEYCASE(__getitem__, ks_obj, ks_T_obj)
-        KEYCASE(__setitem__, ks_obj, ks_T_obj)
-        KEYCASE(__repr__, ks_obj, ks_T_obj)
-        KEYCASE(__len__, ks_obj, ks_T_obj)
-        KEYCASE(__hash__, ks_obj, ks_T_obj)
-        KEYCASE(__iter__, ks_obj, ks_T_obj)
-        KEYCASE(__next__, ks_obj, ks_T_obj)
-        KEYCASE(__pos__, ks_obj, ks_T_obj)
-        KEYCASE(__neg__, ks_obj, ks_T_obj)
-        KEYCASE(__abs__, ks_obj, ks_T_obj)
-        KEYCASE(__sqig__, ks_obj, ks_T_obj)
-        KEYCASE(__add__, ks_obj, ks_T_obj)
-        KEYCASE(__sub__, ks_obj, ks_T_obj)
-        KEYCASE(__mul__, ks_obj, ks_T_obj)
-        KEYCASE(__div__, ks_obj, ks_T_obj)
-        KEYCASE(__mod__, ks_obj, ks_T_obj)
-        KEYCASE(__pow__, ks_obj, ks_T_obj)
-        KEYCASE(__lt__, ks_obj, ks_T_obj)
-        KEYCASE(__gt__, ks_obj, ks_T_obj)
-        KEYCASE(__le__, ks_obj, ks_T_obj)
-        KEYCASE(__ge__, ks_obj, ks_T_obj)
-        KEYCASE(__eq__, ks_obj, ks_T_obj)
-        KEYCASE(__ne__, ks_obj, ks_T_obj)
-        KEYCASE(__cmp__, ks_obj, ks_T_obj)
-        KEYCASE(__lshift__, ks_obj, ks_T_obj)
-        KEYCASE(__rshift__, ks_obj, ks_T_obj)
-        KEYCASE(__binor__, ks_obj, ks_T_obj)
-        KEYCASE(__binand__, ks_obj, ks_T_obj)
-        KEYCASE(__binxor__, ks_obj, ks_T_obj)
+        KEYCASE(__new__, ks_obj, ks_T_object)
+        KEYCASE(__init__, ks_obj, ks_T_object)
+        KEYCASE(__free__, ks_obj, ks_T_object)
+        KEYCASE(__bool__, ks_obj, ks_T_object)
+        KEYCASE(__int__, ks_obj, ks_T_object)
+        KEYCASE(__float__, ks_obj, ks_T_object)
+        KEYCASE(__str__, ks_obj, ks_T_object)
+        KEYCASE(__bytes__, ks_obj, ks_T_object)
+        KEYCASE(__format__, ks_obj, ks_T_object)
+        KEYCASE(__getattr__, ks_obj, ks_T_object)
+        KEYCASE(__setattr__, ks_obj, ks_T_object)
+        KEYCASE(__getitem__, ks_obj, ks_T_object)
+        KEYCASE(__setitem__, ks_obj, ks_T_object)
+        KEYCASE(__repr__, ks_obj, ks_T_object)
+        KEYCASE(__len__, ks_obj, ks_T_object)
+        KEYCASE(__hash__, ks_obj, ks_T_object)
+        KEYCASE(__iter__, ks_obj, ks_T_object)
+        KEYCASE(__next__, ks_obj, ks_T_object)
+        KEYCASE(__call__, ks_obj, ks_T_object)
+        KEYCASE(__pos__, ks_obj, ks_T_object)
+        KEYCASE(__neg__, ks_obj, ks_T_object)
+        KEYCASE(__abs__, ks_obj, ks_T_object)
+        KEYCASE(__sqig__, ks_obj, ks_T_object)
+        KEYCASE(__add__, ks_obj, ks_T_object)
+        KEYCASE(__sub__, ks_obj, ks_T_object)
+        KEYCASE(__mul__, ks_obj, ks_T_object)
+        KEYCASE(__div__, ks_obj, ks_T_object)
+        KEYCASE(__mod__, ks_obj, ks_T_object)
+        KEYCASE(__pow__, ks_obj, ks_T_object)
+        KEYCASE(__lt__, ks_obj, ks_T_object)
+        KEYCASE(__gt__, ks_obj, ks_T_object)
+        KEYCASE(__le__, ks_obj, ks_T_object)
+        KEYCASE(__ge__, ks_obj, ks_T_object)
+        KEYCASE(__eq__, ks_obj, ks_T_object)
+        KEYCASE(__ne__, ks_obj, ks_T_object)
+        KEYCASE(__cmp__, ks_obj, ks_T_object)
+        KEYCASE(__lshift__, ks_obj, ks_T_object)
+        KEYCASE(__rshift__, ks_obj, ks_T_object)
+        KEYCASE(__binor__, ks_obj, ks_T_object)
+        KEYCASE(__binand__, ks_obj, ks_T_object)
+        KEYCASE(__binxor__, ks_obj, ks_T_object)
 
         else {
             // unknown double underscore; ignore it
@@ -245,11 +198,7 @@ bool ks_type_set(ks_type self, ks_str key, ks_obj val) {
     }
 
     // actually set the internal dictionary
-    ks_dict_set_h(self->attr, (ks_obj)key, hash, val);
-
-    // success
-    return true;
-
+    return ks_dict_set_h(self->attr, (ks_obj)key, hash, val);
 }
 
 // Set the given elements from C-style strings
@@ -284,10 +233,10 @@ bool ks_type_set_c(ks_type self, ks_keyval_c* keyvals) {
 
 }
 
-// calculate whether it is a sub type
+// calculate whether 'self' is a sub type of 'of'
 bool ks_type_issub(ks_type self, ks_type of) {
-    // TODO: implement type hierarchies
-    if (self == of || of == NULL || of == ks_T_obj) return true;
+    // some special cases that are always true
+    if (self == of || of == NULL || of == ks_T_object) return true;
 
     ks_size_t i;
     for (i = 0; i < self->__parents__->len; ++i) {
@@ -299,7 +248,7 @@ bool ks_type_issub(ks_type self, ks_type of) {
 }
 
 
-// type.__new__(x) - special case - return the type of self
+// type.__new__(x) - special case - return the type of self (doesn't construct a new type)
 static KS_TFUNC(type, new) {
     ks_obj x;
     KS_GETARGS("x", &x)
@@ -361,7 +310,7 @@ static KS_TFUNC(type, hash) {
 KS_TYPE_DECLFWD(ks_T_type);
 
 void ks_init_T_type() {
-    ks_type_init_c(ks_T_type, "type", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_type, "type", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(type_new_, "type.__new__(x)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(type_free_, "type.__free__(self)")},
 

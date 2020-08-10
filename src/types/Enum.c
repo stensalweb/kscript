@@ -142,8 +142,6 @@ static KS_TFUNC(Enum, create) {
         // add it
         if (key->type != ks_T_str) {
             ks_throw(ks_T_ArgError, "Name for enum member %R was not a string (strings are required)", key);
-            KS_DECREF(key);
-            KS_DECREF(val);
             KS_DECREF(enumtype);
             return NULL;
         }
@@ -151,8 +149,6 @@ static KS_TFUNC(Enum, create) {
         ks_int intval = ks_num_get_int(val);
         if (!intval) {
             ks_throw(ks_T_ArgError, "Value for enum member %R was not an integer value (integers are required)", val);
-            KS_DECREF(key);
-            KS_DECREF(val);
             KS_DECREF(enumtype);
             return NULL;
         }
@@ -165,10 +161,6 @@ static KS_TFUNC(Enum, create) {
         ks_dict_set(enumtype->attr, key, (ks_obj)enumval);
 
         KS_DECREF(intval);
-
-        // get rid of references to dictionary iterators
-        KS_DECREF(key);
-        KS_DECREF(val);
     }
 
 
@@ -239,7 +231,7 @@ KST_NUM_OPFS(Enum)
 KS_TYPE_DECLFWD(ks_T_Enum);
 
 void ks_init_T_Enum() {
-    ks_type_init_c(ks_T_Enum, "Enum", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_Enum, "Enum", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(Enum_free_, "Enum.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(Enum_str_, "Enum.__str__(self)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(Enum_str_, "Enum.__repr__(self)")},

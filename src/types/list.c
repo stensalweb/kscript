@@ -405,20 +405,17 @@ static KS_TFUNC(list, setitem) {
                 i += delta;
                 KS_DECREF(ob);
             }
+            ks_citer_done(&cit);
         
             // check for wrong sequence length
             if (cit.threwErr) {
-                ks_citer_done(&cit);
                 return NULL;
             } else if (i != last) {
-                ks_citer_done(&cit);
                 return ks_throw(ks_T_SizeError, "Assigning to list via slice failed; the iterator had too few values! (expected %l, and it only had %l)", (last - first) / delta, ct);
             } else if (!cit.done) {
-                ks_citer_done(&cit);
                 return ks_throw(ks_T_SizeError, "Assigning to list via slice failed; the iterator had too many values! (expected %l)", (last - first) / delta);
             }
 
-            ks_citer_done(&cit);
 
             return KSO_NONE;
         } else {
@@ -654,7 +651,7 @@ static KS_TFUNC(list, iter) {
 KS_TYPE_DECLFWD(ks_T_list);
 
 void ks_init_T_list() {
-    ks_type_init_c(ks_T_list, "list", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_list, "list", ks_T_object, KS_KEYVALS(
         {"__new__",               (ks_obj)ks_cfunc_new_c(list_new_, "list.__new__(objs)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(list_free_, "list.__free__(self)")},
         {"__len__",                (ks_obj)ks_cfunc_new_c(list_len_, "list.__len__(self)")},
@@ -677,7 +674,7 @@ void ks_init_T_list() {
         {"pop",                    (ks_obj)ks_cfunc_new_c(list_pop_, "list.pop(self)")},
 
     ));
-    ks_type_init_c(ks_T_list_iter, "list_iter", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_list_iter, "list_iter", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(list_iter_free_, "list_iter.__free__(self)")},
 
         {"__next__",               (ks_obj)ks_cfunc_new_c(list_iter_next_, "list_iter.__next__(self)")},

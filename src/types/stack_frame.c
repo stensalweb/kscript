@@ -117,7 +117,7 @@ static KS_TFUNC(stack_frame, free) {
 KS_TYPE_DECLFWD(ks_T_stack_frame);
 
 void ks_init_T_stack_frame() {
-    ks_type_init_c(ks_T_stack_frame, "stack_frame", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_stack_frame, "stack_frame", ks_T_object, KS_KEYVALS(
         {"__str__",               (ks_obj)ks_cfunc_new_c(stack_frame_str_, "stack_frame.__str__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(stack_frame_free_, "stack_frame.__free__(self)")},
     ));

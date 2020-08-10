@@ -274,6 +274,174 @@ static KS_TFUNC(int, new) {
     KS_THROW_TYPE_ERR(obj, ks_T_int);
 }
 
+// int.__fmt__(self, fstr) - format an integer according to a format string
+// ints have the following syntaxes:
+// %[]
+static KS_TFUNC(int, fmt) {
+    ks_int self;
+    ks_str fstr;
+    KS_GETARGS("self:* fstr:*", &self, ks_T_int, &fstr, ks_T_str);
+
+    // ensure it's ASCII
+    if (!KS_STR_ISASCII(fstr)) return ks_throw(ks_T_ArgError, "Invalid format string: %R", fstr);
+
+    // format string in C
+    const char* fstrc = fstr->chr;
+
+
+    // sign component, whether '+', or ' ' (\0 for default)
+    char f_sign = '\0';
+
+    // whether or not certain characters were given
+    bool f_has_0 = false, f_has_neg = false;
+
+    // width & precision fields
+    int64_t f_width = 0, f_prec = -1;
+    
+    // the type, i.e. `i, d, x`, etc
+    char f_typ = 'i';
+
+    // temporary char
+    char c;
+    
+
+    // parse flags
+    while ((c = *fstrc) == '+' || c == '-' || c == ' ' || c == '0') {
+        if (c == '+' || c == ' ') {
+            if (f_sign != '\0') return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the 'sign' field multiple times");
+            f_sign = c;
+        } else if (c == '-') {
+            if (f_has_neg) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the '-' flag multiple times");
+            f_has_neg = true;
+        } else if (c == '0') {
+            if (f_has_0) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given the '0' flag multiple times");
+            f_has_0 = true;
+        }
+        fstrc++;
+    }
+
+    // parse width
+    while (isdigit(c = *fstrc)) {
+        f_width = f_width * 10 + (c - '0');
+        fstrc++;
+    }
+
+    // parse precision
+    if (*fstrc == '.') {
+        fstrc++;
+        f_prec = 0;
+        while (isdigit(c = *fstrc)) {
+            f_prec = f_prec * 10 + (c - '0');
+            fstrc++;
+        }
+    }
+
+    // parse type
+    if (*fstrc) {
+        f_typ = *fstrc++;
+        if (!(f_typ == 'i' || f_typ == 'd' || f_typ == 'x')) {
+            if (*fstrc) return ks_throw(ks_T_ArgError, "Invalid format string: %R, unknown type '%c'", f_typ);
+        }
+    }
+
+    if (*fstrc) return ks_throw(ks_T_ArgError, "Invalid format string: %R, given extra characters");
+
+
+    // TODO: handle roman here as well
+
+    int base = -1;
+    /**/ if (f_typ == 'i' || f_typ == 'd') base = 10;
+    else if (f_typ == 'x') base = 16;
+
+    // now, actually format it
+    // temporary variable
+    mpz_t tz;
+    if (self->isLong) {
+        *tz = *self->vz;
+    } else {
+        mpz_init(tz);
+        if (!ks_num_get_mpz((ks_obj)self, tz)) {
+            mpz_clear(tz);
+            return NULL;
+        }
+    }
+
+    // first, calculate sizes
+    size_t num_size = mpz_sizeinbase(tz, base);
+
+    // whether tz >= 0
+    bool tz_nz = mpz_cmp_ui(tz, 0) >= 0;
+
+    if (tz_nz) {
+        if (f_sign == '+' || f_sign == ' ') {
+            // add a negative size in these cases
+            num_size++;
+        }
+    } else {
+        // always a negative sign
+        num_size++;
+        // we want the absolute value, so invert it (we handle the sign ourself)
+        mpz_neg(tz, tz);
+    }
+
+
+    // total size of the output
+    size_t total_size = num_size > f_width ? num_size : f_width;
+
+    // temporary buffer to create the string from
+    char* tmp = ks_malloc(total_size + 1);
+    tmp[total_size] = '\0';
+
+    // left v right aligned
+    int i = f_has_neg ? 0 : total_size - num_size;
+
+    if (!f_has_neg) {
+        int j;
+        for (j = 0; j < i; ++j) tmp[j] = f_has_0 ? '0' : ' ';
+    }
+
+    // now, build the string
+    if (tz_nz) {
+        /**/ if (f_sign == '+') tmp[i++] = '+';
+        else if (f_sign == ' ') tmp[i++] = ' ';
+    } else {
+        tmp[i++] = '-';
+    }
+/*
+    // add prefix specifier
+    if (base == 10) {
+        // do nothing
+    } else if (base == 16) {
+        tmp[i++] = '0';
+        tmp[i++] = 'x';
+    } else if (base == 8) {
+        tmp[i++] = '0';
+        tmp[i++] = 'o';
+    } else if (base == 2) {
+        tmp[i++] = '0';
+        tmp[i++] = 'b';
+    } else {
+        return ks_throw(ks_T_ArgError, "Invalid base '%i' for 'int' to 'str' conversion", base);
+    }
+    */
+    // add the 'meats'
+    mpz_get_str(&tmp[i], base, tz);
+
+    if (!self->isLong) mpz_clear(tz);
+
+
+    if (f_has_neg) {
+        i = total_size - num_size;
+        while (i < total_size) tmp[i++] = ' ';
+    }
+
+    ks_str res = ks_str_new_c(tmp, total_size);
+    ks_free(tmp);
+
+    return (ks_obj)res;
+}
+
+
 // int.__str__(self, base=none) - to string
 static KS_TFUNC(int, str) {
     ks_int self;
@@ -282,8 +450,6 @@ static KS_TFUNC(int, str) {
 
     // the base
     int base = 10;
-
-    #define _BASE_ROMAN -2
 
     if (!mode) {
         base = 10;
@@ -294,12 +460,12 @@ static KS_TFUNC(int, str) {
         }
         base = v64;
     } else if (mode->type == ks_T_str && ks_str_eq_c((ks_str)mode, "roman", 5)) {
-        base = _BASE_ROMAN;
+        base = KS_BASE_ROMAN;
     } else {
         return ks_throw(ks_T_ArgError, "Unknown base: %R", mode);
     }
 
-    if (base == _BASE_ROMAN) {
+    if (base == KS_BASE_ROMAN) {
         // convert to romans
         // structure of roman numerals (in reverse order!)
         static const struct _roman_s {
@@ -535,10 +701,11 @@ void ks_init_T_int() {
 
     }
     
-    ks_type_init_c(ks_T_int, "int", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_int, "int", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(int_new_, "int.__new__(obj, base=none)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(int_free_, "int.__free__(self)")},
 
+        {"__fmt__",                (ks_obj)ks_cfunc_new_c(int_fmt_, "int.__fmt__(self, fstr)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self, base=none)")},
         {"__repr__",               (ks_obj)ks_cfunc_new_c(int_str_, "int.__repr__(self, base=none)")},
 

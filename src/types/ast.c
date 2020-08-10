@@ -18,7 +18,6 @@ ks_ast ks_ast_new_const(ks_obj val) {
 
     return self;
 }
-
 // construct a new AST representing a constant value
 ks_ast ks_ast_new_var(ks_str name) {
     ks_ast self = KS_ALLOC_OBJ(ks_ast);
@@ -32,7 +31,6 @@ ks_ast ks_ast_new_var(ks_str name) {
 
     return self;
 }
-
 
 // Create an AST representing a list constructor
 ks_ast ks_ast_new_list(int n_items, ks_ast* items) {
@@ -89,7 +87,6 @@ ks_ast ks_ast_new_dict(int n_items, ks_ast* items) {
 
     return self;
 }
-
 
 // Create an AST representing an attribute reference
 // Type should always be string
@@ -316,6 +313,8 @@ ks_ast ks_ast_new_uop(int uop_type, ks_ast V) {
 }
 
 
+/* Object Methods */
+
 // ast.__free__(self) - free obj
 static KS_TFUNC(ast, free) {
     ks_ast self;
@@ -335,7 +334,7 @@ static KS_TFUNC(ast, free) {
 KS_TYPE_DECLFWD(ks_T_ast);
 
 void ks_init_T_ast() {
-    ks_type_init_c(ks_T_ast, "ast", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_ast, "ast", ks_T_object, KS_KEYVALS(
         {"__free__",               (ks_obj)ks_cfunc_new_c(ast_free_, "ast.__free__(self)")},
     ));
 }

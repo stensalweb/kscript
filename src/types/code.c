@@ -7,7 +7,6 @@
 
 // create a kscript code given a constant array
 ks_code ks_code_new(ks_list v_const, ks_parser parser) {
-
     ks_code self = KS_ALLOC_OBJ(ks_code);
     KS_INIT_OBJ(self, ks_T_code);
     
@@ -60,8 +59,6 @@ void ks_code_add(ks_code self, int len, ksb* data) {
 
     // write new data
     memcpy(&self->bc[idx], data, len);
-
-
 }
 
 // add a constant to the v_const list
@@ -379,7 +376,7 @@ static KS_TFUNC(code, str) {
     KS_DECREF(sb);
 
     return (ks_obj)ret;
-};
+}
 
 
 // code.__free__(self) -> free a bytecode object
@@ -399,7 +396,18 @@ static KS_TFUNC(code, free) {
     KS_FREE_OBJ(self);
 
     return KSO_NONE;
-};
+}
+
+
+// code.__bytes__(self) - return the bytes
+static KS_TFUNC(code, bytes) {
+    ks_code self;
+    KS_GETARGS("self:*", &self, ks_T_code)
+
+    return (ks_obj)ks_bytes_new(self->bc, self->bc_n);
+}
+
+
 
 
 /* export */
@@ -407,9 +415,11 @@ static KS_TFUNC(code, free) {
 KS_TYPE_DECLFWD(ks_T_code);
 
 void ks_init_T_code() {
-    ks_type_init_c(ks_T_code, "code", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_code, "code", ks_T_object, KS_KEYVALS(
         {"__str__",                (ks_obj)ks_cfunc_new_c(code_str_, "code.__str__(self)")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(code_free_, "code.__free__(self)")},
+
+        {"__bytes__",              (ks_obj)ks_cfunc_new_c(code_bytes_, "code.__bytes__(self)")},
     ));
 }
 

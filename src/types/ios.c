@@ -362,7 +362,7 @@ KS_TYPE_DECLFWD(ks_T_ios);
 
 void ks_init_T_ios() {
     
-    ks_type_init_c(ks_T_ios, "ios", ks_T_obj, KS_KEYVALS(
+    ks_type_init_c(ks_T_ios, "ios", ks_T_object, KS_KEYVALS(
         {"__new__",                (ks_obj)ks_cfunc_new_c(ios_new_, "ios.__new__(fname, mode='r'")},
         {"__free__",               (ks_obj)ks_cfunc_new_c(ios_free_, "ios.__free__(self)")},
         {"__str__",                (ks_obj)ks_cfunc_new_c(ios_str_, "ios.__str__(self)")},

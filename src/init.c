@@ -62,9 +62,10 @@ bool ks_init(int verbose) {
     ks_log_c_set("ks", verbose);
     KS_DECREF(_ks);
 
-    ks_init_T_obj();
+    ks_init_T_object();
     ks_init_T_type();
     ks_init_T_Error();
+    ks_init_T_func();
 
     ks_init_T_none();
     ks_init_T_bool();
@@ -82,6 +83,7 @@ bool ks_init(int verbose) {
     ks_init_T_slice();
     ks_init_T_range();
     ks_init_T_dict();
+    ks_init_T_set();
     ks_init_T_namespace();
     ks_init_T_cfunc();
     ks_init_T_pfunc();
@@ -194,6 +196,8 @@ bool ks_init(int verbose) {
     ks_globals = ks_dict_new_c(KS_KEYVALS(
 
         /* Types */
+        {"object",                 KS_NEWREF(ks_T_object)},
+
         {"none",                   KS_NEWREF(ks_T_none)},
         {"bool",                   KS_NEWREF(ks_T_bool)},
         {"int",                    KS_NEWREF(ks_T_int)},
@@ -210,10 +214,10 @@ bool ks_init(int verbose) {
         {"slice",                  KS_NEWREF(ks_T_slice)},
         {"range",                  KS_NEWREF(ks_T_range)},
         {"dict",                   KS_NEWREF(ks_T_dict)},
+        {"set",                    KS_NEWREF(ks_T_set)},
         {"namespace",              KS_NEWREF(ks_T_namespace)},
 
         {"type",                   KS_NEWREF(ks_T_type)},
-        {"obj",                    KS_NEWREF(ks_T_obj)},
         {"thread",                 KS_NEWREF(ks_T_thread)},
         {"ios",                    KS_NEWREF(ks_T_ios)},
 
@@ -242,6 +246,9 @@ bool ks_init(int verbose) {
         {"id",                     KS_NEWREF(ks_F_id)},
         {"len",                    KS_NEWREF(ks_F_len)},
         {"abs",                    KS_NEWREF(ks_F_abs)},
+
+        {"iter",                   KS_NEWREF(ks_F_iter)},
+        {"next",                   KS_NEWREF(ks_F_next)},
 
         {"chr",                    KS_NEWREF(ks_F_chr)},
         {"ord",                    KS_NEWREF(ks_F_ord)},
