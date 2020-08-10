@@ -132,7 +132,7 @@ nx_dtype nx_dtype_make_cplx(char* name, int bits) {
 // dtype.__new__(obj)
 static KS_TFUNC(dtype, new) {
     ks_obj obj;
-    KS_GETARGS("obj", ks_T_type, &obj);
+    KS_GETARGS("obj", &obj);
 
     if (obj->type == ks_T_str) {
         ks_str sobj = (ks_str)obj;

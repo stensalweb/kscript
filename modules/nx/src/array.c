@@ -241,11 +241,11 @@ nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
             return NULL;
         }
 
-
         ks_free(dims);
 
         return res;
     } else {
+
 
         // try to auto-set it
         if (dtype == NX_DTYPE_KIND_NONE) {
@@ -285,7 +285,7 @@ nx_array nx_array_from_obj(ks_obj obj, nx_dtype dtype) {
 static KS_TFUNC(array, new) {
     ks_obj obj;
     nx_dtype dtype = NULL;
-    KS_GETARGS("obj ?dtype:*", ks_T_type, &obj, &dtype, nx_T_dtype)
+    KS_GETARGS("obj ?dtype:*", &obj, &dtype, nx_T_dtype)
 
     // use the creation routine
     return (ks_obj)nx_array_from_obj(obj, dtype);
