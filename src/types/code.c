@@ -416,10 +416,10 @@ KS_TYPE_DECLFWD(ks_T_code);
 
 void ks_init_T_code() {
     ks_type_init_c(ks_T_code, "code", ks_T_object, KS_KEYVALS(
-        {"__str__",                (ks_obj)ks_cfunc_new_c(code_str_, "code.__str__(self)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(code_free_, "code.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(code_str_, "code.__str__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(code_free_, "code.__free__(self)")},
 
-        {"__bytes__",              (ks_obj)ks_cfunc_new_c(code_bytes_, "code.__bytes__(self)")},
+        {"__bytes__",              (ks_obj)ks_cfunc_new_c_old(code_bytes_, "code.__bytes__(self)")},
     ));
 }
 

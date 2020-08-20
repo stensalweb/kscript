@@ -423,7 +423,7 @@ KS_TYPE_DECLFWD(ks_T_str_builder);
 void ks_init_T_str_builder() {
 
     ks_type_init_c(ks_T_str_builder, "str_builder", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(str_builder_free_, "str_builder.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(str_builder_free_, "str_builder.__free__(self)")},
     ));
 
 }

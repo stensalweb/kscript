@@ -363,13 +363,13 @@ KS_TYPE_DECLFWD(ks_T_ios);
 void ks_init_T_ios() {
     
     ks_type_init_c(ks_T_ios, "ios", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(ios_new_, "ios.__new__(fname, mode='r'")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(ios_free_, "ios.__free__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(ios_str_, "ios.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(ios_str_, "ios.__repr__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(ios_new_, "ios.__new__(fname, mode='r'")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(ios_free_, "ios.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(ios_str_, "ios.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(ios_str_, "ios.__repr__(self)")},
 
-        {"reads",                  (ks_obj)ks_cfunc_new_c(ios_reads_, "ios.reads(self, numc=none)")},
-        {"close",                  (ks_obj)ks_cfunc_new_c(ios_close_, "ios.close(self)")},
+        {"reads",                  (ks_obj)ks_cfunc_new_c_old(ios_reads_, "ios.reads(self, numc=none)")},
+        {"close",                  (ks_obj)ks_cfunc_new_c_old(ios_close_, "ios.close(self)")},
         
     ));
 

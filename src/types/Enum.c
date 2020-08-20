@@ -29,7 +29,7 @@ ks_type ks_Enum_create_c(const char* name, ks_enumval_c* enumvals) {
 
     // initialize the type
     ks_type_init_c(enumtype, name, ks_T_Enum, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_pfunc_new(F_get, (ks_obj)enumtype)},
+        {"__new__",                (ks_obj)ks_pfunc_new((ks_obj)F_get, (ks_obj)enumtype)},
 
         {"_enum_num2name",         (ks_obj)map_num2name},
         {"_enum_name2num",         (ks_obj)map_name2num},
@@ -232,20 +232,20 @@ KS_TYPE_DECLFWD(ks_T_Enum);
 
 void ks_init_T_Enum() {
     ks_type_init_c(ks_T_Enum, "Enum", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(Enum_free_, "Enum.__free__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(Enum_str_, "Enum.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(Enum_str_, "Enum.__repr__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(Enum_free_, "Enum.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(Enum_str_, "Enum.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(Enum_str_, "Enum.__repr__(self)")},
 
-        {"__int__",                (ks_obj)ks_cfunc_new_c(Enum_int_, "Enum.__int__(self)")},
+        {"__int__",                (ks_obj)ks_cfunc_new_c_old(Enum_int_, "Enum.__int__(self)")},
 
-        {"create",                 (ks_obj)ks_cfunc_new_c(Enum_create_, "Enum.create(name, vals)")},
+        {"create",                 (ks_obj)ks_cfunc_new_c_old(Enum_create_, "Enum.create(name, vals)")},
 
         KST_NUM_OPKVS(Enum)
 
     ));
 
     // create function
-    F_get = ks_cfunc_new_c(Enum_get_, "Enum.get(typ, name)");
+    F_get = ks_cfunc_new_c_old(Enum_get_, "Enum.get(typ, name)");
 
 
 }

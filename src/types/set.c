@@ -114,14 +114,13 @@ static void set_resize(ks_set self, ks_size_t new_n_buckets) {
     self->buckets = ks_realloc(self->buckets, sizeof(*self->buckets) * self->n_buckets);
     for (i = 0; i < self->n_buckets; ++i) self->buckets[i] = KS_SET_BUCKET_EMPTY;
 
-
     // now, go through and rehash the entries
     // NOTE: any entries that are not found will be removed
     for (i = 0; i < self->n_entries; ++i) {
         // i'th entry
         struct ks_set_entry* ent = &self->entries[i];
 
-        if (ent->hash == 0 || ent->key == NULL) {
+        if (ent->key == NULL) {
             // this item has been deleted; so shift all the entries down 1 and continue
             for (j = i; j < self->n_entries - 1; ++j) {
                 self->entries[j] = self->entries[j + 1];
@@ -194,7 +193,7 @@ bool ks_set_add_h(ks_set self, ks_obj key, ks_hash_t hash) {
 
             // we are making a new entry, so we need to make new references to the key and the value
             KS_INCREF(key);
-            
+
             // set that entry
             self->entries[ei] = (struct ks_set_entry){ .hash = hash, .key = key };
             
@@ -408,7 +407,7 @@ static KS_TFUNC(set, str) {
 
     int i, ct = 0;
     for (i = 0; i < self->n_entries; ++i) {
-        if (self->entries[i].hash != 0) {
+        if (self->entries[i].key != NULL) {
             if (ct > 0) ks_str_builder_add(sb, ", ", 2);
 
             // add the item
@@ -515,19 +514,19 @@ KS_TYPE_DECLFWD(ks_T_set);
 
 void ks_init_T_set() {
     ks_type_init_c(ks_T_set, "set", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(set_new_, "set.__new__(objs=none)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(set_free_, "set.__free__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(set_str_, "set.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(set_str_, "set.__repr__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(set_new_, "set.__new__(objs=none)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(set_free_, "set.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(set_str_, "set.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(set_str_, "set.__repr__(self)")},
 
-        {"__len__",                (ks_obj)ks_cfunc_new_c(set_len_, "set.__len__(self)")},
+        {"__len__",                (ks_obj)ks_cfunc_new_c_old(set_len_, "set.__len__(self)")},
 
-        {"__iter__",               (ks_obj)ks_cfunc_new_c(set_iter_, "set.__iter__(self)")},
+        {"__iter__",               (ks_obj)ks_cfunc_new_c_old(set_iter_, "set.__iter__(self)")},
 
     ));
     ks_type_init_c(ks_T_set_iter, "set_iter", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(set_iter_free_, "set_iter.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(set_iter_free_, "set_iter.__free__(self)")},
 
-        {"__next__",               (ks_obj)ks_cfunc_new_c(set_iter_next_, "set_iter.__next__(self)")},
+        {"__next__",               (ks_obj)ks_cfunc_new_c_old(set_iter_next_, "set_iter.__next__(self)")},
     ));
 }

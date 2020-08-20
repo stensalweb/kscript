@@ -388,6 +388,8 @@ ks_obj ks__exec(ks_thread self, ks_code code) {
             // remove args from the stack
             for (i = 0; i < op_i32.arg; ++i) ks_list_popu(self->stk);
 
+            if (!new_dict) goto EXC;
+
             // push on the created dictionary
             ks_list_push(self->stk, (ks_obj)new_dict);
             KS_DECREF(new_dict);

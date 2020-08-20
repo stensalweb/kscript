@@ -267,10 +267,10 @@ static ks_module get_module() {
     ks_dict_set_cn(mod->attr, (ks_dict_ent_c[]) {
         {"MediaType",        (ks_obj)mm_Enum_MediaType},
 
-        {"read_file",        (ks_obj)ks_cfunc_new_c(mm_read_file_,  "mm.read_file(fname)")},
-        {"read_audio",       (ks_obj)ks_cfunc_new_c(mm_read_audio_, "mm.read_audio(fname)")},
-        {"read_image",       (ks_obj)ks_cfunc_new_c(mm_read_image_, "mm.read_image(fname)")},
-        {"write_image",       (ks_obj)ks_cfunc_new_c(mm_write_image_, "mm.write_image(img, fname)")},
+        {"read_file",        (ks_obj)ks_cfunc_new_c_old(mm_read_file_,  "mm.read_file(fname)")},
+        {"read_audio",       (ks_obj)ks_cfunc_new_c_old(mm_read_audio_, "mm.read_audio(fname)")},
+        {"read_image",       (ks_obj)ks_cfunc_new_c_old(mm_read_image_, "mm.read_image(fname)")},
+        {"write_image",       (ks_obj)ks_cfunc_new_c_old(mm_write_image_, "mm.write_image(img, fname)")},
 
         {"Stream",           (ks_obj)mm_type_Stream},
 

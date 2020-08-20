@@ -694,33 +694,33 @@ void libc_init_types() {
     ));
 
     ks_type_init_c(libc_T_pointer, "libc.pointer", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)(F_pointer_new = ks_cfunc_new_c(pointer_new_, "libc.pointer.__new__(ptr_type, obj)"))},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(pointer_free_, "libc.pointer.__free__(obj)")},
+        {"__new__",                (ks_obj)(F_pointer_new = ks_cfunc_new_c_old(pointer_new_, "libc.pointer.__new__(ptr_type, obj)"))},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(pointer_free_, "libc.pointer.__free__(obj)")},
 
-        {"__str__",                (ks_obj)ks_cfunc_new_c(pointer_str_, "libc.pointer.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(pointer_str_, "libc.pointer.__repr__(self)")},
-        {"__bool__",               (ks_obj)ks_cfunc_new_c(pointer_bool_, "libc.pointer.__bool__(self)")},
-        {"__int__",                (ks_obj)ks_cfunc_new_c(pointer_int_, "libc.pointer.__int__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(pointer_str_, "libc.pointer.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(pointer_str_, "libc.pointer.__repr__(self)")},
+        {"__bool__",               (ks_obj)ks_cfunc_new_c_old(pointer_bool_, "libc.pointer.__bool__(self)")},
+        {"__int__",                (ks_obj)ks_cfunc_new_c_old(pointer_int_, "libc.pointer.__int__(self)")},
 
-        {"__getitem__",            (ks_obj)ks_cfunc_new_c(pointer_getitem_, "libc.pointer.__getitem__(self, idx)")},
-        {"__setitem__",            (ks_obj)ks_cfunc_new_c(pointer_setitem_, "libc.pointer.__setitem__(self, idx, val)")},
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c_old(pointer_getitem_, "libc.pointer.__getitem__(self, idx)")},
+        {"__setitem__",            (ks_obj)ks_cfunc_new_c_old(pointer_setitem_, "libc.pointer.__setitem__(self, idx, val)")},
 
-        {"create",                 (ks_obj)ks_cfunc_new_c(pointer_create_, "libc.pointer.create(type_of)")},
+        {"create",                 (ks_obj)ks_cfunc_new_c_old(pointer_create_, "libc.pointer.create(type_of)")},
 
         {"_ctype_size",            (ks_obj)ks_int_new(sizeof(void*))},
         {"_is_ctype",              KSO_TRUE},
 
     ));
     ks_type_init_c(libc_T_function, "libc.function", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)(F_function_new = ks_cfunc_new_c(function_new_, "libc.function.__new__(func_type, obj)"))},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(function_free_, "libc.function.__free__(self)")},
+        {"__new__",                (ks_obj)(F_function_new = ks_cfunc_new_c_old(function_new_, "libc.function.__new__(func_type, obj)"))},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(function_free_, "libc.function.__free__(self)")},
 
-        {"__str__",                (ks_obj)ks_cfunc_new_c(function_str_, "libc.function.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(function_str_, "libc.function.__repr__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(function_str_, "libc.function.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(function_str_, "libc.function.__repr__(self)")},
 
-        {"__call__",               (ks_obj)ks_cfunc_new_c(function_call_, "libc.function.__call__(self, *args)")},
+        {"__call__",               (ks_obj)ks_cfunc_new_c_old(function_call_, "libc.function.__call__(self, *args)")},
 
-        {"create",                 (ks_obj)ks_cfunc_new_c(function_create_, "libc.function.create(ret_type, arg_types=(,))")},
+        {"create",                 (ks_obj)ks_cfunc_new_c_old(function_create_, "libc.function.create(ret_type, arg_types=(,))")},
 
         {"_ctype_size",            (ks_obj)ks_int_new(sizeof(void(*)()))},
         {"_is_ctype",              KSO_TRUE},
@@ -730,11 +730,11 @@ void libc_init_types() {
 
     #define T_setupinttype(_type_name, _ctype) \
     ks_type_init_c(PASTE(libc_T, _type_name), "libc." #_type_name, ks_T_object, KS_KEYVALS( \
-        {"__new__",        (ks_obj)ks_cfunc_new_c(PASTE(_type_name, new_), "libc." #_type_name ".__new__(obj)")}, \
-        {"__free__",       (ks_obj)ks_cfunc_new_c(PASTE(_type_name, free_), "libc." #_type_name ".__free__(obj)")}, \
-        {"__str__",        (ks_obj)ks_cfunc_new_c(PASTE(_type_name, str_), "libc." #_type_name ".__str__(self)")}, \
-        {"__repr__",       (ks_obj)ks_cfunc_new_c(PASTE(_type_name, str_), "libc." #_type_name ".__repr__(self)")}, \
-        {"__int__",        (ks_obj)ks_cfunc_new_c(PASTE(_type_name, int_), "libc." #_type_name ".__int__(self)")}, \
+        {"__new__",        (ks_obj)ks_cfunc_new_c_old(PASTE(_type_name, new_), "libc." #_type_name ".__new__(obj)")}, \
+        {"__free__",       (ks_obj)ks_cfunc_new_c_old(PASTE(_type_name, free_), "libc." #_type_name ".__free__(obj)")}, \
+        {"__str__",        (ks_obj)ks_cfunc_new_c_old(PASTE(_type_name, str_), "libc." #_type_name ".__str__(self)")}, \
+        {"__repr__",       (ks_obj)ks_cfunc_new_c_old(PASTE(_type_name, str_), "libc." #_type_name ".__repr__(self)")}, \
+        {"__int__",        (ks_obj)ks_cfunc_new_c_old(PASTE(_type_name, int_), "libc." #_type_name ".__int__(self)")}, \
         {"_ctype_size",    (ks_obj)ks_int_new(sizeof(_ctype))},\
         {"_is_ctype",      KSO_TRUE}, \
     ));

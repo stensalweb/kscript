@@ -268,16 +268,16 @@ void ks_init_T_logger() {
     ks_all_loggers = ks_dict_new(0, NULL);
 
     ks_type_init_c(ks_T_logger, "logger", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(logger_new_, "logger.__new__(name)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(logger_free_, "logger.__free__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(logger_new_, "logger.__new__(name)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(logger_free_, "logger.__free__(self)")},
 
-        {"set",                    (ks_obj)ks_cfunc_new_c(logger_set_, "logger.set(self, level='WARN')")},
+        {"set",                    (ks_obj)ks_cfunc_new_c_old(logger_set_, "logger.set(self, level='WARN')")},
 
-        {"error",                  (ks_obj)ks_cfunc_new_c(logger_error_, "logger.error(self, *objs)")},
-        {"warn",                   (ks_obj)ks_cfunc_new_c(logger_warn_, "logger.warn(self, *objs)")},
-        {"info",                   (ks_obj)ks_cfunc_new_c(logger_info_, "logger.info(self, *objs)")},
-        {"debug",                  (ks_obj)ks_cfunc_new_c(logger_debug_, "logger.debug(self, *objs)")},
-        {"trace",                  (ks_obj)ks_cfunc_new_c(logger_trace_, "logger.trace(self, *objs)")},
+        {"error",                  (ks_obj)ks_cfunc_new_c_old(logger_error_, "logger.error(self, *objs)")},
+        {"warn",                   (ks_obj)ks_cfunc_new_c_old(logger_warn_, "logger.warn(self, *objs)")},
+        {"info",                   (ks_obj)ks_cfunc_new_c_old(logger_info_, "logger.info(self, *objs)")},
+        {"debug",                  (ks_obj)ks_cfunc_new_c_old(logger_debug_, "logger.debug(self, *objs)")},
+        {"trace",                  (ks_obj)ks_cfunc_new_c_old(logger_trace_, "logger.trace(self, *objs)")},
 
     ));
 

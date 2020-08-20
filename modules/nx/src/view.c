@@ -154,18 +154,18 @@ void nx_T_init_view() {
 
     ks_type_init_c(nx_T_view, "nx.view", ks_T_object, KS_KEYVALS(
 
-        {"__new__",           (ks_obj)ks_cfunc_new_c(view_new_, "nx.view.__new__(obj)")},
-        {"__free__",           (ks_obj)ks_cfunc_new_c(view_free_, "nx.view.__free__(self)")},
-        {"__str__",           (ks_obj)ks_cfunc_new_c(view_str_, "nx.view.__str__(self)")},
+        {"__new__",           (ks_obj)ks_cfunc_new_c_old(view_new_, "nx.view.__new__(obj)")},
+        {"__free__",           (ks_obj)ks_cfunc_new_c_old(view_free_, "nx.view.__free__(self)")},
+        {"__str__",           (ks_obj)ks_cfunc_new_c_old(view_str_, "nx.view.__str__(self)")},
 
-        {"__getattr__",           (ks_obj)ks_cfunc_new_c(view_getattr_, "nx.view.__getattr__(self, attr)")},
-        {"__getitem__",           (ks_obj)ks_cfunc_new_c(view_getitem_, "nx.view.__getitem__(self, *idxs)")},
+        {"__getattr__",           (ks_obj)ks_cfunc_new_c_old(view_getattr_, "nx.view.__getattr__(self, attr)")},
+        {"__getitem__",           (ks_obj)ks_cfunc_new_c_old(view_getitem_, "nx.view.__getitem__(self, *idxs)")},
 
-        {"__add__",           (ks_obj)ks_cfunc_new_c(view_add_, "nx.view.__add__(L, R)")},
-        {"__sub__",           (ks_obj)ks_cfunc_new_c(view_sub_, "nx.view.__sub__(L, R)")},
-        {"__mul__",           (ks_obj)ks_cfunc_new_c(view_mul_, "nx.view.__mul__(L, R)")},
-        {"__div__",           (ks_obj)ks_cfunc_new_c(view_div_, "nx.view.__div__(L, R)")},
-        {"__pow__",           (ks_obj)ks_cfunc_new_c(view_pow_, "nx.view.__pow__(L, R)")},
+        {"__add__",           (ks_obj)ks_cfunc_new_c_old(view_add_, "nx.view.__add__(L, R)")},
+        {"__sub__",           (ks_obj)ks_cfunc_new_c_old(view_sub_, "nx.view.__sub__(L, R)")},
+        {"__mul__",           (ks_obj)ks_cfunc_new_c_old(view_mul_, "nx.view.__mul__(L, R)")},
+        {"__div__",           (ks_obj)ks_cfunc_new_c_old(view_div_, "nx.view.__div__(L, R)")},
+        {"__pow__",           (ks_obj)ks_cfunc_new_c_old(view_pow_, "nx.view.__pow__(L, R)")},
     ));
 
 }

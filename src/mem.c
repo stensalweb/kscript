@@ -17,9 +17,11 @@ void* ks_malloc(ks_size_t sz) {
 
     void* ret = KS_MALLOC(sz);
 
+    if (sz > 0 && !ret) {
+        ks_warn("ks", "ks_malloc(%z) failed!", sz);
+    }
 
     return ret;
-
 }
 
 // Allocate a block of memory of size `n * sz`, i.e. `n` elements of size `sz`
@@ -34,6 +36,10 @@ void* ks_realloc(void* ptr, ks_size_t sz) {
 
     // create a new pointer
     void* new_ptr = KS_REALLOC(ptr, sz);
+
+    if (sz > 0 && !new_ptr) {
+        ks_warn("ks", "ks_realloc(%p, %z) failed!", ptr, sz);
+    }
 
     // return it
     return new_ptr;

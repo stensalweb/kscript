@@ -484,26 +484,26 @@ KS_TYPE_DECLFWD(ks_T_tuple);
 
 void ks_init_T_tuple() {
     ks_type_init_c(ks_T_tuple, "tuple", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(tuple_new_, "tuple.__new__(self)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(tuple_free_, "tuple.__free__(self)")},
-        {"__len__",                (ks_obj)ks_cfunc_new_c(tuple_len_, "tuple.__len__(self)")},
-        {"__hash__",               (ks_obj)ks_cfunc_new_c(tuple_hash_, "tuple.__hash__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(tuple_new_, "tuple.__new__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(tuple_free_, "tuple.__free__(self)")},
+        {"__len__",                (ks_obj)ks_cfunc_new_c_old(tuple_len_, "tuple.__len__(self)")},
+        {"__hash__",               (ks_obj)ks_cfunc_new_c_old(tuple_hash_, "tuple.__hash__(self)")},
 
-        {"__str__",                (ks_obj)ks_cfunc_new_c(tuple_str_, "tuple.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(tuple_str_, "tuple.__repr__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(tuple_str_, "tuple.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(tuple_str_, "tuple.__repr__(self)")},
 
-        {"__getitem__",            (ks_obj)ks_cfunc_new_c(tuple_getitem_, "tuple.__getitem__(self, idx)")},
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c_old(tuple_getitem_, "tuple.__getitem__(self, idx)")},
         
-        {"__add__",                (ks_obj)ks_cfunc_new_c(tuple_add_, "tuple.__add__(L, R)")},
-        {"__mul__",                (ks_obj)ks_cfunc_new_c(tuple_mul_, "tuple.__mul__(L, R)")},
+        {"__add__",                (ks_obj)ks_cfunc_new_c_old(tuple_add_, "tuple.__add__(L, R)")},
+        {"__mul__",                (ks_obj)ks_cfunc_new_c_old(tuple_mul_, "tuple.__mul__(L, R)")},
         
-        {"__iter__",               (ks_obj)ks_cfunc_new_c(tuple_iter_, "tuple.__iter__(self)")},
+        {"__iter__",               (ks_obj)ks_cfunc_new_c_old(tuple_iter_, "tuple.__iter__(self)")},
 
     ));
     ks_type_init_c(ks_T_tuple_iter, "tuple_iter", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(tuple_iter_free_, "tuple_iter.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(tuple_iter_free_, "tuple_iter.__free__(self)")},
 
-        {"__next__",               (ks_obj)ks_cfunc_new_c(tuple_iter_next_, "tuple_iter.__next__(self)")},
+        {"__next__",               (ks_obj)ks_cfunc_new_c_old(tuple_iter_next_, "tuple_iter.__next__(self)")},
     ));
 }
 

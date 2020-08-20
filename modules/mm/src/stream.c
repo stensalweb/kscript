@@ -197,11 +197,11 @@ void mm_init_type_Stream() {
 
     ks_type_set_cn(mm_type_Stream, (ks_dict_ent_c[]){
 
-        {"__new__",     (ks_obj)ks_cfunc_new_c(stream_new_, "mm.Stream.__new__(url)")},
-        {"__free__",     (ks_obj)ks_cfunc_new_c(stream_free_, "mm.Stream.__free__(self)")},
+        {"__new__",     (ks_obj)ks_cfunc_new_c_old(stream_new_, "mm.Stream.__new__(url)")},
+        {"__free__",     (ks_obj)ks_cfunc_new_c_old(stream_free_, "mm.Stream.__free__(self)")},
 
 
-        {"get_info",     (ks_obj)ks_cfunc_new_c(stream_get_info_, "mm.Stream.get_info(self, idx=-1)")},
+        {"get_info",     (ks_obj)ks_cfunc_new_c_old(stream_get_info_, "mm.Stream.get_info(self, idx=-1)")},
 
 
         {NULL, NULL},

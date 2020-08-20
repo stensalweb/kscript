@@ -137,6 +137,9 @@ typedef int64_t ks_ssize_t;
 // a hash type, representing a hash of an object
 typedef uint64_t ks_hash_t;
 
+
+/* Math/Numeric Constants */
+
 // max hash value
 #define KS_HASH_MAX ((ks_hash_t)(((ks_hash_t)(1ULL)) << (8 * sizeof(ks_hash_t) - 1)))
 
@@ -147,9 +150,6 @@ typedef uint64_t ks_hash_t;
 #define KS_HASH_MUL ((ks_hash_t)3367900313ULL)
 
 
-
-/* Math/Numeric Constants */
-
 // PI, (circle constant)
 #define KS_M_PI    3.141592653589793238462643383279502884197169399375105820974944592307816406286
 
@@ -157,8 +157,14 @@ typedef uint64_t ks_hash_t;
 #define KS_M_E     2.718281828459045235360287471352662497757247093699959574966967627724076630353
 
 
+/* Misc. Constants */
 
-// a single unicode character (NOT grapheme/etc, but rather a single, decoded value)
+
+// the maximum stack depth (i.e. recursion calls) in a single stack's thread
+#define KS_MAX_STACK_DEPTH 1024
+
+
+// a single unicode character (NOT grapheme/etc, but rather a single, decoded value in UCS-4)
 typedef int32_t ks_unich;
 
 // include unicode
@@ -378,6 +384,12 @@ struct ks_str_s {
 // If this condition is true, characters can be indexed on a byte-by-byte basis. This means a lot of operations can be a lot faster (indexing, slicing,
 //   searching AND returning the index at which it is found)
 #define KS_STR_ISASCII(_str) ((_str)->len_b == (_str)->len_c)
+
+
+// Determind whether a string is in valid UTF8 format
+// Currently, this is always true, but is included so that in the future, if this changes, it will be easy to adapt
+// Further, it makes code more readable, and allows performance increases where the string is already in a valid format
+#define KS_STR_ISUTF8(_str) (true)
 
 
 /* UTF8 special characters */
@@ -763,6 +775,9 @@ typedef struct {
     // human-readable signature of the function (i.e. 'print(*args)')
     ks_str sig_hr;
 
+    // __doc__; the doc-string of the C function
+    ks_str doc;
+
 }* ks_cfunc;
 
 
@@ -849,7 +864,7 @@ struct ks_module_cinit {
 
 // Create a new module with a given name
 // NOTE: Returns a new reference, or NULL if an error was thrown
-KS_API ks_module ks_module_new(const char* mname);
+KS_API ks_module ks_module_new(const char* mname, const char* doc);
 
 // Attempt to import a module with a given name
 // NOTE: Returns a new reference, or NULL if an error was thrown
@@ -1676,6 +1691,8 @@ typedef struct {
     // human-readable name (default: <kfunc @ ADDR>)
     ks_str name_hr;
 
+    // __doc__; the doc-string of the C function
+    ks_str doc;
 
     // the bytecode to execute for the function
     ks_code code;
@@ -2560,15 +2577,21 @@ KS_API bool ks_set_has_h(ks_set self, ks_obj key, ks_hash_t hash);
 
 
 
-
-
 // Construct a new Cfunc with given name and signature
 // NOTE: Returns new reference, or NULL if an error was thrown
-KS_API ks_cfunc ks_cfunc_new(ks_cfunc_f func, ks_str name_hr, ks_str sig_hr);
+KS_API ks_cfunc ks_cfunc_new(ks_cfunc_f func, ks_str name_hr, ks_str sig_hr, ks_str doc);
+
+
+// Construct a new Cfunc with given signature (the function name is taken as the substring up to '(') and docstring
+// NOTE: Returns new reference, or NULL if an error was thrown
+KS_API ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig, const char* doc);
+
 
 // Construct a new Cfunc with given signature (the function name is taken as the substring up to '(')
 // NOTE: Returns new reference, or NULL if an error was thrown
-KS_API ks_cfunc ks_cfunc_new_c(ks_cfunc_f func, const char* sig);
+// NOTE: DO NOT USE, use ks_cfunc_new_c, this is only compatibility for a short while
+KS_API ks_cfunc ks_cfunc_new_c_old(ks_cfunc_f func, const char* sig);
+
 
 
 // Construct a new member function with the given function & member instance

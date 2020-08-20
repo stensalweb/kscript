@@ -486,22 +486,22 @@ static ks_module get_module() {
     ks_module mod = ks_module_new(MODULE_NAME);
 
     ks_type_init_c(sock_T_Socket, "sock.Socket", ks_T_object, KS_KEYVALS(
-        {"__new__",             (ks_obj)ks_cfunc_new_c(Socket_new_, "sock.Socket.__new__()")},
-        {"__free__",            (ks_obj)ks_cfunc_new_c(Socket_free_, "sock.Socket.__free__(self)")},
+        {"__new__",             (ks_obj)ks_cfunc_new_c_old(Socket_new_, "sock.Socket.__new__()")},
+        {"__free__",            (ks_obj)ks_cfunc_new_c_old(Socket_free_, "sock.Socket.__free__(self)")},
 
-        {"connect",             (ks_obj)ks_cfunc_new_c(Socket_connect_, "sock.Socket.connect(self, address, port)")},
-        {"bind",                (ks_obj)ks_cfunc_new_c(Socket_bind_, "sock.Socket.bind(self, address, port)")},
+        {"connect",             (ks_obj)ks_cfunc_new_c_old(Socket_connect_, "sock.Socket.connect(self, address, port)")},
+        {"bind",                (ks_obj)ks_cfunc_new_c_old(Socket_bind_, "sock.Socket.bind(self, address, port)")},
         
-        {"listen",              (ks_obj)ks_cfunc_new_c(Socket_listen_, "sock.Socket.listen(self, num)")},
-        {"accept",              (ks_obj)ks_cfunc_new_c(Socket_accept_, "sock.Socket.accept(self)")},
+        {"listen",              (ks_obj)ks_cfunc_new_c_old(Socket_listen_, "sock.Socket.listen(self, num)")},
+        {"accept",              (ks_obj)ks_cfunc_new_c_old(Socket_accept_, "sock.Socket.accept(self)")},
 
-        {"send",                (ks_obj)ks_cfunc_new_c(Socket_send_, "sock.Socket.send(self, msg)")},
-        {"recv",                (ks_obj)ks_cfunc_new_c(Socket_recv_, "sock.Socket.recv(self, sz)")},
+        {"send",                (ks_obj)ks_cfunc_new_c_old(Socket_send_, "sock.Socket.send(self, msg)")},
+        {"recv",                (ks_obj)ks_cfunc_new_c_old(Socket_recv_, "sock.Socket.recv(self, sz)")},
 
-        {"get_name",            (ks_obj)ks_cfunc_new_c(Socket_get_name_, "sock.Socket.get_name(self)")},
-        {"get_port",            (ks_obj)ks_cfunc_new_c(Socket_get_port_, "sock.Socket.get_port(self)")},
+        {"get_name",            (ks_obj)ks_cfunc_new_c_old(Socket_get_name_, "sock.Socket.get_name(self)")},
+        {"get_port",            (ks_obj)ks_cfunc_new_c_old(Socket_get_port_, "sock.Socket.get_port(self)")},
 
-        {"handle_forever",      (ks_obj)ks_cfunc_new_c(Socket_handle_forever_, "sock.Socket.handle_forever(self)")},
+        {"handle_forever",      (ks_obj)ks_cfunc_new_c_old(Socket_handle_forever_, "sock.Socket.handle_forever(self)")},
 
     ));
 

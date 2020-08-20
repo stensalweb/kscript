@@ -83,8 +83,8 @@ KS_TYPE_DECLFWD(ks_T_complex);
 void ks_init_T_complex() {
 
     ks_type_init_c(ks_T_complex, "complex", ks_T_object, KS_KEYVALS(
-        {"__str__",                (ks_obj)ks_cfunc_new_c(complex_str_, "complex.__str__(self)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(complex_free_, "complex.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(complex_str_, "complex.__str__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(complex_free_, "complex.__free__(self)")},
 
         KST_NUM_OPKVS(fcomplex)
 

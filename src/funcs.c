@@ -873,8 +873,8 @@ static void ensure_readline() {
 // handle exception
 static void interactive_handle_exc() {
     // handle error
-    ks_list exc_info = NULL;
-    ks_obj exc = ks_catch(&exc_info);
+    ks_list frames = NULL;
+    ks_obj exc = ks_catch(&frames);
     assert(exc != NULL && "NULL returned with no exception!");
 
     // error, so rethrow it and return
@@ -882,16 +882,37 @@ static void interactive_handle_exc() {
 
     // print in reverse order
     ks_printf("Call Stack:\n");
-    
+
     int i;
-    for (i = 0; i < exc_info->len; i++) {
-        ks_printf("%*c#%i: In %S\n", 2, ' ', i, exc_info->elems[i]);
+
+    // TODO: add these formatting options in `sys` module or something
+    int trunc_len = 16;
+
+    if (frames->len > trunc_len) {
+
+        int num_after = frames->len - trunc_len;
+        if (num_after > trunc_len) num_after = trunc_len;
+
+        for (i = 0; i < trunc_len; i++) {
+            ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+        }
+        ks_printf("\n...\n\n");
+
+        for (i = frames->len - num_after; i < frames->len; i++) {
+            ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+        }
+
+    } else {
+        for (i = 0; i < frames->len; i++) {
+            ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+        }
     }
+
     
     ks_printf("In thread %R @ %p\n", ks_thread_get()->name, ks_thread_get());
 
     KS_DECREF(exc);
-    KS_DECREF(exc_info);
+    KS_DECREF(frames);
 }
 
 // runs a single expression from the interactive 
@@ -1138,7 +1159,6 @@ static KS_FUNC(eval) {
 
     ks_debug("ks", "compiled to: '%S'", bcode);
 
-
     // current thread
     ks_thread th = ks_thread_get();
 
@@ -1233,72 +1253,72 @@ void ks_init_funcs() {
     // interpreter variables
     ks_inter_vars = ks_dict_new(0, NULL);
 
-    ks_F_print = ks_cfunc_new_c(print_, "print(*args)");
-    ks_F_recurse = ks_cfunc_new_c(recurse_, "__recurse__(*args)");
-    ks_F_import = ks_cfunc_new_c(import_, "__import__(modname)");
+    ks_F_print = ks_cfunc_new_c_old(print_, "print(*args)");
+    ks_F_recurse = ks_cfunc_new_c_old(recurse_, "__recurse__(*args)");
+    ks_F_import = ks_cfunc_new_c_old(import_, "__import__(modname)");
 
-    ks_F_iter = ks_cfunc_new_c(iter_, "iter(obj)");
-    ks_F_next = ks_cfunc_new_c(next_, "next(obj)");
+    ks_F_iter = ks_cfunc_new_c_old(iter_, "iter(obj)");
+    ks_F_next = ks_cfunc_new_c_old(next_, "next(obj)");
 
-    ks_F_truthy = ks_cfunc_new_c(truthy_, "truthy(obj)");
+    ks_F_truthy = ks_cfunc_new_c_old(truthy_, "truthy(obj)");
 
-    ks_F_typeof = ks_cfunc_new_c(typeof_, "typeof(obj)");
-    ks_F_hash = ks_cfunc_new_c(hash_, "hash(obj)");
-    ks_F_id = ks_cfunc_new_c(id_, "id(obj)");
-    ks_F_len = ks_cfunc_new_c(len_, "len(obj)");
-    ks_F_repr = ks_cfunc_new_c(repr_, "repr(obj)");
+    ks_F_typeof = ks_cfunc_new_c_old(typeof_, "typeof(obj)");
+    ks_F_hash = ks_cfunc_new_c_old(hash_, "hash(obj)");
+    ks_F_id = ks_cfunc_new_c_old(id_, "id(obj)");
+    ks_F_len = ks_cfunc_new_c_old(len_, "len(obj)");
+    ks_F_repr = ks_cfunc_new_c_old(repr_, "repr(obj)");
 
-    ks_F_chr = ks_cfunc_new_c(chr_, "chr(ord)");
-    ks_F_ord = ks_cfunc_new_c(ord_, "ord(chr)");
+    ks_F_chr = ks_cfunc_new_c_old(chr_, "chr(ord)");
+    ks_F_ord = ks_cfunc_new_c_old(ord_, "ord(chr)");
 
-    ks_F_issub = ks_cfunc_new_c(issub_, "issub(a, b)");
+    ks_F_issub = ks_cfunc_new_c_old(issub_, "issub(a, b)");
     
-    ks_F_any = ks_cfunc_new_c(any_, "any(objs)");
-    ks_F_all = ks_cfunc_new_c(all_, "all(objs)");
+    ks_F_any = ks_cfunc_new_c_old(any_, "any(objs)");
+    ks_F_all = ks_cfunc_new_c_old(all_, "all(objs)");
 
 
-    ks_F_sum = ks_cfunc_new_c(sum_, "sum(objs, initial=none)");
-    ks_F_map = ks_cfunc_new_c(map_, "map(func, objs)");
-    ks_F_filter = ks_cfunc_new_c(filter_, "filter(func, objs)");
+    ks_F_sum = ks_cfunc_new_c_old(sum_, "sum(objs, initial=none)");
+    ks_F_map = ks_cfunc_new_c_old(map_, "map(func, objs)");
+    ks_F_filter = ks_cfunc_new_c_old(filter_, "filter(func, objs)");
 
-    ks_F_getattr = ks_cfunc_new_c(getattr_, "getattr(obj, key)");
-    ks_F_setattr = ks_cfunc_new_c(setattr_, "setattr(obj, key, val)");
-    ks_F_getitem = ks_cfunc_new_c(getitem_, "getitem(obj, *args)");
-    ks_F_setitem = ks_cfunc_new_c(setitem_, "setitem(obj, *args)");
+    ks_F_getattr = ks_cfunc_new_c_old(getattr_, "getattr(obj, key)");
+    ks_F_setattr = ks_cfunc_new_c_old(setattr_, "setattr(obj, key, val)");
+    ks_F_getitem = ks_cfunc_new_c_old(getitem_, "getitem(obj, *args)");
+    ks_F_setitem = ks_cfunc_new_c_old(setitem_, "setitem(obj, *args)");
 
-    ks_F_add = ks_cfunc_new_c(add_, "__add__(L, R)");
-    ks_F_sub = ks_cfunc_new_c(sub_, "__sub__(L, R)");
-    ks_F_mul = ks_cfunc_new_c(mul_, "__mul__(L, R)");
-    ks_F_div = ks_cfunc_new_c(div_, "__div__(L, R)");
-    ks_F_mod = ks_cfunc_new_c(mod_, "__mod__(L, R)");
-    ks_F_pow = ks_cfunc_new_c(pow_, "__pow__(L, R)");
+    ks_F_add = ks_cfunc_new_c_old(add_, "__add__(L, R)");
+    ks_F_sub = ks_cfunc_new_c_old(sub_, "__sub__(L, R)");
+    ks_F_mul = ks_cfunc_new_c_old(mul_, "__mul__(L, R)");
+    ks_F_div = ks_cfunc_new_c_old(div_, "__div__(L, R)");
+    ks_F_mod = ks_cfunc_new_c_old(mod_, "__mod__(L, R)");
+    ks_F_pow = ks_cfunc_new_c_old(pow_, "__pow__(L, R)");
 
-    ks_F_binand = ks_cfunc_new_c(binand_, "__binand__(L, R)");
-    ks_F_binor = ks_cfunc_new_c(binor_, "__binor__(L, R)");
-    ks_F_binxor = ks_cfunc_new_c(binxor_, "__binxor__(L, R)");
+    ks_F_binand = ks_cfunc_new_c_old(binand_, "__binand__(L, R)");
+    ks_F_binor = ks_cfunc_new_c_old(binor_, "__binor__(L, R)");
+    ks_F_binxor = ks_cfunc_new_c_old(binxor_, "__binxor__(L, R)");
 
-    ks_F_lshift = ks_cfunc_new_c(lshift_, "__lshift__(L, R)");
-    ks_F_rshift = ks_cfunc_new_c(rshift_, "__rshift__(L, R)");
+    ks_F_lshift = ks_cfunc_new_c_old(lshift_, "__lshift__(L, R)");
+    ks_F_rshift = ks_cfunc_new_c_old(rshift_, "__rshift__(L, R)");
 
-    ks_F_cmp = ks_cfunc_new_c(cmp_, "__cmp__(L, R)");
+    ks_F_cmp = ks_cfunc_new_c_old(cmp_, "__cmp__(L, R)");
 
-    ks_F_lt = ks_cfunc_new_c(lt_, "__lt__(L, R)");
-    ks_F_gt = ks_cfunc_new_c(gt_, "__gt__(L, R)");
-    ks_F_le = ks_cfunc_new_c(le_, "__le__(L, R)");
-    ks_F_ge = ks_cfunc_new_c(ge_, "__ge__(L, R)");
-    ks_F_eq = ks_cfunc_new_c(eq_, "__eq__(L, R)");
-    ks_F_ne = ks_cfunc_new_c(ne_, "__ne__(L, R)");
+    ks_F_lt = ks_cfunc_new_c_old(lt_, "__lt__(L, R)");
+    ks_F_gt = ks_cfunc_new_c_old(gt_, "__gt__(L, R)");
+    ks_F_le = ks_cfunc_new_c_old(le_, "__le__(L, R)");
+    ks_F_ge = ks_cfunc_new_c_old(ge_, "__ge__(L, R)");
+    ks_F_eq = ks_cfunc_new_c_old(eq_, "__eq__(L, R)");
+    ks_F_ne = ks_cfunc_new_c_old(ne_, "__ne__(L, R)");
 
-    ks_F_pos = ks_cfunc_new_c(pos_, "__pos__(V)");
-    ks_F_neg = ks_cfunc_new_c(neg_, "__neg__(V)");
-    ks_F_abs = ks_cfunc_new_c(abs_, "abs(V)");
-    ks_F_sqig = ks_cfunc_new_c(sqig_, "__sqig__(V)");
+    ks_F_pos = ks_cfunc_new_c_old(pos_, "__pos__(V)");
+    ks_F_neg = ks_cfunc_new_c_old(neg_, "__neg__(V)");
+    ks_F_abs = ks_cfunc_new_c_old(abs_, "abs(V)");
+    ks_F_sqig = ks_cfunc_new_c_old(sqig_, "__sqig__(V)");
 
-    ks_F_eval = ks_cfunc_new_c(eval_, "eval(expr)");
+    ks_F_eval = ks_cfunc_new_c_old(eval_, "eval(expr)");
 
-    ks_F_exec_interactive = ks_cfunc_new_c(exec_interactive_, "exec_interactive(fname)");
-    ks_F_exec_expr = ks_cfunc_new_c(exec_expr_, "exec_expr(expr)");
-    ks_F_exec_file = ks_cfunc_new_c(exec_file_, "exec_file(fname)");
+    ks_F_exec_interactive = ks_cfunc_new_c_old(exec_interactive_, "exec_interactive(fname)");
+    ks_F_exec_expr = ks_cfunc_new_c_old(exec_expr_, "exec_expr(expr)");
+    ks_F_exec_file = ks_cfunc_new_c_old(exec_file_, "exec_file(fname)");
 
 
 }

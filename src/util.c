@@ -127,6 +127,11 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
     ks_thread thread = ks_thread_get();
     assert (thread != NULL && "tried to call object, but no thread was available...");
 
+
+    if (thread->frames->len >= KS_MAX_STACK_DEPTH) {
+        return ks_throw(ks_T_InternalError, "Maximum call stack depth (=%i) was exceeded! (Check for infinite recursion)", KS_MAX_STACK_DEPTH);
+    }
+
     // create a new stack frame
     ks_stack_frame c_frame = ks_stack_frame_new(func);
     ks_list_push(thread->frames, (ks_obj)c_frame);
@@ -135,12 +140,10 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
     // the object to return
     ks_obj ret = NULL;
 
-
     if (func->type == ks_T_cfunc) {
         // let the C-function handle everything for us
         ret = ((ks_cfunc)func)->func(n_args, args);
     } else if (func->type == ks_T_kfunc) {
-
         // now, we need to unpack the kscript function
         // cast it to increase readability
         ks_kfunc kfc = (ks_kfunc)func;
@@ -174,8 +177,8 @@ ks_obj ks_obj_call2(ks_obj func, int n_args, ks_obj* args, ks_dict locals) {
             ks_dict_set_h(c_frame->locals, (ks_obj)kfc->params[par_i].name, kfc->params[par_i].name->v_hash, kfc->params[par_i].defa);
 
             par_i++;
-
         }
+
 
         // now, if it is vararg, handle the last one
         if (kfc->isVarArg) {
@@ -438,9 +441,29 @@ void ks_exit_if_err() {
         ks_printf("Call Stack:\n");
 
         int i;
-        for (i = 0; i < frames->len; i++) {
-            ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+
+        // TODO: add these formatting options in `sys` module or something
+        int trunc_len = 16;
+
+        if (frames->len > trunc_len) {
+            int num_after = frames->len - trunc_len;
+            if (num_after > trunc_len) num_after = trunc_len;
+
+            for (i = 0; i < trunc_len; i++) {
+                ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+            }
+            ks_printf("...");
+
+            for (i = frames->len - num_after; i < frames->len; i++) {
+                ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+            }
+
+        } else {
+            for (i = 0; i < frames->len; i++) {
+                ks_printf("%*c#%i: In %S\n", 2, ' ', i, frames->elems[i]);
+            }
         }
+
         
         ks_printf("In thread %R @ %p\n", th->name, th);
 

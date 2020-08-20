@@ -72,10 +72,11 @@ double complex my_lcgamma(double complex x);
 // NOTE: correct to 14.188319365090821 digits
 
 double my_gamma(double x) {
-    if (x < 0) {
+    if (x <= 0) {
 
         int ix = (int)x;
-        if (x == ix) return INFINITY;
+        //if (x == ix) return INFINITY;
+        if (x == ix) return nan("");
 
         // use reflection formula, since it won't converge otherwise
         // Gamma(x) = pi / (sin(pi * x) * Gamma(1 - x))
@@ -112,7 +113,7 @@ double my_gamma(double x) {
         // keep track of sum
         long double sum = a[0];
 
-        // loop var
+        // loop varz
         int i;
 
         for (i = 1; i < a_n; ++i) {
@@ -185,11 +186,12 @@ double complex my_cgamma(double complex x) {
 
 
 double my_lgamma(double x) {
-    if (x < 0) {
+    if (x <= 0) {
 
         int ix = (int)x;
-        if (x == ix) return INFINITY;
-
+        //if (x == ix) return INFINITY;
+        if (x == ix) return nan("");
+        
         // use reflection formula, since it won't converge otherwise
         // log(Gamma(x)) = log(pi / (sin(pi * x) * Gamma(1 - x)))
         // log(Gamma(x)) = log(pi) - log(sin(pi * x)) - log(Gamma(1 - x))

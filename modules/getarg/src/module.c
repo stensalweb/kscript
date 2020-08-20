@@ -703,13 +703,13 @@ static ks_module get_module() {
     ks_module mod = ks_module_new(MODULE_NAME);
 
     ks_type_init_c(getarg_T_Parser, "getarg.Parser", ks_T_object, KS_KEYVALS(
-        {"__new__",         (ks_obj)ks_cfunc_new_c(Parser_new_, "Parser.__new__(program_name, version, desc, authors)")},
-        {"__free__",        (ks_obj)ks_cfunc_new_c(Parser_free_, "Parser.__free__(self)")},
+        {"__new__",         (ks_obj)ks_cfunc_new_c_old(Parser_new_, "Parser.__new__(program_name, version, desc, authors)")},
+        {"__free__",        (ks_obj)ks_cfunc_new_c_old(Parser_free_, "Parser.__free__(self)")},
 
-        {"add_arg_single",  (ks_obj)ks_cfunc_new_c(Parser_add_arg_single_, "Parser.add_arg_single(self, name, desc, opt_strs, type=str, defa=None, flags=0)")},
-        {"add_arg_multi",  (ks_obj)ks_cfunc_new_c(Parser_add_arg_multi_, "Parser.add_arg_multi(self, name, desc, opt_strs, num=(1, none), type=str, defa=None, flags=0)")},
+        {"add_arg_single",  (ks_obj)ks_cfunc_new_c_old(Parser_add_arg_single_, "Parser.add_arg_single(self, name, desc, opt_strs, type=str, defa=None, flags=0)")},
+        {"add_arg_multi",  (ks_obj)ks_cfunc_new_c_old(Parser_add_arg_multi_, "Parser.add_arg_multi(self, name, desc, opt_strs, num=(1, none), type=str, defa=None, flags=0)")},
 
-        {"parse",           (ks_obj)ks_cfunc_new_c(Parser_parse_, "Parser.parse(self, args=none)")},
+        {"parse",           (ks_obj)ks_cfunc_new_c_old(Parser_parse_, "Parser.parse(self, args=none)")},
 
     ));
 

@@ -110,7 +110,7 @@ KS_TYPE_DECLFWD(ks_T_slice);
 
 void ks_init_T_slice() {
     ks_type_init_c(ks_T_slice, "slice", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(slice_free_, "slice.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(slice_free_, "slice.__free__(self)")},
     ));
 
 }

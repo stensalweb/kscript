@@ -178,19 +178,19 @@ void ks_init_T_bytes() {
     tc->v_hash = ks_hash_bytes(tc->byt, 0);
 
     ks_type_init_c(ks_T_bytes, "bytes", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(bytes_new_, "bytes.__new__(obj, *args)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(bytes_free_, "bytes.__free__(self)")},
-        {"__iter__",               (ks_obj)ks_cfunc_new_c(bytes_iter_, "bytes.__iter__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(bytes_new_, "bytes.__new__(obj, *args)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(bytes_free_, "bytes.__free__(self)")},
+        {"__iter__",               (ks_obj)ks_cfunc_new_c_old(bytes_iter_, "bytes.__iter__(self)")},
 
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(bytes_repr_, "bytes.__repr__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(bytes_repr_, "bytes.__str__(self)")},
-        {"__len__",                (ks_obj)ks_cfunc_new_c(bytes_len_, "bytes.__len__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(bytes_repr_, "bytes.__repr__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(bytes_repr_, "bytes.__str__(self)")},
+        {"__len__",                (ks_obj)ks_cfunc_new_c_old(bytes_len_, "bytes.__len__(self)")},
 
     ));
 
     ks_type_init_c(ks_T_bytes_iter, "bytes_iter", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(bytes_iter_free_, "bytes_iter.__free__(self)")},
-        {"__next__",               (ks_obj)ks_cfunc_new_c(bytes_iter_next_, "bytes_iter.__next__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(bytes_iter_free_, "bytes_iter.__free__(self)")},
+        {"__next__",               (ks_obj)ks_cfunc_new_c_old(bytes_iter_next_, "bytes_iter.__next__(self)")},
     ));
 
 }

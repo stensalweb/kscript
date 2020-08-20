@@ -249,9 +249,9 @@ void nx_mod_add_fft(ks_module nxmod) {
 
         {"Plan",        (ks_obj)nx_T_fft_plan},
 
-        {"fftN",        (ks_obj)ks_cfunc_new_c(fft_fftN_, "nx.fft.fftN(A, axes=none, B=none)")},
-        {"ifftN",        (ks_obj)ks_cfunc_new_c(fft_ifftN_, "nx.fft.fftN(A, axes=none, B=none)")},
-        //{"ifft2d",       (ks_obj)ks_cfunc_new_c(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
+        {"fftN",        (ks_obj)ks_cfunc_new_c_old(fft_fftN_, "nx.fft.fftN(A, axes=none, B=none)")},
+        {"ifftN",        (ks_obj)ks_cfunc_new_c_old(fft_ifftN_, "nx.fft.fftN(A, axes=none, B=none)")},
+        //{"ifft2d",       (ks_obj)ks_cfunc_new_c_old(fft_ifft2d_, "nx.fft.ifft2d(A, B=none, axis0=-2, axis1=-1)")},
 
 
     ));

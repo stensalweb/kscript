@@ -175,11 +175,11 @@ void nx_T_init_dtype() {
     dtype_cache = ks_dict_new(0, NULL);
     ks_type_init_c(nx_T_dtype, "nx.dtype", ks_T_object, KS_KEYVALS(
 
-        {"__new__", (ks_obj)ks_cfunc_new_c(dtype_new_, "nx.dtype.__new__(obj)")},
-        {"__free__", (ks_obj)ks_cfunc_new_c(dtype_free_, "nx.dtype.__free__(self)")},
+        {"__new__", (ks_obj)ks_cfunc_new_c_old(dtype_new_, "nx.dtype.__new__(obj)")},
+        {"__free__", (ks_obj)ks_cfunc_new_c_old(dtype_free_, "nx.dtype.__free__(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new_c(dtype_str_, "nx.dtype.__str__(self)")},
-        {"__repr__", (ks_obj)ks_cfunc_new_c(dtype_str_, "nx.dtype.__repr__(self)")},
+        {"__str__", (ks_obj)ks_cfunc_new_c_old(dtype_str_, "nx.dtype.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new_c_old(dtype_str_, "nx.dtype.__repr__(self)")},
 
         {"_dtype_cache", (ks_obj)dtype_cache},
     ));

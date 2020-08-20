@@ -405,19 +405,19 @@ static ks_module get_module() {
     KS_INIT_TYPE_OBJ(req_type_Result, "req.Result");
 
     ks_type_set_cn(req_type_Result, (ks_dict_ent_c[]){
-        //{"__new__",        (ks_obj)ks_cfunc_new_c(array_new_, "nx.array.__new__(elems, dtype=None)")},
-        {"__free__",        (ks_obj)ks_cfunc_new_c(Result_free_, "req.Result.__free__(self)")},
+        //{"__new__",        (ks_obj)ks_cfunc_new_c_old(array_new_, "nx.array.__new__(elems, dtype=None)")},
+        {"__free__",        (ks_obj)ks_cfunc_new_c_old(Result_free_, "req.Result.__free__(self)")},
 
-        {"__repr__",       (ks_obj)ks_cfunc_new_c(Result_str_, "req.Result.__repr__(self)")},
-        {"__str__",        (ks_obj)ks_cfunc_new_c(Result_str_, "req.Result.__str__(self)")},
+        {"__repr__",       (ks_obj)ks_cfunc_new_c_old(Result_str_, "req.Result.__repr__(self)")},
+        {"__str__",        (ks_obj)ks_cfunc_new_c_old(Result_str_, "req.Result.__str__(self)")},
 
-        {"__getattr__",    (ks_obj)ks_cfunc_new_c(Result_getattr_, "req.Result.__getattr__(self, attr)")},
+        {"__getattr__",    (ks_obj)ks_cfunc_new_c_old(Result_getattr_, "req.Result.__getattr__(self, attr)")},
 
         /*
-        {"__getitem__",    (ks_obj)ks_cfunc_new_c(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
-        {"__setitem__",    (ks_obj)ks_cfunc_new_c(array_setitem_, "nx.array.__setitem__(self, *idxs)")},
+        {"__getitem__",    (ks_obj)ks_cfunc_new_c_old(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
+        {"__setitem__",    (ks_obj)ks_cfunc_new_c_old(array_setitem_, "nx.array.__setitem__(self, *idxs)")},
 
-        {"shape",          (ks_obj)ks_cfunc_new_c(array_shape_, "nx.array.shape(self)")},*/
+        {"shape",          (ks_obj)ks_cfunc_new_c_old(array_shape_, "nx.array.shape(self)")},*/
 
         {NULL, NULL},
     });
@@ -426,9 +426,9 @@ static ks_module get_module() {
         /* constants */
         {"Result",     (ks_obj)req_type_Result},
 
-        {"GET",        (ks_obj)ks_cfunc_new_c(req_GET_, "req.GET(url, data=none)")},
-        {"POST",       (ks_obj)ks_cfunc_new_c(req_POST_, "req.POST(url, data=none)")},
-        {"download",   (ks_obj)ks_cfunc_new_c(req_download_, "req.download(url, dest, data=none)")},
+        {"GET",        (ks_obj)ks_cfunc_new_c_old(req_GET_, "req.GET(url, data=none)")},
+        {"POST",       (ks_obj)ks_cfunc_new_c_old(req_POST_, "req.POST(url, data=none)")},
+        {"download",   (ks_obj)ks_cfunc_new_c_old(req_download_, "req.download(url, dest, data=none)")},
 
         {NULL, NULL}
     });

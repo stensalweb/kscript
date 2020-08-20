@@ -141,8 +141,10 @@ def get_gamma_table(n, g):
     # the `f` vector, defined as `F` but without the double rising factorial (which Dc has)
     # I left this in here instead of combining here to be more accurate to 
     #   the method given in 4
-    f_gn = [sqrt(2) * (e / (2 * (i + g) + 1)) ** (i + 0.5) for i in range(n)]Halfway through! If you're still hanging on, you m
+    f_gn = [sqrt(2) * (e / (2 * (i + g) + 1)) ** (i + 0.5) for i in range(n)]
 
+    # multiply matrices X*Y*...
+    def matmul(X, Y, *args):
         if args:
             return matmul(matmul(X, Y), *args)
         else:
@@ -348,10 +350,11 @@ print(f"""
 // NOTE: correct to {digits_accurate(gamma_errbound())} digits
 
 double {prefix}gamma(double x) {{
-    if (x < 0) {{
+    if (x <= 0) {{
 
         int ix = (int)x;
-        if (x == ix) return INFINITY;
+        //if (x == ix) return INFINITY;
+        if (x == ix) return nan("");
 
         // use reflection formula, since it won't converge otherwise
         // Gamma(x) = pi / (sin(pi * x) * Gamma(1 - x))
@@ -374,7 +377,7 @@ double {prefix}gamma(double x) {{
         // keep track of sum
         long double sum = a[0];
 
-        // loop var
+        // loop varz
         int i;
 
         for (i = 1; i < a_n; ++i) {{
@@ -437,11 +440,12 @@ if args.lgamma:
     print(f"""
 
 double {prefix}lgamma(double x) {{
-    if (x < 0) {{
+    if (x <= 0) {{
 
         int ix = (int)x;
-        if (x == ix) return INFINITY;
-
+        //if (x == ix) return INFINITY;
+        if (x == ix) return nan("");
+        
         // use reflection formula, since it won't converge otherwise
         // log(Gamma(x)) = log(pi / (sin(pi * x) * Gamma(1 - x)))
         // log(Gamma(x)) = log(pi) - log(sin(pi * x)) - log(Gamma(1 - x))

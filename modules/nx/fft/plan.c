@@ -907,9 +907,9 @@ void nx_T_init_fft_plan() {
 
     ks_type_init_c(nx_T_fft_plan, "nx.fft.Plan", ks_T_object, KS_KEYVALS(
 
-        {"__free__", (ks_obj)ks_cfunc_new_c(plan_free_, "nx.array.__free__(self)")},
-        {"__str__", (ks_obj)ks_cfunc_new_c(plan_str_, "nx.array.__str__(self)")},
-        {"__repr__", (ks_obj)ks_cfunc_new_c(plan_str_, "nx.array.__repr__(self)")},
+        {"__free__", (ks_obj)ks_cfunc_new_c_old(plan_free_, "nx.array.__free__(self)")},
+        {"__str__", (ks_obj)ks_cfunc_new_c_old(plan_str_, "nx.array.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new_c_old(plan_str_, "nx.array.__repr__(self)")},
 
         {"_plan_cache", (ks_obj)fft_plan_cache},
 

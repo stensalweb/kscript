@@ -17,6 +17,11 @@
  *   which is not bad, and is close to optimal, outside of using mpfr to do it
  * 
  * 
+ * TODO:
+ *   - Consider whether `floor` & `ceil` should return integers
+ *     - PROS: Consistent with C, allows inf/NaN propogation
+ *     - CONS: Non-exactness at high ranges, semantic meaning is enforced
+ * 
  * @author: Cade Brown <brown.cade@gmail.com>
  */
 
@@ -43,7 +48,7 @@
 #define _KS_M_E KS_M_E
 #endif
 
-// PHI, the golden ratio, 1.618
+// PHI, the golden ratio, 1.618...
 #ifndef _KS_M_PHI
 #define _KS_M_PHI 1.618033988749894848204586834365638117720309179805762862135448622705260462818
 #endif
@@ -155,11 +160,11 @@ static double my_deg(double radians) {
     return _KS_M_RAD2DEG * radians;
 }
 
-// m.rad(degrees) - convert degrees to radians
-_MT_F(rad, "degrees", my_rad, { })
+// m.rad(x) - convert degrees to radians
+_MT_F(rad, "x", my_rad, { })
 
-// m.deg(radians) - convert radians to degrees
-_MT_F(deg, "radians", my_deg, { })
+// m.deg(x) - convert radians to degrees
+_MT_F(deg, "x", my_deg, { })
 
 
 // m.sin(x) - calculate the sin of x (in radians), or the extension to the complex plane
@@ -330,67 +335,61 @@ _MT_FC(lgamma, "x", my_lgamma, my_clgamma, { });
 
 // now, export them all
 static ks_module get_module() {
-    ks_module mod = ks_module_new(MODULE_NAME);
+    ks_module mod = ks_module_new(MODULE_NAME, "Implementation of standard math routines\n\n    Routines in this module are primarily for float-like and complex-like objects (which will be casted appropriately if required). In most cases, integral numeric types (`bool`, `int`, enumeration values, etc) will be casted to their appropriate floating-point value before the calculation is performed.\n\n    Routines in this module are mainly taken from C's `math.h` and `-lm` options, or equivalent functionality is provided.");
 
     ks_dict_set_c(mod->attr, KS_KEYVALS(
         /* functions */
-        {"floor",                  (ks_obj)ks_cfunc_new_c(m_floor_, "m.floor(x)")},
-        {"ceil",                   (ks_obj)ks_cfunc_new_c(m_ceil_, "m.ceil(x)")},
-        {"round",                  (ks_obj)ks_cfunc_new_c(m_round_, "m.round(x)")},
-        {"frexp",                    (ks_obj)ks_cfunc_new_c(m_frexp_, "m.frexp(x)")},
+        {"floor",                  (ks_obj)ks_cfunc_new_c_old(m_floor_, "m.floor(x)")},
+        {"ceil",                   (ks_obj)ks_cfunc_new_c_old(m_ceil_, "m.ceil(x)")},
+        {"round",                  (ks_obj)ks_cfunc_new_c_old(m_round_, "m.round(x)")},
 
-        {"abs",                    (ks_obj)ks_cfunc_new_c(m_abs_, "m.abs(x)")},
+        {"frexp",                  (ks_obj)ks_cfunc_new_c(m_frexp_, "m.frexp(x)", "Calculate `(m, e)` such that `x == m * 2 ** e`\n\n    Real numbers only")},
 
-        {"rad",                    (ks_obj)ks_cfunc_new_c(m_rad_, "m.rad(degrees)")},
-        {"deg",                    (ks_obj)ks_cfunc_new_c(m_deg_, "m.deg(radians)")},
+        {"abs",                    (ks_obj)ks_cfunc_new_c(m_abs_, "m.abs(x)", "Calculate the absolute value of `x`\n\n    For complex numbers, the modulus is returned as a `float` object")},
 
-        {"sin",                    (ks_obj)ks_cfunc_new_c(m_sin_, "m.sin(x)")},
-        {"cos",                    (ks_obj)ks_cfunc_new_c(m_cos_, "m.cos(x)")},
-        {"tan",                    (ks_obj)ks_cfunc_new_c(m_tan_, "m.tan(x)")},
+        {"rad",                    (ks_obj)ks_cfunc_new_c(m_rad_, "m.rad(x)", "Convert `x` (which is understood to be in degrees) to an equivalent amount of radians")},
+        {"deg",                    (ks_obj)ks_cfunc_new_c(m_deg_, "m.deg(x)", "Convert `x` (which is understood to be in radians) to an equivalent amount of degrees")},
 
-        {"asin",                   (ks_obj)ks_cfunc_new_c(m_asin_, "m.asin(x)")},
-        {"acos",                   (ks_obj)ks_cfunc_new_c(m_acos_, "m.acos(x)")},
-        {"atan",                   (ks_obj)ks_cfunc_new_c(m_atan_, "m.atan(x)")},
-        {"atan2",                  (ks_obj)ks_cfunc_new_c(m_atan2_, "m.atan2(y, x)")},
+        {"sin",                    (ks_obj)ks_cfunc_new_c(m_sin_, "m.sin(x)", "Calculate the sine of `x` (which is understood to be in radians)\n\n    More information: https://en.wikipedia.org/wiki/Sine")},
+        {"cos",                    (ks_obj)ks_cfunc_new_c(m_cos_, "m.cos(x)", "Calculate the cosine of `x` (which is understood to be in radians)\n\n    More information: https://en.wikipedia.org/wiki/Cosine")},
+        {"tan",                    (ks_obj)ks_cfunc_new_c(m_tan_, "m.tan(x)", "Calculate the tangent of `x` (which is understood to be in radians)\n\n    More information: https://en.wikipedia.org/wiki/Trigonometric_functions#tan")},
 
-        {"sinh",                   (ks_obj)ks_cfunc_new_c(m_sinh_, "m.sinh(x)")},
-        {"cosh",                   (ks_obj)ks_cfunc_new_c(m_cosh_, "m.cosh(x)")},
-        {"tanh",                   (ks_obj)ks_cfunc_new_c(m_tanh_, "m.tanh(x)")},
+        {"asin",                   (ks_obj)ks_cfunc_new_c_old(m_asin_, "m.asin(x)")},
+        {"acos",                   (ks_obj)ks_cfunc_new_c_old(m_acos_, "m.acos(x)")},
+        {"atan",                   (ks_obj)ks_cfunc_new_c_old(m_atan_, "m.atan(x)")},
+        {"atan2",                  (ks_obj)ks_cfunc_new_c_old(m_atan2_, "m.atan2(y, x)")},
 
-        {"asinh",                  (ks_obj)ks_cfunc_new_c(m_asinh_, "m.asinh(x)")},
-        {"acosh",                  (ks_obj)ks_cfunc_new_c(m_acosh_, "m.acosh(x)")},
-        {"atanh",                  (ks_obj)ks_cfunc_new_c(m_atanh_, "m.atanh(x)")},
+        {"sinh",                   (ks_obj)ks_cfunc_new_c_old(m_sinh_, "m.sinh(x)")},
+        {"cosh",                   (ks_obj)ks_cfunc_new_c_old(m_cosh_, "m.cosh(x)")},
+        {"tanh",                   (ks_obj)ks_cfunc_new_c_old(m_tanh_, "m.tanh(x)")},
 
-        {"sqrt",                   (ks_obj)ks_cfunc_new_c(m_sqrt_, "m.sqrt(x)")},
-        {"cbrt",                   (ks_obj)ks_cfunc_new_c(m_cbrt_, "m.cbrt(x)")},
+        {"asinh",                  (ks_obj)ks_cfunc_new_c_old(m_asinh_, "m.asinh(x)")},
+        {"acosh",                  (ks_obj)ks_cfunc_new_c_old(m_acosh_, "m.acosh(x)")},
+        {"atanh",                  (ks_obj)ks_cfunc_new_c_old(m_atanh_, "m.atanh(x)")},
 
-        {"hypot",                  (ks_obj)ks_cfunc_new_c(m_hypot_, "m.hypot(x, y)")},
+        {"sqrt",                   (ks_obj)ks_cfunc_new_c_old(m_sqrt_, "m.sqrt(x)")},
+        {"cbrt",                   (ks_obj)ks_cfunc_new_c_old(m_cbrt_, "m.cbrt(x)")},
 
-
-        {"exp",                    (ks_obj)ks_cfunc_new_c(m_exp_, "m.exp(x)")},
-        {"pow",                    (ks_obj)ks_cfunc_new_c(m_pow_, "m.pow(x, y)")},
-
-        {"log",                    (ks_obj)ks_cfunc_new_c(m_log_, "m.log(x, base=m.E)")},
-
-        {"erf",                    (ks_obj)ks_cfunc_new_c(m_erf_, "m.erf(x)")},
-        {"erfc",                   (ks_obj)ks_cfunc_new_c(m_erfc_, "m.erfc(x)")},
+        {"hypot",                  (ks_obj)ks_cfunc_new_c_old(m_hypot_, "m.hypot(x, y)")},
 
 
-        {"zeta",                   (ks_obj)ks_cfunc_new_c(m_zeta_, "m.zeta(x)")},
-        {"gamma",                  (ks_obj)ks_cfunc_new_c(m_gamma_, "m.gamma(x)")},
+        {"exp",                    (ks_obj)ks_cfunc_new_c_old(m_exp_, "m.exp(x)")},
+        {"pow",                    (ks_obj)ks_cfunc_new_c_old(m_pow_, "m.pow(x, y)")},
 
-        {"lgamma",                 (ks_obj)ks_cfunc_new_c(m_lgamma_, "m.lgamma(x)")},
+        {"log",                    (ks_obj)ks_cfunc_new_c_old(m_log_, "m.log(x, base=m.E)")},
 
-
-/*
-
-        {"sign",                   (ks_obj)ks_cfunc_new_c(m_sign_, "m.sign(val)")},
+        {"erf",                    (ks_obj)ks_cfunc_new_c_old(m_erf_, "m.erf(x)")},
+        {"erfc",                   (ks_obj)ks_cfunc_new_c_old(m_erfc_, "m.erfc(x)")},
 
 
+        {"zeta",                   (ks_obj)ks_cfunc_new_c(m_zeta_, "m.zeta(x)", "Compute the Riemann Zeta function evaluated at `x`\n\n    At `x=0` (a pole), the returned value is non-finite\n\n    More information: https://en.wikipedia.org/wiki/Riemann_zeta_function")},
+        {"gamma",                  (ks_obj)ks_cfunc_new_c(m_gamma_, "m.gamma(x)", "Compute the Gamma function at `x`\n\n    At non-positive integers (i.e. 0, -1, -2, -3, ...), `nan` is returned\n\n    More information: https://en.wikipedia.org/wiki/Gamma_function")},
+
+        {"lgamma",                 (ks_obj)ks_cfunc_new_c_old(m_lgamma_, "m.lgamma(x)")},
 
 
-
-        
+        /*
+        {"sign",                   (ks_obj)ks_cfunc_new_c_old(m_sign_, "m.sign(val)")},
         */
 
         /* constants */
@@ -398,8 +397,6 @@ static ks_module get_module() {
         {"PI",                     (ks_obj)ks_float_new(_KS_M_PI)},
         {"E",                      (ks_obj)ks_float_new(_KS_M_E)},
         {"PHI",                    (ks_obj)ks_float_new(_KS_M_PHI)},
-
-
 
     ));
 

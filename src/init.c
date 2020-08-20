@@ -228,6 +228,13 @@ bool ks_init(int verbose) {
 
         {"Error",                  KS_NEWREF(ks_T_Error)},
         {"MathError",              KS_NEWREF(ks_T_MathError)},
+        {"TodoError",              KS_NEWREF(ks_T_TodoError)},
+        {"SizeError",              KS_NEWREF(ks_T_SizeError)},
+        {"AttrError",              KS_NEWREF(ks_T_AttrError)},
+        {"InternalError",          KS_NEWREF(ks_T_InternalError)},
+        {"OutOfMemError",          KS_NEWREF(ks_T_OutOfMemError)},
+        {"OutOfIterError",         KS_NEWREF(ks_T_OutOfIterError)},
+        {"ImportError",            KS_NEWREF(ks_T_ImportError)},
 
 
         /* Functions */

@@ -311,15 +311,15 @@ KS_TYPE_DECLFWD(ks_T_type);
 
 void ks_init_T_type() {
     ks_type_init_c(ks_T_type, "type", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(type_new_, "type.__new__(x)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(type_free_, "type.__free__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(type_new_, "type.__new__(x)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(type_free_, "type.__free__(self)")},
 
-        {"__str__",                (ks_obj)ks_cfunc_new_c(type_str_, "type.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(type_str_, "type.__repr__(self)")},
-        {"__hash__",               (ks_obj)ks_cfunc_new_c(type_hash_, "type.__hash__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(type_str_, "type.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(type_str_, "type.__repr__(self)")},
+        {"__hash__",               (ks_obj)ks_cfunc_new_c_old(type_hash_, "type.__hash__(self)")},
 
 
-        {"__getattr__",            (ks_obj)ks_cfunc_new_c(type_getattr_, "type.__getattr__(self, attr)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c_old(type_getattr_, "type.__getattr__(self, attr)")},
 
     ));
 

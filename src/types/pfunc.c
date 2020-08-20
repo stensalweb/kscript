@@ -42,7 +42,7 @@ KS_TYPE_DECLFWD(ks_T_pfunc);
 
 void ks_init_T_pfunc() {
     ks_type_init_c(ks_T_pfunc, "pfunc", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(pfunc_free_, "pfunc.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(pfunc_free_, "pfunc.__free__(self)")},
     ));
 
 }

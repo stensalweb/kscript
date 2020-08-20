@@ -5,16 +5,19 @@
 
 #include "ks-impl.h"
 
+// cache of modules
+static ks_dict mod_cache = NULL;
 
 
 // create a kscript function
-ks_module ks_module_new(const char* mname) {
+ks_module ks_module_new(const char* mname, const char* doc) {
     ks_module self = KS_ALLOC_OBJ(ks_module);
     KS_INIT_OBJ(self, ks_T_module);
 
     // initialize type-specific things
     self->attr = ks_dict_new_c(KS_KEYVALS(
-        {"__name__", (ks_obj)ks_str_new(mname)},
+        {"__name__",               (ks_obj)ks_str_new(mname)},
+        {"__doc__",                (ks_obj)ks_str_new(doc)},
     ));
 
     self->parent = NULL;
@@ -32,7 +35,7 @@ void ks_module_parent(ks_module self, ks_module par) {
 
 // attempt to load a single file, without any extra paths
 // Do not raise error, just return NULL if not successful
-static ks_module attempt_load(const char* mname, char* cname) {
+static ks_module attempt_load(ks_str mod_key, const char* mname, char* cname) {
 
     char* ext = strrchr(cname, '.');
 
@@ -62,9 +65,9 @@ static ks_module attempt_load(const char* mname, char* cname) {
             return NULL;
         }
 
+        //ks_printf("MODKEY: %S, %p\n", mod_key, handle);
 
         struct ks_module_cinit* mod_cinit = (struct ks_module_cinit*)dlsym(handle, "__ks_module_cinit__");
-        
         if (mod_cinit != NULL) {
 
             // call the function, and return its result
@@ -74,21 +77,106 @@ static ks_module attempt_load(const char* mname, char* cname) {
                 return NULL;
             }
 
+
+            ks_dict_set_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash, (ks_obj)mod);
             ks_debug("ks", "[import] file '%s' succeeded!", cname);
+
             return mod;
         } else {
-            ks_debug("ks", "[import] file '%s' failed: No '__C_module_init__' symbol!", cname);
+            ks_debug("ks", "[import] file '%s' failed: No '__ks_module_cinit__' symbol!", cname);
             return NULL;
         }
 
+    } else if (ext != NULL && strcmp(&ext[1], "ks") == 0) {
+        // attempt to load a file
+
+        // attempt to open a file
+        FILE* fp = fopen(cname, "r");
+        if (fp == NULL) {
+            ks_debug("ks", "[import] file '%s' failed: %s", cname, strerror(errno));
+            return NULL;
+        }
+
+        fclose(fp);
+
+        // now, extract the name by finding the last slash (or, start of the string if there
+        //   was none)
+        char* slash = cname + strlen(cname) - 1;
+
+        while (slash > cname && *slash != '/' && *slash != '\\') {
+            slash--;
+        }
+
+        char* name_start = slash == cname ? slash : slash + 1;
+
+        // get the name as a C-string
+        ks_str name_str = ks_str_utf8(name_start, ext - name_start);
+        ks_str doc_str = ks_str_utf8("", 0);
+
+
+        // construct module
+        ks_module mod = ks_module_new(name_str->chr, doc_str->chr);
+
+        KS_DECREF(name_str);
+        KS_DECREF(doc_str);
+
+        // now, we need to execute the file by compiling it and using `mod`'s attribute as the local dictionary
+
+        // 1. Read the entire file
+        ks_str src_code = ks_readfile(cname, "r");
+        if (!src_code) return NULL;
+        ks_debug("ks", "[import] read file '%s', got: " COL_DIM "'%S'" COL_RESET "", cname, src_code);
+
+        ks_str cname_obj = ks_str_new(cname);
+        // 2. Parse it
+        ks_parser parser = ks_parser_new(src_code, cname_obj, cname_obj);
+        KS_DECREF(cname_obj);
+        if (!parser) {
+            KS_DECREF(src_code);
+            return NULL;
+        }
+
+        //ks_debug("ks", "got parser: %O", parser);
+
+        // 3. Parse out the entire file into an AST (which will do syntax validation as well)
+
+        ks_ast expr = ks_parser_file(parser);
+        if (!expr) {
+            KS_DECREF(src_code);
+            KS_DECREF(parser);
+            return NULL;
+        }
+
+        // 4. Compile to bytecode
+        ks_code bcode = ks_compile(parser, expr);
+        if (!bcode) {
+            KS_DECREF(expr);
+            KS_DECREF(src_code);
+            KS_DECREF(parser);
+            return NULL;
+        }
+
+        ks_debug("ks", "[import] compiled to: '%S'", bcode);
+
+        ks_obj result = ks_obj_call2((ks_obj)bcode, 0, NULL, mod->attr);
+
+        KS_DECREF(src_code);
+        KS_DECREF(parser);
+
+        if (result) { 
+            KS_DECREF(result);
+            ks_dict_set_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash, (ks_obj)mod);
+            return mod;
+        } else {
+            KS_DECREF(mod);
+            return NULL;
+        }
     }
 
     // not found
     return NULL;
 }
 
-// cache of modules
-static ks_dict mod_cache = NULL;
 
 // attempt a module with a given name
 ks_module ks_module_import(const char* mname) {
@@ -109,26 +197,31 @@ ks_module ks_module_import(const char* mname) {
     for (i = 0; i < ks_paths->len; ++i) {
         // current path we are trying
         ks_str ctry = ks_fmt_c("%S/%s/libksm_%s.%s", ks_paths->elems[i], mname, mname, KS_SHARED_END);
-
-        mod = attempt_load(mname, ctry->chr);
+        mod = attempt_load(mod_key, mname, ctry->chr);
         KS_DECREF(ctry);
 
         if (mod != NULL) goto finish;
         if (ks_thread_get()->exc) goto finish;
+
+        ctry = ks_fmt_c("%S/%s.ks", ks_paths->elems[i], mname);
+
+        mod = attempt_load(mod_key, mname, ctry->chr);
+        KS_DECREF(ctry);
+
+        if (mod != NULL) goto finish;
+        if (ks_thread_get()->exc) goto finish;
+
     }
 
-
     finish:;
+    KS_DECREF(mod_key);
 
     if (mod == NULL) {
         // not found, throw error
-        KS_DECREF(mod_key);
         if (ks_thread_get()->exc) return NULL;
         else return (ks_module)ks_throw(ks_T_ImportError, "Failed to import module '%s': No such module!", mname);
     } else {
         // add it to the dictionary, and return
-        ks_dict_set_h(mod_cache, (ks_obj)mod_key, mod_key->v_hash, (ks_obj)mod);
-        KS_DECREF(mod_key);
         return mod;
     }
 
@@ -202,10 +295,10 @@ KS_TYPE_DECLFWD(ks_T_module);
 
 void ks_init_T_module() {
     ks_type_init_c(ks_T_module, "module", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(module_free_, "module.__free__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(module_str_, "module.__str__(self)")},
-        {"__getattr__",            (ks_obj)ks_cfunc_new_c(module_getattr_, "module.__getattr__(self, attr)")},
-        {"__setattr__",            (ks_obj)ks_cfunc_new_c(module_setattr_, "module.__setattr__(self, attr, val)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(module_free_, "module.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(module_str_, "module.__str__(self)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c_old(module_getattr_, "module.__getattr__(self, attr)")},
+        {"__setattr__",            (ks_obj)ks_cfunc_new_c_old(module_setattr_, "module.__setattr__(self, attr, val)")},
     ));
 
     mod_cache = ks_dict_new(0, NULL);

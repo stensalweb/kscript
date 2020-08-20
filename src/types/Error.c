@@ -103,10 +103,10 @@ void ks_init_T_Error() {
     // initialize singletons
 
     ks_type_init_c(ks_T_Error, "Error", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(Error_new_, "Error.__new__()")},
-        {"__init__",               (ks_obj)ks_cfunc_new_c(Error_init_, "Error.__init__(what)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(Error_str_, "Error.__str__(self)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(Error_free_, "Error.__free__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(Error_new_, "Error.__new__()")},
+        {"__init__",               (ks_obj)ks_cfunc_new_c_old(Error_init_, "Error.__init__(what)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(Error_str_, "Error.__str__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(Error_free_, "Error.__free__(self)")},
     ));
 
     #define SUBTYPE(_name) ks_type_init_c(ks_T_##_name, #_name, ks_T_Error, KS_KEYVALS());

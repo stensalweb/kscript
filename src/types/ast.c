@@ -335,7 +335,7 @@ KS_TYPE_DECLFWD(ks_T_ast);
 
 void ks_init_T_ast() {
     ks_type_init_c(ks_T_ast, "ast", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(ast_free_, "ast.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(ast_free_, "ast.__free__(self)")},
     ));
 }
 

@@ -125,7 +125,10 @@ ks_dict ks_dict_new(ks_size_t len, ks_obj* elems) {
     for (i = 0; i < len / 2; ++i) {
         // get key/val pair
         ks_obj key = elems[2 * i + 0], val = elems[2 * i + 1];
-        ks_dict_set(self, key, val);
+        if (!ks_dict_set(self, key, val)) {
+            KS_DECREF(self);
+            return NULL;
+        }
     }
 
     // return constructed dictionary
@@ -227,7 +230,7 @@ static void dict_resize(ks_dict self, ks_size_t new_n_buckets) {
         // i'th entry
         struct ks_dict_entry* ent = &self->entries[i];
 
-        if (ent->hash == 0 || ent->val == NULL) {
+        if (ent->val == NULL) {
             // this item has been deleted; so shift all the entries down 1 and continue
             for (j = i; j < self->n_entries - 1; ++j) {
                 self->entries[j] = self->entries[j + 1];
@@ -605,7 +608,7 @@ static KS_TFUNC(dict, str) {
 
     int i, ct = 0;
     for (i = 0; i < self->n_entries; ++i) {
-        if (self->entries[i].hash != 0) {
+        if (self->entries[i].key != NULL) {
             if (ct > 0) ks_str_builder_add(sb, ", ", 2);
 
             // add the item
@@ -766,24 +769,24 @@ KS_TYPE_DECLFWD(ks_T_dict);
 
 void ks_init_T_dict() {
     ks_type_init_c(ks_T_dict, "dict", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(dict_free_, "dict.__free__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(dict_str_, "dict.__repr__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(dict_free_, "dict.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(dict_str_, "dict.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(dict_str_, "dict.__repr__(self)")},
 
-        {"__len__",                (ks_obj)ks_cfunc_new_c(dict_len_, "dict.__len__(self)")},
+        {"__len__",                (ks_obj)ks_cfunc_new_c_old(dict_len_, "dict.__len__(self)")},
 
-        {"__getitem__",            (ks_obj)ks_cfunc_new_c(dict_getitem_, "dict.__getitem__(self, key)")},
-        {"__setitem__",            (ks_obj)ks_cfunc_new_c(dict_setitem_, "dict.__setitem__(self, key, val)")},
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c_old(dict_getitem_, "dict.__getitem__(self, key)")},
+        {"__setitem__",            (ks_obj)ks_cfunc_new_c_old(dict_setitem_, "dict.__setitem__(self, key, val)")},
 
-        {"keys",                   (ks_obj)ks_cfunc_new_c(dict_keys_, "dict.keys(self)")},
-        {"vals",                   (ks_obj)ks_cfunc_new_c(dict_vals_, "dict.vals(self)")},
+        {"keys",                   (ks_obj)ks_cfunc_new_c_old(dict_keys_, "dict.keys(self)")},
+        {"vals",                   (ks_obj)ks_cfunc_new_c_old(dict_vals_, "dict.vals(self)")},
 
-        {"__iter__",               (ks_obj)ks_cfunc_new_c(dict_iter_, "dict.__iter__(self)")},
+        {"__iter__",               (ks_obj)ks_cfunc_new_c_old(dict_iter_, "dict.__iter__(self)")},
 
     ));
     ks_type_init_c(ks_T_dict_iter, "dict_iter", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(dict_iter_free_, "dict_iter.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(dict_iter_free_, "dict_iter.__free__(self)")},
 
-        {"__next__",               (ks_obj)ks_cfunc_new_c(dict_iter_next_, "dict_iter.__next__(self)")},
+        {"__next__",               (ks_obj)ks_cfunc_new_c_old(dict_iter_next_, "dict_iter.__next__(self)")},
     ));
 }

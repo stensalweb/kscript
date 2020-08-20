@@ -697,12 +697,12 @@ void ks_init_T_int() {
     }
     
     ks_type_init_c(ks_T_int, "int", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(int_new_, "int.__new__(obj, base=none)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(int_free_, "int.__free__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(int_new_, "int.__new__(obj, base=none)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(int_free_, "int.__free__(self)")},
 
-        {"__fmt__",                (ks_obj)ks_cfunc_new_c(int_fmt_, "int.__fmt__(self, fstr)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(int_str_, "int.__str__(self, base=none)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(int_str_, "int.__repr__(self, base=none)")},
+        {"__fmt__",                (ks_obj)ks_cfunc_new_c_old(int_fmt_, "int.__fmt__(self, fstr)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(int_str_, "int.__str__(self, base=none)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(int_str_, "int.__repr__(self, base=none)")},
 
         // define operators
         KST_NUM_OPKVS(int)

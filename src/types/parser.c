@@ -129,12 +129,22 @@ static void* syntax_error(ks_parser parser, ks_tok tok, char* fmt, ...) {
 
 // true if the character is whitespace
 static bool is_white(ks_unich c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || ks_uni_get_info(c)->cat_gen == ks_unicat_Zs;
+    // basic ASCII test
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') return true;
+
+    // extended unicode test
+    const ks_unich_info* info = ks_uni_get_info(c);
+    if (info && info->cat_gen == ks_unicat_Zs) return true;
+
+    return false;
 }
 
 // return whether the character is a digit
 static bool is_digit(ks_unich c) {
-    return isdigit(c) || ks_uni_get_info(c)->cat_gen == ks_unicat_Nd;
+    // basic ASCII test
+    if (c >= '0' && c <= '9') return true;
+
+    return false;
 }
 
 // return whether the character is a hex digit
@@ -158,7 +168,14 @@ static bool is_digit_bin(ks_unich c) {
 
 // true if the character is a valid start to an identifier
 static bool is_ident_s(ks_unich c) {
-    return c == '_' || ks_uni_isalpha(c) || ks_uni_get_info(c)->cat_gen == ks_unicat_So;
+    // basic test
+    if (c == '_' || ks_uni_isalpha(c)) return true;
+
+    // extended category check
+    const ks_unich_info* info = ks_uni_get_info(c);
+    if (info && info->cat_gen == ks_unicat_So) return true;
+
+    return false;
 }
 
 // true if the character is a valid middle part of an identifier
@@ -209,7 +226,7 @@ static bool tokenize(ks_parser self) {
     ks_unich lc = PEEK();
 
     while (!cit.done) {
-        
+            
         // get character
         ks_unich c = PEEK();
 
@@ -234,6 +251,7 @@ static bool tokenize(ks_parser self) {
         PEEK2(cp2);
 
         if (is_ident_s(c)) {
+
             // parse all valid identifier characters
             do {
                 ADV();
@@ -241,10 +259,9 @@ static bool tokenize(ks_parser self) {
             } while (is_ident_m(c));
             
             ADDTOK(KS_TOK_IDENT);
-        } else if (is_digit(c) || (c == '.' && is_digit(cp2) || c == '0' && (cp2 == 'r' || cp2 == 'x' || cp2 == 'b' || cp2 == 'o'))) {
+        } else if ((is_digit(c) || (c == '.' && is_digit(cp2) || c == '0' && (cp2 == 'r' || cp2 == 'x' || cp2 == 'b' || cp2 == 'o')))) {
             // some sort of integer/float/complex constant
             // so, numerical
-
             if (c == '0' && cp2 == 'x') {
                 // hex constant
 
@@ -451,7 +468,7 @@ static bool tokenize(ks_parser self) {
             ADDTOK(KS_TOK_NUMBER);
 
 
-        } else if (c == '\'' || c == '"') {
+        } else if ( (c == '\'' || c == '"')) {
             // we need to parse a string literal
             // NOTE: right now some of this code assumes the string characters above are ASCII
 
@@ -1204,10 +1221,11 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
     int n_pars = 0, n_brks = 0;
 
     // internal debugging statement
-    #define NASTYDEBUG() printf("HERE: '%s'\n", self->src->chr + CTOK().pos);
+    #define NASTYDEBUG() printf("HERE: '%s'\n", self->src->chr + CTOK().pos_b);
     //#define NASTYDEBUG() {}
 
     while (VALID()) {
+
 
         // skip things that are irrelevant to expressions
         SKIP_IRR_E();
@@ -1215,6 +1233,7 @@ ks_ast ks_parser_expr(ks_parser self, enum ks_parse_flags flags) {
         // try and end it
         if (!VALID()) goto kppe_end;
         ctok = CTOK();
+
 
         // check if we should stop parsing due to being at the end
         if (ctok.type == KS_TOK_EOF || 
@@ -2814,7 +2833,7 @@ KS_TYPE_DECLFWD(ks_T_parser);
 
 void ks_init_T_parser() {
     ks_type_init_c(ks_T_parser, "parser", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(parser_free_, "parser.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(parser_free_, "parser.__free__(self)")},
     ));
 
 }

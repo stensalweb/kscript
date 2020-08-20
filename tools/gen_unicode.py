@@ -327,6 +327,9 @@ unicode_c += f"""
 
 // get unicode information
 const {prefix}unich_info* {prefix}uni_get_info({prefix}unich chr) {{
+    // special cases for errors
+    if (chr < 0) return NULL;
+
     // binary search
     // left & right notes
     ks_unich l = 0, r = sizeof(_unich_infos) / sizeof(*_unich_infos); 

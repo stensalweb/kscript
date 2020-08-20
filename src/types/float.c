@@ -58,9 +58,9 @@ KS_TYPE_DECLFWD(ks_T_float);
 void ks_init_T_float() {
 
     ks_type_init_c(ks_T_float, "float", ks_T_object, KS_KEYVALS(
-        {"__str__",                (ks_obj)ks_cfunc_new_c(float_str_, "float.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(float_str_, "float.__repr__(self)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(float_free_, "float.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(float_str_, "float.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(float_str_, "float.__repr__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(float_free_, "float.__free__(self)")},
 
         KST_NUM_OPKVS(float)
 

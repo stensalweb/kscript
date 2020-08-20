@@ -520,17 +520,17 @@ static ks_module get_module() {
         {"array",                  (ks_obj)nx_T_array},
         {"view",                   (ks_obj)nx_T_view},
 
-        {"size",                   (ks_obj)ks_cfunc_new_c(nx_size_, "nx.size(obj)")},
+        {"size",                   (ks_obj)ks_cfunc_new_c_old(nx_size_, "nx.size(obj)")},
 
-        {"zeros",                  (ks_obj)ks_cfunc_new_c(nx_zeros_, "nx.zeros(shape, dtype=nx.fp32)")},
+        {"zeros",                  (ks_obj)ks_cfunc_new_c_old(nx_zeros_, "nx.zeros(shape, dtype=nx.fp32)")},
 
-        {"add",                    (ks_obj)(nx_F_add = ks_cfunc_new_c(nx_add_, "nx.add(A, B, C=none)"))},
-        {"sub",                    (ks_obj)(nx_F_sub = ks_cfunc_new_c(nx_sub_, "nx.sub(A, B, C=none)"))},
-        {"mul",                    (ks_obj)(nx_F_mul = ks_cfunc_new_c(nx_mul_, "nx.mul(A, B, C=none)"))},
-        {"div",                    (ks_obj)(nx_F_div = ks_cfunc_new_c(nx_div_, "nx.div(A, B, C=none)"))},
-        {"pow",                    (ks_obj)(nx_F_pow = ks_cfunc_new_c(nx_pow_, "nx.pow(A, B, C=none)"))},
+        {"add",                    (ks_obj)(nx_F_add = ks_cfunc_new_c_old(nx_add_, "nx.add(A, B, C=none)"))},
+        {"sub",                    (ks_obj)(nx_F_sub = ks_cfunc_new_c_old(nx_sub_, "nx.sub(A, B, C=none)"))},
+        {"mul",                    (ks_obj)(nx_F_mul = ks_cfunc_new_c_old(nx_mul_, "nx.mul(A, B, C=none)"))},
+        {"div",                    (ks_obj)(nx_F_div = ks_cfunc_new_c_old(nx_div_, "nx.div(A, B, C=none)"))},
+        {"pow",                    (ks_obj)(nx_F_pow = ks_cfunc_new_c_old(nx_pow_, "nx.pow(A, B, C=none)"))},
 
-        {"abs",                    (ks_obj)(nx_F_abs = ks_cfunc_new_c(nx_abs_, "nx.abs(A, B=none)"))},
+        {"abs",                    (ks_obj)(nx_F_abs = ks_cfunc_new_c_old(nx_abs_, "nx.abs(A, B=none)"))},
 
         {"sint8",                  (ks_obj)nx_dtype_sint8},
         {"uint8",                  (ks_obj)nx_dtype_sint8},

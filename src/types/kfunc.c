@@ -129,8 +129,8 @@ KS_TYPE_DECLFWD(ks_T_kfunc);
 
 void ks_init_T_kfunc() {
     ks_type_init_c(ks_T_kfunc, "kfunc", ks_T_func, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(kfunc_free_, "kfunc.__free__(self)")},
-        {"__getattr__",            (ks_obj)ks_cfunc_new_c(kfunc_getattr_, "kfunc.__getattr__(self, attr)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(kfunc_free_, "kfunc.__free__(self)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c_old(kfunc_getattr_, "kfunc.__getattr__(self, attr)")},
     ));
 
 }

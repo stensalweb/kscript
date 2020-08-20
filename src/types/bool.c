@@ -54,9 +54,9 @@ void ks_init_T_bool() {
     KS_FALSE->val = false;
 
     ks_type_init_c(ks_T_bool, "bool", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(bool_free_, "bool.__free__(self)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(bool_str_, "bool.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(bool_str_, "bool.__repr__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(bool_free_, "bool.__free__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(bool_str_, "bool.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(bool_str_, "bool.__repr__(self)")},
 
         KST_NUM_OPKVS(tbool)
     ));

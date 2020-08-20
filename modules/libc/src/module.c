@@ -212,7 +212,7 @@ static ks_module get_module() {
         
         /* misc/extra functions */
 
-        {"sizeof",              (ks_obj)ks_cfunc_new_c(libc_size_, "libc.sizeof(obj)")},
+        {"sizeof",              (ks_obj)ks_cfunc_new_c_old(libc_size_, "libc.sizeof(obj)")},
 
 
         /* enums */
@@ -222,23 +222,23 @@ static ks_module get_module() {
 
         /* general */
 
-        {"errno",           (ks_obj)ks_cfunc_new_c(libc_errno_, "libc.errno()")},
-        {"strerror",        (ks_obj)ks_cfunc_new_c(libc_strerror_, "libc.strerr(errnum)")},
+        {"errno",           (ks_obj)ks_cfunc_new_c_old(libc_errno_, "libc.errno()")},
+        {"strerror",        (ks_obj)ks_cfunc_new_c_old(libc_strerror_, "libc.strerr(errnum)")},
 
 
         /* memory routines */
 
-        {"malloc",        (ks_obj)ks_cfunc_new_c(libc_malloc_, "libc.malloc(sz)")},
-        {"realloc",       (ks_obj)ks_cfunc_new_c(libc_realloc_, "libc.realloc(ptr, sz)")},
-        {"free",          (ks_obj)ks_cfunc_new_c(libc_free_, "libc.free(ptr)")},
+        {"malloc",        (ks_obj)ks_cfunc_new_c_old(libc_malloc_, "libc.malloc(sz)")},
+        {"realloc",       (ks_obj)ks_cfunc_new_c_old(libc_realloc_, "libc.realloc(ptr, sz)")},
+        {"free",          (ks_obj)ks_cfunc_new_c_old(libc_free_, "libc.free(ptr)")},
 
 
         /* dynamic linking */
 
-        {"dlopen",         (ks_obj)ks_cfunc_new_c(libc_dlopen_, "libc.dlopen(fname, flags=libc.RTLD_LAZY)")},
-        {"dlclose",         (ks_obj)ks_cfunc_new_c(libc_dlclose_, "libc.dlclose(handle)")},
-        {"dlsym",          (ks_obj)ks_cfunc_new_c(libc_dlsym_, "libc.dlsym(handle, symbol)")},
-        {"dlerror",        (ks_obj)ks_cfunc_new_c(libc_dlerror_, "libc.dlerror()")},
+        {"dlopen",         (ks_obj)ks_cfunc_new_c_old(libc_dlopen_, "libc.dlopen(fname, flags=libc.RTLD_LAZY)")},
+        {"dlclose",         (ks_obj)ks_cfunc_new_c_old(libc_dlclose_, "libc.dlclose(handle)")},
+        {"dlsym",          (ks_obj)ks_cfunc_new_c_old(libc_dlsym_, "libc.dlsym(handle, symbol)")},
+        {"dlerror",        (ks_obj)ks_cfunc_new_c_old(libc_dlerror_, "libc.dlerror()")},
 
 
         {"NULL",           (ks_obj)libc_make_pointer(libc_T_void_p, NULL)},

@@ -413,24 +413,24 @@ KS_TYPE_DECLFWD(nx_T_array);
 void nx_T_init_array() {
     ks_type_init_c(nx_T_array, "nx.array", ks_T_object, KS_KEYVALS(
 
-        {"__new__",                (ks_obj)ks_cfunc_new_c(array_new_, "nx.array.__new__(obj, dtype=none)")},
-        {"__str__",                (ks_obj)ks_cfunc_new_c(array_str_, "nx.array.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(array_str_, "nx.array.__repr__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(array_new_, "nx.array.__new__(obj, dtype=none)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(array_str_, "nx.array.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(array_str_, "nx.array.__repr__(self)")},
 
-        {"__free__",               (ks_obj)ks_cfunc_new_c(array_free_, "nx.array.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(array_free_, "nx.array.__free__(self)")},
 
-        {"__getattr__",            (ks_obj)ks_cfunc_new_c(array_getattr_, "nx.array.__getattr__(self, attr)")},
+        {"__getattr__",            (ks_obj)ks_cfunc_new_c_old(array_getattr_, "nx.array.__getattr__(self, attr)")},
 
-        {"__getitem__",            (ks_obj)ks_cfunc_new_c(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
-        {"__setitem__",            (ks_obj)ks_cfunc_new_c(array_setitem_, "nx.array.__setitem__(self, *idxs, val)")},
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c_old(array_getitem_, "nx.array.__getitem__(self, *idxs)")},
+        {"__setitem__",            (ks_obj)ks_cfunc_new_c_old(array_setitem_, "nx.array.__setitem__(self, *idxs, val)")},
 
 
         /* ops */
-        {"__add__",                (ks_obj)ks_cfunc_new_c(array_add_, "nx.array.__add__(L, R)")},
-        {"__sub__",                (ks_obj)ks_cfunc_new_c(array_sub_, "nx.array.__sub__(L, R)")},
-        {"__mul__",                (ks_obj)ks_cfunc_new_c(array_mul_, "nx.array.__mul__(L, R)")},
-        {"__div__",                (ks_obj)ks_cfunc_new_c(array_div_, "nx.array.__div__(L, R)")},
-        {"__pow__",                (ks_obj)ks_cfunc_new_c(array_pow_, "nx.array.__pow__(L, R)")},
+        {"__add__",                (ks_obj)ks_cfunc_new_c_old(array_add_, "nx.array.__add__(L, R)")},
+        {"__sub__",                (ks_obj)ks_cfunc_new_c_old(array_sub_, "nx.array.__sub__(L, R)")},
+        {"__mul__",                (ks_obj)ks_cfunc_new_c_old(array_mul_, "nx.array.__mul__(L, R)")},
+        {"__div__",                (ks_obj)ks_cfunc_new_c_old(array_div_, "nx.array.__div__(L, R)")},
+        {"__pow__",                (ks_obj)ks_cfunc_new_c_old(array_pow_, "nx.array.__pow__(L, R)")},
     ));
 }
 

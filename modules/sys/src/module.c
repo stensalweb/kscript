@@ -70,8 +70,8 @@ static ks_module get_module() {
         ))},
 
         /* functions */
-        {"refs",            (ks_obj)ks_cfunc_new_c(sys_refs_, "sys.refs(obj)")},
-        {"shell",           (ks_obj)ks_cfunc_new_c(sys_shell_, "sys.shell(cmd)")},
+        {"refs",            (ks_obj)ks_cfunc_new_c_old(sys_refs_, "sys.refs(obj)")},
+        {"shell",           (ks_obj)ks_cfunc_new_c_old(sys_shell_, "sys.shell(cmd)")},
         
         /* wrappers */
         /*{"stdin",          (ks_obj)ks_iostream_new_extern(stdin, "r")},

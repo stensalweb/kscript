@@ -652,32 +652,32 @@ KS_TYPE_DECLFWD(ks_T_list);
 
 void ks_init_T_list() {
     ks_type_init_c(ks_T_list, "list", ks_T_object, KS_KEYVALS(
-        {"__new__",               (ks_obj)ks_cfunc_new_c(list_new_, "list.__new__(objs)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(list_free_, "list.__free__(self)")},
-        {"__len__",                (ks_obj)ks_cfunc_new_c(list_len_, "list.__len__(self)")},
+        {"__new__",               (ks_obj)ks_cfunc_new_c_old(list_new_, "list.__new__(objs)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(list_free_, "list.__free__(self)")},
+        {"__len__",                (ks_obj)ks_cfunc_new_c_old(list_len_, "list.__len__(self)")},
         
-        {"__str__",                (ks_obj)ks_cfunc_new_c(list_str_, "list.__str__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(list_str_, "list.__repr__(self)")},
+        {"__str__",                (ks_obj)ks_cfunc_new_c_old(list_str_, "list.__str__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(list_str_, "list.__repr__(self)")},
 
-        {"__iter__",               (ks_obj)ks_cfunc_new_c(list_iter_, "list.__iter__(self)")},
+        {"__iter__",               (ks_obj)ks_cfunc_new_c_old(list_iter_, "list.__iter__(self)")},
 
-        {"__getitem__",            (ks_obj)ks_cfunc_new_c(list_getitem_, "list.__getitem__(self, idx)")},
-        {"__setitem__",            (ks_obj)ks_cfunc_new_c(list_setitem_, "list.__setitem__(self, idx, val)")},
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c_old(list_getitem_, "list.__getitem__(self, idx)")},
+        {"__setitem__",            (ks_obj)ks_cfunc_new_c_old(list_setitem_, "list.__setitem__(self, idx, val)")},
 
-        {"__add__",                (ks_obj)ks_cfunc_new_c(list_add_, "list.__add__(L, R)")},
-        {"__mul__",                (ks_obj)ks_cfunc_new_c(list_mul_, "list.__mul__(L, R)")},
+        {"__add__",                (ks_obj)ks_cfunc_new_c_old(list_add_, "list.__add__(L, R)")},
+        {"__mul__",                (ks_obj)ks_cfunc_new_c_old(list_mul_, "list.__mul__(L, R)")},
 
-        {"__eq__",                 (ks_obj)ks_cfunc_new_c(list_eq_, "list.__eq__(L, R)")},
-        {"__ne__",                 (ks_obj)ks_cfunc_new_c(list_ne_, "list.__ne__(L, R)")},
+        {"__eq__",                 (ks_obj)ks_cfunc_new_c_old(list_eq_, "list.__eq__(L, R)")},
+        {"__ne__",                 (ks_obj)ks_cfunc_new_c_old(list_ne_, "list.__ne__(L, R)")},
 
-        {"push",                   (ks_obj)ks_cfunc_new_c(list_push_, "list.push(self, obj)")},
-        {"pop",                    (ks_obj)ks_cfunc_new_c(list_pop_, "list.pop(self)")},
+        {"push",                   (ks_obj)ks_cfunc_new_c_old(list_push_, "list.push(self, obj)")},
+        {"pop",                    (ks_obj)ks_cfunc_new_c_old(list_pop_, "list.pop(self)")},
 
     ));
     ks_type_init_c(ks_T_list_iter, "list_iter", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(list_iter_free_, "list_iter.__free__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(list_iter_free_, "list_iter.__free__(self)")},
 
-        {"__next__",               (ks_obj)ks_cfunc_new_c(list_iter_next_, "list_iter.__next__(self)")},
+        {"__next__",               (ks_obj)ks_cfunc_new_c_old(list_iter_next_, "list_iter.__next__(self)")},
     ));
 }
 

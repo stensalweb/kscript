@@ -461,8 +461,8 @@ ks_str ks_str_utf8(const char* cstr, ks_ssize_t len_b) {
     }
 
     // check for the NUL-string (i.e. empty, length==0)
-    /**/ if (len_b == 0 || cstr == NULL || !*cstr) return &KS_STR_CHARS[0];
-    else if (len_b == 1) return &KS_STR_CHARS[*cstr];
+    /**/ if (len_b == 0 || cstr == NULL || !*cstr) return (ks_str)KS_NEWREF(&KS_STR_CHARS[0]);
+    else if (len_b == 1) return (ks_str)KS_NEWREF(&KS_STR_CHARS[*cstr]);
     else {
         // allocate the string and return a new one
         ks_str self = ks_malloc(sizeof(*self) + len_b);
@@ -1125,39 +1125,39 @@ void ks_init_T_str() {
     }
 
     ks_type_init_c(ks_T_str, "str", ks_T_object, KS_KEYVALS(
-        {"__new__",                (ks_obj)ks_cfunc_new_c(str_new_, "str.__new__(obj, *args)")},
-        {"__free__",               (ks_obj)ks_cfunc_new_c(str_free_, "str.__free__(self)")},
-        {"__iter__",               (ks_obj)ks_cfunc_new_c(str_iter_, "str.__iter__(self)")},
+        {"__new__",                (ks_obj)ks_cfunc_new_c_old(str_new_, "str.__new__(obj, *args)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(str_free_, "str.__free__(self)")},
+        {"__iter__",               (ks_obj)ks_cfunc_new_c_old(str_iter_, "str.__iter__(self)")},
 
-        {"__bytes__",              (ks_obj)ks_cfunc_new_c(str_bytes_, "str.__bytes__(self)")},
-        {"__repr__",               (ks_obj)ks_cfunc_new_c(str_repr_, "str.__repr__(self)")},
-        {"__len__",                (ks_obj)ks_cfunc_new_c(str_len_, "str.__len__(self, mode='chars')")},
-        {"__getitem__",            (ks_obj)ks_cfunc_new_c(str_getitem_, "str.__getitem__(self, idx)")},
+        {"__bytes__",              (ks_obj)ks_cfunc_new_c_old(str_bytes_, "str.__bytes__(self)")},
+        {"__repr__",               (ks_obj)ks_cfunc_new_c_old(str_repr_, "str.__repr__(self)")},
+        {"__len__",                (ks_obj)ks_cfunc_new_c_old(str_len_, "str.__len__(self, mode='chars')")},
+        {"__getitem__",            (ks_obj)ks_cfunc_new_c_old(str_getitem_, "str.__getitem__(self, idx)")},
 
-        {"__add__",                (ks_obj)ks_cfunc_new_c(str_add_, "str.__add__(L, R)")},
+        {"__add__",                (ks_obj)ks_cfunc_new_c_old(str_add_, "str.__add__(L, R)")},
 
-        {"__cmp__",                (ks_obj)ks_cfunc_new_c(str_cmp_, "str.__cmp__(L, R)")},
-        {"__lt__",                 (ks_obj)ks_cfunc_new_c(str_lt_, "str.__lt__(L, R)")},
-        {"__gt__",                 (ks_obj)ks_cfunc_new_c(str_gt_, "str.__gt__(L, R)")},
-        {"__le__",                 (ks_obj)ks_cfunc_new_c(str_le_, "str.__le__(L, R)")},
-        {"__ge__",                 (ks_obj)ks_cfunc_new_c(str_ge_, "str.__ge__(L, R)")},
-        {"__eq__",                 (ks_obj)ks_cfunc_new_c(str_eq_, "str.__eq__(L, R)")},
-        {"__ne__",                 (ks_obj)ks_cfunc_new_c(str_ne_, "str.__ne__(L, R)")},
+        {"__cmp__",                (ks_obj)ks_cfunc_new_c_old(str_cmp_, "str.__cmp__(L, R)")},
+        {"__lt__",                 (ks_obj)ks_cfunc_new_c_old(str_lt_, "str.__lt__(L, R)")},
+        {"__gt__",                 (ks_obj)ks_cfunc_new_c_old(str_gt_, "str.__gt__(L, R)")},
+        {"__le__",                 (ks_obj)ks_cfunc_new_c_old(str_le_, "str.__le__(L, R)")},
+        {"__ge__",                 (ks_obj)ks_cfunc_new_c_old(str_ge_, "str.__ge__(L, R)")},
+        {"__eq__",                 (ks_obj)ks_cfunc_new_c_old(str_eq_, "str.__eq__(L, R)")},
+        {"__ne__",                 (ks_obj)ks_cfunc_new_c_old(str_ne_, "str.__ne__(L, R)")},
 
-        {"unidata",                (ks_obj)ks_cfunc_new_c(str_unidata_, "str.unidata(self, key='all')")},
+        {"unidata",                (ks_obj)ks_cfunc_new_c_old(str_unidata_, "str.unidata(self, key='all')")},
 
-        {"startswith",             (ks_obj)ks_cfunc_new_c(str_startswith_, "str.startswith(self, val)")},
-        {"endswith",             (ks_obj)ks_cfunc_new_c(str_endswith_, "str.endswith(self, val)")},
+        {"startswith",             (ks_obj)ks_cfunc_new_c_old(str_startswith_, "str.startswith(self, val)")},
+        {"endswith",             (ks_obj)ks_cfunc_new_c_old(str_endswith_, "str.endswith(self, val)")},
 
-        {"substr",                 (ks_obj)ks_cfunc_new_c(str_substr_, "str.substr(self, start, len=none)")},
-        {"join",                   (ks_obj)ks_cfunc_new_c(str_join_, "str.join(self, objs)")},
+        {"substr",                 (ks_obj)ks_cfunc_new_c_old(str_substr_, "str.substr(self, start, len=none)")},
+        {"join",                   (ks_obj)ks_cfunc_new_c_old(str_join_, "str.join(self, objs)")},
 
 
     ));
 
     ks_type_init_c(ks_T_str_iter, "str_iter", ks_T_object, KS_KEYVALS(
-        {"__free__",               (ks_obj)ks_cfunc_new_c(str_iter_free_, "str_iter.__free__(self)")},
-        {"__next__",               (ks_obj)ks_cfunc_new_c(str_iter_next_, "str_iter.__next__(self)")},
+        {"__free__",               (ks_obj)ks_cfunc_new_c_old(str_iter_free_, "str_iter.__free__(self)")},
+        {"__next__",               (ks_obj)ks_cfunc_new_c_old(str_iter_next_, "str_iter.__next__(self)")},
     ));
 
 

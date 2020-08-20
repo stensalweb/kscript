@@ -1082,36 +1082,36 @@ static ks_module get_module() {
 
     // create Context type
     if (!ks_type_set_cn(cNk_type_Context, (ks_dict_ent_c[]){
-        {"__new__",       (ks_obj)ks_cfunc_new_c(Context_new_, "Context.__new__()")},
-        {"__free__",      (ks_obj)ks_cfunc_new_c(Context_free_, "Context.__free__(self)")},
+        {"__new__",       (ks_obj)ks_cfunc_new_c_old(Context_new_, "Context.__new__()")},
+        {"__free__",      (ks_obj)ks_cfunc_new_c_old(Context_free_, "Context.__free__(self)")},
 
-        {"__getattr__",   (ks_obj)ks_cfunc_new_c(Context_getattr_, "Context.__getattr__(self, attr)")},
-        {"__setattr__",   (ks_obj)ks_cfunc_new_c(Context_setattr_, "Context.__setattr__(self, attr, val)")},
+        {"__getattr__",   (ks_obj)ks_cfunc_new_c_old(Context_getattr_, "Context.__getattr__(self, attr)")},
+        {"__setattr__",   (ks_obj)ks_cfunc_new_c_old(Context_setattr_, "Context.__setattr__(self, attr, val)")},
 
-        {"__iter__",      (ks_obj)ks_cfunc_new_c(Context_iter_, "Context.__iter__(self)")},
+        {"__iter__",      (ks_obj)ks_cfunc_new_c_old(Context_iter_, "Context.__iter__(self)")},
 
-        {"frame_start",   (ks_obj)ks_cfunc_new_c(Context_frame_start_, "Context.frame_start(self)")},
-        {"frame_end",     (ks_obj)ks_cfunc_new_c(Context_frame_end_, "Context.frame_end(self)")},
+        {"frame_start",   (ks_obj)ks_cfunc_new_c_old(Context_frame_start_, "Context.frame_start(self)")},
+        {"frame_end",     (ks_obj)ks_cfunc_new_c_old(Context_frame_end_, "Context.frame_end(self)")},
 
         /* direct C API bindings */
 
-        {"begin",                    (ks_obj)ks_cfunc_new_c(Context_begin_, "Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE)")},
-        {"end",                      (ks_obj)ks_cfunc_new_c(Context_end_, "Context.end(self)")},
+        {"begin",                    (ks_obj)ks_cfunc_new_c_old(Context_begin_, "Context.begin(self, title, x, y, w, h, flags=cnk.NK_WINDOW_NONE)")},
+        {"end",                      (ks_obj)ks_cfunc_new_c_old(Context_end_, "Context.end(self)")},
 
 
-        {"layout_set_min_height",    (ks_obj)ks_cfunc_new_c(Context_layout_set_min_row_height_,   "Context.layout_set_min_row_height(self, height)")},
-        {"layout_reset_min_height",  (ks_obj)ks_cfunc_new_c(Context_layout_reset_min_row_height_, "Context.layout_reset_min_row_height(self)")},
+        {"layout_set_min_height",    (ks_obj)ks_cfunc_new_c_old(Context_layout_set_min_row_height_,   "Context.layout_set_min_row_height(self, height)")},
+        {"layout_reset_min_height",  (ks_obj)ks_cfunc_new_c_old(Context_layout_reset_min_row_height_, "Context.layout_reset_min_row_height(self)")},
 
-        {"layout_widget_bounds",     (ks_obj)ks_cfunc_new_c(Context_layout_widget_bounds_,        "Context.layout_widget_bounds(self)")},
+        {"layout_widget_bounds",     (ks_obj)ks_cfunc_new_c_old(Context_layout_widget_bounds_,        "Context.layout_widget_bounds(self)")},
 
-        {"layout_ratio_from_pixel",  (ks_obj)ks_cfunc_new_c(Context_layout_ratio_from_pixel_,     "Context.layout_ratio_from_pixel(self, pixel_width)")},
+        {"layout_ratio_from_pixel",  (ks_obj)ks_cfunc_new_c_old(Context_layout_ratio_from_pixel_,     "Context.layout_ratio_from_pixel(self, pixel_width)")},
 
-        {"layout_row_dynamic",       (ks_obj)ks_cfunc_new_c(Context_layout_row_dynamic_,          "Context.layout_row_dynamic(self, height, cols=1)")},
-        {"layout_row_static",        (ks_obj)ks_cfunc_new_c(Context_layout_row_static_,           "Context.layout_row_static(self, height, item_width, cols=1)")},
+        {"layout_row_dynamic",       (ks_obj)ks_cfunc_new_c_old(Context_layout_row_dynamic_,          "Context.layout_row_dynamic(self, height, cols=1)")},
+        {"layout_row_static",        (ks_obj)ks_cfunc_new_c_old(Context_layout_row_static_,           "Context.layout_row_static(self, height, item_width, cols=1)")},
 
-        {"edit_string",              (ks_obj)ks_cfunc_new_c(Context_edit_string_,        "Context.edit_string(self, edit_type, cur_str, max_len)")},
+        {"edit_string",              (ks_obj)ks_cfunc_new_c_old(Context_edit_string_,        "Context.edit_string(self, edit_type, cur_str, max_len)")},
 
-        {"button_label",                 (ks_obj)ks_cfunc_new_c(Context_button_label_, "Context.button_label(self, label)")},
+        {"button_label",                 (ks_obj)ks_cfunc_new_c_old(Context_button_label_, "Context.button_label(self, label)")},
 
 
         {NULL, NULL},
@@ -1124,9 +1124,9 @@ static ks_module get_module() {
 
     // create Context type
     if (!ks_type_set_cn(cNk_type_iter_Context, (ks_dict_ent_c[]){
-        {"__free__",      (ks_obj)ks_cfunc_new_c(iter_Context_free_, "iter_Context.__free__(self)")},
+        {"__free__",      (ks_obj)ks_cfunc_new_c_old(iter_Context_free_, "iter_Context.__free__(self)")},
 
-        {"__next__",         (ks_obj)ks_cfunc_new_c(iter_Context_next_, "iter_Context.__next__(self)")},
+        {"__next__",         (ks_obj)ks_cfunc_new_c_old(iter_Context_next_, "iter_Context.__next__(self)")},
 
         {NULL, NULL},
     })) {

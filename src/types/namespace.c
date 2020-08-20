@@ -124,20 +124,20 @@ KS_TYPE_DECLFWD(ks_T_namespace);
 
 void ks_init_T_namespace() {
     ks_type_init_c(ks_T_namespace, "namespace", ks_T_object, KS_KEYVALS(
-        {"__new__", (ks_obj)ks_cfunc_new_c(namespace_new_, "namespace.__new__(attr={})")},
-        {"__free__", (ks_obj)ks_cfunc_new_c(namespace_free_, "namespace.__free__(self)")},
+        {"__new__", (ks_obj)ks_cfunc_new_c_old(namespace_new_, "namespace.__new__(attr={})")},
+        {"__free__", (ks_obj)ks_cfunc_new_c_old(namespace_free_, "namespace.__free__(self)")},
 
-        {"__str__", (ks_obj)ks_cfunc_new_c(namespace_str_, "namespace.__str__(self)")},
-        {"__repr__", (ks_obj)ks_cfunc_new_c(namespace_str_, "namespace.__repr__(self)")},
+        {"__str__", (ks_obj)ks_cfunc_new_c_old(namespace_str_, "namespace.__str__(self)")},
+        {"__repr__", (ks_obj)ks_cfunc_new_c_old(namespace_str_, "namespace.__repr__(self)")},
 
-        {"__getattr__", (ks_obj)ks_cfunc_new_c(namespace_getattr_, "namespace.__getattr__(self, attr)")},
+        {"__getattr__", (ks_obj)ks_cfunc_new_c_old(namespace_getattr_, "namespace.__getattr__(self, attr)")},
 
-        {"__getitem__", (ks_obj)ks_cfunc_new_c(namespace_getitem_, "namespace.__getitem__(self, key)")},
-        {"__setitem__", (ks_obj)ks_cfunc_new_c(namespace_setitem_, "namespace.__setitem__(self, key, val)")},
+        {"__getitem__", (ks_obj)ks_cfunc_new_c_old(namespace_getitem_, "namespace.__getitem__(self, key)")},
+        {"__setitem__", (ks_obj)ks_cfunc_new_c_old(namespace_setitem_, "namespace.__setitem__(self, key, val)")},
         
-       // {"__iter__", (ks_obj)ks_cfunc_new_c(namespace_iter_, "namespace.__iter__(self)")},
+       // {"__iter__", (ks_obj)ks_cfunc_new_c_old(namespace_iter_, "namespace.__iter__(self)")},
 
-        //{"keys", (ks_obj)ks_cfunc_new_c(namespace_keys_, "namespace.keys(self)")},
+        //{"keys", (ks_obj)ks_cfunc_new_c_old(namespace_keys_, "namespace.keys(self)")},
     ));
 
 }
